@@ -3,5 +3,8 @@ export * from './session.model.js';
 export * from './rider.model.js';
 export * from './driver.model.js';
 export * from './adminUser.model.js';
+export * from './vehicle.model.js';
+export * from './driverApplication.model.js';
+export * from './driverDocument.model.js';
 export * from './mongoSession.repository.js';
 export * from './mongoAdminUser.repository.js';
