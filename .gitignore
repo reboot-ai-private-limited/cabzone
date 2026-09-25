@@ -23,3 +23,7 @@ coverage/
 # Graphify internal cache and local machine config
 graphify-out/.*
 graphify-out/cache/
+
+# Local AI agent workflow rules
+.agents/rules/git-workflow.md
+docs/engineering/git-workflow.md
