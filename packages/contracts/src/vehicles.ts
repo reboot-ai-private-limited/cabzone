@@ -26,3 +26,23 @@ export const VEHICLE_CATEGORY_REGISTRY: Record<VehicleCategory, VehicleCategoryI
     status: 'COMING_SOON',
   },
 };
+
+export const VEHICLE_VERIFICATION_STATUSES = ['PENDING', 'APPROVED', 'REJECTED', 'SUSPENDED'] as const;
+export type VehicleVerificationStatus = (typeof VEHICLE_VERIFICATION_STATUSES)[number];
+
+export const INDIAN_VEHICLE_REG_REGEX = /^[A-Z]{2}[0-9]{1,2}[A-Z]{0,3}[0-9]{4}$/;
+
+export interface VehicleDto {
+  id: string;
+  driverId: string;
+  vehicleType: VehicleCategory;
+  make: string;
+  model: string;
+  registrationNumber: string;
+  color: string | null;
+  manufactureYear: number | null;
+  verificationStatus: VehicleVerificationStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+

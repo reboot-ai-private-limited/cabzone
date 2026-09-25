@@ -6,3 +6,6 @@ export * from './driver.entity.js';
 export * from './adminUser.entity.js';
 export * from './adminUser.port.js';
 export * from './token.port.js';
+export * from './vehicle.entity.js';
+export * from './driverApplication.entity.js';
+export * from './driverDocument.entity.js';
