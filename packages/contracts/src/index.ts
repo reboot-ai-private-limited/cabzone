@@ -6,3 +6,4 @@ export * from './pricing.js';
 export * from './rides.js';
 export * from './identity.js';
 export * from './kyc.js';
+export * from './zones.js';

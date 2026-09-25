@@ -80,3 +80,44 @@ export function calculateNegotiationBounds(opts: {
 
   return { floorPaise, ceilingPaise };
 }
+
+export const PRICING_CONFIG_STATUSES = ['DRAFT', 'ACTIVE', 'RETIRED'] as const;
+export type PricingConfigStatus = (typeof PRICING_CONFIG_STATUSES)[number];
+
+export interface PricingConfigDto {
+  id: string;
+  cityZoneId: string;
+  version: number;
+  vehicleType: VehicleCategory;
+  baseFarePaise: number;
+  ratePerKmPaise: number;
+  minimumFarePaise: number;
+  includedDistanceM: number;
+  bufferSurchargePaise: number;
+  negotiationFloorPercent: number;
+  negotiationCeilingPercent: number;
+  negotiationWindowSeconds: number;
+  commissionPercent: number;
+  effectiveFrom: string;
+  effectiveTo: string | null;
+  status: PricingConfigStatus;
+  createdByAdminId: string;
+  createdAt: string;
+}
+
+export const STATE_PRICING_STATUSES = ['ACTIVE', 'RETIRED'] as const;
+export type StatePricingStatus = (typeof STATE_PRICING_STATUSES)[number];
+
+export interface StatePricingDto {
+  id: string;
+  stateCode: string;
+  ratePerKmPaise: number;
+  baseFarePaise: number;
+  minimumFarePaise: number;
+  version: number;
+  status: StatePricingStatus;
+  effectiveFrom: string;
+  effectiveTo: string | null;
+  createdAt: string;
+}
+
