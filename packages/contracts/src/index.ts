@@ -4,3 +4,4 @@ export * from './health.js';
 export * from './vehicles.js';
 export * from './pricing.js';
 export * from './rides.js';
+export * from './identity.js';
