@@ -68,7 +68,7 @@ describe('PricingConfig Domain Invariants & Fare Estimation', () => {
     negotiationFloorPercent: 80,
     negotiationCeilingPercent: 150,
     negotiationWindowSeconds: 90,
-    commissionPercent: 10,
+    commissionPercent: 8,
     effectiveFrom: new Date('2026-01-01'),
     effectiveTo: null,
     status: 'ACTIVE',

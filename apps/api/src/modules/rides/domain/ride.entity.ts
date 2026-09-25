@@ -11,6 +11,9 @@ export interface PassengerInfo {
   name: string;
   phoneE164: string;
   pickupOtpHash: string | null;
+  pickupOtpExpiresAt?: Date | null;
+  otpAttempts?: number;
+  maxOtpAttempts?: number;
 }
 
 export interface LocationPoint {

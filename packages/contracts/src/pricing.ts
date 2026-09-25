@@ -46,6 +46,33 @@ export interface VehicleQuoteOption {
   };
 }
 
+export interface QuoteDto {
+  quoteId: string;
+  pickup: { lat: number; lng: number };
+  drop: { lat: number; lng: number };
+  distanceM: number;
+  estimatedDurationSeconds: number;
+  serviceType: string;
+  cityZoneId: string | null;
+  cityName: string | null;
+  bufferApplied: boolean;
+  vehicleCategory: VehicleCategory;
+  suggestedFarePaise: number;
+  pricingConfigId: string;
+  pricingConfigVersion: number;
+  negotiation: {
+    floorPaise: number;
+    ceilingPaise: number;
+  };
+  expiresAt: string;
+  quoteToken: string;
+}
+
+export interface CreateQuoteResponseDto {
+  quotes: QuoteDto[];
+  expiresAt: string;
+}
+
 /**
  * Computes platform commission in integer paise.
  * D-026: Percentage of Agreed Fare.

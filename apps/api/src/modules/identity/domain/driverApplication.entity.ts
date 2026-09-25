@@ -28,12 +28,16 @@ export function canSubmitApplication(app: DriverApplicationEntity): boolean {
 
 export function canDriverReapply(
   app: DriverApplicationEntity,
+  maxReapplyAttempts: number = 3,
 ): { allowed: boolean; reason?: string } {
   if (app.status !== 'REJECTED') {
     return { allowed: false, reason: `Cannot reapply while application status is ${app.status}` };
   }
   if (app.rejectionType === 'HARD_FRAUD') {
     return { allowed: false, reason: 'Permanent rejection due to fraudulent documentation' };
+  }
+  if (app.reapplyCount >= maxReapplyAttempts) {
+    return { allowed: false, reason: `Maximum reapplication limit (${maxReapplyAttempts}) exceeded` };
   }
   return { allowed: true };
 }

@@ -7,5 +7,6 @@ export * from './rides.js';
 export * from './identity.js';
 export * from './kyc.js';
 export * from './zones.js';
+export * from './service-classification.js';
 export * from './wallets.js';
 export * from './payments.js';
