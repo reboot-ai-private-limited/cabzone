@@ -179,7 +179,7 @@ class MemorySessionRepository implements SessionRepositoryPort {
 
   async findByTokenHash(tokenHash: string): Promise<SessionEntity | null> {
     for (const s of this.sessions.values()) {
-      if (s.refreshTokenHash === tokenHash) return { ...s };
+      if (s.refreshTokenHash === tokenHash || s.previousRefreshTokenHash === tokenHash) return { ...s };
     }
     return null;
   }

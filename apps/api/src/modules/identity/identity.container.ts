@@ -99,11 +99,17 @@ export function buildIdentityContainer(deps?: IdentityContainerDeps): IdentityCo
     sessionRepo,
     tokenSigner: tokenAdapter,
     otpPepper: env.OTP_PEPPER,
+    adminRepo,
+    driverRepo,
   });
 
   const refreshTokenUseCase = new RefreshTokenUseCase({
     sessionRepo,
     tokenSigner: tokenAdapter,
+    userRepo,
+    riderRepo,
+    driverRepo,
+    adminRepo,
   });
 
   const logoutUseCase = new LogoutUseCase({

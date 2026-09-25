@@ -9,7 +9,12 @@ export class MongoSessionRepository implements SessionRepositoryPort {
   }
 
   async findByTokenHash(tokenHash: string): Promise<SessionEntity | null> {
-    const doc = await SessionModel.findOne({ refresh_token_hash: tokenHash })
+    const doc = await SessionModel.findOne({
+      $or: [
+        { refresh_token_hash: tokenHash },
+        { previous_refresh_token_hash: tokenHash },
+      ],
+    })
       .lean<SessionDocument | null>()
       .exec();
     if (!doc) return null;
@@ -32,6 +37,7 @@ export class MongoSessionRepository implements SessionRepositoryPort {
         user_id: session.userId,
         device_id: session.deviceId,
         refresh_token_hash: session.refreshTokenHash,
+        previous_refresh_token_hash: session.previousRefreshTokenHash ?? null,
         expires_at: session.expiresAt,
         revoked_at: session.revokedAt,
         last_used_at: session.lastUsedAt,
@@ -55,6 +61,7 @@ export class MongoSessionRepository implements SessionRepositoryPort {
       userId: doc.user_id,
       deviceId: doc.device_id,
       refreshTokenHash: doc.refresh_token_hash,
+      previousRefreshTokenHash: doc.previous_refresh_token_hash ?? null,
       expiresAt: doc.expires_at,
       revokedAt: doc.revoked_at,
       lastUsedAt: doc.last_used_at,
