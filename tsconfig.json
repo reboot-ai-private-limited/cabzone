@@ -1,0 +1,3 @@
+{
+  "extends": "@cabzone/config/tsconfig.base.json"
+}
