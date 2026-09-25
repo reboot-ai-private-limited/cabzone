@@ -45,5 +45,6 @@ const riderSchema = new Schema<RiderDocument>(
   }
 );
 
-export const RiderModel =
-  mongoose.models.Rider || mongoose.model<RiderDocument>('Rider', riderSchema);
+export const RiderModel: mongoose.Model<RiderDocument> =
+  (mongoose.models.Rider as mongoose.Model<RiderDocument>) ||
+  mongoose.model<RiderDocument>('Rider', riderSchema);

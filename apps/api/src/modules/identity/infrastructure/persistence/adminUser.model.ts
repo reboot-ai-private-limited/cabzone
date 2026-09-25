@@ -45,5 +45,6 @@ const adminUserSchema = new Schema<AdminUserDocument>(
   }
 );
 
-export const AdminUserModel =
-  mongoose.models.AdminUser || mongoose.model<AdminUserDocument>('AdminUser', adminUserSchema);
+export const AdminUserModel: mongoose.Model<AdminUserDocument> =
+  (mongoose.models.AdminUser as mongoose.Model<AdminUserDocument>) ||
+  mongoose.model<AdminUserDocument>('AdminUser', adminUserSchema);

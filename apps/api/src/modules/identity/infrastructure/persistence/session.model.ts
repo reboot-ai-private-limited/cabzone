@@ -32,5 +32,6 @@ const sessionSchema = new Schema<SessionDocument>(
 
 sessionSchema.index({ user_id: 1, device_id: 1 });
 
-export const SessionModel =
-  mongoose.models.Session || mongoose.model<SessionDocument>('Session', sessionSchema);
+export const SessionModel: mongoose.Model<SessionDocument> =
+  (mongoose.models.Session as mongoose.Model<SessionDocument>) ||
+  mongoose.model<SessionDocument>('Session', sessionSchema);
