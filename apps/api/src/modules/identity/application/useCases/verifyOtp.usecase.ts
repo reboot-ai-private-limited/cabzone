@@ -3,12 +3,15 @@ import type { VerifyOtpRequestDto, VerifyOtpResponseDto } from '@cabzone/contrac
 import { AppError } from '../../../../shared/errors/AppError.js';
 import { newUuid } from '../../../../shared/ids.js';
 import type {
+  AdminUserRepositoryPort,
+  DriverRepositoryPort,
   OtpStorePort,
   RiderRepositoryPort,
   SessionRepositoryPort,
   TokenSignerPort,
   UserRepositoryPort,
 } from '../../domain/index.js';
+import { resolveUserRole } from '../../domain/index.js';
 
 export interface VerifyOtpDeps {
   otpStore: OtpStorePort;
@@ -17,6 +20,8 @@ export interface VerifyOtpDeps {
   sessionRepo: SessionRepositoryPort;
   tokenSigner: TokenSignerPort;
   otpPepper: string;
+  adminRepo?: AdminUserRepositoryPort;
+  driverRepo?: DriverRepositoryPort;
   sessionTtlDays?: number;
   maxAttempts?: number;
 }
@@ -99,17 +104,27 @@ export class VerifyOtpUseCase {
       userId: user.id,
       deviceId: dto.deviceId,
       refreshTokenHash,
+      previousRefreshTokenHash: null,
       expiresAt,
       revokedAt: null,
       lastUsedAt: now,
       createdAt: now,
     });
 
+    const role = isNewUser
+      ? 'RIDER'
+      : await resolveUserRole({
+          userId: user.id,
+          adminRepo: this.deps.adminRepo,
+          driverRepo: this.deps.driverRepo,
+          riderRepo: this.deps.riderRepo,
+        });
+
     const accessToken = await this.deps.tokenSigner.signAccessToken(
       {
         sub: user.id,
         sessionId,
-        role: 'RIDER',
+        role,
       },
       '15m',
     );
@@ -122,7 +137,7 @@ export class VerifyOtpUseCase {
       user: {
         id: user.id,
         phoneE164: user.phoneE164,
-        role: 'RIDER',
+        role,
         isNewUser,
       },
     };

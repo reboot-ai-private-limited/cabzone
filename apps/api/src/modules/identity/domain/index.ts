@@ -16,3 +16,4 @@ export * from './driverApplication.entity.js';
 export * from './driverApplication.port.js';
 export * from './driverDocument.entity.js';
 export * from './driverDocument.port.js';
+export * from './resolveUserRole.js';

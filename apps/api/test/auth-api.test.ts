@@ -8,6 +8,10 @@ import {
   VerifyOtpUseCase,
 } from '../src/modules/identity/application/useCases/index.js';
 import type {
+  AdminUserEntity,
+  AdminUserRepositoryPort,
+  DriverEntity,
+  DriverRepositoryPort,
   RiderEntity,
   RiderRepositoryPort,
   SessionEntity,
@@ -74,6 +78,47 @@ class MemoryRiderRepository implements RiderRepositoryPort {
   }
 }
 
+class MemoryDriverRepository implements DriverRepositoryPort {
+  private readonly drivers = new Map<string, DriverEntity>();
+
+  async findById(driverId: string): Promise<DriverEntity | null> {
+    return this.drivers.get(driverId) ?? null;
+  }
+
+  async findByUserId(userId: string): Promise<DriverEntity | null> {
+    for (const d of this.drivers.values()) {
+      if (d.userId === userId) return { ...d };
+    }
+    return null;
+  }
+
+  async create(driver: DriverEntity): Promise<DriverEntity> {
+    this.drivers.set(driver.id, { ...driver });
+    return { ...driver };
+  }
+
+  async update(driver: DriverEntity): Promise<DriverEntity> {
+    this.drivers.set(driver.id, { ...driver });
+    return { ...driver };
+  }
+}
+
+class MemoryAdminUserRepository implements AdminUserRepositoryPort {
+  private readonly admins = new Map<string, AdminUserEntity>();
+
+  async findByUserId(userId: string): Promise<AdminUserEntity | null> {
+    for (const a of this.admins.values()) {
+      if (a.userId === userId) return { ...a };
+    }
+    return null;
+  }
+
+  async create(admin: AdminUserEntity): Promise<AdminUserEntity> {
+    this.admins.set(admin.id, { ...admin });
+    return { ...admin };
+  }
+}
+
 class MemorySessionRepository implements SessionRepositoryPort {
   private readonly sessions = new Map<string, SessionEntity>();
 
@@ -83,7 +128,7 @@ class MemorySessionRepository implements SessionRepositoryPort {
 
   async findByTokenHash(tokenHash: string): Promise<SessionEntity | null> {
     for (const s of this.sessions.values()) {
-      if (s.refreshTokenHash === tokenHash) return { ...s };
+      if (s.refreshTokenHash === tokenHash || s.previousRefreshTokenHash === tokenHash) return { ...s };
     }
     return null;
   }
@@ -184,7 +229,7 @@ describe('Auth Use Cases', () => {
     expect(loginResult.user.isNewUser).toBe(false);
   });
 
-  it('handles refresh token rotation and logout revocation', async () => {
+  it('handles refresh token rotation and detects reuse to revoke session family', async () => {
     const sessionRepo = new MemorySessionRepository();
     const tokenAdapter = new JoseTokenAdapter(TEST_SECRET);
 
@@ -193,15 +238,12 @@ describe('Auth Use Cases', () => {
       tokenSigner: tokenAdapter,
     });
 
-    const logoutUseCase = new LogoutUseCase({
-      sessionRepo,
-    });
-
     const initialSession: SessionEntity = {
       id: 'session-abc',
       userId: 'user-xyz',
       deviceId: 'device-xyz',
       refreshTokenHash: '2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae', // hash of "foo"
+      previousRefreshTokenHash: null,
       expiresAt: new Date(Date.now() + 86400_000),
       revokedAt: null,
       lastUsedAt: new Date(),
@@ -217,26 +259,257 @@ describe('Auth Use Cases', () => {
     expect(refreshed.accessToken).toBeDefined();
     expect(refreshed.refreshToken).not.toBe('foo');
 
-    // 2. Old token is now invalid (rotated)
+    // 2. Reusing old rotated token triggers reuse detection
     await expect(
       refreshTokenUseCase.execute({
         refreshToken: 'foo',
         deviceId: 'device-xyz',
       }),
-    ).rejects.toThrow('Invalid refresh token');
+    ).rejects.toThrow('AUTH_REFRESH_REUSE_DETECTED');
 
-    // 3. Logout revokes session
-    await logoutUseCase.execute('session-abc');
+    // 3. Verifying session family was revoked due to reuse
     const revokedSession = await sessionRepo.findById('session-abc');
     expect(revokedSession?.revokedAt).not.toBeNull();
 
-    // 4. Using active token after logout fails
+    // 4. Using the active rotated token now fails because session family was revoked
     await expect(
       refreshTokenUseCase.execute({
         refreshToken: refreshed.refreshToken,
         deviceId: 'device-xyz',
       }),
     ).rejects.toThrow('revoked or expired');
+  });
+
+  it('handles logout revocation', async () => {
+    const sessionRepo = new MemorySessionRepository();
+    const logoutUseCase = new LogoutUseCase({
+      sessionRepo,
+    });
+
+    const session: SessionEntity = {
+      id: 'session-logout',
+      userId: 'user-xyz',
+      deviceId: 'device-xyz',
+      refreshTokenHash: 'somehash',
+      previousRefreshTokenHash: null,
+      expiresAt: new Date(Date.now() + 86400_000),
+      revokedAt: null,
+      lastUsedAt: new Date(),
+      createdAt: new Date(),
+    };
+    await sessionRepo.save(session);
+
+    await logoutUseCase.execute('session-logout');
+    const revoked = await sessionRepo.findById('session-logout');
+    expect(revoked?.revokedAt).not.toBeNull();
+  });
+
+  it('derives role from persisted identity state on verify and refresh', async () => {
+    const userRepo = new MemoryUserRepository();
+    const riderRepo = new MemoryRiderRepository();
+    const driverRepo = new MemoryDriverRepository();
+    const adminRepo = new MemoryAdminUserRepository();
+    const sessionRepo = new MemorySessionRepository();
+    const tokenAdapter = new JoseTokenAdapter(TEST_SECRET);
+    const otpStore = new MemoryOtpStoreAdapter();
+
+    const verifyOtpUseCase = new VerifyOtpUseCase({
+      otpStore,
+      userRepo,
+      riderRepo,
+      driverRepo,
+      adminRepo,
+      sessionRepo,
+      tokenSigner: tokenAdapter,
+      otpPepper: TEST_PEPPER,
+    });
+
+    const refreshTokenUseCase = new RefreshTokenUseCase({
+      sessionRepo,
+      tokenSigner: tokenAdapter,
+      userRepo,
+      riderRepo,
+      driverRepo,
+      adminRepo,
+    });
+
+    // 1. Driver user logs in -> gets DRIVER role
+    const now = new Date();
+    await userRepo.create({
+      id: 'driver-user-1',
+      phoneE164: '+919876543211',
+      phoneVerifiedAt: now,
+      status: 'ACTIVE',
+      version: 1,
+      createdAt: now,
+      updatedAt: now,
+    });
+    await driverRepo.create({
+      id: 'driver-prof-1',
+      userId: 'driver-user-1',
+      status: 'PENDING',
+      kycStatus: 'PENDING',
+      operationalStatus: 'OFFLINE',
+      ratingAverage: null,
+      ratingCount: 0,
+      trustScore: null,
+      currentVehicleId: null,
+      walletId: 'wallet-1',
+      version: 1,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const hmacDriver = require('node:crypto')
+      .createHmac('sha256', TEST_PEPPER)
+      .update('123456')
+      .digest('hex');
+    await otpStore.save({
+      phoneE164: '+919876543211',
+      otpHmac: hmacDriver,
+      attempts: 0,
+      expiresAt: new Date(Date.now() + 300_000),
+      lastSentAt: now,
+    });
+
+    const driverVerify = await verifyOtpUseCase.execute({
+      phoneE164: '+919876543211',
+      otp: '123456',
+      deviceId: 'dev-driver',
+    });
+    expect(driverVerify.user.role).toBe('DRIVER');
+
+    const decodedDriverToken = await tokenAdapter.verifyAccessToken(driverVerify.accessToken);
+    expect(decodedDriverToken.role).toBe('DRIVER');
+
+    // 2. Admin user logs in -> gets Admin role
+    await userRepo.create({
+      id: 'admin-user-1',
+      phoneE164: '+919876543212',
+      phoneVerifiedAt: now,
+      status: 'ACTIVE',
+      version: 1,
+      createdAt: now,
+      updatedAt: now,
+    });
+    await adminRepo.create({
+      id: 'admin-prof-1',
+      userId: 'admin-user-1',
+      role: 'CITY_ADMIN',
+      cityZoneIds: ['zone-1'],
+      status: 'ACTIVE',
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const hmacAdmin = require('node:crypto')
+      .createHmac('sha256', TEST_PEPPER)
+      .update('123456')
+      .digest('hex');
+    await otpStore.save({
+      phoneE164: '+919876543212',
+      otpHmac: hmacAdmin,
+      attempts: 0,
+      expiresAt: new Date(Date.now() + 300_000),
+      lastSentAt: now,
+    });
+
+    const adminVerify = await verifyOtpUseCase.execute({
+      phoneE164: '+919876543212',
+      otp: '123456',
+      deviceId: 'dev-admin',
+    });
+    expect(adminVerify.user.role).toBe('CITY_ADMIN');
+    const decodedAdminToken = await tokenAdapter.verifyAccessToken(adminVerify.accessToken);
+    expect(decodedAdminToken.role).toBe('CITY_ADMIN');
+
+    // 3. User refreshes and role is re-derived from updated state
+    // Let's create a rider user who later gets a driver profile
+    await userRepo.create({
+      id: 'rider-to-driver',
+      phoneE164: '+919876543213',
+      phoneVerifiedAt: now,
+      status: 'ACTIVE',
+      version: 1,
+      createdAt: now,
+      updatedAt: now,
+    });
+    await riderRepo.create({
+      id: 'rider-prof-1',
+      userId: 'rider-to-driver',
+      name: 'Rider Person',
+      email: null,
+      emergencyContact: null,
+      preferredLanguage: null,
+      ratingAverage: null,
+      ratingCount: 0,
+      version: 1,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const sessionRider: SessionEntity = {
+      id: 'session-r2d',
+      userId: 'rider-to-driver',
+      deviceId: 'dev-r2d',
+      refreshTokenHash: require('node:crypto').createHash('sha256').update('r2d-token').digest('hex'),
+      previousRefreshTokenHash: null,
+      expiresAt: new Date(Date.now() + 86400_000),
+      revokedAt: null,
+      lastUsedAt: now,
+      createdAt: now,
+    };
+    await sessionRepo.save(sessionRider);
+
+    const initialRefresh = await refreshTokenUseCase.execute({
+      refreshToken: 'r2d-token',
+      deviceId: 'dev-r2d',
+    });
+    const tokenBeforeDriver = await tokenAdapter.verifyAccessToken(initialRefresh.accessToken);
+    expect(tokenBeforeDriver.role).toBe('RIDER');
+
+    // Now user registers as driver
+    await driverRepo.create({
+      id: 'driver-prof-r2d',
+      userId: 'rider-to-driver',
+      status: 'PENDING',
+      kycStatus: 'PENDING',
+      operationalStatus: 'OFFLINE',
+      ratingAverage: null,
+      ratingCount: 0,
+      trustScore: null,
+      currentVehicleId: null,
+      walletId: 'wallet-2',
+      version: 1,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    // Refreshing with the new token re-derives role as DRIVER
+    const secondRefresh = await refreshTokenUseCase.execute({
+      refreshToken: initialRefresh.refreshToken,
+      deviceId: 'dev-r2d',
+    });
+    const tokenAfterDriver = await tokenAdapter.verifyAccessToken(secondRefresh.accessToken);
+    expect(tokenAfterDriver.role).toBe('DRIVER');
+
+    // 4. Suspended user cannot refresh
+    await userRepo.update({
+      id: 'rider-to-driver',
+      phoneE164: '+919876543213',
+      phoneVerifiedAt: now,
+      status: 'SUSPENDED',
+      version: 2,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    await expect(
+      refreshTokenUseCase.execute({
+        refreshToken: secondRefresh.refreshToken,
+        deviceId: 'dev-r2d',
+      }),
+    ).rejects.toThrow('User account is suspended or deactivated');
   });
 });
 
@@ -268,6 +541,8 @@ describe('Auth HTTP Endpoints (Supertest)', () => {
     const refreshTokenUseCase = new RefreshTokenUseCase({
       sessionRepo,
       tokenSigner: tokenAdapter,
+      userRepo,
+      riderRepo,
     });
 
     const logoutUseCase = new LogoutUseCase({
@@ -368,6 +643,58 @@ describe('Auth HTTP Endpoints (Supertest)', () => {
     await request(app)
       .post('/api/v1/auth/logout')
       .set('Authorization', `Bearer ${rotatedAccessToken}`)
+      .expect(401);
+  });
+
+  it('detects refresh token reuse over HTTP, revoking the session family', async () => {
+    const { app } = createTestApp();
+
+    await request(app)
+      .post('/api/v1/auth/otp/request')
+      .send({ phoneE164: '+919876543299' })
+      .expect(200);
+
+    const verifyRes = await request(app)
+      .post('/api/v1/auth/otp/verify')
+      .send({
+        phoneE164: '+919876543299',
+        otp: '123456',
+        deviceId: 'device-reuse-test',
+      })
+      .expect(200);
+
+    const token1 = verifyRes.body.data.refreshToken;
+
+    // 1. Rotate token1 -> token2
+    const refreshRes = await request(app)
+      .post('/api/v1/auth/refresh')
+      .send({
+        refreshToken: token1,
+        deviceId: 'device-reuse-test',
+      })
+      .expect(200);
+
+    const token2 = refreshRes.body.data.refreshToken;
+    expect(token2).not.toBe(token1);
+
+    // 2. Reuse token1 -> 401 AUTH_REFRESH_REUSE_DETECTED
+    const reuseRes = await request(app)
+      .post('/api/v1/auth/refresh')
+      .send({
+        refreshToken: token1,
+        deviceId: 'device-reuse-test',
+      })
+      .expect(401);
+
+    expect(reuseRes.body.message).toContain('AUTH_REFRESH_REUSE_DETECTED');
+
+    // 3. Attempting to use token2 now fails because the session family was revoked
+    await request(app)
+      .post('/api/v1/auth/refresh')
+      .send({
+        refreshToken: token2,
+        deviceId: 'device-reuse-test',
+      })
       .expect(401);
   });
 

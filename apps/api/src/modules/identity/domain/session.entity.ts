@@ -3,6 +3,7 @@ export interface SessionEntity {
   userId: string;
   deviceId: string;
   refreshTokenHash: string;
+  previousRefreshTokenHash?: string | null;
   expiresAt: Date;
   revokedAt: Date | null;
   lastUsedAt: Date;
