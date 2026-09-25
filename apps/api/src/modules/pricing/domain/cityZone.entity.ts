@@ -13,10 +13,6 @@ export interface CityZoneEntity {
   updatedAt: Date;
 }
 
-export function isZoneActive(zone: CityZoneEntity): boolean {
-  return zone.status === 'ACTIVE';
-}
-
 export function getEffectiveBufferDistance(
   zone: CityZoneEntity,
   globalDefaultM: number = 20_000,

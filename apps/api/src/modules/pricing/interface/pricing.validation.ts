@@ -1,7 +1,5 @@
 import { z } from 'zod';
 import {
-  PRICING_CONFIG_STATUSES,
-  STATE_PRICING_STATUSES,
   VEHICLE_CATEGORIES,
   ZONE_STATUSES,
 } from '@cabzone/contracts';
@@ -70,7 +68,3 @@ export const createStatePricingSchema = z.object({
   effectiveFrom: z.coerce.date(),
   effectiveTo: z.coerce.date().nullable().optional(),
 });
-
-export const zoneStatusSchema = z.enum(ZONE_STATUSES);
-export const pricingConfigStatusSchema = z.enum(PRICING_CONFIG_STATUSES);
-export const statePricingStatusSchema = z.enum(STATE_PRICING_STATUSES);

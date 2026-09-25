@@ -24,11 +24,15 @@ export interface PricingConfigEntity {
   createdAt: Date;
 }
 
-export function isPricingConfigEffective(config: PricingConfigEntity, now: Date = new Date()): boolean {
-  if (config.status !== 'ACTIVE') return false;
-  if (config.effectiveFrom > now) return false;
-  if (config.effectiveTo !== null && config.effectiveTo <= now) return false;
-  return true;
+export function isPricingConfigEffective(
+  config: PricingConfigEntity,
+  now: Date = new Date(),
+): boolean {
+  return (
+    config.status === 'ACTIVE' &&
+    config.effectiveFrom <= now &&
+    (config.effectiveTo === null || config.effectiveTo > now)
+  );
 }
 
 export function calculateBaseFareEstimate(opts: {

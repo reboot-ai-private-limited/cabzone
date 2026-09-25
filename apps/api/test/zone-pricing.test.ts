@@ -12,7 +12,6 @@ import {
   getEffectiveBufferDistance,
   isPricingConfigEffective,
   isStatePricingEffective,
-  isZoneActive,
   PricingConfigModel,
   StatePricingModel,
   type CityZoneEntity,
@@ -44,11 +43,6 @@ describe('CityZone Domain Invariants', () => {
     createdAt: new Date(),
     updatedAt: new Date(),
   };
-
-  it('identifies active zone', () => {
-    expect(isZoneActive(baseZone)).toBe(true);
-    expect(isZoneActive({ ...baseZone, status: 'INACTIVE' })).toBe(false);
-  });
 
   it('uses global default buffer distance when city override is null (D-027)', () => {
     expect(getEffectiveBufferDistance(baseZone)).toBe(20_000);

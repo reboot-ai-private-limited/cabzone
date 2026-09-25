@@ -13,9 +13,13 @@ export interface StatePricingEntity {
   createdAt: Date;
 }
 
-export function isStatePricingEffective(pricing: StatePricingEntity, now: Date = new Date()): boolean {
-  if (pricing.status !== 'ACTIVE') return false;
-  if (pricing.effectiveFrom > now) return false;
-  if (pricing.effectiveTo !== null && pricing.effectiveTo <= now) return false;
-  return true;
+export function isStatePricingEffective(
+  pricing: StatePricingEntity,
+  now: Date = new Date(),
+): boolean {
+  return (
+    pricing.status === 'ACTIVE' &&
+    pricing.effectiveFrom <= now &&
+    (pricing.effectiveTo === null || pricing.effectiveTo > now)
+  );
 }
