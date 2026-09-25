@@ -8,3 +8,5 @@ export * from './driverApplication.model.js';
 export * from './driverDocument.model.js';
 export * from './mongoSession.repository.js';
 export * from './mongoAdminUser.repository.js';
+export * from './mongoUser.repository.js';
+export * from './mongoRider.repository.js';

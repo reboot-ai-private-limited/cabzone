@@ -8,11 +8,12 @@ import { errorHandler, notFoundHandler } from '@/shared/http/error-handler.js';
 import { accessLogMiddleware } from '@/shared/http/access-log.middleware.js';
 import { requestIdMiddleware } from '@/shared/http/request-id.middleware.js';
 import { shouldCaptureRawBody } from '@/shared/http/rawBody.js';
-import { buildContainers } from './container.js';
+import { buildContainers, type AppContainers } from './container.js';
 import { buildApiRouter } from './routes.js';
 
-export function createApp(): Express {
+export function createApp(containerOverrides?: Partial<AppContainers>): Express {
   const app = express();
+  const containers = buildContainers(containerOverrides);
 
   app.disable('x-powered-by');
   app.set('trust proxy', 1);
@@ -34,7 +35,7 @@ export function createApp(): Express {
   );
   app.use(cookieParser());
 
-  app.use('/api', buildApiRouter(buildContainers()));
+  app.use('/api', buildApiRouter(containers));
 
   app.use(notFoundHandler);
   app.use(errorHandler);

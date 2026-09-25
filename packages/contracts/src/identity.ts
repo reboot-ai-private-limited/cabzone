@@ -97,3 +97,51 @@ export interface AdminUserDto {
   createdAt: string;
   updatedAt: string;
 }
+
+export interface RequestOtpRequestDto {
+  phoneE164: string;
+}
+
+export interface RequestOtpResponseDto {
+  phoneE164: string;
+  expiresInSeconds: number;
+  retryAfterSeconds: number;
+}
+
+export interface VerifyOtpRequestDto {
+  phoneE164: string;
+  otp: string;
+  deviceId: string;
+}
+
+export interface AuthenticatedUserSummary {
+  id: string;
+  phoneE164: string;
+  role: AuthRole;
+  isNewUser: boolean;
+}
+
+export interface VerifyOtpResponseDto {
+  accessToken: string;
+  refreshToken: string;
+  tokenType: 'Bearer';
+  expiresIn: number;
+  user: AuthenticatedUserSummary;
+}
+
+export interface RefreshTokenRequestDto {
+  refreshToken: string;
+  deviceId: string;
+}
+
+export interface RefreshTokenResponseDto {
+  accessToken: string;
+  refreshToken: string;
+  tokenType: 'Bearer';
+  expiresIn: number;
+}
+
+export interface LogoutResponseDto {
+  message: string;
+}
+

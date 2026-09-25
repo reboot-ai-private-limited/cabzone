@@ -24,6 +24,11 @@ export const verifyOtpSchema = z.object({
   deviceId: z.string().min(1, 'deviceId is required').max(128),
 });
 
+export const refreshTokenSchema = z.object({
+  refreshToken: z.string().min(1, 'refreshToken is required'),
+  deviceId: z.string().min(1, 'deviceId is required').max(128),
+});
+
 export const updateRiderProfileSchema = z.object({
   name: z.string().trim().min(1).max(100).optional(),
   email: z.string().trim().email('Invalid email address').optional(),
