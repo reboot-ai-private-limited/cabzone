@@ -90,6 +90,11 @@ describe('PricingConfig Domain Invariants & Fare Estimation', () => {
     expect(isPricingConfigEffective(expired, new Date('2026-03-01'))).toBe(false);
   });
 
+  it('rejects future-dated config where effectiveFrom is in the future', () => {
+    const future = { ...baseConfig, effectiveFrom: new Date(Date.now() + 86400_000) };
+    expect(isPricingConfigEffective(future)).toBe(false);
+  });
+
   it('computes fare estimate with minimum fare enforcement', () => {
     // 1 km: within included 2km distance -> base fare 5000, but minimum is 8000
     const fare = calculateBaseFareEstimate({
@@ -136,6 +141,16 @@ describe('StatePricing Domain Invariants', () => {
   it('checks active state pricing effectivity', () => {
     expect(isStatePricingEffective(baseStatePricing)).toBe(true);
     expect(isStatePricingEffective({ ...baseStatePricing, status: 'RETIRED' })).toBe(false);
+  });
+
+  it('rejects future-dated state pricing where effectiveFrom is in the future', () => {
+    const future = { ...baseStatePricing, effectiveFrom: new Date(Date.now() + 86400_000) };
+    expect(isStatePricingEffective(future)).toBe(false);
+  });
+
+  it('rejects expired state pricing where effectiveTo is in the past', () => {
+    const expired = { ...baseStatePricing, effectiveTo: new Date(Date.now() - 1000) };
+    expect(isStatePricingEffective(expired)).toBe(false);
   });
 });
 
