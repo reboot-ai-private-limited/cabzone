@@ -60,6 +60,36 @@ export const uploadDriverDocumentMetadataSchema = z.object({
   expiresAt: z.coerce.date().nullable().optional(),
 });
 
+export const registerVehicleRequestSchema = z.object({
+  vehicleType: z.enum(VEHICLE_CATEGORIES),
+  make: z.string().trim().min(1, 'Make is required').max(50),
+  model: z.string().trim().min(1, 'Model is required').max(50),
+  registrationNumber: vehicleRegistrationSchema,
+  color: z.string().trim().min(1).max(30).nullable().optional(),
+  manufactureYear: z
+    .number()
+    .int()
+    .min(2000, 'Vehicle must not be older than year 2000')
+    .max(new Date().getFullYear() + 1)
+    .nullable()
+    .optional(),
+});
+
+export const uploadDriverDocumentRequestSchema = z.object({
+  type: z.enum(DOCUMENT_TYPES),
+  storageKey: z.string().trim().min(1, 'storageKey is required'),
+  documentHash: z.string().length(64, 'documentHash must be a 64-character SHA-256 hash'),
+  documentNumberMasked: z.string().trim().max(50).nullable().optional(),
+  issuedAt: z.coerce.date().nullable().optional(),
+  expiresAt: z.coerce.date().nullable().optional(),
+});
+
+export const reviewApplicationRequestSchema = z.object({
+  status: z.enum(['APPROVED', 'REJECTED'] as const),
+  rejectionType: z.enum(REJECTION_TYPES).nullable().optional(),
+  rejectionReason: z.string().trim().max(255).nullable().optional(),
+});
+
 export const vehicleCategorySchema = z.enum(VEHICLE_CATEGORIES);
 export const vehicleVerificationStatusSchema = z.enum(VEHICLE_VERIFICATION_STATUSES);
 export const driverApplicationStatusSchema = z.enum(DRIVER_APPLICATION_STATUSES);

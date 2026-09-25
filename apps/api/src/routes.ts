@@ -5,5 +5,7 @@ export function buildApiRouter(c: AppContainers): Router {
   const router = Router();
   router.use('/health', c.health.buildRouter());
   router.use('/v1/auth', c.identity.buildAuthRouter());
+  router.use('/v1/driver', c.identity.buildDriverRouter());
+  router.use('/v1/admin', c.identity.buildAdminDriverRouter());
   return router;
 }
