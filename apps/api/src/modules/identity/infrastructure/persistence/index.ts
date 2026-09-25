@@ -10,3 +10,7 @@ export * from './mongoSession.repository.js';
 export * from './mongoAdminUser.repository.js';
 export * from './mongoUser.repository.js';
 export * from './mongoRider.repository.js';
+export * from './mongoDriver.repository.js';
+export * from './mongoDriverApplication.repository.js';
+export * from './mongoDriverDocument.repository.js';
+export * from './mongoVehicle.repository.js';

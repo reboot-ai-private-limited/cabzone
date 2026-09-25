@@ -288,6 +288,14 @@ describe('Auth HTTP Endpoints (Supertest)', () => {
           logout: makeLogoutController(logoutUseCase),
           authenticate,
         }),
+      buildDriverRouter: () => {
+        const { Router } = require('express');
+        return Router();
+      },
+      buildAdminDriverRouter: () => {
+        const { Router } = require('express');
+        return Router();
+      },
       authenticate,
       requireRole,
       requireZoneAccess: makeRequireZoneAccess({
