@@ -60,5 +60,6 @@ const driverSchema = new Schema<DriverDocument>(
 
 driverSchema.index({ status: 1, kyc_status: 1, operational_status: 1 });
 
-export const DriverModel =
-  mongoose.models.Driver || mongoose.model<DriverDocument>('Driver', driverSchema);
+export const DriverModel: mongoose.Model<DriverDocument> =
+  (mongoose.models.Driver as mongoose.Model<DriverDocument>) ||
+  mongoose.model<DriverDocument>('Driver', driverSchema);

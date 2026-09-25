@@ -70,6 +70,21 @@ export interface DriverDto {
 export const ADMIN_ROLES = ['SUPER_ADMIN', 'CITY_ADMIN', 'SUPPORT_ADMIN', 'FINANCE_ADMIN'] as const;
 export type AdminRole = (typeof ADMIN_ROLES)[number];
 
+export const AUTH_ROLES = ['RIDER', 'DRIVER', ...ADMIN_ROLES] as const;
+export type AuthRole = (typeof AUTH_ROLES)[number];
+
+export interface AuthTokenPayload {
+  sub: string;
+  sessionId: string;
+  role: AuthRole;
+}
+
+export interface AuthContext {
+  userId: string;
+  sessionId: string;
+  role: AuthRole;
+}
+
 export const ADMIN_STATUSES = ['ACTIVE', 'SUSPENDED'] as const;
 export type AdminStatus = (typeof ADMIN_STATUSES)[number];
 
