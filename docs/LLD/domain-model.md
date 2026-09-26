@@ -1,4 +1,4 @@
-# Cabzon — Domain Model
+# cabzone — Domain Model
 
 **Document:** `docs/LLD/domain-model.md`
 **Status:** Draft for Engineering Review
@@ -12,7 +12,7 @@
 
 # 1. Purpose
 
-This document defines the business domain of Cabzon independently of implementation details.
+This document defines the business domain of cabzone independently of implementation details.
 
 It establishes:
 
@@ -42,7 +42,7 @@ Those concerns are defined in later LLD and engineering documents.
 
 # 2. Domain Summary
 
-Cabzon is a ride-hailing platform consisting of three primary applications:
+cabzone is a ride-hailing platform consisting of three primary applications:
 
 ```text
 ┌────────────────────┐
@@ -58,7 +58,7 @@ Cabzon is a ride-hailing platform consisting of three primary applications:
           │
           ▼
 ┌────────────────────────────┐
-│       Cabzon Backend       │
+│       cabzone Backend       │
 │                            │
 │ Auth                       │
 │ Ride Management            │
@@ -170,7 +170,7 @@ A Driver can:
 - Confirm trip completion.
 - Confirm cash receipt when applicable.
 - Receive ride payments/earnings.
-- Pay Cabzon commission through the wallet.
+- Pay cabzone commission through the wallet.
 - Rate/review the Rider.
 - View ride history.
 - Raise disputes.
@@ -181,7 +181,7 @@ A Driver cannot receive rides until the required account, KYC, vehicle, and oper
 
 # 3.4 Admin
 
-Admin represents Cabzon's operational staff.
+Admin represents cabzone's operational staff.
 
 The original PRD uses a broad `Admin` role but explicitly identifies the need to split administrative responsibilities.
 
@@ -200,7 +200,7 @@ Exact permissions are defined separately in the authorization design.
 
 # 3.5 System
 
-The System is the automated Cabzon backend.
+The System is the automated cabzone backend.
 
 It is responsible for:
 
@@ -348,7 +348,7 @@ Authentication identity and Rider profile should remain conceptually separate.
 
 # 4.5 Ride
 
-The Ride is the **central transactional aggregate** of Cabzon.
+The Ride is the **central transactional aggregate** of cabzone.
 
 A Ride represents one transportation transaction from request through settlement.
 
@@ -388,7 +388,7 @@ The PRD defines the Ride as containing pickup/drop information, route distance, 
 
 # 4.6 Fare
 
-Cabzon has three distinct fare concepts.
+cabzone has three distinct fare concepts.
 
 ```text
                   ┌────────────────┐
@@ -412,7 +412,7 @@ Cabzon has three distinct fare concepts.
 
 ### Suggested Fare
 
-Calculated by the Cabzon pricing engine.
+Calculated by the cabzone pricing engine.
 
 ### Rider Proposed Fare
 
@@ -618,7 +618,7 @@ The PRD specifically recommends logging negotiation events for fraud detection.
 
 # 4.14 Wallet
 
-A Wallet represents the Driver's Cabzon financial balance used for commission settlement.
+A Wallet represents the Driver's cabzone financial balance used for commission settlement.
 
 ```text
 Driver
@@ -630,7 +630,7 @@ Driver
 
 The wallet is not the same as Driver earnings.
 
-It is an accounting mechanism for amounts owed to Cabzon.
+It is an accounting mechanism for amounts owed to cabzone.
 
 The PRD requires a prepaid Driver wallet and states that a non-positive wallet balance prevents acceptance of new rides.
 
@@ -655,7 +655,7 @@ Examples:
 Wallet Top-up
 → CREDIT
 
-Cabzon Commission
+cabzone Commission
 → DEBIT
 
 Commission Reversal
@@ -692,7 +692,7 @@ Rider Payment
        │
        ├── Driver earnings
        │
-       └── Cabzon commission
+       └── cabzone commission
                     │
                     ▼
               Driver Wallet
@@ -1513,7 +1513,7 @@ The backend should be divided into domain modules.
 
 ```text
 ┌─────────────────────────────────────────┐
-│                 Cabzon                  │
+│                 cabzone                  │
 │                                         │
 │  ┌──────────┐       ┌───────────────┐  │
 │  │ Identity │       │ Driver Domain │  │
@@ -1561,7 +1561,7 @@ The latter breaks the domain boundary.
 
 # 16. Configuration vs Transactional Data
 
-Cabzon contains two fundamentally different classes of information.
+cabzone contains two fundamentally different classes of information.
 
 ## Configuration
 

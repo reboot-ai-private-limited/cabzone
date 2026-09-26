@@ -1,6 +1,6 @@
-# Cabzon — Development Setup
+# cabzone — Development Setup
 
-**Source:** Cabzon PRD v0.1  
+**Source:** cabzone PRD v0.1  
 **Status:** Engineering setup framework — technology choices intentionally left open where the PRD is silent.
 
 ---
@@ -23,7 +23,7 @@ Therefore, this document separates:
 The development workspace must support three products:
 
 ```text
-Cabzon
+cabzone
 ├── Rider Mobile App
 ├── Driver Mobile App
 └── Admin Web Dashboard
@@ -271,9 +271,9 @@ Development of a module is ready to start when:
 
 ## 9. Important Boundary
 
-Do not treat this document as evidence that Cabzon uses a particular stack.
+Do not treat this document as evidence that cabzone uses a particular stack.
 
-For example, the PRD does **not** say that Cabzon must use:
+For example, the PRD does **not** say that cabzone must use:
 
 - Node.js
 - MongoDB

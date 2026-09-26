@@ -1,6 +1,6 @@
 # Technology Choices
 
-This document records the technology stack and architecture selections for **Cabzon**. Material choices are recorded in [`decision-log.md`](../decision-log.md).
+This document records the technology stack and architecture selections for **cabzone**. Material choices are recorded in [`decision-log.md`](../decision-log.md).
 
 ---
 
@@ -27,7 +27,7 @@ This document records the technology stack and architecture selections for **Cab
 
 ## Operational Environments (Three-State Architecture)
 
-CabZone defines three distinct runtime environments:
+cabzone defines three distinct runtime environments:
 
 1. **`development`**:
    - Host-driven runtime (`tsx watch`, `next dev`).

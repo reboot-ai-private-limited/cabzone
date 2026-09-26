@@ -1,15 +1,15 @@
-# Cabzon — Product Requirements Document
+# cabzone — Product Requirements Document
 
 **Version:** 0.1  
 **Status:** Draft / For Review  
 **Owner:** Product Team  
-**Source:** Cabzon PRD v0.1
+**Source:** cabzone PRD v0.1
 
 ---
 
 ## 1. Product Overview
 
-Cabzon is a ride-hailing platform with three applications:
+cabzone is a ride-hailing platform with three applications:
 
 | Persona | Platform      | Core Job                                        |
 | ------- | ------------- | ----------------------------------------------- |
@@ -17,7 +17,7 @@ Cabzon is a ride-hailing platform with three applications:
 | Driver  | Mobile App    | Apply, get verified, accept rides, get paid     |
 | Admin   | Web Dashboard | Verify drivers, manage zones, pricing, disputes |
 
-Cabzon's differentiators are:
+cabzone's differentiators are:
 
 1. Negotiable fares: the rider can counter-offer the suggested fare.
 2. Zone-based pricing: in-city rides are separated from outstation/interstate rides because driver economics differ.
@@ -53,7 +53,7 @@ The following are explicitly outside MVP scope:
 - Applies with identity and driving documents.
 - Goes through verification and admin approval.
 - Accepts rides.
-- Maintains a prepaid wallet used for Cabzon commission.
+- Maintains a prepaid wallet used for cabzone commission.
 - Can view ride history.
 - Can rate/review riders after completed rides.
 
@@ -95,7 +95,7 @@ The PRD also identifies document expiry tracking, reapplication caps/cooldowns, 
 ### 5.3 Ride Request & Fare Negotiation
 
 1. Rider enters pickup and drop.
-2. Cabzon calculates Suggested Fare.
+2. cabzone calculates Suggested Fare.
 3. Rider may accept it or submit a Rider Proposed Fare.
 4. The request is broadcast to nearby drivers with the proposed fare.
 5. A driver accepts or declines.
@@ -155,7 +155,7 @@ Zone/pricing classification is frozen at ride-request time.
 ### 5.6 Payments & Driver Wallet
 
 - Rider pays through UPI or Cash.
-- Driver has a prepaid wallet for Cabzon commission.
+- Driver has a prepaid wallet for cabzone commission.
 - Driver cannot accept a new ride when wallet balance is `<= 0`.
 - Driver has multiple wallet top-up methods.
 - A zero wallet must not interrupt an active ride.
@@ -185,7 +185,7 @@ Route distance must come from a routing engine such as Google/Mapbox rather than
 
 | Term                | Meaning                                 |
 | ------------------- | --------------------------------------- |
-| Suggested Fare      | Fare calculated by Cabzon               |
+| Suggested Fare      | Fare calculated by cabzone               |
 | Rider Proposed Fare | Fare submitted by the rider             |
 | Agreed Fare         | Fare accepted by the driver and charged |
 

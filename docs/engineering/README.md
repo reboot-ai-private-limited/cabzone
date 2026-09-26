@@ -1,6 +1,6 @@
-# Cabzon Engineering Handbook
+# cabzone Engineering Handbook
 
-This directory contains engineering standards for building **Cabzon** from approved product requirements and architecture decisions.
+This directory contains engineering standards for building **cabzone** from approved product requirements and architecture decisions.
 
 ## Documents
 
@@ -22,7 +22,7 @@ This directory contains engineering standards for building **Cabzon** from appro
 
 ## Important Source Boundary
 
-The Cabzon PRD defines product behavior. It does not define the complete technical stack.
+The cabzone PRD defines product behavior. It does not define the complete technical stack.
 
 Therefore:
 
@@ -33,7 +33,7 @@ Therefore:
 
 ## Core Product Boundary
 
-Cabzon contains:
+cabzone contains:
 
 - **Rider Mobile App** (Roadmap)
 - **Driver Mobile App** (Roadmap)

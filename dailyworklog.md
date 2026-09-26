@@ -1,4 +1,4 @@
-# Daily Work Log - Cabzon Platform
+# Daily Work Log - cabzone Platform
 
 **Date:** September 25, 2026  
 **Branch:** `feature/zone-backend`  

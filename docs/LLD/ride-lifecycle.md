@@ -1,4 +1,4 @@
-# Cabzon — Ride Lifecycle
+# cabzone — Ride Lifecycle
 
 **Document:** `docs/LLD/ride-lifecycle.md`  
 **Status:** Draft for Engineering Review  

@@ -1,4 +1,4 @@
-# Cabzon — Wallet & Commission
+# cabzone — Wallet & Commission
 
 **Document:** `docs/LLD/wallet-and-commission.md`  
 **Status:** Draft for Engineering Review  
@@ -10,7 +10,7 @@ Define the Driver wallet, commission accounting, ledger model, balance rules, to
 
 ## 2. Wallet Model
 
-Each Driver has one operational Cabzon wallet.
+Each Driver has one operational cabzone wallet.
 
 ```text
 Driver
@@ -24,7 +24,7 @@ Wallet
   └── ADJUSTMENT
 ```
 
-The PRD requires a prepaid wallet used to pay Cabzon commission.
+The PRD requires a prepaid wallet used to pay cabzone commission.
 
 ## 3. Wallet Is a Ledger
 

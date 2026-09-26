@@ -1,11 +1,11 @@
-### 1. What problem does Cabzon solve?
+### 1. What problem does cabzone solve?
 
 Traditional ride-hailing platforms suffer from rigid, algorithmic surge pricing, lack of negotiation flexibility, and poor economic alignment for trips that cross city borders or travel outstation (where return-trip viability, empty returns, state permits, and inter-city toll economics differ substantially from intra-city travel).
 
-Cabzon solves this with two foundational pillars:
+cabzone solves this with two foundational pillars:
 
-1. **Negotiable Fares:** Instead of unilateral platform surge pricing, Cabzon allows riders and drivers to negotiate fares within controlled, bounded limits. Riders can counter-offer the system's Suggested Fare, and drivers can choose to accept, decline, or counter, re-introducing fair market dynamics.
-2. **Zone-Based & Interstate Pricing:** Cabzon automatically classifies trips into **In-City**, **Outstation**, and **Interstate** based on precise geospatial boundaries and route polylines. It splits interstate trips into state-specific distance segments and calculates buffer surcharges for edge pickups, giving drivers sustainable compensation and riders transparent pricing.
+1. **Negotiable Fares:** Instead of unilateral platform surge pricing, cabzone allows riders and drivers to negotiate fares within controlled, bounded limits. Riders can counter-offer the system's Suggested Fare, and drivers can choose to accept, decline, or counter, re-introducing fair market dynamics.
+2. **Zone-Based & Interstate Pricing:** cabzone automatically classifies trips into **In-City**, **Outstation**, and **Interstate** based on precise geospatial boundaries and route polylines. It splits interstate trips into state-specific distance segments and calculates buffer surcharges for edge pickups, giving drivers sustainable compensation and riders transparent pricing.
 3. **Prepaid Commission & Verified Driver Network:** It eliminates payment friction and cash-skimming issues by maintaining a prepaid driver wallet for platform commissions and enforcing strict third-party KYC verification (DL + Govt ID) before a driver can take rides.
 
 ---
@@ -37,7 +37,7 @@ When a rider inputs a pickup and destination and confirms a request, the followi
 
 ### 4. What is Suggested Fare?
 
-The **Suggested Fare** is the algorithmic baseline fare calculated deterministically by Cabzon's Fare Engine before any negotiation occurs.
+The **Suggested Fare** is the algorithmic baseline fare calculated deterministically by cabzone's Fare Engine before any negotiation occurs.
 
 - **Formula:**
   $$\text{Raw Fare} = \text{Base Fare} + (\text{Billable Route Distance} \times \text{Rate/km}) + \text{Buffer Surcharge}$$
@@ -102,7 +102,7 @@ The Zone Engine evaluates the ride using a deterministic, polygon-first classifi
 
 ### 8. What happens when two drivers accept simultaneously?
 
-When two drivers tap "Accept" at the exact same instant, a race condition occurs. Cabzon handles this with an **atomic concurrency guard / distributed database lock**:
+When two drivers tap "Accept" at the exact same instant, a race condition occurs. cabzone handles this with an **atomic concurrency guard / distributed database lock**:
 
 1. **Atomic State & Ownership Transition:** The acceptance query executes an atomic condition check:
    ```sql
@@ -123,10 +123,10 @@ When two drivers tap "Accept" at the exact same instant, a race condition occurs
 
 ### 9. Why does the driver have a wallet?
 
-Cabzon operates a **prepaid commission ledger model** for drivers because:
+cabzone operates a **prepaid commission ledger model** for drivers because:
 
-1. **Direct Rider-to-Driver Payments:** Riders pay drivers directly via cash or driver-provided UPI QR codes. Cabzon does not hold or escrow trip fares for cash rides.
-2. **Frictionless Commission Collection:** Because Cabzon does not sit in the flow of cash payments, it cannot automatically withhold its platform commission at trip completion. The prepaid wallet allows Cabzon to automatically deduct platform commission without chasing drivers for debt or managing post-trip invoicing.
+1. **Direct Rider-to-Driver Payments:** Riders pay drivers directly via cash or driver-provided UPI QR codes. cabzone does not hold or escrow trip fares for cash rides.
+2. **Frictionless Commission Collection:** Because cabzone does not sit in the flow of cash payments, it cannot automatically withhold its platform commission at trip completion. The prepaid wallet allows cabzone to automatically deduct platform commission without chasing drivers for debt or managing post-trip invoicing.
 3. **Dispatch Gate:** Maintaining a positive balance (`wallet_balance > 0`) is an automated precondition for dispatch eligibility. It ensures drivers maintain a credit balance before taking platform-provided leads.
 
 ---
@@ -156,7 +156,7 @@ When a trip crosses one or more state boundaries:
 ### 12. What happens if pricing changes after a rider requests a ride?
 
 - **No Impact on the Existing Ride.**
-- **The Configuration Freeze Invariant:** At the exact moment a ride is requested, Cabzon creates an immutable **Pricing Snapshot** (`fare_snapshot`) attached directly to that `ride_id`.
+- **The Configuration Freeze Invariant:** At the exact moment a ride is requested, cabzone creates an immutable **Pricing Snapshot** (`fare_snapshot`) attached directly to that `ride_id`.
 - The snapshot freezes:
   - `config_id` & `config_version`
   - `base_fare_paise`, `rate_per_km_paise`, `minimum_fare_paise`

@@ -2,7 +2,7 @@
 
 ## Goal
 
-Keep Cabzon's business rules independent from HTTP, database, mobile UI, mapping providers, KYC providers and payment providers.
+Keep cabzone's business rules independent from HTTP, database, mobile UI, mapping providers, KYC providers and payment providers.
 
 ## Layers
 

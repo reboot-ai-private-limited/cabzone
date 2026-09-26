@@ -1,6 +1,6 @@
-# Cabzon — Decision Log
+# cabzone — Decision Log
 
-**Source:** Cabzon PRD v0.1  
+**Source:** cabzone PRD v0.1  
 **Purpose:** Record product decisions explicitly present in the PRD and keep unresolved decisions visible.
 
 > This is a product decision log, not an engineering architecture decision log. Technical choices such as MongoDB, Redis, WebSocket implementation, framework selection, deployment topology, UUID strategy, and exact API schemas are not asserted here because they are not specified by the PRD.
@@ -21,7 +21,7 @@
 **Status:** Decided  
 **Source:** §1 Product Overview
 
-Cabzon consists of:
+cabzone consists of:
 
 - Rider Mobile App
 - Driver Mobile App
@@ -336,7 +336,7 @@ The pricing schema keys by `(city_zone_id, vehicle_category)`. Adding future cat
 **Status:** Decided
 
 **Decision:**
-Cabzon commission is calculated as a **percentage of the Agreed Fare**:
+cabzone commission is calculated as a **percentage of the Agreed Fare**:
 
 ```text
 Commission (Paise) = ROUND(Agreed Fare Paise × (Commission Percentage / 100))
