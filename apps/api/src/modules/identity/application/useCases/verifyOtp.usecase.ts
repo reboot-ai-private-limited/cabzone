@@ -99,6 +99,9 @@ export class VerifyOtpUseCase {
     const sessionId = newUuid();
     const expiresAt = new Date(now.getTime() + this.sessionTtlDays * 24 * 60 * 60 * 1000);
 
+    // Single-device session enforcement: invalidate prior sessions on new login
+    await this.deps.sessionRepo.revokeAllForUser(user.id);
+
     await this.deps.sessionRepo.save({
       id: sessionId,
       userId: user.id,

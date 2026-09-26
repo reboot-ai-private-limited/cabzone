@@ -40,7 +40,7 @@ export const createPricingConfigSchema = z
     negotiationFloorPercent: z.number().int().min(10).max(100).default(80),
     negotiationCeilingPercent: z.number().int().min(100).max(300).default(150),
     negotiationWindowSeconds: z.number().int().min(15).max(300).default(90),
-    commissionPercent: z.number().min(0).max(100).default(0),
+    commissionPercent: z.number().min(0).max(100).default(8),
     effectiveFrom: z.coerce.date(),
     effectiveTo: z.coerce.date().nullable().optional(),
     createdByAdminId: z.string().uuid('Invalid createdByAdminId UUID'),

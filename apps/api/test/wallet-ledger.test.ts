@@ -31,12 +31,12 @@ describe('Wallet Domain Invariants', () => {
     expect(isWalletActive({ ...activeWallet, status: 'BLOCKED' })).toBe(false);
   });
 
-  it('determines driver ride eligibility based on minimum balance (D-026)', () => {
-    // Non-negative balance is eligible
+  it('determines driver ride eligibility based on minimum balance (D-008, D-036)', () => {
+    // Strictly positive balance is eligible
     expect(isDriverEligibleForNewRides(activeWallet)).toBe(true);
 
-    // Exactly zero balance is eligible
-    expect(isDriverEligibleForNewRides({ ...activeWallet, balancePaise: 0 })).toBe(true);
+    // Exactly zero balance is ineligible (PRD v2 / D-008 gate)
+    expect(isDriverEligibleForNewRides({ ...activeWallet, balancePaise: 0 })).toBe(false);
 
     // Negative balance is ineligible for new rides
     expect(isDriverEligibleForNewRides({ ...activeWallet, balancePaise: -500 })).toBe(false);
