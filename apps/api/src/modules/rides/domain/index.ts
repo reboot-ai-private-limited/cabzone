@@ -3,3 +3,7 @@ export * from './fareNegotiation.entity.js';
 export * from './rideEvent.entity.js';
 export * from './rideExtension.entity.js';
 export * from './ride.port.js';
+export * from './rideEvent.port.js';
+export * from './cancellationFee.service.js';
+
+

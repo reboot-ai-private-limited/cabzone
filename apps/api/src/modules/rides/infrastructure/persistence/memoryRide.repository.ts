@@ -23,15 +23,12 @@ export class MemoryRideRepository implements RideRepositoryPort {
   }): Promise<RideEntity | null> {
     const ride = this.rides.get(opts.rideId);
     if (!ride) return null;
-
-    // Must be in claimable broadcast status (REQUESTED or OFFERING) and unassigned
     if (
       (ride.status !== 'REQUESTED' && ride.status !== 'OFFERING') ||
       ride.driverId !== null
     ) {
       return null;
     }
-
     const assignedAt = opts.assignedAt ?? new Date();
     const updated: RideEntity = {
       ...ride,
@@ -49,8 +46,28 @@ export class MemoryRideRepository implements RideRepositoryPort {
       updatedAt: assignedAt,
       version: ride.version + 1,
     };
-
     this.rides.set(opts.rideId, updated);
     return { ...updated };
+  }
+
+  async countDailyRiderUnassignedCancellations(
+    riderId: string,
+    sinceDate: Date,
+  ): Promise<number> {
+    let count = 0;
+    for (const ride of this.rides.values()) {
+      const isRider =
+        ride.bookerRiderId === riderId || ride.passenger.riderId === riderId;
+      if (
+        isRider &&
+        ride.status === 'CANCELLED' &&
+        ride.driverId === null &&
+        ride.cancelledAt !== null &&
+        ride.cancelledAt >= sinceDate
+      ) {
+        count++;
+      }
+    }
+    return count;
   }
 }
