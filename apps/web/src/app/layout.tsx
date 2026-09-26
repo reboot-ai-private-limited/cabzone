@@ -2,8 +2,8 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'CabZone Admin',
-  description: 'CabZone Operations & Management Console',
+  title: 'cabzone Admin',
+  description: 'cabzone Operations & Management Console',
 };
 
 export default function RootLayout({

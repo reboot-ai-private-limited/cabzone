@@ -1,4 +1,4 @@
-# Cabzon — Authentication & Authorization
+# cabzone — Authentication & Authorization
 
 **Document:** `docs/LLD/auth.md`  
 **Status:** Draft for Engineering Review  

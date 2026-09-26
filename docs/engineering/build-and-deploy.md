@@ -2,7 +2,7 @@
 
 ## Operational Environments (Three-State Architecture)
 
-CabZone defines three distinct runtime environments:
+cabzone defines three distinct runtime environments:
 
 1. **`development`**: Local developer environment. Infrastructure (MongoDB replica set `rs0` + Redis) runs in Docker via `docker-compose.dev.yml` bound to `127.0.0.1`. Applications run on the host with hot reload (`tsx watch`, `next dev`).
 2. **`stage` / `staging`**: Pre-production environment running containerized services via `docker-compose.stage.yml`. Used for QA, end-to-end verification, and validating production container artifacts.

@@ -1,4 +1,4 @@
-# Cabzon — Dispatch Engine
+# cabzone — Dispatch Engine
 
 **Document:** `docs/LLD/dispatch-engine.md`  
 **Status:** Draft for Engineering Review  
@@ -6,7 +6,7 @@
 
 ## 1. Purpose
 
-Define how Cabzon finds eligible Drivers, offers Rides, handles concurrent acceptance, retries, expiration, and assignment.
+Define how cabzone finds eligible Drivers, offers Rides, handles concurrent acceptance, retries, expiration, and assignment.
 
 ## 2. Dispatch Flow
 

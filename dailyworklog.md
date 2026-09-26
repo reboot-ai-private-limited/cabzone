@@ -1,4 +1,4 @@
-# Daily Work Log - Cabzon Platform
+# Daily Work Log - cabzone Platform
 
 **Date:** September 25, 2026  
 **Branch:** `feature/zone-backend`  
@@ -99,3 +99,91 @@ Today we finalized and locked the architectural boundaries for **Stage 2: Zone D
 | **Ledger Module** | `apps/api/src/modules/ledger/domain/wallet.port.ts`<br>`apps/api/src/modules/ledger/domain/wallet.entity.ts`<br>`apps/api/src/modules/ledger/infrastructure/persistence/memoryWallet.repository.ts` | Wallet port, strictly positive balance check, memory wallet repository. |
 | **Rides Module** | `apps/api/src/modules/rides/domain/ride.port.ts`<br>`apps/api/src/modules/rides/domain/ride.entity.ts`<br>`apps/api/src/modules/rides/infrastructure/persistence/memoryRide.repository.ts`<br>`apps/api/src/modules/rides/application/useCases/createRide.usecase.ts`<br>`apps/api/src/modules/rides/application/useCases/acceptRide.usecase.ts`<br>`apps/api/src/modules/rides/application/useCases/startRide.usecase.ts` | Atomic claim port, quote validation & trip binding, secure accept with randomInt OTP, curbside OTP verification. |
 | **Test Suites** | `apps/api/test/quote-and-ride-engine.test.ts`<br>`apps/api/test/zone-resolution.test.ts`<br>`apps/api/test/wallet-ledger.test.ts`<br>`apps/api/test/zone-pricing.test.ts` | 131 automated unit and integration tests. |
+
+---
+
+# Daily Work Log - cabzone Platform
+
+**Date:** September 26, 2026  
+**Branch:** `feature/ride-dispatch-api`  
+**Engineer:** Antigravity (Pair Programming with User)
+
+---
+
+## Executive Summary
+
+Today we implemented and hardened **Phase 1: Backend Ride Lifecycle Hardening**, implementing full state machine progressions from dispatch assignment to trip completion, platform commission settlement, and state-based cancellation with automated driver compensation. The test suite was expanded to **158 passing automated tests** across 13 test suites.
+
+---
+
+## Detailed Chronology of Work Completed
+
+### 1. Curbside Arrival & En-Route Progression (Prompt 1)
+- **`DriverEnRouteUseCase` (`apps/api/src/modules/rides/application/useCases/driverEnRoute.usecase.ts`):**
+  - Authorizes only the assigned driver.
+  - Enforces transition from `DRIVER_ASSIGNED` -> `DRIVER_EN_ROUTE`.
+  - Increments version and emits immutable `RideEvent` (`DRIVER_EN_ROUTE`, actor: `DRIVER`).
+- **`DriverArrivedUseCase` (`apps/api/src/modules/rides/application/useCases/driverArrived.usecase.ts`):**
+  - Validates `DRIVER_EN_ROUTE` -> `DRIVER_ARRIVED` state sequence.
+  - Records curbside arrival timestamp (`arrivedAt`), serving as the gatekeeper for curbside OTP start and no-show waiting baseline.
+  - Emits immutable `RideEvent` (`DRIVER_ARRIVED`, actor: `DRIVER`).
+- **Ride Event Persistence Ports & Adapters:**
+  - Defined `RideEventRepositoryPort` in `domain/rideEvent.port.ts`.
+  - Created `MemoryRideEventRepository` and `MongoRideEventRepository` with audit queries (`findByRideId`).
+
+### 2. Trip Completion & Commission Settlement (Prompt 2)
+- **`CompleteRideUseCase` (`apps/api/src/modules/rides/application/useCases/completeRide.usecase.ts`):**
+  - Enforces direct cash / personal UPI payment model (immediate transition from `TRIP_STARTED` -> `TRIP_COMPLETED` -> `SETTLED`).
+  - Sets `completedAt` and `settledAt` timestamps.
+- **Double-Entry Commission Settlement:**
+  - Calculates exact 8% platform commission on agreed fare (`Math.round((farePaise * 8) / 100)`).
+  - Integrates with `WalletRepositoryPort` to record an immutable debit transaction (`type: 'DEBIT'`, `referenceType: 'RIDE_COMMISSION'`, `amountPaise: commissionPaise`).
+  - Updates driver prepaid wallet balance.
+- **The Wallet Zero Invariant:**
+  - Active trip completes and settles normally even if commission debit drives driver wallet balance to ₹0 or negative.
+  - Subsequent ride offers are strictly blocked (`isDriverEligibleForNewRides` requires `balancePaise > 0`) until recharge.
+- **Dual Immutable Ride Events:**
+  - Logs `TRIP_COMPLETED` (actor: `DRIVER`).
+  - Logs `RIDE_SETTLED` (actor: `SYSTEM`).
+
+### 3. State-Based Cancellation & No-Show Engine (Prompt 3)
+- **Cancellation Fee Calculation Service (`domain/cancellationFee.service.ts`):**
+  - **Free Grace Period:** Rider cancellations within 2 minutes of `acceptedAt` incur ₹0 fee.
+  - **Late Rider Cancellation:** Rider cancellations after 2 minutes or at curb incur flat ₹50 fee (5,000 paise).
+  - **Driver Compensation Allocation:** ₹35 (3,500 paise) credited to driver's prepaid wallet as `CANCELLATION_COMPENSATION`, ₹15 (1,500 paise) platform fee.
+  - **Curbside Wait Requirement for No-Show:** Drivers reporting `RIDER_NO_SHOW` must wait at least 5 minutes (300,000 ms) from `arrivedAt`. Premature reports are rejected with `MINIMUM_WAIT_TIME_NOT_MET`. Valid no-shows penalize rider ₹50 and credit driver ₹35.
+  - **Driver Emergency/Delay:** Driver cancellations incur ₹0 fee to rider and no compensation.
+- **`CancelRideUseCase` (`application/useCases/cancelRide.usecase.ts`):**
+  - Enforces driver/rider authorization checks.
+  - Rate-limits unassigned rider cancellations to a maximum of 5 per day (`RIDER_CANCELLATION_LIMIT_EXCEEDED`).
+  - Rejects cancellation of active trips in `TRIP_STARTED` or already settled/cancelled rides.
+  - Emits immutable `RIDE_CANCELLED` event with detailed fee breakdown.
+
+---
+
+## Test Verification & Metrics
+
+- **Workspace Test Execution (`pnpm test`):**
+  - Total Test Suites: **13 passed**
+  - Total Tests: **158 passed**
+  - Test suite covering Phase 1:
+    - `test/ride-lifecycle.test.ts` (27 comprehensive unit tests):
+      - `DriverEnRouteUseCase`: Happy path, unauthorized driver rejection, invalid state transitions, non-existent ride handling.
+      - `DriverArrivedUseCase`: Happy path, `arrivedAt` recording, unauthorized rejection, en-route skip protection, terminal state protection.
+      - Curbside gatekeeper: Full progression from offer -> assign -> en route -> arrived -> curbside OTP start.
+      - `CompleteRideUseCase`: 8% commission calculation, double-entry wallet debit, audit event trail, The Wallet Zero Invariant, unauthorized rejection, invalid state protection.
+      - `CancelRideUseCase`: 2-minute free grace period, late rider cancellation with ₹50 fee and ₹35 driver credit, curbside rider cancel, driver emergency, 5-minute wait threshold enforcement for `RIDER_NO_SHOW`, daily 5-cancellation rate limiting, unauthorized and invalid state transition guards.
+
+---
+
+## Changed / Added Artifacts
+
+| Component | Files | Description |
+| :--- | :--- | :--- |
+| **Contracts** | `packages/contracts/src/wallets.ts` | Added `CANCELLATION_COMPENSATION` to `TRANSACTION_REFERENCE_TYPES`. |
+| **Ledger Module** | `apps/api/src/modules/ledger/domain/wallet.port.ts`<br>`apps/api/src/modules/ledger/infrastructure/persistence/memoryWallet.repository.ts` | Added `recordTransaction` and `findTransactionsByWalletId` to `WalletRepositoryPort`. |
+| **Rides Domain** | `apps/api/src/modules/rides/domain/rideEvent.port.ts`<br>`apps/api/src/modules/rides/domain/cancellationFee.service.ts`<br>`apps/api/src/modules/rides/domain/ride.port.ts`<br>`apps/api/src/modules/rides/domain/index.ts` | Added `RideEventRepositoryPort`, `cancellationFee.service.ts`, daily unassigned cancellation query in `RideRepositoryPort`. |
+| **Rides Persistence** | `apps/api/src/modules/rides/infrastructure/persistence/memoryRideEvent.repository.ts`<br>`apps/api/src/modules/rides/infrastructure/persistence/mongoRideEvent.repository.ts`<br>`apps/api/src/modules/rides/infrastructure/persistence/memoryRide.repository.ts` | Memory and Mongo ride event repositories, daily unassigned cancellation counter. |
+| **Rides Use Cases** | `apps/api/src/modules/rides/application/useCases/driverEnRoute.usecase.ts`<br>`apps/api/src/modules/rides/application/useCases/driverArrived.usecase.ts`<br>`apps/api/src/modules/rides/application/useCases/completeRide.usecase.ts`<br>`apps/api/src/modules/rides/application/useCases/cancelRide.usecase.ts` | En-route progression, curbside arrival gatekeeper, trip completion & 8% commission settlement, state-based cancellation & no-show engine. |
+| **Test Suites** | `apps/api/test/ride-lifecycle.test.ts` | 27 automated unit tests covering all lifecycle progressions, settlement, and cancellation scenarios. |
+

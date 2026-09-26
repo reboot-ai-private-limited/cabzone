@@ -32,7 +32,7 @@ cabzone/
 
 ## Brand vs Scope Naming Standard
 
-- **Product / Commercial Brand**: **Cabzon** (used in product copy, PRD, mobile app titles, and documentation).
+- **Product / Commercial Brand**: **cabzone** (used in product copy, PRD, mobile app titles, and documentation).
 - **Package Scope**: `@cabzone/*` (e.g. `@cabzone/api`, `@cabzone/web`, `@cabzone/contracts`, `@cabzone/config`).
 - **Monorepo / Docker Namespace**: `cabzone` (e.g. root `package.json`, volume names `cabzone-mongo-data-*`).
 

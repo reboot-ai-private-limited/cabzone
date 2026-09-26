@@ -8,11 +8,6 @@ export interface AtomicClaimResult {
 export interface RideRepositoryPort {
   save(ride: RideEntity): Promise<RideEntity>;
   findById(id: string): Promise<RideEntity | null>;
-  /**
-   * Atomically claims a ride for a driver if the ride is in SEARCHING / REQUESTED status
-   * and driverId is null.
-   * If already claimed or not in claimable state, returns null.
-   */
   atomicClaimRide(opts: {
     rideId: string;
     driverId: string;
@@ -21,4 +16,8 @@ export interface RideRepositoryPort {
     pickupOtpExpiresAt: Date;
     assignedAt?: Date;
   }): Promise<RideEntity | null>;
+  countDailyRiderUnassignedCancellations(
+    riderId: string,
+    sinceDate: Date,
+  ): Promise<number>;
 }

@@ -13,6 +13,7 @@ export const TRANSACTION_REFERENCE_TYPES = [
   'WALLET_RECHARGE',
   'DISPUTE_REFUND',
   'ADMIN_ADJUSTMENT',
+  'CANCELLATION_COMPENSATION',
 ] as const;
 export type TransactionReferenceType = (typeof TRANSACTION_REFERENCE_TYPES)[number];
 

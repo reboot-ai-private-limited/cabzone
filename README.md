@@ -1,10 +1,10 @@
-# Cabzon — Zone-Based Ride-Hailing Platform
+# cabzone — Zone-Based Ride-Hailing Platform
 
-**Cabzon** is a production-grade full-stack monorepo for a zone-based ride-hailing and driver dispatch platform featuring negotiable fares, multi-tier geographic classifications (in-city, outstation, interstate), and prepaid driver commission ledgers.
+**cabzone** is a production-grade full-stack monorepo for a zone-based ride-hailing and driver dispatch platform featuring negotiable fares, multi-tier geographic classifications (in-city, outstation, interstate), and prepaid driver commission ledgers.
 
 > **Naming Standards**:
 >
-> - **Product / Brand**: **Cabzon**
+> - **Product / Brand**: **cabzone**
 > - **NPM Package Scope**: `@cabzone/*`
 > - **Monorepo / Container Namespace**: `cabzone`
 

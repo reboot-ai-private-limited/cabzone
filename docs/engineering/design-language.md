@@ -2,7 +2,7 @@
 
 ## Product Character
 
-Cabzon is a practical ride-hailing product intended for riders, drivers and city-level operations.
+cabzone is a practical ride-hailing product intended for riders, drivers and city-level operations.
 
 The UI should prioritize:
 
