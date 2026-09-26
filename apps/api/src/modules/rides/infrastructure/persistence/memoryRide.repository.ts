@@ -1,4 +1,4 @@
-import type { RideEntity, RideRepositoryPort } from '../index.js';
+import type { RideEntity, RideRepositoryPort } from '../../domain/index.js';
 
 export class MemoryRideRepository implements RideRepositoryPort {
   private readonly rides = new Map<string, RideEntity>();
@@ -45,7 +45,7 @@ export class MemoryRideRepository implements RideRepositoryPort {
         otpAttempts: 0,
         maxOtpAttempts: 3,
       },
-      assignedAt,
+      acceptedAt: assignedAt,
       updatedAt: assignedAt,
       version: ride.version + 1,
     };

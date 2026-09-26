@@ -11,7 +11,7 @@ import { newUuid } from '../../../../shared/ids.js';
 import {
   haversineDistanceM,
   type ServiceClassificationUseCase,
-} from '../../../zone/index.js';
+} from '../../../zone/zone.public.js';
 import {
   calculateBaseFareEstimate,
   type PricingConfigRepositoryPort,

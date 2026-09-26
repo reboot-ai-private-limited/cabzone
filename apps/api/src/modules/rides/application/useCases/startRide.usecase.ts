@@ -1,7 +1,6 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { AppError } from '../../../../shared/errors/AppError.js';
-import type { RideEntity } from '../index.js';
-import type { RideRepositoryPort } from '../index.js';
+import type { RideEntity, RideRepositoryPort } from '../../domain/index.js';
 
 export interface StartRideInput {
   rideId: string;
@@ -35,7 +34,7 @@ export class StartRideUseCase {
     }
 
     if (!ride.passenger.pickupOtpHash) {
-      throw AppError.internal('MISSING_OTP: Ride does not have a pickup OTP configured.');
+      throw AppError.internal('INTERNAL', 'MISSING_OTP: Ride does not have a pickup OTP configured.');
     }
 
     const now = new Date();

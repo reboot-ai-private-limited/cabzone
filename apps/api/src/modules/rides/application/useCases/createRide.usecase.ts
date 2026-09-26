@@ -4,9 +4,8 @@ import { newUuid } from '../../../../shared/ids.js';
 import {
   CreateQuoteUseCase,
   type PricingConfigRepositoryPort,
-} from '../../../pricing/index.js';
-import type { RideEntity } from '../index.js';
-import type { RideRepositoryPort } from '../index.js';
+} from '../../../pricing/pricing.public.js';
+import type { RideEntity, RideRepositoryPort } from '../../domain/index.js';
 
 export interface CreateRideInput {
   quoteToken: string;
@@ -110,11 +109,12 @@ export class CreateRideUseCase {
         baseFarePaise: currentConfig.baseFarePaise,
         ratePerKmPaise: currentConfig.ratePerKmPaise,
         minimumFarePaise: currentConfig.minimumFarePaise,
+        includedDistanceM: currentConfig.includedDistanceM,
         bufferSurchargePaise: currentConfig.bufferSurchargePaise,
         negotiationFloorPercent: currentConfig.negotiationFloorPercent,
         negotiationCeilingPercent: currentConfig.negotiationCeilingPercent,
         commissionPercent: currentConfig.commissionPercent,
-        calculatedAt: now,
+        zoneType: quote.serviceType,
       },
       suggestedFarePaise: quote.suggestedFarePaise,
       proposedFarePaise: input.proposedFarePaise,

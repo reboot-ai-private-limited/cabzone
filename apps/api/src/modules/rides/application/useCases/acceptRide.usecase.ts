@@ -1,8 +1,7 @@
 import { createHash, randomInt } from 'node:crypto';
 import { AppError } from '../../../../shared/errors/AppError.js';
-import { isDriverEligibleForNewRides, type WalletRepositoryPort } from '../../../ledger/index.js';
-import type { RideEntity } from '../index.js';
-import type { RideRepositoryPort } from '../index.js';
+import { isDriverEligibleForNewRides, type WalletRepositoryPort } from '../../../ledger/ledger.public.js';
+import type { RideEntity, RideRepositoryPort } from '../../domain/index.js';
 
 export interface AcceptRideInput {
   rideId: string;
