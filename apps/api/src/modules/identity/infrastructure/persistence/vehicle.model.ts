@@ -4,7 +4,7 @@ import {
   VEHICLE_VERIFICATION_STATUSES,
   type VehicleCategory,
   type VehicleVerificationStatus,
-} from '@cabzone/contracts';
+} from '@Cabzone/contracts';
 
 export type VehicleDocument = {
   _id: string;

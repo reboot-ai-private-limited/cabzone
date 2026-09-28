@@ -1,4 +1,4 @@
-# cabzone — Zone Engine
+# Cabzone — Zone Engine
 
 **Document:** `docs/LLD/zone-engine.md`  
 **Status:** Draft for Engineering Review  

@@ -1,4 +1,4 @@
-# cabzone — Database Schema
+# Cabzone — Database Schema
 
 **Document:** `docs/LLD/database-schema.md`  
 **Status:** Draft for Engineering Review  
@@ -6,7 +6,7 @@
 
 ## 1. Purpose
 
-Define the persistent data model required to implement the cabzone domain model. This document translates the domain entities and invariants into MongoDB-oriented collections, field types, indexes, uniqueness rules, TTL policies, and concurrency requirements.
+Define the persistent data model required to implement the Cabzone domain model. This document translates the domain entities and invariants into MongoDB-oriented collections, field types, indexes, uniqueness rules, TTL policies, and concurrency requirements.
 
 ## 2. Storage Conventions
 

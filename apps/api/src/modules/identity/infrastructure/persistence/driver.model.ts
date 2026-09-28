@@ -6,7 +6,7 @@ import {
   type DriverKycStatus,
   type DriverOperationalStatus,
   type DriverStatus,
-} from '@cabzone/contracts';
+} from '@Cabzone/contracts';
 
 export interface DriverDocument extends Document<string> {
   _id: string;

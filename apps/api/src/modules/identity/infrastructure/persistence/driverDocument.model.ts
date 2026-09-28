@@ -4,7 +4,7 @@ import {
   DOCUMENT_VERIFICATION_STATUSES,
   type DocumentType,
   type DocumentVerificationStatus,
-} from '@cabzone/contracts';
+} from '@Cabzone/contracts';
 
 export interface DriverDocumentDocument extends Document<string> {
   _id: string;

@@ -1,4 +1,4 @@
-import type { GeoPoint } from '@cabzone/contracts';
+import type { GeoPoint } from '@Cabzone/contracts';
 import type { ZoneEntity, ZoneFilter, ZoneRepositoryPort } from '../../domain/index.js';
 import { distanceToPolygonM, isPointInGeometry } from '../../domain/index.js';
 

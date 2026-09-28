@@ -1,4 +1,4 @@
-import type { HttpBody } from '@cabzone/contracts';
+import type { HttpBody } from '@Cabzone/contracts';
 import { ApiError, NetworkError } from './ApiError.js';
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:4000/api';
@@ -18,7 +18,7 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   const token =
     explicitToken ??
     (typeof window !== 'undefined'
-      ? localStorage.getItem('cabzone_access_token') ?? undefined
+      ? localStorage.getItem('Cabzone_access_token') ?? undefined
       : undefined);
 
   const url = new URL(BASE_URL + path);

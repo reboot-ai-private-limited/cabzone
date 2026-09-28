@@ -7,7 +7,7 @@ import {
   DRIVER_STATUSES,
   E164_PHONE_REGEX,
   USER_STATUSES,
-} from '@cabzone/contracts';
+} from '@Cabzone/contracts';
 
 export const phoneE164Schema = z
   .string()

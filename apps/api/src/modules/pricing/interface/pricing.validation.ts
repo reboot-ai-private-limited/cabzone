@@ -2,7 +2,7 @@ import { z } from 'zod';
 import {
   VEHICLE_CATEGORIES,
   ZONE_STATUSES,
-} from '@cabzone/contracts';
+} from '@Cabzone/contracts';
 
 export const geoJsonPolygonSchema = z.object({
   type: z.literal('Polygon'),

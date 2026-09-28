@@ -1,4 +1,4 @@
-import type { ZoneDto } from '@cabzone/contracts';
+import type { ZoneDto } from '@Cabzone/contracts';
 import { AppError } from '../../../../shared/errors/AppError.js';
 import { newUuid } from '../../../../shared/ids.js';
 import type {

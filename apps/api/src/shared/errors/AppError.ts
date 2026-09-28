@@ -1,4 +1,4 @@
-import type { FaultCode } from '@cabzone/contracts';
+import type { FaultCode } from '@Cabzone/contracts';
 
 export class AppError extends Error {
   readonly statusCode: number;

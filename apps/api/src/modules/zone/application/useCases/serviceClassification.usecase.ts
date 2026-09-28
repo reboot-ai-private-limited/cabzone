@@ -4,7 +4,7 @@ import type {
   ServiceClassificationDto,
   ServiceClassificationType,
   VehicleCategory,
-} from '@cabzone/contracts';
+} from '@Cabzone/contracts';
 import { AppError } from '../../../../shared/errors/AppError.js';
 import {
   distanceToPolygonM,

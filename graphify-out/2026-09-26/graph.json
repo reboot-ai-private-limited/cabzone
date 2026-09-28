@@ -7711,13 +7711,13 @@
       "source_location": "L12"
     },
     {
-      "id": "apps_web_package_dependencies_cabzone_contracts",
-      "label": "@cabzone/contracts",
+      "id": "apps_web_package_dependencies_Cabzone_contracts",
+      "label": "@Cabzone/contracts",
       "_origin": "ast",
       "community": 0,
       "community_name": "web/package.json",
       "file_type": "code",
-      "norm_label": "@cabzone/contracts",
+      "norm_label": "@Cabzone/contracts",
       "source_file": "apps/web/package.json",
       "source_location": "L13"
     },
@@ -7777,13 +7777,13 @@
       "source_location": "L19"
     },
     {
-      "id": "apps_web_package_devdependencies_cabzone_config",
-      "label": "@cabzone/config",
+      "id": "apps_web_package_devdependencies_Cabzone_config",
+      "label": "@Cabzone/config",
       "_origin": "ast",
       "community": 0,
       "community_name": "web/package.json",
       "file_type": "code",
-      "norm_label": "@cabzone/config",
+      "norm_label": "@Cabzone/config",
       "source_file": "apps/web/package.json",
       "source_location": "L20"
     },
@@ -7986,24 +7986,24 @@
       "source_location": "L4"
     },
     {
-      "id": "apps_web_package_json_ref_cabzone_config",
-      "label": "@cabzone/config",
+      "id": "apps_web_package_json_ref_Cabzone_config",
+      "label": "@Cabzone/config",
       "_origin": "ast",
       "community": 0,
       "community_name": "web/package.json",
       "file_type": "concept",
-      "norm_label": "@cabzone/config",
+      "norm_label": "@Cabzone/config",
       "source_file": "apps/web/package.json",
       "source_location": "L20"
     },
     {
-      "id": "apps_web_package_json_ref_cabzone_contracts",
-      "label": "@cabzone/contracts",
+      "id": "apps_web_package_json_ref_Cabzone_contracts",
+      "label": "@Cabzone/contracts",
       "_origin": "ast",
       "community": 0,
       "community_name": "web/package.json",
       "file_type": "concept",
-      "norm_label": "@cabzone/contracts",
+      "norm_label": "@Cabzone/contracts",
       "source_file": "apps/web/package.json",
       "source_location": "L13"
     },
@@ -8151,13 +8151,13 @@
       "source_location": "L24"
     },
     {
-      "id": "package_devdependencies_cabzone_config",
-      "label": "@cabzone/config",
+      "id": "package_devdependencies_Cabzone_config",
+      "label": "@Cabzone/config",
       "_origin": "ast",
       "community": 1,
       "community_name": "package.json",
       "file_type": "code",
-      "norm_label": "@cabzone/config",
+      "norm_label": "@Cabzone/config",
       "source_file": "package.json",
       "source_location": "L25"
     },
@@ -8503,13 +8503,13 @@
       "source_location": "L4"
     },
     {
-      "id": "package_json_ref_cabzone_config",
-      "label": "@cabzone/config",
+      "id": "package_json_ref_Cabzone_config",
+      "label": "@Cabzone/config",
       "_origin": "ast",
       "community": 1,
       "community_name": "package.json",
       "file_type": "concept",
-      "norm_label": "@cabzone/config",
+      "norm_label": "@Cabzone/config",
       "source_file": "package.json",
       "source_location": "L25"
     },
@@ -10285,13 +10285,13 @@
       "source_location": "L36"
     },
     {
-      "id": "apps_api_package_devdependencies_cabzone_config",
-      "label": "@cabzone/config",
+      "id": "apps_api_package_devdependencies_Cabzone_config",
+      "label": "@Cabzone/config",
       "_origin": "ast",
       "community": 120,
       "community_name": "devDependencies",
       "file_type": "code",
-      "norm_label": "@cabzone/config",
+      "norm_label": "@Cabzone/config",
       "source_file": "apps/api/package.json",
       "source_location": "L37"
     },
@@ -10488,14 +10488,14 @@
       "source_location": "L92"
     },
     {
-      "id": "dailyworklog_daily_work_log_cabzone_platform",
-      "label": "Daily Work Log - cabzone Platform",
+      "id": "dailyworklog_daily_work_log_Cabzone_platform",
+      "label": "Daily Work Log - Cabzone Platform",
       "_origin": "ast",
       "community": 121,
       "community_name": "4. Quote Lifecycle & First-to-Accept Ride Engine",
       "file_type": "document",
       "node_kind": "heading",
-      "norm_label": "daily work log - cabzone platform",
+      "norm_label": "daily work log - Cabzone platform",
       "source_file": "dailyworklog.md",
       "source_location": "L1"
     },
@@ -10701,13 +10701,13 @@
       "source_location": "L20"
     },
     {
-      "id": "apps_api_package_dependencies_cabzone_contracts",
-      "label": "@cabzone/contracts",
+      "id": "apps_api_package_dependencies_Cabzone_contracts",
+      "label": "@Cabzone/contracts",
       "_origin": "ast",
       "community": 14,
       "community_name": "dependencies",
       "file_type": "code",
-      "norm_label": "@cabzone/contracts",
+      "norm_label": "@Cabzone/contracts",
       "source_file": "apps/api/package.json",
       "source_location": "L19"
     },
@@ -10888,13 +10888,13 @@
       "source_location": "L13"
     },
     {
-      "id": "packages_contracts_package_devdependencies_cabzone_config",
-      "label": "@cabzone/config",
+      "id": "packages_contracts_package_devdependencies_Cabzone_config",
+      "label": "@Cabzone/config",
       "_origin": "ast",
       "community": 16,
       "community_name": "contracts/package.json",
       "file_type": "code",
-      "norm_label": "@cabzone/config",
+      "norm_label": "@Cabzone/config",
       "source_file": "packages/contracts/package.json",
       "source_location": "L14"
     },
@@ -10998,13 +10998,13 @@
       "source_location": "L3"
     },
     {
-      "id": "packages_contracts_package_json_ref_cabzone_config",
-      "label": "@cabzone/config",
+      "id": "packages_contracts_package_json_ref_Cabzone_config",
+      "label": "@Cabzone/config",
       "_origin": "ast",
       "community": 16,
       "community_name": "contracts/package.json",
       "file_type": "concept",
-      "norm_label": "@cabzone/config",
+      "norm_label": "@Cabzone/config",
       "source_file": "packages/contracts/package.json",
       "source_location": "L14"
     },
@@ -11229,24 +11229,24 @@
       "source_location": "L4"
     },
     {
-      "id": "apps_api_package_json_ref_cabzone_config",
-      "label": "@cabzone/config",
+      "id": "apps_api_package_json_ref_Cabzone_config",
+      "label": "@Cabzone/config",
       "_origin": "ast",
       "community": 2,
       "community_name": "api/package.json",
       "file_type": "concept",
-      "norm_label": "@cabzone/config",
+      "norm_label": "@Cabzone/config",
       "source_file": "apps/api/package.json",
       "source_location": "L37"
     },
     {
-      "id": "apps_api_package_json_ref_cabzone_contracts",
-      "label": "@cabzone/contracts",
+      "id": "apps_api_package_json_ref_Cabzone_contracts",
+      "label": "@Cabzone/contracts",
       "_origin": "ast",
       "community": 2,
       "community_name": "api/package.json",
       "file_type": "concept",
-      "norm_label": "@cabzone/contracts",
+      "norm_label": "@Cabzone/contracts",
       "source_file": "apps/api/package.json",
       "source_location": "L19"
     },
@@ -11526,13 +11526,13 @@
       "source_location": "L10"
     },
     {
-      "id": "apps_api_tsconfig_json_ref_cabzone_config_tsconfig_base_json",
-      "label": "@cabzone/config/tsconfig.base.json",
+      "id": "apps_api_tsconfig_json_ref_Cabzone_config_tsconfig_base_json",
+      "label": "@Cabzone/config/tsconfig.base.json",
       "_origin": "ast",
       "community": 20,
       "community_name": "compilerOptions",
       "file_type": "concept",
-      "norm_label": "@cabzone/config/tsconfig.base.json",
+      "norm_label": "@Cabzone/config/tsconfig.base.json",
       "source_file": "apps/api/tsconfig.json",
       "source_location": "L2"
     },
@@ -11647,13 +11647,13 @@
       "source_location": "L18"
     },
     {
-      "id": "ref_cabzone_config_tsconfig_react_json",
-      "label": "@cabzone/config/tsconfig.react.json",
+      "id": "ref_Cabzone_config_tsconfig_react_json",
+      "label": "@Cabzone/config/tsconfig.react.json",
       "_origin": "ast",
       "community": 21,
       "community_name": "compilerOptions",
       "file_type": "concept",
-      "norm_label": "@cabzone/config/tsconfig.react.json",
+      "norm_label": "@Cabzone/config/tsconfig.react.json",
       "source_file": "apps/web/tsconfig.json",
       "source_location": "L2"
     },
@@ -11845,13 +11845,13 @@
       "source_location": "L4"
     },
     {
-      "id": "packages_contracts_tsconfig_json_ref_cabzone_config_tsconfig_base_json",
-      "label": "@cabzone/config/tsconfig.base.json",
+      "id": "packages_contracts_tsconfig_json_ref_Cabzone_config_tsconfig_base_json",
+      "label": "@Cabzone/config/tsconfig.base.json",
       "_origin": "ast",
       "community": 28,
       "community_name": "contracts/tsconfig.json",
       "file_type": "concept",
-      "norm_label": "@cabzone/config/tsconfig.base.json",
+      "norm_label": "@Cabzone/config/tsconfig.base.json",
       "source_file": "packages/contracts/tsconfig.json",
       "source_location": "L2"
     },
@@ -12076,13 +12076,13 @@
       "source_location": "L2"
     },
     {
-      "id": "tsconfig_json_ref_cabzone_config_tsconfig_base_json",
-      "label": "@cabzone/config/tsconfig.base.json",
+      "id": "tsconfig_json_ref_Cabzone_config_tsconfig_base_json",
+      "label": "@Cabzone/config/tsconfig.base.json",
       "_origin": "ast",
       "community": 41,
       "community_name": "tsconfig.json",
       "file_type": "concept",
-      "norm_label": "@cabzone/config/tsconfig.base.json",
+      "norm_label": "@Cabzone/config/tsconfig.base.json",
       "source_file": "tsconfig.json",
       "source_location": "L2"
     },
@@ -12795,14 +12795,14 @@
       "source_location": "L156"
     },
     {
-      "id": "docs_engineering_my_notes_1_what_problem_does_cabzone_solve",
-      "label": "1. What problem does cabzone solve?",
+      "id": "docs_engineering_my_notes_1_what_problem_does_Cabzone_solve",
+      "label": "1. What problem does Cabzone solve?",
       "_origin": "ast",
       "community": 67,
       "community_name": "my-notes.md",
       "file_type": "document",
       "node_kind": "heading",
-      "norm_label": "1. what problem does cabzone solve?",
+      "norm_label": "1. what problem does Cabzone solve?",
       "source_file": "docs/engineering/my-notes.md",
       "source_location": "L1"
     },
@@ -13313,14 +13313,14 @@
       "source_location": "L259"
     },
     {
-      "id": "indrive_4_key_architectural_patterns_takeaways_for_cabzone",
-      "label": "4. Key Architectural Patterns & Takeaways for cabzone",
+      "id": "indrive_4_key_architectural_patterns_takeaways_for_Cabzone",
+      "label": "4. Key Architectural Patterns & Takeaways for Cabzone",
       "_origin": "ast",
       "community": 72,
       "community_name": "2. Complete User Journey & Screen Flows (Curated from Mobbin)",
       "file_type": "document",
       "node_kind": "heading",
-      "norm_label": "4. key architectural patterns & takeaways for cabzone",
+      "norm_label": "4. key architectural patterns & takeaways for Cabzone",
       "source_file": "indrive.md",
       "source_location": "L374"
     },
@@ -15782,7 +15782,7 @@
     },
     {
       "id": "docs_engineering_monorepo_layout_apps_api",
-      "label": "apps/api (@cabzone/api)",
+      "label": "apps/api (@Cabzone/api)",
       "_origin": "semantic",
       "author": null,
       "captured_at": null,
@@ -15790,14 +15790,14 @@
       "community_name": "Monorepo Layout",
       "contributor": null,
       "file_type": "concept",
-      "norm_label": "apps/api (@cabzone/api)",
+      "norm_label": "apps/api (@Cabzone/api)",
       "source_file": "docs/engineering/monorepo-layout.md",
       "source_location": "Directory Topology",
       "source_url": null
     },
     {
       "id": "docs_engineering_monorepo_layout_apps_web",
-      "label": "apps/web (@cabzone/web)",
+      "label": "apps/web (@Cabzone/web)",
       "_origin": "semantic",
       "author": null,
       "captured_at": null,
@@ -15805,14 +15805,14 @@
       "community_name": "Monorepo Layout",
       "contributor": null,
       "file_type": "concept",
-      "norm_label": "apps/web (@cabzone/web)",
+      "norm_label": "apps/web (@Cabzone/web)",
       "source_file": "docs/engineering/monorepo-layout.md",
       "source_location": "Directory Topology",
       "source_url": null
     },
     {
       "id": "docs_engineering_monorepo_layout_packages_contracts",
-      "label": "packages/contracts (@cabzone/contracts)",
+      "label": "packages/contracts (@Cabzone/contracts)",
       "_origin": "semantic",
       "author": null,
       "captured_at": null,
@@ -15820,7 +15820,7 @@
       "community_name": "Monorepo Layout",
       "contributor": null,
       "file_type": "concept",
-      "norm_label": "packages/contracts (@cabzone/contracts)",
+      "norm_label": "packages/contracts (@Cabzone/contracts)",
       "source_file": "docs/engineering/monorepo-layout.md",
       "source_location": "Directory Topology",
       "source_url": null
@@ -16632,7 +16632,7 @@
     },
     {
       "id": "docs_engineering_testing_pyramid",
-      "label": "cabzone Testing Pyramid",
+      "label": "Cabzone Testing Pyramid",
       "_origin": "semantic",
       "author": null,
       "captured_at": null,
@@ -16640,7 +16640,7 @@
       "community_name": "docs/engineering/testing.md",
       "contributor": null,
       "file_type": "concept",
-      "norm_label": "cabzone testing pyramid",
+      "norm_label": "Cabzone testing pyramid",
       "rationale": "Unit tests as foundation, integration tests for adapters/repositories, E2E for critical user journeys.",
       "source_file": "docs/engineering/testing.md",
       "source_location": null,
@@ -17061,7 +17061,7 @@
     },
     {
       "id": "docs_engineering_design_language_product_character",
-      "label": "cabzone UI Design Character",
+      "label": "Cabzone UI Design Character",
       "_origin": "semantic",
       "author": null,
       "captured_at": null,
@@ -17069,7 +17069,7 @@
       "community_name": "docs/engineering/design-language.md",
       "contributor": null,
       "file_type": "concept",
-      "norm_label": "cabzone ui design character",
+      "norm_label": "Cabzone ui design character",
       "rationale": "Prioritize clarity, speed, trust, legibility, low cognitive load, and strong status communication.",
       "source_file": "docs/engineering/design-language.md",
       "source_location": null,
@@ -17818,7 +17818,7 @@
       "author": null,
       "captured_at": null,
       "community": 7,
-      "community_name": "cabzone Platform",
+      "community_name": "Cabzone Platform",
       "contributor": null,
       "file_type": "concept",
       "norm_label": "mongodb dev service (docker-compose.dev.yml)",
@@ -17833,7 +17833,7 @@
       "author": null,
       "captured_at": null,
       "community": 7,
-      "community_name": "cabzone Platform",
+      "community_name": "Cabzone Platform",
       "contributor": null,
       "file_type": "concept",
       "norm_label": "redis dev service (docker-compose.dev.yml)",
@@ -17848,7 +17848,7 @@
       "author": null,
       "captured_at": null,
       "community": 7,
-      "community_name": "cabzone Platform",
+      "community_name": "Cabzone Platform",
       "contributor": null,
       "file_type": "concept",
       "norm_label": "ride module reference structure",
@@ -17864,7 +17864,7 @@
       "author": null,
       "captured_at": null,
       "community": 7,
-      "community_name": "cabzone Platform",
+      "community_name": "Cabzone Platform",
       "contributor": null,
       "file_type": "concept",
       "norm_label": "standard module anatomy",
@@ -17880,7 +17880,7 @@
       "author": null,
       "captured_at": null,
       "community": 7,
-      "community_name": "cabzone Platform",
+      "community_name": "Cabzone Platform",
       "contributor": null,
       "file_type": "concept",
       "norm_label": "redis hot-path driver location",
@@ -17895,7 +17895,7 @@
       "author": null,
       "captured_at": null,
       "community": 7,
-      "community_name": "cabzone Platform",
+      "community_name": "Cabzone Platform",
       "contributor": null,
       "file_type": "concept",
       "norm_label": "wallet ledger (immutable transactions)",
@@ -17910,7 +17910,7 @@
       "author": null,
       "captured_at": null,
       "community": 7,
-      "community_name": "cabzone Platform",
+      "community_name": "Cabzone Platform",
       "contributor": null,
       "file_type": "concept",
       "norm_label": "driver persona",
@@ -17925,7 +17925,7 @@
       "author": null,
       "captured_at": null,
       "community": 7,
-      "community_name": "cabzone Platform",
+      "community_name": "Cabzone Platform",
       "contributor": null,
       "file_type": "concept",
       "norm_label": "admin console (apps/web)",
@@ -17940,7 +17940,7 @@
       "author": null,
       "captured_at": null,
       "community": 7,
-      "community_name": "cabzone Platform",
+      "community_name": "Cabzone Platform",
       "contributor": null,
       "file_type": "concept",
       "norm_label": "api server (apps/api)",
@@ -17955,7 +17955,7 @@
       "author": null,
       "captured_at": null,
       "community": 7,
-      "community_name": "cabzone Platform",
+      "community_name": "Cabzone Platform",
       "contributor": null,
       "file_type": "concept",
       "norm_label": "mongodb replica set (rs0)",
@@ -17970,7 +17970,7 @@
       "author": null,
       "captured_at": null,
       "community": 7,
-      "community_name": "cabzone Platform",
+      "community_name": "Cabzone Platform",
       "contributor": null,
       "file_type": "concept",
       "norm_label": "monorepo layout (pnpm + turborepo)",
@@ -17985,7 +17985,7 @@
       "author": null,
       "captured_at": null,
       "community": 7,
-      "community_name": "cabzone Platform",
+      "community_name": "Cabzone Platform",
       "contributor": null,
       "file_type": "concept",
       "norm_label": "queue worker (bullmq)",
@@ -18000,7 +18000,7 @@
       "author": null,
       "captured_at": null,
       "community": 7,
-      "community_name": "cabzone Platform",
+      "community_name": "Cabzone Platform",
       "contributor": null,
       "file_type": "concept",
       "norm_label": "redis (bullmq + cache)",
@@ -18015,7 +18015,7 @@
       "author": null,
       "captured_at": null,
       "community": 7,
-      "community_name": "cabzone Platform",
+      "community_name": "Cabzone Platform",
       "contributor": null,
       "file_type": "document",
       "norm_label": "decision log (adr)",
@@ -18030,7 +18030,7 @@
       "author": null,
       "captured_at": null,
       "community": 7,
-      "community_name": "cabzone Platform",
+      "community_name": "Cabzone Platform",
       "contributor": null,
       "file_type": "document",
       "norm_label": "adding a module checklist",
@@ -18045,7 +18045,7 @@
       "author": null,
       "captured_at": null,
       "community": 7,
-      "community_name": "cabzone Platform",
+      "community_name": "Cabzone Platform",
       "contributor": null,
       "file_type": "document",
       "norm_label": "docs/engineering/module-anatomy.md",
@@ -18060,7 +18060,7 @@
       "author": null,
       "captured_at": null,
       "community": 7,
-      "community_name": "cabzone Platform",
+      "community_name": "Cabzone Platform",
       "contributor": null,
       "file_type": "document",
       "norm_label": "engineering handbook",
@@ -18075,7 +18075,7 @@
       "author": null,
       "captured_at": null,
       "community": 7,
-      "community_name": "cabzone Platform",
+      "community_name": "Cabzone Platform",
       "contributor": null,
       "file_type": "document",
       "norm_label": "api wire envelope (success/error)",
@@ -18090,7 +18090,7 @@
       "author": null,
       "captured_at": null,
       "community": 7,
-      "community_name": "cabzone Platform",
+      "community_name": "Cabzone Platform",
       "contributor": null,
       "file_type": "document",
       "norm_label": "driver wallet model",
@@ -18099,31 +18099,31 @@
       "source_url": null
     },
     {
-      "id": "docs_readme_cabzone_documentation",
-      "label": "cabzone Documentation Hub",
+      "id": "docs_readme_Cabzone_documentation",
+      "label": "Cabzone Documentation Hub",
       "_origin": "semantic",
       "author": null,
       "captured_at": null,
       "community": 7,
-      "community_name": "cabzone Platform",
+      "community_name": "Cabzone Platform",
       "contributor": null,
       "file_type": "document",
-      "norm_label": "cabzone documentation hub",
+      "norm_label": "Cabzone documentation hub",
       "source_file": "docs/README.md",
       "source_location": null,
       "source_url": null
     },
     {
-      "id": "readme_cabzone",
-      "label": "cabzone Platform",
+      "id": "readme_Cabzone",
+      "label": "Cabzone Platform",
       "_origin": "semantic",
       "author": null,
       "captured_at": null,
       "community": 7,
-      "community_name": "cabzone Platform",
+      "community_name": "Cabzone Platform",
       "contributor": null,
       "file_type": "document",
-      "norm_label": "cabzone platform",
+      "norm_label": "Cabzone platform",
       "source_file": "README.md",
       "source_location": null,
       "source_url": null
@@ -18135,7 +18135,7 @@
       "author": null,
       "captured_at": null,
       "community": 7,
-      "community_name": "cabzone Platform",
+      "community_name": "Cabzone Platform",
       "contributor": null,
       "file_type": "rationale",
       "norm_label": "module encapsulation and access rules",
@@ -32089,7 +32089,7 @@
     },
     {
       "source": "apps_api_tsconfig",
-      "target": "apps_api_tsconfig_json_ref_cabzone_config_tsconfig_base_json",
+      "target": "apps_api_tsconfig_json_ref_Cabzone_config_tsconfig_base_json",
       "relation": "extends",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -32101,7 +32101,7 @@
     },
     {
       "source": "apps_web_tsconfig",
-      "target": "ref_cabzone_config_tsconfig_react_json",
+      "target": "ref_Cabzone_config_tsconfig_react_json",
       "relation": "extends",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -32125,7 +32125,7 @@
     },
     {
       "source": "packages_contracts_tsconfig",
-      "target": "packages_contracts_tsconfig_json_ref_cabzone_config_tsconfig_base_json",
+      "target": "packages_contracts_tsconfig_json_ref_Cabzone_config_tsconfig_base_json",
       "relation": "extends",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -32137,7 +32137,7 @@
     },
     {
       "source": "tsconfig",
-      "target": "tsconfig_json_ref_cabzone_config_tsconfig_base_json",
+      "target": "tsconfig_json_ref_Cabzone_config_tsconfig_base_json",
       "relation": "extends",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -32149,7 +32149,7 @@
     },
     {
       "source": "apps_api_package",
-      "target": "apps_api_package_json_ref_cabzone_contracts",
+      "target": "apps_api_package_json_ref_Cabzone_contracts",
       "relation": "imports",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -32341,7 +32341,7 @@
     },
     {
       "source": "apps_api_package",
-      "target": "apps_api_package_json_ref_cabzone_config",
+      "target": "apps_api_package_json_ref_Cabzone_config",
       "relation": "imports",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -47377,7 +47377,7 @@
     },
     {
       "source": "apps_web_package",
-      "target": "apps_web_package_json_ref_cabzone_contracts",
+      "target": "apps_web_package_json_ref_Cabzone_contracts",
       "relation": "imports",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -47437,7 +47437,7 @@
     },
     {
       "source": "apps_web_package",
-      "target": "apps_web_package_json_ref_cabzone_config",
+      "target": "apps_web_package_json_ref_Cabzone_config",
       "relation": "imports",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -47629,7 +47629,7 @@
     },
     {
       "source": "package",
-      "target": "package_json_ref_cabzone_config",
+      "target": "package_json_ref_Cabzone_config",
       "relation": "imports",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -47833,7 +47833,7 @@
     },
     {
       "source": "packages_contracts_package",
-      "target": "packages_contracts_package_json_ref_cabzone_config",
+      "target": "packages_contracts_package_json_ref_Cabzone_config",
       "relation": "imports",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -53864,7 +53864,7 @@
     },
     {
       "source": "apps_api_package_dependencies",
-      "target": "apps_api_package_dependencies_cabzone_contracts",
+      "target": "apps_api_package_dependencies_Cabzone_contracts",
       "relation": "contains",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -54040,7 +54040,7 @@
     },
     {
       "source": "apps_api_package_devdependencies",
-      "target": "apps_api_package_devdependencies_cabzone_config",
+      "target": "apps_api_package_devdependencies_Cabzone_config",
       "relation": "contains",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -58649,7 +58649,7 @@
     },
     {
       "source": "apps_web_package_dependencies",
-      "target": "apps_web_package_dependencies_cabzone_contracts",
+      "target": "apps_web_package_dependencies_Cabzone_contracts",
       "relation": "contains",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -58704,7 +58704,7 @@
     },
     {
       "source": "apps_web_package_devdependencies",
-      "target": "apps_web_package_devdependencies_cabzone_config",
+      "target": "apps_web_package_devdependencies_Cabzone_config",
       "relation": "contains",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -59023,7 +59023,7 @@
     },
     {
       "source": "dailyworklog",
-      "target": "dailyworklog_daily_work_log_cabzone_platform",
+      "target": "dailyworklog_daily_work_log_Cabzone_platform",
       "relation": "contains",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -59033,7 +59033,7 @@
       "weight": 1.0
     },
     {
-      "source": "dailyworklog_daily_work_log_cabzone_platform",
+      "source": "dailyworklog_daily_work_log_Cabzone_platform",
       "target": "dailyworklog_detailed_chronology_of_work_completed",
       "relation": "contains",
       "_origin": "ast",
@@ -59044,7 +59044,7 @@
       "weight": 1.0
     },
     {
-      "source": "dailyworklog_daily_work_log_cabzone_platform",
+      "source": "dailyworklog_daily_work_log_Cabzone_platform",
       "target": "dailyworklog_test_verification_metrics",
       "relation": "contains",
       "_origin": "ast",
@@ -59055,7 +59055,7 @@
       "weight": 1.0
     },
     {
-      "source": "dailyworklog_daily_work_log_cabzone_platform",
+      "source": "dailyworklog_daily_work_log_Cabzone_platform",
       "target": "dailyworklog_executive_summary",
       "relation": "contains",
       "_origin": "ast",
@@ -59066,7 +59066,7 @@
       "weight": 1.0
     },
     {
-      "source": "dailyworklog_daily_work_log_cabzone_platform",
+      "source": "dailyworklog_daily_work_log_Cabzone_platform",
       "target": "dailyworklog_changed_added_artifacts",
       "relation": "contains",
       "_origin": "ast",
@@ -59122,7 +59122,7 @@
     },
     {
       "source": "docs_engineering_my_notes",
-      "target": "docs_engineering_my_notes_1_what_problem_does_cabzone_solve",
+      "target": "docs_engineering_my_notes_1_what_problem_does_Cabzone_solve",
       "relation": "contains",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -59408,7 +59408,7 @@
     },
     {
       "source": "indrive_indrive_product_ux_architecture_reference",
-      "target": "indrive_4_key_architectural_patterns_takeaways_for_cabzone",
+      "target": "indrive_4_key_architectural_patterns_takeaways_for_Cabzone",
       "relation": "contains",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -59507,7 +59507,7 @@
     },
     {
       "source": "package_devdependencies",
-      "target": "package_devdependencies_cabzone_config",
+      "target": "package_devdependencies_Cabzone_config",
       "relation": "contains",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -60376,7 +60376,7 @@
     },
     {
       "source": "packages_contracts_package_devdependencies",
-      "target": "packages_contracts_package_devdependencies_cabzone_config",
+      "target": "packages_contracts_package_devdependencies_Cabzone_config",
       "relation": "contains",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -64786,7 +64786,7 @@
       "weight": 1.0
     },
     {
-      "source": "docs_readme_cabzone_documentation",
+      "source": "docs_readme_Cabzone_documentation",
       "target": "docs_engineering_readme_engineering_handbook",
       "relation": "references",
       "_origin": "ast",
@@ -64797,7 +64797,7 @@
       "weight": 1.0
     },
     {
-      "source": "docs_readme_cabzone_documentation",
+      "source": "docs_readme_Cabzone_documentation",
       "target": "docs_engineering_monorepo_layout_monorepo_layout",
       "relation": "references",
       "_origin": "ast",
@@ -64808,7 +64808,7 @@
       "weight": 1.0
     },
     {
-      "source": "docs_readme_cabzone_documentation",
+      "source": "docs_readme_Cabzone_documentation",
       "target": "docs_engineering_clean_architecture_and_solid",
       "relation": "references",
       "_origin": "ast",
@@ -64819,7 +64819,7 @@
       "weight": 1.0
     },
     {
-      "source": "docs_readme_cabzone_documentation",
+      "source": "docs_readme_Cabzone_documentation",
       "target": "docs_engineering_module_anatomy",
       "relation": "references",
       "_origin": "ast",
@@ -64830,7 +64830,7 @@
       "weight": 1.0
     },
     {
-      "source": "docs_readme_cabzone_documentation",
+      "source": "docs_readme_Cabzone_documentation",
       "target": "docs_engineering_boundaries_and_enforcement",
       "relation": "references",
       "_origin": "ast",
@@ -64841,7 +64841,7 @@
       "weight": 1.0
     },
     {
-      "source": "docs_readme_cabzone_documentation",
+      "source": "docs_readme_Cabzone_documentation",
       "target": "docs_engineering_tech_choices_tech_stack",
       "relation": "references",
       "_origin": "ast",
@@ -64852,7 +64852,7 @@
       "weight": 1.0
     },
     {
-      "source": "docs_readme_cabzone_documentation",
+      "source": "docs_readme_Cabzone_documentation",
       "target": "docs_lld_api_contracts_wire_envelope",
       "relation": "references",
       "_origin": "ast",
@@ -64863,7 +64863,7 @@
       "weight": 1.0
     },
     {
-      "source": "docs_readme_cabzone_documentation",
+      "source": "docs_readme_Cabzone_documentation",
       "target": "docs_setup_development",
       "relation": "references",
       "_origin": "ast",
@@ -64874,8 +64874,8 @@
       "weight": 1.0
     },
     {
-      "source": "readme_cabzone",
-      "target": "docs_readme_cabzone_documentation",
+      "source": "readme_Cabzone",
+      "target": "docs_readme_Cabzone_documentation",
       "relation": "references",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -64885,7 +64885,7 @@
       "weight": 1.0
     },
     {
-      "source": "readme_cabzone",
+      "source": "readme_Cabzone",
       "target": "docs_prd_prd",
       "relation": "references",
       "_origin": "ast",
@@ -64896,7 +64896,7 @@
       "weight": 1.0
     },
     {
-      "source": "readme_cabzone",
+      "source": "readme_Cabzone",
       "target": "docs_decision_log_decision_log",
       "relation": "references",
       "_origin": "ast",
@@ -64907,7 +64907,7 @@
       "weight": 1.0
     },
     {
-      "source": "readme_cabzone",
+      "source": "readme_Cabzone",
       "target": "docs_setup_development",
       "relation": "references",
       "_origin": "ast",
@@ -64918,7 +64918,7 @@
       "weight": 1.0
     },
     {
-      "source": "readme_cabzone",
+      "source": "readme_Cabzone",
       "target": "docs_lld_ride_lifecycle_ride_lifecycle",
       "relation": "references",
       "_origin": "ast",
@@ -64929,7 +64929,7 @@
       "weight": 1.0
     },
     {
-      "source": "readme_cabzone",
+      "source": "readme_Cabzone",
       "target": "docs_lld_zone_engine_zone_engine",
       "relation": "references",
       "_origin": "ast",
@@ -64940,7 +64940,7 @@
       "weight": 1.0
     },
     {
-      "source": "readme_cabzone",
+      "source": "readme_Cabzone",
       "target": "docs_lld_wallet_and_commission_wallet_model",
       "relation": "references",
       "_origin": "ast",
@@ -64951,7 +64951,7 @@
       "weight": 1.0
     },
     {
-      "source": "readme_cabzone",
+      "source": "readme_Cabzone",
       "target": "docs_lld_api_contracts_wire_envelope",
       "relation": "references",
       "_origin": "ast",
@@ -64962,7 +64962,7 @@
       "weight": 1.0
     },
     {
-      "source": "readme_cabzone",
+      "source": "readme_Cabzone",
       "target": "docs_engineering_readme_engineering_handbook",
       "relation": "references",
       "_origin": "ast",
@@ -64973,7 +64973,7 @@
       "weight": 1.0
     },
     {
-      "source": "readme_cabzone",
+      "source": "readme_Cabzone",
       "target": "docs_engineering_monorepo_layout_monorepo_layout",
       "relation": "references",
       "_origin": "ast",
@@ -64984,7 +64984,7 @@
       "weight": 1.0
     },
     {
-      "source": "readme_cabzone",
+      "source": "readme_Cabzone",
       "target": "docs_engineering_clean_architecture_and_solid",
       "relation": "references",
       "_origin": "ast",
@@ -64995,7 +64995,7 @@
       "weight": 1.0
     },
     {
-      "source": "readme_cabzone",
+      "source": "readme_Cabzone",
       "target": "docs_engineering_module_anatomy",
       "relation": "references",
       "_origin": "ast",
@@ -65006,7 +65006,7 @@
       "weight": 1.0
     },
     {
-      "source": "readme_cabzone",
+      "source": "readme_Cabzone",
       "target": "docs_engineering_boundaries_and_enforcement",
       "relation": "references",
       "_origin": "ast",
@@ -65017,7 +65017,7 @@
       "weight": 1.0
     },
     {
-      "source": "readme_cabzone",
+      "source": "readme_Cabzone",
       "target": "docs_engineering_tech_choices_tech_stack",
       "relation": "references",
       "_origin": "ast",
@@ -65028,7 +65028,7 @@
       "weight": 1.0
     },
     {
-      "source": "readme_cabzone",
+      "source": "readme_Cabzone",
       "target": "docs_engineering_coding_standards",
       "relation": "references",
       "_origin": "ast",
@@ -65039,7 +65039,7 @@
       "weight": 1.0
     },
     {
-      "source": "readme_cabzone",
+      "source": "readme_Cabzone",
       "target": "docs_engineering_testing",
       "relation": "references",
       "_origin": "ast",
@@ -65050,7 +65050,7 @@
       "weight": 1.0
     },
     {
-      "source": "readme_cabzone",
+      "source": "readme_Cabzone",
       "target": "docs_engineering_adding_a_module_adding_a_module",
       "relation": "references",
       "_origin": "ast",
@@ -67633,7 +67633,7 @@
       "weight": 1.0
     },
     {
-      "source": "docs_readme_cabzone_documentation",
+      "source": "docs_readme_Cabzone_documentation",
       "target": "docs_lld_ride_lifecycle_ride_lifecycle",
       "relation": "references",
       "_origin": "semantic",
@@ -67644,7 +67644,7 @@
       "weight": 1.0
     },
     {
-      "source": "docs_readme_cabzone_documentation",
+      "source": "docs_readme_Cabzone_documentation",
       "target": "docs_lld_wallet_and_commission_wallet_model",
       "relation": "references",
       "_origin": "semantic",
@@ -67655,7 +67655,7 @@
       "weight": 1.0
     },
     {
-      "source": "docs_readme_cabzone_documentation",
+      "source": "docs_readme_Cabzone_documentation",
       "target": "docs_lld_zone_engine_zone_engine",
       "relation": "references",
       "_origin": "semantic",
@@ -67666,7 +67666,7 @@
       "weight": 1.0
     },
     {
-      "source": "docs_readme_cabzone_documentation",
+      "source": "docs_readme_Cabzone_documentation",
       "target": "docs_lld_websocket_contracts_websocket_contracts",
       "relation": "references",
       "_origin": "semantic",
@@ -67677,7 +67677,7 @@
       "weight": 1.0
     },
     {
-      "source": "docs_readme_cabzone_documentation",
+      "source": "docs_readme_Cabzone_documentation",
       "target": "docs_decision_log_decision_log",
       "relation": "references",
       "_origin": "semantic",
@@ -67688,7 +67688,7 @@
       "weight": 1.0
     },
     {
-      "source": "docs_readme_cabzone_documentation",
+      "source": "docs_readme_Cabzone_documentation",
       "target": "docs_prd_prd",
       "relation": "references",
       "_origin": "semantic",
@@ -67776,7 +67776,7 @@
       "weight": 1.0
     },
     {
-      "source": "readme_cabzone",
+      "source": "readme_Cabzone",
       "target": "readme_admin_console",
       "relation": "references",
       "_origin": "semantic",
@@ -67787,7 +67787,7 @@
       "weight": 1.0
     },
     {
-      "source": "readme_cabzone",
+      "source": "readme_Cabzone",
       "target": "readme_api_server",
       "relation": "references",
       "_origin": "semantic",
@@ -67798,7 +67798,7 @@
       "weight": 1.0
     },
     {
-      "source": "readme_cabzone",
+      "source": "readme_Cabzone",
       "target": "readme_mongodb",
       "relation": "references",
       "_origin": "semantic",
@@ -67809,7 +67809,7 @@
       "weight": 1.0
     },
     {
-      "source": "readme_cabzone",
+      "source": "readme_Cabzone",
       "target": "readme_monorepo_layout",
       "relation": "references",
       "_origin": "semantic",
@@ -67820,7 +67820,7 @@
       "weight": 1.0
     },
     {
-      "source": "readme_cabzone",
+      "source": "readme_Cabzone",
       "target": "readme_queue_worker",
       "relation": "references",
       "_origin": "semantic",
@@ -67831,7 +67831,7 @@
       "weight": 1.0
     },
     {
-      "source": "readme_cabzone",
+      "source": "readme_Cabzone",
       "target": "readme_redis",
       "relation": "references",
       "_origin": "semantic",
@@ -67941,7 +67941,7 @@
       "weight": 1.0
     },
     {
-      "source": "readme_cabzone",
+      "source": "readme_Cabzone",
       "target": "docs_lld_domain_model_ride_aggregate",
       "relation": "references",
       "_origin": "semantic",

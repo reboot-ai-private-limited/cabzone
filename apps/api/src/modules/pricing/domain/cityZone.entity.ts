@@ -1,4 +1,4 @@
-import type { GeoJsonPolygon, ZoneStatus } from '@cabzone/contracts';
+import type { GeoJsonPolygon, ZoneStatus } from '@Cabzone/contracts';
 
 export interface CityZoneEntity {
   id: string;

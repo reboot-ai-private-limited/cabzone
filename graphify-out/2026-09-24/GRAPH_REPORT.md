@@ -1,4 +1,4 @@
-# Graph Report - cabzonenew  (2026-09-24)
+# Graph Report - Cabzonenew  (2026-09-24)
 
 ## Corpus Check
 - Corpus is ~7,483 words - fits in a single context window. You may not need a graph.
@@ -78,7 +78,7 @@ Nodes (19): GetHealthUseCase, DependencyHealth, DependencyStatus, HealthReport, 
 
 ### Community 3 - "Web Frontend Dependencies"
 Cohesion: 0.05
-Nodes (36): dependencies, @cabzone/contracts, lucide-react, next, react, react-dom, devDependencies, @cabzone/config (+28 more)
+Nodes (36): dependencies, @Cabzone/contracts, lucide-react, next, react, react-dom, devDependencies, @Cabzone/config (+28 more)
 
 ### Community 4 - "Error Handling & AppError Domain"
 Cohesion: 0.08
@@ -86,11 +86,11 @@ Nodes (17): AppError, ApiError, NetworkError, request(), RequestOptions, FAULT_C
 
 ### Community 5 - "Build Tooling & ESBuild Config"
 Cohesion: 0.06
-Nodes (32): external, pkg, @cabzone/config, @cabzone/contracts, @types/node, typescript, vitest, name (+24 more)
+Nodes (32): external, pkg, @Cabzone/config, @Cabzone/contracts, @types/node, typescript, vitest, name (+24 more)
 
 ### Community 6 - "Contracts Package & Tooling"
 Cohesion: 0.06
-Nodes (32): engines, node, @cabzone/config, eslint, eslint-config-prettier, typescript, @typescript-eslint/eslint-plugin, @typescript-eslint/parser (+24 more)
+Nodes (32): engines, node, @Cabzone/config, eslint, eslint-config-prettier, typescript, @typescript-eslint/eslint-plugin, @typescript-eslint/parser (+24 more)
 
 ### Community 7 - "Environment Config & Validation"
 Cohesion: 0.19
@@ -110,19 +110,19 @@ Nodes (20): devDependencies, eslint, eslint-config-prettier, typescript, @typesc
 
 ### Community 11 - "API Dependencies & Queue Pipeline"
 Cohesion: 0.12
-Nodes (17): dependencies, bullmq, @cabzone/contracts, cookie-parser, cors, dotenv, express, express-rate-limit (+9 more)
+Nodes (17): dependencies, bullmq, @Cabzone/contracts, cookie-parser, cors, dotenv, express, express-rate-limit (+9 more)
 
 ### Community 12 - "API Dev Dependencies & Testing"
 Cohesion: 0.14
-Nodes (14): devDependencies, @cabzone/config, dependency-cruiser, esbuild, pino-pretty, supertest, tsx, @types/cookie-parser (+6 more)
+Nodes (14): devDependencies, @Cabzone/config, dependency-cruiser, esbuild, pino-pretty, supertest, tsx, @types/cookie-parser (+6 more)
 
 ### Community 13 - "Shared Config Package Definition"
 Cohesion: 0.14
-Nodes (13): devDependencies, @cabzone/config, typescript, exports, @cabzone/config, typescript, name, private (+5 more)
+Nodes (13): devDependencies, @Cabzone/config, typescript, exports, @Cabzone/config, typescript, name, private (+5 more)
 
 ### Community 14 - "Web Dev Dependencies & ESLint React"
 Cohesion: 0.15
-Nodes (13): devDependencies, @cabzone/config, eslint, eslint-config-prettier, eslint-plugin-jsx-a11y, eslint-plugin-react, eslint-plugin-react-hooks, prettier (+5 more)
+Nodes (13): devDependencies, @Cabzone/config, eslint, eslint-config-prettier, eslint-plugin-jsx-a11y, eslint-plugin-react, eslint-plugin-react-hooks, prettier (+5 more)
 
 ### Community 15 - "API Build & Dev Scripts"
 Cohesion: 0.18
@@ -142,11 +142,11 @@ Nodes (6): config, apps_web_src_app_globals, metadata, next, ref_node_url, ref_v
 
 ### Community 19 - "Web TypeScript Configuration"
 Cohesion: 0.22
-Nodes (8): compilerOptions, baseUrl, paths, plugins, exclude, extends, include, @cabzone/config/tsconfig.react.json
+Nodes (8): compilerOptions, baseUrl, paths, plugins, exclude, extends, include, @Cabzone/config/tsconfig.react.json
 
 ### Community 20 - "Contracts TypeScript Configuration"
 Cohesion: 0.29
-Nodes (6): compilerOptions, module, moduleResolution, extends, include, @cabzone/config/tsconfig.base.json
+Nodes (6): compilerOptions, module, moduleResolution, extends, include, @Cabzone/config/tsconfig.base.json
 
 ### Community 21 - "Graphify Agent Rules & Workflows"
 Cohesion: 0.67

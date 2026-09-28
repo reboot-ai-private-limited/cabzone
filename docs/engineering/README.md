@@ -1,6 +1,6 @@
-# cabzone Engineering Handbook
+# Cabzone Engineering Handbook
 
-This directory contains engineering standards for building **cabzone** from approved product requirements and architecture decisions.
+This directory contains engineering standards for building **Cabzone** from approved product requirements and architecture decisions.
 
 ## Documents
 
@@ -22,7 +22,7 @@ This directory contains engineering standards for building **cabzone** from appr
 
 ## Important Source Boundary
 
-The cabzone PRD defines product behavior. It does not define the complete technical stack.
+The Cabzone PRD defines product behavior. It does not define the complete technical stack.
 
 Therefore:
 
@@ -33,11 +33,11 @@ Therefore:
 
 ## Core Product Boundary
 
-cabzone contains:
+Cabzone contains:
 
 - **Rider Mobile App** (Roadmap)
 - **Driver Mobile App** (Roadmap)
-- **Admin Web Dashboard** (`apps/web`, `@cabzone/web`)
-- **Backend API & Queue Worker** (`apps/api`, `@cabzone/api`)
+- **Admin Web Dashboard** (`apps/web`, `@Cabzone/web`)
+- **Backend API & Queue Worker** (`apps/api`, `@Cabzone/api`)
 
 Core product areas include driver verification, rider authentication, zones, pricing, negotiation, dispatch, ride execution, payments, wallet/commission, ratings, trust, history, and disputes.

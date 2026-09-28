@@ -4,7 +4,7 @@ import {
   VEHICLE_CATEGORIES,
   type PricingConfigStatus,
   type VehicleCategory,
-} from '@cabzone/contracts';
+} from '@Cabzone/contracts';
 
 export interface PricingConfigDocument extends Document<string> {
   _id: string;

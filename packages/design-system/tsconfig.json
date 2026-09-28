@@ -1,0 +1,1 @@
+{ "extends": "@Cabzone/config/tsconfig.react.json", "include": ["src"] }

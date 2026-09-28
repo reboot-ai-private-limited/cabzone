@@ -1,4 +1,4 @@
-import type { ZoneDto, ZoneListResponse } from '@cabzone/contracts';
+import type { ZoneDto, ZoneListResponse } from '@Cabzone/contracts';
 import type { ZoneFilter, ZoneRepositoryPort } from '../../domain/index.js';
 import { zoneEntityToDto } from '../../domain/index.js';
 

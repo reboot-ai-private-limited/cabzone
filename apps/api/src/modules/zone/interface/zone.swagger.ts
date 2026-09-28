@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ZONE_STATUSES, ZONE_TYPES } from '@cabzone/contracts';
+import { ZONE_STATUSES, ZONE_TYPES } from '@Cabzone/contracts';
 import { registry, successResponse, errorResponse, bearerAuth } from '@/shared/http/swagger.util.js';
 import {
   createZoneSchema,

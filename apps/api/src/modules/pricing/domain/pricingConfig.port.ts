@@ -1,4 +1,4 @@
-import type { VehicleCategory } from '@cabzone/contracts';
+import type { VehicleCategory } from '@Cabzone/contracts';
 import type { PricingConfigEntity } from './pricingConfig.entity.js';
 
 export interface PricingConfigRepositoryPort {

@@ -4,7 +4,7 @@ import {
   NEGOTIATION_ACTORS,
   type NegotiationAction,
   type NegotiationActor,
-} from '@cabzone/contracts';
+} from '@Cabzone/contracts';
 
 export interface FareNegotiationDocument extends Document<string> {
   _id: string;

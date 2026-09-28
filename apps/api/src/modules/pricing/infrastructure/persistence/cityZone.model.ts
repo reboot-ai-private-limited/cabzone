@@ -1,5 +1,5 @@
 import mongoose, { type Document, Schema } from 'mongoose';
-import { ZONE_STATUSES, type GeoJsonPolygon, type ZoneStatus } from '@cabzone/contracts';
+import { ZONE_STATUSES, type GeoJsonPolygon, type ZoneStatus } from '@Cabzone/contracts';
 
 export interface CityZoneDocument extends Document<string> {
   _id: string;

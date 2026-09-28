@@ -1,4 +1,4 @@
-import type { CancellationReason, RideEventActor } from '@cabzone/contracts';
+import type { CancellationReason, RideEventActor } from '@Cabzone/contracts';
 import { AppError } from '../../../shared/errors/AppError.js';
 import type { RideEntity } from './ride.entity.js';
 

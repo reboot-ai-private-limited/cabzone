@@ -1,1 +1,1 @@
-module.exports = { root: true, extends: [require.resolve('@cabzone/config/eslint.base.cjs')] };
+module.exports = { root: true, extends: [require.resolve('@Cabzone/config/eslint.base.cjs')] };

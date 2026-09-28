@@ -1,5 +1,5 @@
 import mongoose, { type Document, Schema } from 'mongoose';
-import { WALLET_STATUSES, type WalletStatus } from '@cabzone/contracts';
+import { WALLET_STATUSES, type WalletStatus } from '@Cabzone/contracts';
 
 export interface WalletDocument extends Document<string> {
   _id: string;

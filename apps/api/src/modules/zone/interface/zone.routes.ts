@@ -12,6 +12,7 @@ export interface AdminZoneRouterDeps {
   activateZone: RequestHandler;
   deactivateZone: RequestHandler;
   getZoneHistory: RequestHandler;
+  getZoneDependents: RequestHandler;
 }
 
 export function buildAdminZoneRouter(deps: AdminZoneRouterDeps): Router {
@@ -29,6 +30,7 @@ export function buildAdminZoneRouter(deps: AdminZoneRouterDeps): Router {
   router.post('/:id/activate', deps.activateZone);
   router.post('/:id/deactivate', deps.deactivateZone);
   router.get('/:id/history', deps.getZoneHistory);
+  router.get('/:id/dependents', deps.getZoneDependents);
 
   return router;
 }

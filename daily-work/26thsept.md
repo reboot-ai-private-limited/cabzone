@@ -1,4 +1,4 @@
-# Daily Work Log - cabzone Platform
+# Daily Work Log - Cabzone Platform
 
 **Date:** September 26, 2026  
 **Branch:** `feature/ride-dispatch-api`  
@@ -96,17 +96,17 @@ Today we implemented and hardened **Phase 1: Backend Ride Lifecycle Hardening** 
 
 ---
 
-## 5. Cabzon Zones Full Implementation (PR 1 - PR 4)
+## 5. Cabzone Zones Full Implementation (PR 1 - PR 4)
 
-We checked and implemented the complete vertical slice from [cabzon-zones-full-implementation-plan.md](../../cabzon-zones-full-implementation-plan.md):
+We checked and implemented the complete vertical slice from [Cabzone-zones-full-implementation-plan.md](../../Cabzone-zones-full-implementation-plan.md):
 
 ```text
 Domain -> Geometry/Validation Engine -> Repository -> Admin API
 -> Audit/Versioning -> Zone Resolution -> Admin Web UI
 ```
 
-### 1. Shared Geometry Engine (`@cabzone/geo`)
-- Created `@cabzone/geo` workspace package with 25 unit tests (`test/geo.test.ts`):
+### 1. Shared Geometry Engine (`@Cabzone/geo`)
+- Created `@Cabzone/geo` workspace package with 25 unit tests (`test/geo.test.ts`):
   - **Coordinates (`coords.ts`):** `toPosition`, `fromPosition`, `toGeoJsonPoint`, `haversineDistanceM`, `validateCoordinates` (detecting swapped coordinate inversions).
   - **Polygon (`polygon.ts`):** `GeoJsonPolygon`, `GeoJsonMultiPolygon`, `BoundingBox`, `getCentroid`, `distancePointToSegmentM`, `distanceToPolygonM`.
   - **Point-in-Polygon (`point-in-polygon.ts`):** Ray-casting point containment for polygons with interior exclusion holes and multi-polygons.

@@ -1,4 +1,4 @@
-import type { GeoPoint, VehicleCategory } from '@cabzone/contracts';
+import type { GeoPoint, VehicleCategory } from '@Cabzone/contracts';
 import { AppError } from '../../../../shared/errors/AppError.js';
 import { newUuid } from '../../../../shared/ids.js';
 import {

@@ -9,7 +9,7 @@ describe('Swagger & OpenAPI Documentation', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.openapi).toBe('3.0.0');
-    expect(res.body.info.title).toContain('Cabzon API');
+    expect(res.body.info.title).toContain('Cabzone API');
     expect(res.body.paths).toHaveProperty('/health');
     expect(res.body.paths).toHaveProperty('/v1/zones/resolve');
     expect(res.body.paths).toHaveProperty('/v1/admin/zones');

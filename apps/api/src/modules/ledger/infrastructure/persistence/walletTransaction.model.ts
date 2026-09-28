@@ -4,7 +4,7 @@ import {
   WALLET_TRANSACTION_TYPES,
   type TransactionReferenceType,
   type WalletTransactionType,
-} from '@cabzone/contracts';
+} from '@Cabzone/contracts';
 
 export interface WalletTransactionDocument extends Document<string> {
   _id: string;

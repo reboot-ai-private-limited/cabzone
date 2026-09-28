@@ -1,5 +1,5 @@
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
-import type { VerifyOtpRequestDto, VerifyOtpResponseDto } from '@cabzone/contracts';
+import type { VerifyOtpRequestDto, VerifyOtpResponseDto } from '@Cabzone/contracts';
 import { AppError } from '../../../../shared/errors/AppError.js';
 import { newUuid } from '../../../../shared/ids.js';
 import type {

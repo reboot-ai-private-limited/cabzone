@@ -4,8 +4,8 @@ import type {
   QuoteDto,
   ServiceClassificationType,
   VehicleCategory,
-} from '@cabzone/contracts';
-import { calculateNegotiationBounds } from '@cabzone/contracts';
+} from '@Cabzone/contracts';
+import { calculateNegotiationBounds } from '@Cabzone/contracts';
 import { AppError } from '../../../../shared/errors/AppError.js';
 import { newUuid } from '../../../../shared/ids.js';
 import {

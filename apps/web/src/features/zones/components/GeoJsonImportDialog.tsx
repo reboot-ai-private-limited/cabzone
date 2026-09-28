@@ -1,175 +1,111 @@
 'use client';
 
-import React, { useState } from 'react';
-import {
-  AlertCircle,
-  CheckCircle2,
-  FileCode,
-  Upload,
-  X,
-} from 'lucide-react';
-import {
-  normalizeGeoJson,
-  validateGeometry,
-  type GeoJsonGeometry,
-  type ZoneViolation,
-} from '@cabzone/contracts';
-import { ZoneViolations } from './ZoneViolations.js';
+import { useState } from 'react';
+import { Info } from 'lucide-react';
+import type { Polygon } from '@Cabzone/geo';
+import { Button, Dialog } from '@Cabzone/design-system';
+import { parseZoneGeoJson } from '../lib/geojson-import';
 
-interface GeoJsonImportDialogProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onImport: (geometry: GeoJsonGeometry) => void;
-}
-
+/**
+ * Paste a boundary in. THE PRIMARY WAY A ZONE SHOULD GET ITS SHAPE — see `geojson-import.ts`.
+ *
+ * The reason this is not a corner-case feature: the city zone and every hill zone correspond to
+ * a boundary that already exists and is published. Siliguri Municipal Corporation, the
+ * Darjeeling and Kalimpong subdivisions — all of them are OSM relations, exportable in about a
+ * minute. Hand-tracing a shape that is already drawn somewhere is slower and less accurate on
+ * any basemap, commercial ones included, and it puts a zone edge in the wrong place with nobody
+ * able to say by how much.
+ *
+ * Which matters most for hill zones, where the edge IS the price boundary.
+ */
 export function GeoJsonImportDialog({
-  isOpen,
-  onClose,
+  open,
+  onOpenChange,
   onImport,
-}: GeoJsonImportDialogProps) {
-  const [rawText, setRawText] = useState('');
-  const [parsedGeom, setParsedGeom] = useState<GeoJsonGeometry | null>(null);
-  const [violations, setViolations] = useState<ZoneViolation[]>([]);
-  const [parseError, setParseError] = useState<string | null>(null);
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onImport: (polygon: Polygon) => void;
+}) {
+  const [text, setText] = useState('');
+  const [error, setError] = useState<string | undefined>(undefined);
+  const [note, setNote] = useState<string | undefined>(undefined);
 
-  if (!isOpen) return null;
+  const reset = (): void => {
+    setText('');
+    setError(undefined);
+    setNote(undefined);
+  };
 
-  const handleValidateAndParse = (text: string) => {
-    setRawText(text);
-    setParseError(null);
-    setViolations([]);
-    setParsedGeom(null);
-
-    if (!text.trim()) return;
-
-    try {
-      const parsed = JSON.parse(text);
-      const normalized = normalizeGeoJson(parsed);
-      const valResult = validateGeometry(normalized);
-
-      setParsedGeom(normalized);
-      setViolations(valResult.violations);
-    } catch (err: unknown) {
-      setParseError((err as Error).message);
+  const submit = (): void => {
+    const result = parseZoneGeoJson(text);
+    if (!result.ok) {
+      setError(result.message);
+      setNote(undefined);
+      return;
     }
+    // The note is shown by the caller alongside the imported shape, not here — the dialog is
+    // closing, and a message that vanishes with it has not been read.
+    onImport(result.polygon);
+    if (result.note !== undefined) setNote(result.note);
+    reset();
+    onOpenChange(false);
   };
-
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const content = event.target?.result as string;
-      handleValidateAndParse(content);
-    };
-    reader.readAsText(file);
-  };
-
-  const handleApplyImport = () => {
-    if (parsedGeom && violations.filter((v) => v.severity === 'ERROR').length === 0) {
-      onImport(parsedGeom);
-      onClose();
-    }
-  };
-
-  const hasErrors =
-    parseError !== null || violations.some((v) => v.severity === 'ERROR');
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
-      <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full flex flex-col overflow-hidden border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
-          <div className="flex items-center gap-2">
-            <FileCode className="w-5 h-5 text-indigo-600" />
-            <h3 className="text-sm font-bold text-slate-900">Import GeoJSON Geometry</h3>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-slate-400 hover:text-slate-700 p-1 rounded-lg"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        {/* Body */}
-        <div className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
-          <p className="text-xs text-slate-500">
-            Paste a valid GeoJSON object (Polygon, MultiPolygon, Feature, or FeatureCollection) or upload a file.
-          </p>
-
-          {/* File upload input */}
-          <div className="flex items-center gap-3">
-            <label className="cursor-pointer inline-flex items-center gap-2 px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100">
-              <Upload className="w-3.5 h-3.5" />
-              <span>Choose GeoJSON file</span>
-              <input
-                type="file"
-                accept=".json,.geojson,application/geo+json,application/json"
-                onChange={handleFileUpload}
-                className="hidden"
-              />
-            </label>
-            <span className="text-[11px] text-slate-400">or paste JSON below</span>
-          </div>
-
-          {/* Text Area */}
-          <div>
-            <textarea
-              rows={8}
-              value={rawText}
-              onChange={(e) => handleValidateAndParse(e.target.value)}
-              placeholder='{ "type": "Polygon", "coordinates": [...] }'
-              className="w-full p-3 font-mono text-[11px] border border-slate-200 rounded-lg bg-slate-50 focus:bg-white focus:outline-hidden focus:ring-1 focus:ring-slate-900 placeholder:text-slate-400"
-            />
-          </div>
-
-          {/* Validation Feedback */}
-          {parseError && (
-            <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg flex items-start gap-2 text-xs text-rose-700">
-              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-              <span>{parseError}</span>
-            </div>
-          )}
-
-          {violations.length > 0 && <ZoneViolations violations={violations} />}
-
-          {parsedGeom && !hasErrors && (
-            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center justify-between text-xs text-emerald-800">
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                <span className="font-semibold">Valid {parsedGeom.type} Geometry</span>
-              </div>
-              <span className="text-[11px] font-mono text-emerald-700">
-                {parsedGeom.type === 'Polygon'
-                  ? `${parsedGeom.coordinates[0]?.length ?? 0} vertices`
-                  : `${parsedGeom.coordinates.length} polygons`}
-              </span>
-            </div>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-slate-100 bg-slate-50">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-3.5 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-900 rounded-lg"
-          >
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) reset();
+        onOpenChange(next);
+      }}
+      title="Import a boundary"
+      description="Paste GeoJSON — a Feature, a FeatureCollection, or a bare geometry."
+      footer={
+        <>
+          <Button size="sm" onClick={() => onOpenChange(false)}>
             Cancel
-          </button>
-          <button
-            type="button"
-            onClick={handleApplyImport}
-            disabled={!parsedGeom || hasErrors}
-            className="px-4 py-1.5 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg shadow-xs"
-          >
-            Apply Geometry
-          </button>
-        </div>
+          </Button>
+          <Button size="sm" variant="primary" onClick={submit} disabled={text.trim() === ''}>
+            Import
+          </Button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-2">
+        <p className="flex items-start gap-1.5 text-xs text-text-subtle">
+          <Info aria-hidden className="size-3.5 shrink-0 mt-px" />
+          Administrative boundaries — a municipal corporation, a subdivision — are published as OSM
+          relations and export straight to GeoJSON. Starting from one is faster and more accurate
+          than tracing it.
+        </p>
+
+        <textarea
+          value={text}
+          onChange={(event) => {
+            setText(event.target.value);
+            setError(undefined);
+          }}
+          rows={10}
+          spellCheck={false}
+          placeholder='{ "type": "Feature", "geometry": { "type": "Polygon", "coordinates": [ … ] } }'
+          aria-label="GeoJSON"
+          aria-invalid={error !== undefined || undefined}
+          className="w-full p-2 rounded-md bg-surface text-text font-mono text-xs border border-border-strong placeholder:text-text-subtle focus-visible:outline-2 focus-visible:outline-interactive resize-y aria-invalid:border-danger"
+        />
+
+        {error !== undefined && (
+          <p role="alert" className="text-xs text-danger">
+            {error}
+          </p>
+        )}
+        {note !== undefined && <p className="text-xs text-warning">{note}</p>}
+
+        <p className="text-xs text-text-subtle">
+          The winding order is normalised on import, so a clockwise ring from any exporter is safe
+          to paste.
+        </p>
       </div>
-    </div>
+    </Dialog>
   );
 }
