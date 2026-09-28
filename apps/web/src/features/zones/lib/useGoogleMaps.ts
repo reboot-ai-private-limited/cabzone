@@ -42,7 +42,7 @@ export function useGoogleMaps(apiKey?: string) {
 
     isScriptLoading = true;
     const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=geometry`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=geometry,places`;
     script.async = true;
     script.defer = true;
 

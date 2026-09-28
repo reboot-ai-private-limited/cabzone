@@ -4,8 +4,11 @@
 export * from '@cabzone/geo';
 import type { GeoJsonGeometry, GeoJsonPolygon, GeoPoint } from '@cabzone/geo';
 
-export const ZONE_TYPES = ['CITY', 'PICKUP', 'EXCLUSION'] as const;
+export const ZONE_TYPES = ['CITY', 'PICKUP', 'EXCLUSION', 'HILL'] as const;
 export type ZoneType = (typeof ZONE_TYPES)[number];
+
+export const PICKUP_CHARGE_TYPES = ['FREE', 'PAID'] as const;
+export type PickupChargeType = (typeof PICKUP_CHARGE_TYPES)[number];
 
 export const ZONE_STATUSES = ['ACTIVE', 'INACTIVE'] as const;
 export type ZoneStatus = (typeof ZONE_STATUSES)[number];
@@ -30,6 +33,8 @@ export interface ZoneDto {
   geometry: GeoJsonGeometry;
   boundary: GeoJsonPolygon; // backwards compatibility alias
   bufferDistanceM: number | null;
+  pickupChargeType?: PickupChargeType | null | undefined;
+  pickupChargePaise?: number | null | undefined;
   status: ZoneStatus;
   currentPricingConfigId: string | null;
   version: number;
@@ -49,6 +54,8 @@ export interface ResolvedZones {
   dropExclusion: ZoneDto | null;
   city: ZoneDto | null;
   pickupCoverage: ZoneDto | null;
+  dropHill?: ZoneDto | null;
+  pickupChargePaise?: number;
   nearestCity: ZoneDto | null;
   isWithinBuffer: boolean;
 }
@@ -63,6 +70,8 @@ export interface CreateZoneInputDto {
   geometry?: GeoJsonGeometry | undefined;
   boundary?: GeoJsonPolygon | undefined;
   bufferDistanceM?: number | null | undefined;
+  pickupChargeType?: PickupChargeType | null | undefined;
+  pickupChargePaise?: number | null | undefined;
   currentPricingConfigId?: string | null | undefined;
 }
 
@@ -74,6 +83,8 @@ export interface UpdateZoneMetadataRequest {
   stateCode?: string | undefined;
   parentCityZoneId?: string | null | undefined;
   bufferDistanceM?: number | null | undefined;
+  pickupChargeType?: PickupChargeType | null | undefined;
+  pickupChargePaise?: number | null | undefined;
   status?: ZoneStatus | undefined;
   currentPricingConfigId?: string | null | undefined;
 }
@@ -127,5 +138,15 @@ export interface ZoneListResponse {
 export interface ResolveZonesInputDto {
   pickup: GeoPoint;
   drop: GeoPoint;
+  riderId?: string | undefined;
   throwOnExclusion?: boolean | undefined;
 }
+
+export interface CoverageRequestDto {
+  id: string;
+  lat: number;
+  lng: number;
+  riderId?: string | null | undefined;
+  createdAt: string;
+}
+

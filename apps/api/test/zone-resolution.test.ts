@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   createZoneSchema,
   geoJsonPolygonSchema,
+  MemoryCoverageRequestRepository,
   MemoryZoneRepository,
   resolveZonesRequestSchema,
   ResolveZonesUseCase,
@@ -230,6 +231,110 @@ describe('Zone Resolution & EXCLUSION Veto Tests', () => {
 
     expect(result.city).toBeNull();
     expect(result.nearestCity).toBeNull();
+  });
+
+  it('resolves dropHill when destination is inside a HILL terrain zone', async () => {
+    const repo = setupRepo();
+    // Darjeeling Hill zone: roughly [88.20, 27.00] to [88.35, 27.10]
+    const darjeelingHillZone: ZoneEntity = {
+      id: '018f0a00-0000-7000-8000-000000000004',
+      name: 'Darjeeling Hill Corridor',
+      zoneType: 'HILL',
+      parentCityZoneId: null,
+      stateCode: 'WB',
+      boundary: {
+        type: 'Polygon',
+        coordinates: [
+          [
+            [88.2, 27.0],
+            [88.35, 27.0],
+            [88.35, 27.1],
+            [88.2, 27.1],
+            [88.2, 27.0],
+          ],
+        ],
+      },
+      bufferDistanceM: null,
+      status: 'ACTIVE',
+      currentPricingConfigId: null,
+      version: 1,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    await repo.save(darjeelingHillZone);
+
+    const useCase = new ResolveZonesUseCase({ zoneRepo: repo });
+    const result = await useCase.execute({
+      pickup: { lat: 26.725, lng: 88.425 }, // Siliguri Junction
+      drop: { lat: 27.05, lng: 88.25 }, // Darjeeling Mall
+    });
+
+    expect(result.dropHill).not.toBeNull();
+    expect(result.dropHill?.name).toBe('Darjeeling Hill Corridor');
+    expect(result.dropHill?.type).toBe('HILL');
+  });
+
+  it('calculates pickupChargePaise when pickup zone has PAID surcharge', async () => {
+    const repo = new MemoryZoneRepository();
+    // Bagdogra Airport paid pickup zone: surcharge ₹50 (5,000 paise)
+    const bagdograPaidPickup: ZoneEntity = {
+      id: '018f0a00-0000-7000-8000-000000000005',
+      name: 'Bagdogra Airport Pickup Zone',
+      zoneType: 'PICKUP',
+      parentCityZoneId: siliguriCityZone.id,
+      stateCode: 'WB',
+      boundary: {
+        type: 'Polygon',
+        coordinates: [
+          [
+            [88.3, 26.65],
+            [88.35, 26.65],
+            [88.35, 26.7],
+            [88.3, 26.7],
+            [88.3, 26.65],
+          ],
+        ],
+      },
+      bufferDistanceM: null,
+      pickupChargeType: 'PAID',
+      pickupChargePaise: 5000,
+      status: 'ACTIVE',
+      currentPricingConfigId: null,
+      version: 1,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    await repo.save(siliguriCityZone);
+    await repo.save(bagdograPaidPickup);
+
+    const useCase = new ResolveZonesUseCase({ zoneRepo: repo });
+    const result = await useCase.execute({
+      pickup: { lat: 26.68, lng: 88.32 }, // Bagdogra Airport
+      drop: { lat: 26.75, lng: 88.45 },
+    });
+
+    expect(result.pickupCoverage).not.toBeNull();
+    expect(result.pickupCoverage?.pickupChargeType).toBe('PAID');
+    expect(result.pickupChargePaise).toBe(5000);
+  });
+
+  it('records unserved demand telemetry in coverageRepo when pickup is outside coverage', async () => {
+    const repo = setupRepo();
+    const coverageRepo = new MemoryCoverageRequestRepository();
+    const useCase = new ResolveZonesUseCase({ zoneRepo: repo, coverageRepo });
+
+    // Location with no pickup coverage: lat 26.50, lng 88.20
+    const result = await useCase.execute({
+      pickup: { lat: 26.5, lng: 88.2 },
+      drop: { lat: 26.75, lng: 88.45 },
+      riderId: '018f0a00-0000-7000-8000-000000000099',
+    });
+
+    expect(result.pickupCoverage).toBeNull();
+    expect(coverageRepo.requests).toHaveLength(1);
+    expect(coverageRepo.requests[0]?.lat).toBe(26.5);
+    expect(coverageRepo.requests[0]?.lng).toBe(88.2);
+    expect(coverageRepo.requests[0]?.riderId).toBe('018f0a00-0000-7000-8000-000000000099');
   });
 });
 

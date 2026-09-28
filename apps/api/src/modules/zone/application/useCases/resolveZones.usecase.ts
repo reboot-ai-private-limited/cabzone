@@ -1,16 +1,22 @@
 import type { GeoPoint, ResolvedZones } from '@cabzone/contracts';
 import { AppError } from '../../../../shared/errors/AppError.js';
-import type { ZoneEntity, ZoneRepositoryPort } from '../../domain/index.js';
+import type {
+  CoverageRequestRepositoryPort,
+  ZoneEntity,
+  ZoneRepositoryPort,
+} from '../../domain/index.js';
 import { distanceToPolygonM, getEffectiveBufferDistance, zoneEntityToDto } from '../../domain/index.js';
 
 export interface ResolveZonesInput {
   pickup: GeoPoint;
   drop: GeoPoint;
+  riderId?: string | undefined;
   throwOnExclusion?: boolean | undefined;
 }
 
 export interface ResolveZonesDeps {
   zoneRepo: ZoneRepositoryPort;
+  coverageRepo?: CoverageRequestRepositoryPort | undefined;
   globalDefaultBufferM?: number | undefined;
 }
 
@@ -52,7 +58,28 @@ export class ResolveZonesUseCase {
     const pickups = await this.deps.zoneRepo.findActivePickupsContainingPoint(input.pickup);
     const pickupZoneEntity = pickups[0] ?? null;
 
-    // 4. Resolve derived buffer coverage when outside any CITY polygon
+    // Telemetry: record unserved demand coordinates for ops expansion
+    if (!pickupZoneEntity && this.deps.coverageRepo) {
+      void this.deps.coverageRepo.recordCoverageRequest({
+        lat: input.pickup.lat,
+        lng: input.pickup.lng,
+        riderId: input.riderId,
+      });
+    }
+
+    // 4. Resolve HILL terrain containing drop point
+    const hills = this.deps.zoneRepo.findActiveHillsContainingPoint
+      ? await this.deps.zoneRepo.findActiveHillsContainingPoint(input.drop)
+      : [];
+    const dropHillEntity = hills[0] ?? null;
+
+    // 5. Calculate pickup surcharge if applicable
+    let pickupChargePaise = 0;
+    if (pickupZoneEntity?.pickupChargeType === 'PAID') {
+      pickupChargePaise = pickupZoneEntity.pickupChargePaise ?? 0;
+    }
+
+    // 6. Resolve derived buffer coverage when outside any CITY polygon
     let isWithinBuffer = false;
     let nearestCityEntity: ZoneEntity | null = null;
 
@@ -73,6 +100,8 @@ export class ResolveZonesUseCase {
       dropExclusion,
       city: cityEntity ? zoneEntityToDto(cityEntity) : null,
       pickupCoverage: pickupZoneEntity ? zoneEntityToDto(pickupZoneEntity) : null,
+      dropHill: dropHillEntity ? zoneEntityToDto(dropHillEntity) : null,
+      pickupChargePaise,
       isWithinBuffer,
       nearestCity: nearestCityEntity ? zoneEntityToDto(nearestCityEntity) : null,
     };

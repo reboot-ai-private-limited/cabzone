@@ -12,10 +12,16 @@ import {
   UpdateZoneUseCase,
   ValidateZoneUseCase,
 } from './application/useCases/index.js';
-import type { ZoneAuditRepositoryPort, ZoneRepositoryPort } from './domain/index.js';
+import type {
+  CoverageRequestRepositoryPort,
+  ZoneAuditRepositoryPort,
+  ZoneRepositoryPort,
+} from './domain/index.js';
 import {
+  MemoryCoverageRequestRepository,
   MemoryZoneAuditRepository,
   MemoryZoneRepository,
+  MongoCoverageRequestRepository,
   MongoZoneAuditRepository,
   MongoZoneRepository,
 } from './infrastructure/persistence/index.js';
@@ -48,6 +54,7 @@ export interface ZoneContainer {
   resolveZonesUseCase: ResolveZonesUseCase;
   zoneRepo: ZoneRepositoryPort;
   auditRepo: ZoneAuditRepositoryPort;
+  coverageRepo?: CoverageRequestRepositoryPort | undefined;
   buildAdminZoneRouter: (deps: { authenticate: RequestHandler; requireAdminRole: RequestHandler }) => Router;
   buildZoneRouter: () => Router;
 }
@@ -55,6 +62,7 @@ export interface ZoneContainer {
 export interface ZoneContainerDeps {
   zoneRepo?: ZoneRepositoryPort | undefined;
   auditRepo?: ZoneAuditRepositoryPort | undefined;
+  coverageRepo?: CoverageRequestRepositoryPort | undefined;
   globalDefaultBufferM?: number | undefined;
 }
 
@@ -66,6 +74,11 @@ export function buildZoneContainer(deps?: ZoneContainerDeps): ZoneContainer {
     (deps?.zoneRepo instanceof MemoryZoneRepository
       ? new MemoryZoneAuditRepository()
       : new MongoZoneAuditRepository());
+  const coverageRepo =
+    deps?.coverageRepo ??
+    (deps?.zoneRepo instanceof MemoryZoneRepository
+      ? new MemoryCoverageRequestRepository()
+      : new MongoCoverageRequestRepository());
 
   const validateZoneUseCase = new ValidateZoneUseCase({ zoneRepo });
   const createZoneUseCase = new CreateZoneUseCase({ zoneRepo, auditRepo, validateZoneUseCase });
@@ -83,6 +96,7 @@ export function buildZoneContainer(deps?: ZoneContainerDeps): ZoneContainer {
   const getZoneHistoryUseCase = new GetZoneHistoryUseCase({ zoneRepo, auditRepo });
   const resolveZonesUseCase = new ResolveZonesUseCase({
     zoneRepo,
+    coverageRepo,
     globalDefaultBufferM: deps?.globalDefaultBufferM,
   });
 
@@ -111,6 +125,7 @@ export function buildZoneContainer(deps?: ZoneContainerDeps): ZoneContainer {
     resolveZonesUseCase,
     zoneRepo,
     auditRepo,
+    coverageRepo,
     buildAdminZoneRouter: (authDeps) =>
       buildAdminZoneRouter({
         ...authDeps,

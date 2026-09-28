@@ -22,6 +22,8 @@ export const zoneDtoSchema = z.object({
   stateCode: z.string().length(2),
   parentCityZoneId: z.string().uuid().nullable().optional(),
   bufferDistanceM: z.number().nullable().optional(),
+  pickupChargeType: z.enum(['FREE', 'PAID']).nullable().optional(),
+  pickupChargePaise: z.number().nullable().optional(),
   geometry: geoJsonGeometrySchema,
   version: z.number().int(),
   supersedesZoneId: z.string().uuid().nullable().optional(),

@@ -53,6 +53,8 @@ export function ZoneForm({
   const [stateCode, setStateCode] = useState('WB');
   const [parentCityZoneId, setParentCityZoneId] = useState<string>('');
   const [bufferDistanceM, setBufferDistanceM] = useState<string>('20000');
+  const [pickupChargeType, setPickupChargeType] = useState<'FREE' | 'PAID'>('FREE');
+  const [pickupChargeRupees, setPickupChargeRupees] = useState<string>('50');
   const [geometry, setGeometry] = useState<GeoJsonGeometry | null>(null);
 
   const [violations, setViolations] = useState<ZoneViolation[]>([]);
@@ -71,6 +73,10 @@ export function ZoneForm({
       setBufferDistanceM(
         initialData.bufferDistanceM ? String(initialData.bufferDistanceM) : '20000',
       );
+      setPickupChargeType(initialData.pickupChargeType ?? 'FREE');
+      setPickupChargeRupees(
+        initialData.pickupChargePaise ? String(initialData.pickupChargePaise / 100) : '50',
+      );
       setGeometry(initialData.geometry ?? initialData.boundary);
     } else {
       setName('');
@@ -79,6 +85,8 @@ export function ZoneForm({
       setStateCode('WB');
       setParentCityZoneId('');
       setBufferDistanceM('20000');
+      setPickupChargeType('FREE');
+      setPickupChargeRupees('50');
       setGeometry(null);
     }
     setViolations([]);
@@ -192,6 +200,11 @@ export function ZoneForm({
         stateCode: stateCode.trim().toUpperCase(),
         parentCityZoneId: type === 'PICKUP' ? parentCityZoneId : null,
         bufferDistanceM: type === 'CITY' && bufferDistanceM ? Number(bufferDistanceM) : null,
+        pickupChargeType: type === 'PICKUP' ? pickupChargeType : null,
+        pickupChargePaise:
+          type === 'PICKUP' && pickupChargeType === 'PAID'
+            ? Math.round(Number(pickupChargeRupees) * 100)
+            : null,
         geometry,
       });
       onClose();
@@ -249,6 +262,7 @@ export function ZoneForm({
               <option value="CITY">CITY (Authoritative City Boundary)</option>
               <option value="PICKUP">PICKUP (Active Dispatch & Service Coverage)</option>
               <option value="EXCLUSION">EXCLUSION (Restricted Area / Absolute Veto)</option>
+              <option value="HILL">HILL (Mountain Terrain / Outstation Tariff)</option>
             </select>
           </div>
 
@@ -320,6 +334,56 @@ export function ZoneForm({
                     </option>
                   ))}
                 </select>
+              </div>
+            )}
+
+            {type === 'PICKUP' && (
+              <div className="sm:col-span-2 p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-2">
+                <span className="block text-xs font-semibold text-slate-700">
+                  Pickup Surcharge Policy
+                </span>
+                <div className="flex items-center gap-4 text-xs">
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="pickupChargeType"
+                      value="FREE"
+                      checked={pickupChargeType === 'FREE'}
+                      onChange={() => setPickupChargeType('FREE')}
+                      className="text-indigo-600 focus:ring-slate-900"
+                    />
+                    <span className="text-slate-700 font-medium">Free Pickup (Standard)</span>
+                  </label>
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="pickupChargeType"
+                      value="PAID"
+                      checked={pickupChargeType === 'PAID'}
+                      onChange={() => setPickupChargeType('PAID')}
+                      className="text-indigo-600 focus:ring-slate-900"
+                    />
+                    <span className="text-slate-700 font-medium">Paid Surcharge (Airport / Outer)</span>
+                  </label>
+                </div>
+                {pickupChargeType === 'PAID' && (
+                  <div className="pt-1 flex items-center gap-2">
+                    <label htmlFor="form-pickup-charge" className="text-xs font-semibold text-slate-600 shrink-0">
+                      Surcharge Fee (₹ Rupees):
+                    </label>
+                    <input
+                      id="form-pickup-charge"
+                      type="number"
+                      min="0"
+                      step="1"
+                      required
+                      placeholder="e.g. 50"
+                      value={pickupChargeRupees}
+                      onChange={(e) => setPickupChargeRupees(e.target.value)}
+                      className="w-28 px-3 py-1 text-xs border border-slate-200 rounded-lg bg-white focus:outline-hidden focus:ring-1 focus:ring-slate-900"
+                    />
+                  </div>
+                )}
               </div>
             )}
 

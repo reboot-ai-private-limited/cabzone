@@ -222,9 +222,9 @@
     "semantic_hash": "572df153eabafad5810b5d5a7c84dfd3"
   },
   "apps/web/package.json": {
-    "mtime": 1790412874.5228555,
-    "seen": 1790414041.1499684,
-    "ast_hash": "c8c9baeeea8bad9a91812b6d0145588f",
+    "mtime": 1790579730.1793091,
+    "seen": 1790580763.652462,
+    "ast_hash": "4b0935c7b16ffa21797c2c3da048e8d1",
     "semantic_hash": ""
   },
   "apps/web/postcss.config.mjs": {
@@ -258,9 +258,9 @@
     "semantic_hash": ""
   },
   "apps/web/tsconfig.json": {
-    "mtime": 1790400307.811292,
-    "seen": 1790414041.150401,
-    "ast_hash": "923d6df220b2ad00dc93a5e355e0db9f",
+    "mtime": 1790580578.974353,
+    "seen": 1790580763.6550033,
+    "ast_hash": "4fc647bbe729b50cbba3e74ad009b5df",
     "semantic_hash": ""
   },
   "package.json": {
@@ -1290,9 +1290,9 @@
     "semantic_hash": ""
   },
   "apps/api/src/modules/zone/application/useCases/createZone.usecase.ts": {
-    "mtime": 1790411033.2213366,
-    "seen": 1790414041.146501,
-    "ast_hash": "c3ef16fae9829aac90749489b52a5ca2",
+    "mtime": 1790583372.8316393,
+    "seen": 1790584362.9336665,
+    "ast_hash": "9766202b39d633404a2294b8c4da8a20",
     "semantic_hash": ""
   },
   "apps/api/src/modules/zone/application/useCases/getZone.usecase.ts": {
@@ -1314,9 +1314,9 @@
     "semantic_hash": ""
   },
   "apps/api/src/modules/zone/application/useCases/resolveZones.usecase.ts": {
-    "mtime": 1790412384.4060469,
-    "seen": 1790414041.146511,
-    "ast_hash": "53bf0a9cf6948a9f92326aa64097a627",
+    "mtime": 1790583146.6265805,
+    "seen": 1790584362.934422,
+    "ast_hash": "238778d8bd0ca2849bd54e9b3e56c41c",
     "semantic_hash": ""
   },
   "apps/api/src/modules/zone/application/useCases/updateZone.usecase.ts": {
@@ -1326,21 +1326,21 @@
     "semantic_hash": ""
   },
   "apps/api/src/modules/zone/domain/index.ts": {
-    "mtime": 1790410890.2878108,
-    "seen": 1790414041.1465204,
-    "ast_hash": "217728900d12836158d9f1521babc82a",
+    "mtime": 1790583097.188811,
+    "seen": 1790584362.93496,
+    "ast_hash": "d5627ba7d135e62fc983fda8ddcde84a",
     "semantic_hash": ""
   },
   "apps/api/src/modules/zone/domain/zone.entity.ts": {
-    "mtime": 1790412327.6008134,
-    "seen": 1790414041.1465218,
-    "ast_hash": "9cf68d77841de2d78fa7c25568d779b0",
+    "mtime": 1790584254.3530867,
+    "seen": 1790584362.9349613,
+    "ast_hash": "cda0ccc0c08c0b043fe0fbfba7548181",
     "semantic_hash": ""
   },
   "apps/api/src/modules/zone/domain/zone.port.ts": {
-    "mtime": 1790410875.2922099,
-    "seen": 1790414041.1465237,
-    "ast_hash": "8a17c85b6df3a181ecaf99ac73c9c563",
+    "mtime": 1790582986.1274557,
+    "seen": 1790584362.9349632,
+    "ast_hash": "393c203cad18094e33a7d196ad8891ba",
     "semantic_hash": ""
   },
   "apps/api/src/modules/zone/index.ts": {
@@ -1356,27 +1356,27 @@
     "semantic_hash": ""
   },
   "apps/api/src/modules/zone/infrastructure/persistence/index.ts": {
-    "mtime": 1790411275.3343818,
-    "seen": 1790414041.1465302,
-    "ast_hash": "37dc14e300b55e33220774e9c398ddf6",
+    "mtime": 1790583111.0223894,
+    "seen": 1790584362.935362,
+    "ast_hash": "c4abd5b6746e022417a80e506672510c",
     "semantic_hash": ""
   },
   "apps/api/src/modules/zone/infrastructure/persistence/memoryZone.repository.ts": {
-    "mtime": 1790411809.853656,
-    "seen": 1790414041.1465318,
-    "ast_hash": "29e2f7265f2c0a4e663598bb4b70e361",
+    "mtime": 1790583045.604958,
+    "seen": 1790584362.9353652,
+    "ast_hash": "d4243206a9151436cf76fc4418fa6326",
     "semantic_hash": ""
   },
   "apps/api/src/modules/zone/infrastructure/persistence/mongoZone.repository.ts": {
-    "mtime": 1790410961.8763475,
-    "seen": 1790414041.1465347,
-    "ast_hash": "e479a9292281055fcf3036b59d6da69b",
+    "mtime": 1790583030.6386957,
+    "seen": 1790584362.9355118,
+    "ast_hash": "9c9ce6935e6f3b83e56efd68c44f754a",
     "semantic_hash": ""
   },
   "apps/api/src/modules/zone/infrastructure/persistence/zone.model.ts": {
-    "mtime": 1790410987.863127,
-    "seen": 1790414041.146538,
-    "ast_hash": "ab3f0c353107b4793e60fb2ef3da6981",
+    "mtime": 1790582950.100726,
+    "seen": 1790584362.9356468,
+    "ast_hash": "098e3e3869ebf5935b04140529c58bdd",
     "semantic_hash": ""
   },
   "apps/api/src/modules/zone/interface/index.ts": {
@@ -1398,15 +1398,15 @@
     "semantic_hash": ""
   },
   "apps/api/src/modules/zone/interface/zone.validation.ts": {
-    "mtime": 1790411183.5759976,
-    "seen": 1790414041.1465464,
-    "ast_hash": "773af8886e2e3c9fe64de58f86fc49b4",
+    "mtime": 1790583341.6476595,
+    "seen": 1790584362.936204,
+    "ast_hash": "deb91b0f3a50f28550f1543f2a69abd1",
     "semantic_hash": ""
   },
   "apps/api/src/modules/zone/zone.container.ts": {
-    "mtime": 1790578966.7235217,
-    "seen": 1790579109.72608,
-    "ast_hash": "cc16835449257ed19bfe5d3b968fab9f",
+    "mtime": 1790583223.557474,
+    "seen": 1790584362.9362059,
+    "ast_hash": "7957e03a82c8e584295c931c94e36618",
     "semantic_hash": ""
   },
   "apps/api/test/auth-api.test.ts": {
@@ -1446,9 +1446,9 @@
     "semantic_hash": ""
   },
   "apps/api/test/zone-resolution.test.ts": {
-    "mtime": 1790400325.921144,
-    "seen": 1790414041.1494505,
-    "ast_hash": "0d8624da6a9ca6ccb446ccfbaebb8917",
+    "mtime": 1790583520.3851414,
+    "seen": 1790584362.9405866,
+    "ast_hash": "d579850fff836147f6a0bca2fbe04676",
     "semantic_hash": ""
   },
   "packages/contracts/src/payments.ts": {
@@ -1470,9 +1470,9 @@
     "semantic_hash": ""
   },
   "packages/contracts/src/zones.ts": {
-    "mtime": 1790412373.5019324,
-    "seen": 1790414041.1518013,
-    "ast_hash": "a46c1802cdb776525465d4d54d715687",
+    "mtime": 1790582875.5340858,
+    "seen": 1790584362.946773,
+    "ast_hash": "529448e10b2d53fe7f87939a37951f99",
     "semantic_hash": ""
   },
   "apps/api/src/modules/zone/application/useCases/serviceClassification.usecase.ts": {
@@ -1710,9 +1710,9 @@
     "semantic_hash": ""
   },
   "apps/api/src/modules/zone/application/useCases/updateZoneMetadata.usecase.ts": {
-    "mtime": 1790411075.949512,
-    "seen": 1790414041.1465178,
-    "ast_hash": "1aadfc1df1aa1fd2fa7f3acb3785f3b4",
+    "mtime": 1790583391.0211666,
+    "seen": 1790584362.9348242,
+    "ast_hash": "ee49b80f758bdade8333e107378bc58f",
     "semantic_hash": ""
   },
   "apps/api/src/modules/zone/application/useCases/validateZone.usecase.ts": {
@@ -1782,9 +1782,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/features/zones/components/ZoneForm.tsx": {
-    "mtime": 1790413457.33746,
-    "seen": 1790414041.1501195,
-    "ast_hash": "baacfef24c22069904c32275cccf1c23",
+    "mtime": 1790583931.112501,
+    "seen": 1790584362.942534,
+    "ast_hash": "fcf220530fddce95b81dc322db11d62b",
     "semantic_hash": ""
   },
   "apps/web/src/features/zones/components/ZoneHistory.tsx": {
@@ -1800,15 +1800,15 @@
     "semantic_hash": ""
   },
   "apps/web/src/features/zones/components/ZoneMap.tsx": {
-    "mtime": 1790413836.4035425,
-    "seen": 1790414041.1501236,
-    "ast_hash": "ad40db4dbea8f6762d55bce71aaff4bf",
+    "mtime": 1790583752.5238018,
+    "seen": 1790584362.9428012,
+    "ast_hash": "fc3b4b01a6fa3899f41ed37dc2cac82d",
     "semantic_hash": ""
   },
   "apps/web/src/features/zones/components/ZoneStatusBadge.tsx": {
-    "mtime": 1790412605.1649182,
-    "seen": 1790414041.1501253,
-    "ast_hash": "ed8bf281ab5e66e45dfe3436ed862808",
+    "mtime": 1790584026.1165564,
+    "seen": 1790584362.9428031,
+    "ast_hash": "ab224878105039f6c6089247a4e08f13",
     "semantic_hash": ""
   },
   "apps/web/src/features/zones/components/ZoneViolations.tsx": {
@@ -1824,15 +1824,15 @@
     "semantic_hash": ""
   },
   "apps/web/src/features/zones/components/ZonesTable.tsx": {
-    "mtime": 1790413154.9284413,
-    "seen": 1790414041.15013,
-    "ast_hash": "4bf0ef6a3b0f06017159beabf881e8a8",
+    "mtime": 1790583986.3141918,
+    "seen": 1790584362.9430637,
+    "ast_hash": "976a0a94a467d67de11433dd6df7109f",
     "semantic_hash": ""
   },
   "apps/web/src/features/zones/components/ZonesToolbar.tsx": {
-    "mtime": 1790418316.960634,
-    "seen": 1790576378.6230693,
-    "ast_hash": "df5cfdeb5631a9b09e6bbe850805e55a",
+    "mtime": 1790583790.513513,
+    "seen": 1790584362.9430656,
+    "ast_hash": "aef047c781e9904cb90a684a19d28287",
     "semantic_hash": ""
   },
   "apps/web/src/features/zones/lib/api.ts": {
@@ -1884,15 +1884,15 @@
     "semantic_hash": ""
   },
   "packages/geo/src/validation.ts": {
-    "mtime": 1790412301.453361,
-    "seen": 1790414041.151937,
-    "ast_hash": "a3cdb017fca68402322806f24b03fdc9",
+    "mtime": 1790582695.7576635,
+    "seen": 1790584362.948318,
+    "ast_hash": "221f2802b2fc784465ab3fce35d12303",
     "semantic_hash": ""
   },
   "packages/geo/test/geo.test.ts": {
-    "mtime": 1790410542.9428442,
-    "seen": 1790414041.1519382,
-    "ast_hash": "7eb894ef781f01b1ed12961b01e6d77b",
+    "mtime": 1790582791.7317727,
+    "seen": 1790584362.9483228,
+    "ast_hash": "215e08514d4b9e1fa4e2e5ad33020d62",
     "semantic_hash": ""
   },
   "packages/geo/tsconfig.json": {
@@ -2286,9 +2286,9 @@
     "semantic_hash": ""
   },
   "apps/api/src/modules/zone/interface/zone.swagger.ts": {
-    "mtime": 1790578527.6246247,
-    "seen": 1790579109.7259495,
-    "ast_hash": "9f850ca723fd8fee47bda352d6435259",
+    "mtime": 1790583413.6896865,
+    "seen": 1790584362.936202,
+    "ast_hash": "bd48b87e9c4dab69c6f8eff6d9802cff",
     "semantic_hash": ""
   },
   "apps/api/src/scripts/devDb.ts": {
@@ -2331,6 +2331,42 @@
     "mtime": 1790416061.9157298,
     "seen": 1790576378.6416395,
     "ast_hash": "4ac2dd407dc2154645ae578b741949f8",
+    "semantic_hash": ""
+  },
+  "apps/web/src/features/zones/lib/useGoogleMaps.ts": {
+    "mtime": 1790583569.945095,
+    "seen": 1790584362.9431984,
+    "ast_hash": "a69767dc01af498e76c0218e1f6a0b68",
+    "semantic_hash": ""
+  },
+  "apps/api/src/modules/zone/domain/coverageRequest.port.ts": {
+    "mtime": 1790583061.9505143,
+    "seen": 1790584362.9349575,
+    "ast_hash": "7c48541d4efbb04e34a9cb559d5f0fd9",
+    "semantic_hash": ""
+  },
+  "apps/api/src/modules/zone/infrastructure/persistence/coverageRequest.model.ts": {
+    "mtime": 1790583069.2750535,
+    "seen": 1790584362.9353597,
+    "ast_hash": "aa428342c753a6161c6390b35a364831",
+    "semantic_hash": ""
+  },
+  "apps/api/src/modules/zone/infrastructure/persistence/memoryCoverageRequest.repository.ts": {
+    "mtime": 1790583080.4697886,
+    "seen": 1790584362.9353635,
+    "ast_hash": "72d5b3db85c3f4e260639da889ae0572",
+    "semantic_hash": ""
+  },
+  "apps/api/src/modules/zone/infrastructure/persistence/mongoCoverageRequest.repository.ts": {
+    "mtime": 1790583074.9082153,
+    "seen": 1790584362.9355094,
+    "ast_hash": "5f0af3ed32ed4aa826cf2cbdd865d83b",
+    "semantic_hash": ""
+  },
+  "apps/web/src/features/zones/components/PlaceSearch.tsx": {
+    "mtime": 1790584083.5042748,
+    "seen": 1790584362.9425316,
+    "ast_hash": "8acb8c6c7f82dbc6d80b0b46db5ddee0",
     "semantic_hash": ""
   }
 }

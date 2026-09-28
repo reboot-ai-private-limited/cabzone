@@ -18,6 +18,8 @@ export interface ZoneDocument extends Document<string> {
   geometry: GeoJsonGeometry;
   boundary: GeoJsonPolygon;
   buffer_distance_m: number | null;
+  pickup_charge_type: 'FREE' | 'PAID' | null;
+  pickup_charge_paise: number | null;
   status: ZoneStatus;
   current_pricing_config_id: string | null;
   version: number;
@@ -61,6 +63,8 @@ const zoneSchema = new Schema<ZoneDocument>(
     geometry: { type: geometrySchema, required: true },
     boundary: { type: geometrySchema, required: false },
     buffer_distance_m: { type: Number, default: null },
+    pickup_charge_type: { type: String, enum: ['FREE', 'PAID'], default: null },
+    pickup_charge_paise: { type: Number, default: null },
     status: {
       type: String,
       enum: ZONE_STATUSES,

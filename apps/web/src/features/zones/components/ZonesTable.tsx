@@ -7,7 +7,7 @@ import {
   MapPin,
   Power,
 } from 'lucide-react';
-import { ZoneStatusBadge, ZoneTypeBadge } from './ZoneStatusBadge.js';
+import { ZoneChargeBadge, ZoneStatusBadge, ZoneTypeBadge } from './ZoneStatusBadge.js';
 import type { ZoneDto } from '../types/zones.js';
 
 interface ZonesTableProps {
@@ -106,7 +106,15 @@ export function ZonesTable({
                     {zone.code}
                   </td>
                   <td className="px-4 py-3">
-                    <ZoneTypeBadge type={zone.zoneType ?? zone.type} />
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <ZoneTypeBadge type={zone.zoneType ?? zone.type} />
+                      {(zone.zoneType === 'PICKUP' || zone.type === 'PICKUP') && (
+                        <ZoneChargeBadge
+                          chargeType={zone.pickupChargeType}
+                          chargePaise={zone.pickupChargePaise}
+                        />
+                      )}
+                    </div>
                   </td>
                   <td className="px-4 py-3">
                     <ZoneStatusBadge status={zone.status} />
