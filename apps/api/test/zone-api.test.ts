@@ -378,4 +378,168 @@ describe('Zone Admin & Resolution HTTP Endpoints', () => {
 
     expect(badCoordsRes.status).toBe(400);
   });
+
+  it('handles validation, versioned geometry updates, concurrency, activation, and history', async () => {
+    const { app, sessionRepo, tokenAdapter } = createTestApp();
+    const adminUserId = '018f0a00-0000-7000-8000-000000000001';
+    const sessionId = '018f0a00-0000-7000-8000-000000000002';
+
+    await sessionRepo.save({
+      id: sessionId,
+      userId: adminUserId,
+      deviceId: 'dev-admin-1',
+      refreshTokenHash: 'hash',
+      expiresAt: new Date(Date.now() + 86400_000),
+      revokedAt: null,
+      lastUsedAt: new Date(),
+      createdAt: new Date(),
+    });
+
+    const adminToken = await tokenAdapter.signAccessToken({
+      sub: adminUserId,
+      role: 'SUPER_ADMIN',
+      sessionId,
+    });
+
+    // 1. Create initial zone v1
+    const createRes = await request(app)
+      .post('/api/v1/admin/zones')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        name: 'Darjeeling City',
+        code: 'DARJ_CITY',
+        zoneType: 'CITY',
+        stateCode: 'WB',
+        boundary: siliguriPolygon,
+        bufferDistanceM: 15_000,
+      });
+
+    expect(createRes.status).toBe(201);
+    const zoneV1 = createRes.body.data;
+    expect(zoneV1.code).toBe('DARJ_CITY');
+    expect(zoneV1.version).toBe(1);
+    expect(zoneV1.status).toBe('ACTIVE');
+
+    // 2. Dry-run validation endpoint (POST /api/v1/admin/zones/validate)
+    // 2a. Valid geometry dry run
+    const validValidateRes = await request(app)
+      .post('/api/v1/admin/zones/validate')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        type: 'PICKUP',
+        geometry: cantonmentPolygon,
+      });
+    expect(validValidateRes.status).toBe(200);
+    expect(validValidateRes.body.data.valid).toBe(true);
+    expect(validValidateRes.body.data.violations).toHaveLength(0);
+
+    // 2b. Conflicting CITY geometry dry run (overlaps active DARJ_CITY)
+    const conflictValidateRes = await request(app)
+      .post('/api/v1/admin/zones/validate')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        type: 'CITY',
+        geometry: siliguriPolygon,
+      });
+    expect(conflictValidateRes.status).toBe(200);
+    expect(conflictValidateRes.body.data.valid).toBe(false);
+    expect(conflictValidateRes.body.data.violations[0].code).toBe('Z-008');
+
+    // 3. Geometry Versioning (PATCH /api/v1/admin/zones/:id/geometry)
+    const expandedPolygon = {
+      type: 'Polygon' as const,
+      coordinates: [
+        [
+          [88.35, 26.65],
+          [88.55, 26.65],
+          [88.55, 26.85],
+          [88.35, 26.85],
+          [88.35, 26.65],
+        ],
+      ],
+    };
+
+    const updateGeomRes = await request(app)
+      .patch(`/api/v1/admin/zones/${zoneV1.id}/geometry`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        expectedVersion: 1,
+        geometry: expandedPolygon,
+      });
+
+    expect(updateGeomRes.status).toBe(200);
+    const zoneV2 = updateGeomRes.body.data;
+    expect(zoneV2.id).not.toBe(zoneV1.id);
+    expect(zoneV2.version).toBe(2);
+    expect(zoneV2.supersedesZoneId).toBe(zoneV1.id);
+    expect(zoneV2.status).toBe('ACTIVE');
+
+    // Verify old zone v1 is now INACTIVE
+    const oldZoneRes = await request(app)
+      .get(`/api/v1/admin/zones/${zoneV1.id}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(oldZoneRes.status).toBe(200);
+    expect(oldZoneRes.body.data.status).toBe('INACTIVE');
+    expect(oldZoneRes.body.data.supersededByZoneId).toBe(zoneV2.id);
+
+    // 4. Concurrency Conflict (Admin B tries to update using stale version 1)
+    const conflictRes = await request(app)
+      .patch(`/api/v1/admin/zones/${zoneV1.id}/geometry`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        expectedVersion: 1,
+        geometry: expandedPolygon,
+      });
+    expect(conflictRes.status).toBe(409);
+    expect(conflictRes.body.message).toContain('ZONE_VERSION_CONFLICT');
+
+    // 5. Deactivation & Activation
+    // Deactivate v2
+    const deactivateRes = await request(app)
+      .post(`/api/v1/admin/zones/${zoneV2.id}/deactivate`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ reason: 'Seasonal closure' });
+    expect(deactivateRes.status).toBe(200);
+    expect(deactivateRes.body.data.status).toBe('INACTIVE');
+
+    // Double deactivate should fail
+    const doubleDeactivateRes = await request(app)
+      .post(`/api/v1/admin/zones/${zoneV2.id}/deactivate`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send();
+    expect(doubleDeactivateRes.status).toBe(400);
+    expect(doubleDeactivateRes.body.message).toContain('ZONE_ALREADY_INACTIVE');
+
+    // Activate v2
+    const activateRes = await request(app)
+      .post(`/api/v1/admin/zones/${zoneV2.id}/activate`)
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(activateRes.status).toBe(200);
+    expect(activateRes.body.data.status).toBe('ACTIVE');
+
+    // Double activate should fail
+    const doubleActivateRes = await request(app)
+      .post(`/api/v1/admin/zones/${zoneV2.id}/activate`)
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(doubleActivateRes.status).toBe(400);
+    expect(doubleActivateRes.body.message).toContain('ZONE_ALREADY_ACTIVE');
+
+    // 6. History and Audit Logs (GET /api/v1/admin/zones/:id/history)
+    const historyRes = await request(app)
+      .get(`/api/v1/admin/zones/${zoneV2.id}/history`)
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(historyRes.status).toBe(200);
+    expect(historyRes.body.data.versions.length).toBeGreaterThanOrEqual(2);
+    expect(historyRes.body.data.auditLogs.length).toBeGreaterThanOrEqual(3);
+
+    // 7. Paginated list with search (GET /api/v1/admin/zones?search=darj&page=1&limit=10)
+    const paginatedRes = await request(app)
+      .get('/api/v1/admin/zones?search=darj&page=1&limit=10')
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(paginatedRes.status).toBe(200);
+    expect(paginatedRes.body.data.pagination).toBeDefined();
+    expect(paginatedRes.body.data.pagination.page).toBe(1);
+    expect(paginatedRes.body.data.pagination.limit).toBe(10);
+    expect(paginatedRes.body.data.items.length).toBeGreaterThanOrEqual(1);
+  });
 });

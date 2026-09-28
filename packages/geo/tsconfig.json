@@ -1,0 +1,8 @@
+{
+  "extends": "@cabzone/config/tsconfig.base.json",
+  "compilerOptions": {
+    "moduleResolution": "Bundler",
+    "module": "ESNext"
+  },
+  "include": ["src", "test"]
+}

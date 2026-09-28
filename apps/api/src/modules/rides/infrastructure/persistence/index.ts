@@ -5,4 +5,5 @@ export * from './rideExtension.model.js';
 export * from './memoryRide.repository.js';
 export * from './memoryRideEvent.repository.js';
 export * from './mongoRideEvent.repository.js';
+export * from './mongoRide.repository.js';
 
