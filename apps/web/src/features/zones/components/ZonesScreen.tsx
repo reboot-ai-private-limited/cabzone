@@ -211,6 +211,36 @@ export function ZonesScreen() {
     await loadZones();
   };
 
+  const handleSavePolygonFromMap = async (geometry: GeoJsonPolygon) => {
+    // 1. If currently updating an existing zone's geometry
+    const targetZone = editingZone ?? selectedZone;
+    if (targetZone) {
+      try {
+        setIsLoading(true);
+        await updateZoneGeometry(targetZone.id, {
+          expectedVersion: targetZone.version,
+          geometry,
+        });
+        setDraftGeometry(null);
+        setIsDrawing(false);
+        await loadZones();
+        return;
+      } catch (err: unknown) {
+        setErrorMessage((err as Error).message);
+        setIsLoading(false);
+        setEditingZone(targetZone);
+        setDraftGeometry(geometry);
+        setIsFormOpen(true);
+        return;
+      }
+    }
+
+    // 2. If creating a brand new zone, open creation modal with the autocompleted geometry
+    setEditingZone(null);
+    setDraftGeometry(geometry);
+    setIsFormOpen(true);
+  };
+
   const handleImportGeometry = (geom: GeoJsonGeometry) => {
     if (geom.type === 'Polygon') {
       setDraftGeometry(geom);
@@ -297,6 +327,7 @@ export function ZonesScreen() {
               onDraftChange={setDraftGeometry}
               isDrawing={isDrawing}
               onToggleDrawing={() => setIsDrawing((d) => !d)}
+              onSavePolygon={handleSavePolygonFromMap}
             />
           </div>
         )}
