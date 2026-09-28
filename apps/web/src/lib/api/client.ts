@@ -13,7 +13,13 @@ export interface RequestOptions {
 }
 
 export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { method = 'GET', body, token, query, idempotencyKey, signal } = options;
+  const { method = 'GET', body, token: explicitToken, query, idempotencyKey, signal } = options;
+
+  const token =
+    explicitToken ??
+    (typeof window !== 'undefined'
+      ? localStorage.getItem('cabzone_access_token') ?? undefined
+      : undefined);
 
   const url = new URL(BASE_URL + path);
   if (query !== undefined) {

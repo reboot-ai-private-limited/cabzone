@@ -1,7 +1,7 @@
-import type { GeoPoint, ResolvedZones, ZoneDto } from '@cabzone/contracts';
+import type { GeoPoint, ResolvedZones } from '@cabzone/contracts';
 import { AppError } from '../../../../shared/errors/AppError.js';
 import type { ZoneEntity, ZoneRepositoryPort } from '../../domain/index.js';
-import { distanceToPolygonM, getEffectiveBufferDistance } from '../../domain/index.js';
+import { distanceToPolygonM, getEffectiveBufferDistance, zoneEntityToDto } from '../../domain/index.js';
 
 export interface ResolveZonesInput {
   pickup: GeoPoint;
@@ -29,8 +29,8 @@ export class ResolveZonesUseCase {
       this.deps.zoneRepo.findActiveExclusionsContainingPoint(input.drop),
     ]);
 
-    const pickupExclusion = pickupExclusions[0] ? this.toDto(pickupExclusions[0]) : null;
-    const dropExclusion = dropExclusions[0] ? this.toDto(dropExclusions[0]) : null;
+    const pickupExclusion = pickupExclusions[0] ? zoneEntityToDto(pickupExclusions[0]) : null;
+    const dropExclusion = dropExclusions[0] ? zoneEntityToDto(dropExclusions[0]) : null;
 
     if (pickupExclusion && shouldThrow) {
       throw AppError.badRequest(
@@ -71,10 +71,10 @@ export class ResolveZonesUseCase {
     return {
       pickupExclusion,
       dropExclusion,
-      city: cityEntity ? this.toDto(cityEntity) : null,
-      pickupCoverage: pickupZoneEntity ? this.toDto(pickupZoneEntity) : null,
+      city: cityEntity ? zoneEntityToDto(cityEntity) : null,
+      pickupCoverage: pickupZoneEntity ? zoneEntityToDto(pickupZoneEntity) : null,
       isWithinBuffer,
-      nearestCity: nearestCityEntity ? this.toDto(nearestCityEntity) : null,
+      nearestCity: nearestCityEntity ? zoneEntityToDto(nearestCityEntity) : null,
     };
   }
 
@@ -91,21 +91,5 @@ export class ResolveZonesUseCase {
     ) {
       throw AppError.badRequest(`${label} location has invalid geographic coordinates.`);
     }
-  }
-
-  private toDto(zone: ZoneEntity): ZoneDto {
-    return {
-      id: zone.id,
-      name: zone.name,
-      zoneType: zone.zoneType,
-      parentCityZoneId: zone.parentCityZoneId,
-      stateCode: zone.stateCode,
-      boundary: zone.boundary,
-      bufferDistanceM: zone.bufferDistanceM,
-      status: zone.status,
-      currentPricingConfigId: zone.currentPricingConfigId,
-      createdAt: zone.createdAt.toISOString(),
-      updatedAt: zone.updatedAt.toISOString(),
-    };
   }
 }

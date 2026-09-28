@@ -5,6 +5,7 @@ import { MongoHealthProbe } from './infrastructure/mongoHealthProbe.adapter.js';
 import { RedisHealthProbe } from './infrastructure/redisHealthProbe.adapter.js';
 import { makeGetHealthController } from './interface/health.controller.js';
 import { buildHealthRouter } from './interface/health.routes.js';
+import { registerHealthSwaggerPaths } from './interface/health.swagger.js';
 import type { HealthPublicContract } from './health.public.js';
 
 export interface HealthContainer {
@@ -13,6 +14,7 @@ export interface HealthContainer {
 }
 
 export function buildHealthContainer(): HealthContainer {
+  registerHealthSwaggerPaths();
   const probes: HealthProbePort[] = [new MongoHealthProbe(), new RedisHealthProbe()];
 
   const getHealth = new GetHealthUseCase(probes);

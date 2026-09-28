@@ -48,6 +48,7 @@ import {
   makeRequireZoneAccess,
   requireRole,
 } from './interface/middlewares/index.js';
+import { registerIdentitySwaggerPaths } from './interface/identity.swagger.js';
 
 export interface IdentityContainer {
   buildAuthRouter: () => Router;
@@ -73,6 +74,7 @@ export interface IdentityContainerDeps {
 }
 
 export function buildIdentityContainer(deps?: IdentityContainerDeps): IdentityContainer {
+  registerIdentitySwaggerPaths();
   const userRepo = deps?.userRepo ?? new MongoUserRepository();
   const riderRepo = deps?.riderRepo ?? new MongoRiderRepository();
   const sessionRepo = deps?.sessionRepo ?? new MongoSessionRepository();

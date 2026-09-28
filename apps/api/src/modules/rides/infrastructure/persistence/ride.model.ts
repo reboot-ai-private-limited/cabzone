@@ -8,12 +8,20 @@ import {
   type RideStatus,
   type VehicleCategory,
 } from '@cabzone/contracts';
-import type { LocationPoint, PassengerInfo, RouteSnapshot, ZoneSnapshot } from '../../domain/ride.entity.js';
+import type { LocationPoint, RouteSnapshot, ZoneSnapshot } from '../../domain/ride.entity.js';
 
 export interface RideDocument extends Document<string> {
   _id: string;
   booker_rider_id: string;
-  passenger: PassengerInfo;
+  passenger: {
+    rider_id: string | null;
+    name: string;
+    phone_e164: string;
+    pickup_otp_hash: string | null;
+    pickup_otp_expires_at?: Date | null;
+    otp_attempts?: number;
+    max_otp_attempts?: number;
+  };
   driver_id: string | null;
   vehicle_id: string | null;
   vehicle_category: VehicleCategory;
@@ -54,6 +62,9 @@ const passengerSchema = new Schema(
     name: { type: String, required: true },
     phone_e164: { type: String, required: true },
     pickup_otp_hash: { type: String, default: null },
+    pickup_otp_expires_at: { type: Date, default: null },
+    otp_attempts: { type: Number, default: 0 },
+    max_otp_attempts: { type: Number, default: 3 },
   },
   { _id: false },
 );
