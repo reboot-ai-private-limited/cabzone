@@ -13,7 +13,11 @@
       }
     ],
     "incremental": true,
-    "jsx": "preserve"
+    "jsx": "preserve",
+    "types": [
+      "node",
+      "google.maps"
+    ]
   },
   "include": [
     "next-env.d.ts",
