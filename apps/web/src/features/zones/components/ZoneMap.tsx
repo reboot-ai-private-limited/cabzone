@@ -8,6 +8,7 @@ import {
   Minus,
   Plus,
   RotateCcw,
+  Save,
   Square,
   Trash2,
   Undo2,
@@ -24,6 +25,7 @@ interface ZoneMapProps {
   onDraftChange?: (geometry: GeoJsonPolygon | null) => void;
   isDrawing?: boolean;
   onToggleDrawing?: () => void;
+  onSavePolygon?: (geometry: GeoJsonPolygon) => Promise<void> | void;
 }
 
 const DARK_MAP_STYLES: google.maps.MapTypeStyle[] = [
@@ -53,6 +55,7 @@ export function ZoneMap({
   onDraftChange,
   isDrawing = false,
   onToggleDrawing,
+  onSavePolygon,
 }: ZoneMapProps) {
   const googleMapsApiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
   const { isLoaded: isGoogleLoaded } = useGoogleMaps(googleMapsApiKey);
@@ -68,6 +71,7 @@ export function ZoneMap({
 
   // Draft drawing points: array of [lng, lat]
   const [drawingPoints, setDrawingPoints] = useState<Position[]>([]);
+  const [isSaving, setIsSaving] = useState(false);
 
   // Google Map refs
   const googleMapRef = useRef<HTMLDivElement | null>(null);
@@ -369,15 +373,38 @@ export function ZoneMap({
     }
   };
 
-  const handleFinishDrawing = () => {
-    if (drawingPoints.length >= 3) {
-      const closedRing = [...drawingPoints, drawingPoints[0]!];
-      onDraftChange?.({
-        type: 'Polygon',
-        coordinates: [closedRing],
-      });
-      setDrawingPoints([]);
-      onToggleDrawing?.();
+  const handleFinishDrawing = async () => {
+    let points = [...drawingPoints];
+    if (points.length < 3 && draftGeometry?.coordinates[0]) {
+      points = [...draftGeometry.coordinates[0]];
+    }
+
+    if (points.length >= 3) {
+      setIsSaving(true);
+      try {
+        const first = points[0]!;
+        const last = points[points.length - 1]!;
+        const isClosed =
+          Math.abs(first[0] - last[0]) < 1e-9 && Math.abs(first[1] - last[1]) < 1e-9;
+        const closedRing = isClosed ? points : [...points, first];
+
+        const polygon: GeoJsonPolygon = {
+          type: 'Polygon',
+          coordinates: [closedRing],
+        };
+
+        onDraftChange?.(polygon);
+        setDrawingPoints([]);
+        if (isDrawing) {
+          onToggleDrawing?.();
+        }
+
+        if (onSavePolygon) {
+          await onSavePolygon(polygon);
+        }
+      } finally {
+        setIsSaving(false);
+      }
     }
   };
 
@@ -563,10 +590,20 @@ export function ZoneMap({
                 <button
                   type="button"
                   onClick={handleFinishDrawing}
-                  disabled={drawingPoints.length < 3}
-                  className="px-2 py-1 text-[11px] bg-emerald-600 text-white font-semibold hover:bg-emerald-500 disabled:opacity-40 rounded flex items-center justify-center gap-1"
+                  disabled={drawingPoints.length < 3 || isSaving}
+                  className="px-2 py-1 text-[11px] bg-emerald-600 text-white font-semibold hover:bg-emerald-500 disabled:opacity-40 rounded flex items-center justify-center gap-1 shadow-xs transition-colors"
                 >
-                  <span>Close & Save</span>
+                  {isSaving ? (
+                    <>
+                      <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      <span>Saving...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-3.5 h-3.5" />
+                      <span>Autocomplete & Save</span>
+                    </>
+                  )}
                 </button>
               </>
             )}

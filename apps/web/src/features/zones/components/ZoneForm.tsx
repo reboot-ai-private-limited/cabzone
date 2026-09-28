@@ -11,6 +11,7 @@ import {
   X,
 } from 'lucide-react';
 import {
+  ensureRfc7946Winding,
   validateGeometry,
   type CreateZoneInputDto,
   type GeoJsonGeometry,
@@ -120,12 +121,52 @@ export function ZoneForm({
       .replace(/^_+|_+$/g, '');
   };
 
+  const autocompleteGeometry = (geom: GeoJsonGeometry): GeoJsonGeometry => {
+    if (geom.type === 'Polygon') {
+      const closedCoordinates = geom.coordinates.map((ring) => {
+        if (!ring || ring.length < 3) return ring;
+        const first = ring[0]!;
+        const last = ring[ring.length - 1]!;
+        if (Math.abs(first[0] - last[0]) > 1e-9 || Math.abs(first[1] - last[1]) > 1e-9) {
+          return [...ring, first];
+        }
+        return ring;
+      });
+      return ensureRfc7946Winding({
+        type: 'Polygon',
+        coordinates: closedCoordinates,
+      });
+    }
+
+    if (geom.type === 'MultiPolygon') {
+      const closedCoordinates = geom.coordinates.map((poly) =>
+        poly.map((ring) => {
+          if (!ring || ring.length < 3) return ring;
+          const first = ring[0]!;
+          const last = ring[ring.length - 1]!;
+          if (Math.abs(first[0] - last[0]) > 1e-9 || Math.abs(first[1] - last[1]) > 1e-9) {
+            return [...ring, first];
+          }
+          return ring;
+        }),
+      );
+      return ensureRfc7946Winding({
+        type: 'MultiPolygon',
+        coordinates: closedCoordinates,
+      });
+    }
+
+    return geom;
+  };
+
   // Run dry-run validation (local + API)
-  const handleValidate = async () => {
+  const handleValidate = async (explicitGeom?: GeoJsonGeometry) => {
     setViolations([]);
     setSubmitError(null);
 
-    if (!geometry) {
+    const targetGeom = explicitGeom ?? geometry;
+
+    if (!targetGeom) {
       setViolations([
         {
           code: 'Z-001',
@@ -136,8 +177,12 @@ export function ZoneForm({
       return false;
     }
 
+    // Automatically close/autocomplete rings
+    const closed = autocompleteGeometry(targetGeom);
+    setGeometry(closed);
+
     // 1. Local structure check
-    const local = validateGeometry(geometry);
+    const local = validateGeometry(closed);
     if (!local.valid) {
       setViolations(local.violations);
       return false;
@@ -148,7 +193,7 @@ export function ZoneForm({
     try {
       const res = await validateZone({
         type,
-        geometry,
+        geometry: closed,
         excludeZoneId: initialData?.id,
       });
 
@@ -185,9 +230,13 @@ export function ZoneForm({
       return;
     }
 
+    // Automatically close/autocomplete polygon ring before saving
+    const autocompleted = autocompleteGeometry(geometry);
+    setGeometry(autocompleted);
+
     // Validate before saving if not already verified
     if (!isServerValidated) {
-      const ok = await handleValidate();
+      const ok = await handleValidate(autocompleted);
       if (!ok) return;
     }
 
@@ -205,7 +254,7 @@ export function ZoneForm({
           type === 'PICKUP' && pickupChargeType === 'PAID'
             ? Math.round(Number(pickupChargeRupees) * 100)
             : null,
-        geometry,
+        geometry: autocompleted,
       });
       onClose();
     } catch (err: unknown) {
@@ -442,7 +491,7 @@ export function ZoneForm({
 
               <button
                 type="button"
-                onClick={handleValidate}
+                onClick={() => void handleValidate()}
                 disabled={!geometry || isValidating}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-100 text-slate-800 hover:bg-slate-200 disabled:opacity-50 transition-colors"
               >
