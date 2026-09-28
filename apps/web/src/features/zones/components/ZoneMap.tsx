@@ -13,6 +13,7 @@ import {
   Undo2,
 } from 'lucide-react';
 import { useGoogleMaps } from '../lib/useGoogleMaps.js';
+import { PlaceSearch } from './PlaceSearch.js';
 import type { GeoJsonGeometry, GeoJsonPolygon, Position, ZoneDto } from '../types/zones.js';
 
 interface ZoneMapProps {
@@ -226,6 +227,10 @@ export function ZoneMap({
         strokeColor = '#f43f5e';
         fillColor = '#f43f5e';
         fillOpacity = 0.35;
+      } else if (zoneType === 'HILL') {
+        strokeColor = '#a855f7';
+        fillColor = '#a855f7';
+        fillOpacity = 0.2;
       }
 
       if (isSelected) {
@@ -438,22 +443,27 @@ export function ZoneMap({
 
         {/* Map Type Selector for Google Maps */}
         {activeProvider === 'google' && (
-          <div className="flex items-center bg-slate-900/90 backdrop-blur-xs rounded-lg border border-slate-700 p-0.5 shadow-md text-xs">
-            {(['dark', 'roadmap', 'satellite', 'hybrid'] as const).map((type) => (
-              <button
-                key={type}
-                type="button"
-                onClick={() => setMapType(type)}
-                className={`px-2 py-1 rounded capitalize transition-colors ${
-                  mapType === type
-                    ? 'bg-slate-700 text-white font-medium'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                {type}
-              </button>
-            ))}
-          </div>
+          <>
+            <div className="flex items-center bg-slate-900/90 backdrop-blur-xs rounded-lg border border-slate-700 p-0.5 shadow-md text-xs">
+              {(['dark', 'roadmap', 'satellite', 'hybrid'] as const).map((type) => (
+                <button
+                  key={type}
+                  type="button"
+                  onClick={() => setMapType(type)}
+                  className={`px-2 py-1 rounded capitalize transition-colors ${
+                    mapType === type
+                      ? 'bg-slate-700 text-white font-medium'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  {type}
+                </button>
+              ))}
+            </div>
+
+            {/* Google Places Autocomplete */}
+            <PlaceSearch map={mapInstanceRef.current} />
+          </>
         )}
 
         {isDrawing && (
@@ -649,6 +659,9 @@ export function ZoneMap({
                 } else if (zoneType === 'EXCLUSION') {
                   strokeColor = '#f43f5e';
                   fillColor = 'url(#exclusionPattern)';
+                } else if (zoneType === 'HILL') {
+                  strokeColor = '#a855f7';
+                  fillColor = 'rgba(168, 85, 247, 0.2)';
                 }
 
                 if (isSelected) {
@@ -781,6 +794,10 @@ export function ZoneMap({
           <div className="flex items-center gap-1.5">
             <span className="w-3 h-3 rounded-xs border-2 border-rose-500 border-dashed bg-rose-500/20" />
             <span className="font-medium text-slate-200">EXCLUSION Area (Veto)</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="w-3 h-3 rounded-xs border-2 border-purple-400 bg-purple-500/20" />
+            <span className="font-medium text-slate-200">HILL Terrain</span>
           </div>
         </div>
 

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ZONE_STATUSES, ZONE_TYPES } from '@cabzone/contracts';
+import { PICKUP_CHARGE_TYPES, ZONE_STATUSES, ZONE_TYPES } from '@cabzone/contracts';
 
 export const geoPointSchema = z.object({
   lat: z.number().min(-90).max(90),
@@ -43,6 +43,8 @@ export const createZoneSchema = z
     geometry: geoJsonGeometrySchema.optional(),
     boundary: geoJsonPolygonSchema.optional(),
     bufferDistanceM: z.number().positive().nullable().optional(),
+    pickupChargeType: z.enum(PICKUP_CHARGE_TYPES).nullable().optional(),
+    pickupChargePaise: z.number().int().nonnegative().nullable().optional(),
     currentPricingConfigId: z.string().uuid().nullable().optional(),
   })
   .refine(
@@ -79,6 +81,8 @@ export const updateZoneSchema = z.object({
   boundary: geoJsonPolygonSchema.optional(),
   geometry: geoJsonGeometrySchema.optional(),
   bufferDistanceM: z.number().positive().nullable().optional(),
+  pickupChargeType: z.enum(PICKUP_CHARGE_TYPES).nullable().optional(),
+  pickupChargePaise: z.number().int().nonnegative().nullable().optional(),
   status: z.enum(ZONE_STATUSES).optional(),
   currentPricingConfigId: z.string().uuid().nullable().optional(),
 });
@@ -109,5 +113,6 @@ export const zoneIdParamSchema = z.object({
 export const resolveZonesRequestSchema = z.object({
   pickup: geoPointSchema,
   drop: geoPointSchema,
+  riderId: z.string().uuid().optional(),
   throwOnExclusion: z.boolean().optional(),
 });

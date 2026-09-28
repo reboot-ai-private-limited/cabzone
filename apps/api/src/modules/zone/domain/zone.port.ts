@@ -15,6 +15,7 @@ export interface ZoneRepositoryPort {
   findActiveExclusionsContainingPoint(point: GeoPoint): Promise<ZoneEntity[]>;
   findActiveCitiesContainingPoint(point: GeoPoint): Promise<ZoneEntity[]>;
   findActivePickupsContainingPoint(point: GeoPoint): Promise<ZoneEntity[]>;
+  findActiveHillsContainingPoint?(point: GeoPoint): Promise<ZoneEntity[]>;
   findNearestActiveCity(point: GeoPoint): Promise<ZoneEntity | null>;
   findById(id: string): Promise<ZoneEntity | null>;
   findByCode(code: string): Promise<ZoneEntity | null>;

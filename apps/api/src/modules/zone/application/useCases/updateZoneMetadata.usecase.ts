@@ -50,6 +50,14 @@ export class UpdateZoneMetadataUseCase {
       stateCode: input.stateCode !== undefined ? input.stateCode.trim().toUpperCase() : existing.stateCode,
       parentCityZoneId,
       bufferDistanceM: input.bufferDistanceM !== undefined ? input.bufferDistanceM : existing.bufferDistanceM,
+      pickupChargeType:
+        input.pickupChargeType !== undefined
+          ? input.pickupChargeType
+          : existing.pickupChargeType,
+      pickupChargePaise:
+        input.pickupChargePaise !== undefined
+          ? input.pickupChargePaise
+          : existing.pickupChargePaise,
       status: input.status !== undefined ? input.status : existing.status,
       currentPricingConfigId:
         input.currentPricingConfigId !== undefined

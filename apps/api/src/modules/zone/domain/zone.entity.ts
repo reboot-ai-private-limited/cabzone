@@ -37,6 +37,8 @@ export interface ZoneEntity {
   geometry: GeoJsonGeometry;
   boundary: GeoJsonPolygon;
   bufferDistanceM: number | null;
+  pickupChargeType?: 'FREE' | 'PAID' | null | undefined;
+  pickupChargePaise?: number | null | undefined;
   status: ZoneStatus;
   currentPricingConfigId: string | null;
   version: number;
@@ -76,6 +78,8 @@ export function zoneEntityToDto(entity: ZoneEntity): ZoneDto {
     geometry: geom,
     boundary: boundaryPoly,
     bufferDistanceM: entity.bufferDistanceM,
+    pickupChargeType: entity.pickupChargeType ?? (entity.zoneType === 'PICKUP' ? 'FREE' : null),
+    pickupChargePaise: entity.pickupChargePaise ?? null,
     status: entity.status,
     currentPricingConfigId: entity.currentPricingConfigId,
     version: entity.version,

@@ -47,6 +47,12 @@ export function ZoneTypeBadge({ type }: TypeBadgeProps) {
           EXCLUSION
         </span>
       );
+    case 'HILL':
+      return (
+        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-purple-50 text-purple-700 border border-purple-200">
+          HILL
+        </span>
+      );
     default:
       return (
         <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
@@ -54,4 +60,25 @@ export function ZoneTypeBadge({ type }: TypeBadgeProps) {
         </span>
       );
   }
+}
+
+interface ChargeBadgeProps {
+  chargeType?: 'FREE' | 'PAID' | null | undefined;
+  chargePaise?: number | null | undefined;
+}
+
+export function ZoneChargeBadge({ chargeType, chargePaise }: ChargeBadgeProps) {
+  if (!chargeType) return null;
+  if (chargeType === 'PAID') {
+    return (
+      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-50 text-amber-800 border border-amber-200">
+        ₹{chargePaise ? (chargePaise / 100).toFixed(0) : '0'} Surcharge
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-50 text-slate-600 border border-slate-200">
+      Free Pickup
+    </span>
+  );
 }

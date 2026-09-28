@@ -113,6 +113,8 @@ export class CreateZoneUseCase {
       geometry,
       boundary,
       bufferDistanceM: input.bufferDistanceM ?? null,
+      pickupChargeType: input.pickupChargeType ?? (zoneType === 'PICKUP' ? 'FREE' : null),
+      pickupChargePaise: input.pickupChargePaise ?? null,
       status: 'ACTIVE',
       currentPricingConfigId: input.currentPricingConfigId ?? null,
       version: 1,

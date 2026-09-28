@@ -28,6 +28,7 @@ interface ZonesToolbarProps {
     CITY: number;
     PICKUP: number;
     EXCLUSION: number;
+    HILL?: number;
   };
 }
 
@@ -49,6 +50,7 @@ export function ZonesToolbar({
     { key: 'CITY', label: 'City' },
     { key: 'PICKUP', label: 'Pickup' },
     { key: 'EXCLUSION', label: 'Exclusion' },
+    { key: 'HILL', label: 'Hill' },
   ];
 
   return (
