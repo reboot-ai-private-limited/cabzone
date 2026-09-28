@@ -1,4 +1,4 @@
-import type { FaultCode, HttpErrorBody } from '@cabzone/contracts';
+import type { FaultCode, HttpErrorBody } from '@Cabzone/contracts';
 
 export class ApiError extends Error {
   readonly status: number;

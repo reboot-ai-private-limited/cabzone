@@ -1,4 +1,4 @@
-import type { AuthTokenPayload } from '@cabzone/contracts';
+import type { AuthTokenPayload } from '@Cabzone/contracts';
 
 export interface TokenVerifierPort {
   verifyAccessToken(token: string): Promise<AuthTokenPayload>;

@@ -5,7 +5,7 @@ import {
   TRANSACTION_REFERENCE_TYPES,
   WALLET_STATUSES,
   WALLET_TRANSACTION_TYPES,
-} from '@cabzone/contracts';
+} from '@Cabzone/contracts';
 
 export const rechargeWalletSchema = z.object({
   driverId: z.string().uuid('Invalid driverId UUID'),

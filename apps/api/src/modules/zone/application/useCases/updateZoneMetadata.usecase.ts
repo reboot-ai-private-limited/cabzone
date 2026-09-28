@@ -1,4 +1,4 @@
-import type { UpdateZoneMetadataRequest, ZoneDto } from '@cabzone/contracts';
+import type { UpdateZoneMetadataRequest, ZoneDto } from '@Cabzone/contracts';
 import { AppError } from '../../../../shared/errors/AppError.js';
 import { newUuid } from '../../../../shared/ids.js';
 import type {

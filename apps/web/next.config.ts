@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 const config: NextConfig = {
   output: 'standalone',
   outputFileTracingRoot: fileURLToPath(new URL('../../', import.meta.url)),
-  transpilePackages: ['@cabzone/contracts'],
+  transpilePackages: ['@Cabzone/contracts'],
   reactStrictMode: true,
   webpack(webpackConfig) {
     webpackConfig.resolve.extensionAlias = {

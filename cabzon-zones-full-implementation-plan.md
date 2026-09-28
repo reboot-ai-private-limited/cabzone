@@ -1,15 +1,15 @@
-# Cabzon Zones Tab & Backend — Full Implementation Plan
+# Cabzone Zones Tab & Backend — Full Implementation Plan
 
 ## 1. Objective
 
-Implement the complete Cabzon Zones system as a vertical slice:
+Implement the complete Cabzone Zones system as a vertical slice:
 
 ```text
 Domain → Geometry/Validation → Repository → Admin API
 → Audit/Versioning → Zone Resolution → Admin Web → Runtime Integration
 ```
 
-The Zones system is the operational control plane for Cabzon's geographic coverage.
+The Zones system is the operational control plane for Cabzone's geographic coverage.
 
 It manages:
 
@@ -100,7 +100,7 @@ Quote
 
 # 3. Zone Types
 
-Cabzon has exactly three zone types:
+Cabzone has exactly three zone types:
 
 ```ts
 export const ZONE_TYPES = [
@@ -125,7 +125,7 @@ Responsibilities:
 
 ### PICKUP
 
-Defines active Cabzon pickup/service coverage.
+Defines active Cabzone pickup/service coverage.
 
 Responsibilities:
 
@@ -445,7 +445,7 @@ interface ZoneViolation {
 
 ---
 
-# 11. Cabzon Validation Rules
+# 11. Cabzone Validation Rules
 
 ### Z-001 — Invalid Geometry
 
@@ -523,7 +523,7 @@ minimum 1 hectare
 maximum 100,000 km²
 ```
 
-unless Cabzon has an explicit business requirement for them.
+unless Cabzone has an explicit business requirement for them.
 
 ---
 
@@ -1339,7 +1339,7 @@ Historical versions should be inspectable on the map.
 
 # 40. Admin Permissions
 
-Use existing Cabzon authentication.
+Use existing Cabzone authentication.
 
 ```text
 authenticate
@@ -2104,4 +2104,4 @@ Pricing consumes classification
 Quote consumes pricing
 ```
 
-This is the complete Cabzon Zones system.
+This is the complete Cabzone Zones system.

@@ -1,5 +1,5 @@
 import { SignJWT, jwtVerify } from 'jose';
-import type { AuthRole, AuthTokenPayload } from '@cabzone/contracts';
+import type { AuthRole, AuthTokenPayload } from '@Cabzone/contracts';
 import type { TokenSignerPort, TokenVerifierPort } from '../domain/index.js';
 
 export class JoseTokenAdapter implements TokenVerifierPort, TokenSignerPort {

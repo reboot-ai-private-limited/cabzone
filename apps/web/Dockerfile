@@ -16,7 +16,7 @@ COPY packages/config    packages/config
 COPY apps/web           apps/web
 
 ENV NEXT_TELEMETRY_DISABLED=1
-RUN pnpm --filter @cabzone/web build
+RUN pnpm --filter @Cabzone/web build
 
 FROM node:22-alpine AS runtime
 WORKDIR /app

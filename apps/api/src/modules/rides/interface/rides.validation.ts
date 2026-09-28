@@ -5,7 +5,7 @@ import {
   NEGOTIATION_ACTIONS,
   RIDE_STATUSES,
   VEHICLE_CATEGORIES,
-} from '@cabzone/contracts';
+} from '@Cabzone/contracts';
 
 export const locationPointSchema = z.object({
   lat: z.number().min(-90).max(90),

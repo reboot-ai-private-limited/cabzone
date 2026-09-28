@@ -2,9 +2,9 @@
 
 ## Frontend Applications
 
-cabzone defines two categories of frontend clients:
+Cabzone defines two categories of frontend clients:
 
-1. **Admin & Operations Web Console** (`apps/web` / `@cabzone/web`): Desktop-first portal for operations, city admins, dispute management, and configuration.
+1. **Admin & Operations Web Console** (`apps/web` / `@Cabzone/web`): Desktop-first portal for operations, city admins, dispute management, and configuration.
 2. **Mobile Applications** (Roadmap: `apps/rider-mobile` & `apps/driver-mobile`): End-user applications for riders and drivers.
 
 ---
@@ -32,9 +32,9 @@ apps/web/
 │   ├── features/               Domain feature modules (screens, hooks, feature logic)
 │   └── lib/
 │       └── api/                API client SDK (unwrapping HttpSuccessBody, handling ApiError)
-├── next.config.ts              Standalone output, transpilePackages: ['@cabzone/contracts']
+├── next.config.ts              Standalone output, transpilePackages: ['@Cabzone/contracts']
 ├── postcss.config.mjs          PostCSS configuration for Tailwind CSS
-├── tsconfig.json               TypeScript configuration extending @cabzone/config
+├── tsconfig.json               TypeScript configuration extending @Cabzone/config
 └── Dockerfile                  Multi-stage build generating Next.js standalone server
 ```
 
@@ -59,7 +59,7 @@ Each operational domain inside `src/features/` encapsulates:
 
 ## API & Wire Boundary
 
-All network requests from `apps/web` communicate via the unified API client in `src/lib/api/client.ts`, which consumes types directly from `@cabzone/contracts`:
+All network requests from `apps/web` communicate via the unified API client in `src/lib/api/client.ts`, which consumes types directly from `@Cabzone/contracts`:
 
 - Automatically unwraps standard `HttpSuccessBody<T>` envelopes.
 - Maps error payloads to typed `ApiError` instances containing machine-readable `FaultCode` values.

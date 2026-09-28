@@ -1,4 +1,4 @@
-# Graph Report - cabzonenew  (2026-09-26)
+# Graph Report - Cabzonenew  (2026-09-26)
 
 ## Corpus Check
 - 259 files · ~66,530 words
@@ -23,7 +23,7 @@
 - response.util.ts
 - health.container.ts
 - worker.ts
-- cabzone Platform
+- Cabzone Platform
 - tasks
 - Ride (Central Transactional Aggregate)
 - docs/engineering/clean-architecture-and-solid.md
@@ -176,15 +176,15 @@
 
 ### Community 0 - "web/package.json"
 Cohesion: 0.04
-Nodes (41): config, dependencies, @cabzone/contracts, lucide-react, next, react, react-dom, devDependencies (+33 more)
+Nodes (41): config, dependencies, @Cabzone/contracts, lucide-react, next, react, react-dom, devDependencies (+33 more)
 
 ### Community 1 - "package.json"
 Cohesion: 0.04
-Nodes (45): devDependencies, @cabzone/config, eslint, eslint-config-prettier, eslint-plugin-jsx-a11y, eslint-plugin-react, eslint-plugin-react-hooks, prettier (+37 more)
+Nodes (45): devDependencies, @Cabzone/config, eslint, eslint-config-prettier, eslint-plugin-jsx-a11y, eslint-plugin-react, eslint-plugin-react-hooks, prettier (+37 more)
 
 ### Community 2 - "api/package.json"
 Cohesion: 0.09
-Nodes (21): @cabzone/config, @cabzone/contracts, @types/node, typescript, vitest, name, private, type (+13 more)
+Nodes (21): @Cabzone/config, @Cabzone/contracts, @types/node, typescript, vitest, name, private, type (+13 more)
 
 ### Community 3 - "kyc-vehicle.test.ts"
 Cohesion: 0.12
@@ -202,7 +202,7 @@ Nodes (15): GetHealthUseCase, DependencyHealth, DependencyStatus, HealthReport, 
 Cohesion: 0.22
 Nodes (18): env, loadEnv(), main(), CONNECTION_STATES, connectMongo(), disconnectMongo(), logger, REDACTED_PATHS (+10 more)
 
-### Community 7 - "cabzone Platform"
+### Community 7 - "Cabzone Platform"
 Cohesion: 0.14
 Nodes (21): MongoDB Dev Service (docker-compose.dev.yml), Redis Dev Service (docker-compose.dev.yml), Decision Log (ADR), Adding a Module Checklist, Ride Module Reference Structure, Module Encapsulation and Access Rules, Standard Module Anatomy, Engineering Handbook (+13 more)
 
@@ -232,7 +232,7 @@ Nodes (16): RegisterDriverVehicleDto, PricingConfigDocument, PricingConfigModel,
 
 ### Community 14 - "dependencies"
 Cohesion: 0.12
-Nodes (17): dependencies, bullmq, @cabzone/contracts, cookie-parser, cors, dotenv, express, express-rate-limit (+9 more)
+Nodes (17): dependencies, bullmq, @Cabzone/contracts, cookie-parser, cors, dotenv, express, express-rate-limit (+9 more)
 
 ### Community 15 - "docker-compose.prod.yml"
 Cohesion: 0.25
@@ -240,7 +240,7 @@ Nodes (12): API Service (Production), Mongo Service (Production), Mongo Replica 
 
 ### Community 16 - "contracts/package.json"
 Cohesion: 0.14
-Nodes (13): devDependencies, @cabzone/config, typescript, exports, @cabzone/config, typescript, name, private (+5 more)
+Nodes (13): devDependencies, @Cabzone/config, typescript, exports, @Cabzone/config, typescript, name, private (+5 more)
 
 ### Community 17 - "SessionEntity"
 Cohesion: 0.07
@@ -248,7 +248,7 @@ Nodes (10): LogoutDeps, SessionEntity, SessionRepositoryPort, MongoSessionReposi
 
 ### Community 18 - "Monorepo Layout"
 Cohesion: 0.20
-Nodes (12): esbuild Bundle (server.js + worker.js), Turborepo CI/CD Pipeline, Admin Web Console (Next.js 15 App Router), API Client SDK (HttpSuccessBody / ApiError), apps/api (@cabzone/api), apps/web (@cabzone/web), Clean Architecture Modular Monolith, Monorepo Layout (+4 more)
+Nodes (12): esbuild Bundle (server.js + worker.js), Turborepo CI/CD Pipeline, Admin Web Console (Next.js 15 App Router), API Client SDK (HttpSuccessBody / ApiError), apps/api (@Cabzone/api), apps/web (@Cabzone/web), Clean Architecture Modular Monolith, Monorepo Layout (+4 more)
 
 ### Community 19 - "identity.ts"
 Cohesion: 0.10
@@ -284,11 +284,11 @@ Nodes (12): D-026: Commission = % of Agreed Fare, D-028: Fare Negotiation Bounds
 
 ### Community 27 - "docs/engineering/testing.md"
 Cohesion: 0.33
-Nodes (6): Critical E2E User Flows, Edge-Case Testing Matrix, Adapter & Infrastructure Integration Testing, cabzone Testing Pyramid, Business Invariant Regression Mandate, Deterministic Business Logic Unit Testing
+Nodes (6): Critical E2E User Flows, Edge-Case Testing Matrix, Adapter & Infrastructure Integration Testing, Cabzone Testing Pyramid, Business Invariant Regression Mandate, Deterministic Business Logic Unit Testing
 
 ### Community 28 - "contracts/tsconfig.json"
 Cohesion: 0.29
-Nodes (6): compilerOptions, module, moduleResolution, extends, include, @cabzone/config/tsconfig.base.json
+Nodes (6): compilerOptions, module, moduleResolution, extends, include, @Cabzone/config/tsconfig.base.json
 
 ### Community 29 - "Technology Stack"
 Cohesion: 0.20
@@ -304,7 +304,7 @@ Nodes (6): Auth Endpoints (/v1/auth/otp), OTP Authentication Flow, Refresh Token
 
 ### Community 32 - "docs/engineering/design-language.md"
 Cohesion: 0.18
-Nodes (8): Map Interaction & Zone Visualization Guidelines, cabzone UI Design Character, Role-Based Interface Priorities, Multi-Modal Status Indicator Standard, packages/contracts Specification, packages/domain Specification, Shared Package Dependency & Non-Circularity Rules, packages/validation Specification
+Nodes (8): Map Interaction & Zone Visualization Guidelines, Cabzone UI Design Character, Role-Based Interface Priorities, Multi-Modal Status Indicator Standard, packages/contracts Specification, packages/domain Specification, Shared Package Dependency & Non-Circularity Rules, packages/validation Specification
 
 ### Community 33 - "requestOtp.usecase.ts"
 Cohesion: 0.12
@@ -348,7 +348,7 @@ Nodes (12): adminStatusSchema, createAdminUserSchema, createDriverProfileSchema,
 
 ### Community 67 - "my-notes.md"
 Cohesion: 0.15
-Nodes (12): 10. What happens if the wallet reaches zero during an active ride?, 11. What happens when a ride crosses a state?, 12. What happens if pricing changes after a rider requests a ride?, 1. What problem does cabzone solve?, 2. Who are the three users/platforms?, 3. What happens when a rider requests a ride?, 4. What is Suggested Fare?, 5. What is Rider Proposed Fare? (+4 more)
+Nodes (12): 10. What happens if the wallet reaches zero during an active ride?, 11. What happens when a ride crosses a state?, 12. What happens if pricing changes after a rider requests a ride?, 1. What problem does Cabzone solve?, 2. Who are the three users/platforms?, 3. What happens when a rider requests a ride?, 4. What is Suggested Fare?, 5. What is Rider Proposed Fare? (+4 more)
 
 ### Community 68 - "adminUser.model.ts"
 Cohesion: 0.20
@@ -548,11 +548,11 @@ Nodes (12): apps_api_src_modules_ledger_index_memorywalletrepository, apps_api_s
 
 ### Community 120 - "devDependencies"
 Cohesion: 0.14
-Nodes (14): devDependencies, @cabzone/config, dependency-cruiser, esbuild, pino-pretty, supertest, tsx, @types/cookie-parser (+6 more)
+Nodes (14): devDependencies, @Cabzone/config, dependency-cruiser, esbuild, pino-pretty, supertest, tsx, @types/cookie-parser (+6 more)
 
 ### Community 121 - "4. Quote Lifecycle & First-to-Accept Ride Engine"
 Cohesion: 0.17
-Nodes (10): isDriverEligibleForNewRides(), AcceptRideUseCase, 1. Zone Architecture & Domain Taxonomy Lock (Stage 2), 3. PRD v2 Alignment & Non-Breaking Core Adjustments, 4. Quote Lifecycle & First-to-Accept Ride Engine, Changed / Added Artifacts, Daily Work Log - cabzone Platform, Detailed Chronology of Work Completed (+2 more)
+Nodes (10): isDriverEligibleForNewRides(), AcceptRideUseCase, 1. Zone Architecture & Domain Taxonomy Lock (Stage 2), 3. PRD v2 Alignment & Non-Breaking Core Adjustments, 4. Quote Lifecycle & First-to-Accept Ride Engine, Changed / Added Artifacts, Daily Work Log - Cabzone Platform, Detailed Chronology of Work Completed (+2 more)
 
 ### Community 122 - "WalletEntity"
 Cohesion: 0.26

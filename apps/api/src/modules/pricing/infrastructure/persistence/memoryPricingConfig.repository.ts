@@ -1,4 +1,4 @@
-import type { VehicleCategory } from '@cabzone/contracts';
+import type { VehicleCategory } from '@Cabzone/contracts';
 import type { PricingConfigEntity, PricingConfigRepositoryPort } from '../../domain/index.js';
 import { isPricingConfigEffective } from '../../domain/index.js';
 

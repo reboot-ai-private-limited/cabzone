@@ -1,4 +1,4 @@
-import type { GeoPoint, ZoneStatus, ZoneType } from '@cabzone/contracts';
+import type { GeoPoint, ZoneStatus, ZoneType } from '@Cabzone/contracts';
 import type { ZoneEntity } from './zone.entity.js';
 
 export interface ZoneFilter {

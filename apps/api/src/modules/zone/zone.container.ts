@@ -3,6 +3,7 @@ import {
   ActivateZoneUseCase,
   CreateZoneUseCase,
   DeactivateZoneUseCase,
+  GetZoneDependentsUseCase,
   GetZoneHistoryUseCase,
   GetZoneUseCase,
   ListZonesUseCase,
@@ -30,6 +31,7 @@ import {
   makeCreateZoneController,
   makeDeactivateZoneController,
   makeGetZoneController,
+  makeGetZoneDependentsController,
   makeGetZoneHistoryController,
   makeListZonesController,
   makeResolveZonesController,
@@ -51,6 +53,7 @@ export interface ZoneContainer {
   activateZoneUseCase: ActivateZoneUseCase;
   deactivateZoneUseCase: DeactivateZoneUseCase;
   getZoneHistoryUseCase: GetZoneHistoryUseCase;
+  getZoneDependentsUseCase: GetZoneDependentsUseCase;
   resolveZonesUseCase: ResolveZonesUseCase;
   zoneRepo: ZoneRepositoryPort;
   auditRepo: ZoneAuditRepositoryPort;
@@ -94,6 +97,7 @@ export function buildZoneContainer(deps?: ZoneContainerDeps): ZoneContainer {
   const activateZoneUseCase = new ActivateZoneUseCase({ zoneRepo, auditRepo });
   const deactivateZoneUseCase = new DeactivateZoneUseCase({ zoneRepo, auditRepo });
   const getZoneHistoryUseCase = new GetZoneHistoryUseCase({ zoneRepo, auditRepo });
+  const getZoneDependentsUseCase = new GetZoneDependentsUseCase({ zoneRepo });
   const resolveZonesUseCase = new ResolveZonesUseCase({
     zoneRepo,
     coverageRepo,
@@ -109,6 +113,7 @@ export function buildZoneContainer(deps?: ZoneContainerDeps): ZoneContainer {
   const activateZone = makeActivateZoneController(activateZoneUseCase);
   const deactivateZone = makeDeactivateZoneController(deactivateZoneUseCase);
   const getZoneHistory = makeGetZoneHistoryController(getZoneHistoryUseCase);
+  const getZoneDependents = makeGetZoneDependentsController(getZoneDependentsUseCase);
   const resolveZones = makeResolveZonesController(resolveZonesUseCase);
 
   return {
@@ -122,6 +127,7 @@ export function buildZoneContainer(deps?: ZoneContainerDeps): ZoneContainer {
     activateZoneUseCase,
     deactivateZoneUseCase,
     getZoneHistoryUseCase,
+    getZoneDependentsUseCase,
     resolveZonesUseCase,
     zoneRepo,
     auditRepo,
@@ -138,6 +144,7 @@ export function buildZoneContainer(deps?: ZoneContainerDeps): ZoneContainer {
         activateZone,
         deactivateZone,
         getZoneHistory,
+        getZoneDependents,
       }),
     buildZoneRouter: () =>
       buildZoneRouter({

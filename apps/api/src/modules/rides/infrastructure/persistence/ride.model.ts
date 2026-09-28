@@ -7,7 +7,7 @@ import {
   type RidePricingSnapshot,
   type RideStatus,
   type VehicleCategory,
-} from '@cabzone/contracts';
+} from '@Cabzone/contracts';
 import type { LocationPoint, RouteSnapshot, ZoneSnapshot } from '../../domain/ride.entity.js';
 
 export interface RideDocument extends Document<string> {

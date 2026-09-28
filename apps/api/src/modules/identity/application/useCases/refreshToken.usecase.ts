@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
-import type { RefreshTokenRequestDto, RefreshTokenResponseDto } from '@cabzone/contracts';
+import type { RefreshTokenRequestDto, RefreshTokenResponseDto } from '@Cabzone/contracts';
 import { AppError } from '../../../../shared/errors/AppError.js';
 import type {
   AdminUserRepositoryPort,

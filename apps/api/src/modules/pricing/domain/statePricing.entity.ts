@@ -1,4 +1,4 @@
-import type { StatePricingStatus } from '@cabzone/contracts';
+import type { StatePricingStatus } from '@Cabzone/contracts';
 
 export interface StatePricingEntity {
   id: string;

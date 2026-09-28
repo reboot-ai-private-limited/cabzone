@@ -4,7 +4,7 @@ import {
   PAYMENT_STATUSES,
   type PaymentMethod,
   type PaymentStatus,
-} from '@cabzone/contracts';
+} from '@Cabzone/contracts';
 
 export interface PaymentDocument extends Document<string> {
   _id: string;

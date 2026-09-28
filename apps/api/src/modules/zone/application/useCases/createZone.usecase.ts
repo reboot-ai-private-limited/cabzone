@@ -4,7 +4,7 @@ import type {
   GeoJsonPolygon,
   ZoneDto,
   ZoneType,
-} from '@cabzone/contracts';
+} from '@Cabzone/contracts';
 import { AppError } from '../../../../shared/errors/AppError.js';
 import { newUuid } from '../../../../shared/ids.js';
 import type {

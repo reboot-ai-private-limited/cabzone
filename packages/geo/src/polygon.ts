@@ -6,6 +6,8 @@ export interface GeoJsonPolygon {
   coordinates: Position[][];
 }
 
+export type Polygon = GeoJsonPolygon;
+
 export interface GeoJsonMultiPolygon {
   type: 'MultiPolygon';
   coordinates: Position[][][];

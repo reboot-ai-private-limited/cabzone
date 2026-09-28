@@ -1,5 +1,5 @@
 {
-  "extends": "@cabzone/config/tsconfig.react.json",
+  "extends": "@Cabzone/config/tsconfig.react.json",
   "compilerOptions": {
     "baseUrl": ".",
     "paths": {
@@ -13,6 +13,7 @@
       }
     ],
     "incremental": true,
+    "exactOptionalPropertyTypes": false,
     "jsx": "preserve",
     "types": [
       "node",

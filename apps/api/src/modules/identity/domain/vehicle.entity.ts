@@ -1,4 +1,4 @@
-import type { VehicleCategory, VehicleVerificationStatus } from '@cabzone/contracts';
+import type { VehicleCategory, VehicleVerificationStatus } from '@Cabzone/contracts';
 
 export interface VehicleEntity {
   id: string;

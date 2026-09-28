@@ -1,5 +1,5 @@
 import type { RequestHandler } from 'express';
-import type { AuthRole } from '@cabzone/contracts';
+import type { AuthRole } from '@Cabzone/contracts';
 import { AppError } from '../../../../shared/errors/AppError.js';
 import './auth.types.js';
 

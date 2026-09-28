@@ -1,5 +1,5 @@
 import mongoose, { type Document, Schema } from 'mongoose';
-import { USER_STATUSES, type UserStatus } from '@cabzone/contracts';
+import { USER_STATUSES, type UserStatus } from '@Cabzone/contracts';
 
 export interface UserDocument extends Document<string> {
   _id: string;

@@ -1,4 +1,4 @@
-import type { GeoJsonPolygon, GeoPoint } from '@cabzone/contracts';
+import type { GeoJsonPolygon, GeoPoint } from '@Cabzone/contracts';
 import type { ZoneEntity, ZoneFilter, ZoneRepositoryPort } from '../../domain/index.js';
 import { ZoneModel, type ZoneDocument } from './zone.model.js';
 

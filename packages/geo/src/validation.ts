@@ -34,6 +34,7 @@ export type ZoneViolationCode =
 
 export interface ZoneViolation {
   code: string;
+  rule?: string;
   severity: 'ERROR' | 'WARNING';
   message: string;
   offendingZoneId?: string;
@@ -515,3 +516,38 @@ export function normalizeGeoJson(input: unknown): GeoJsonGeometry {
 
   throw new Error(`Unsupported GeoJSON root type: ${String(raw.type)}`);
 }
+
+export const normalizeWinding = ensureRfc7946Winding;
+
+export function zoneStats(geometry: GeoJsonGeometry): { areaKm2: number; vertexCount: number } {
+  const areaM2 = computeGeometryAreaM2(geometry);
+  const areaKm2 = Math.round((areaM2 / 1_000_000) * 100) / 100;
+  let vertexCount = 0;
+  if (geometry.type === 'Polygon') {
+    vertexCount = geometry.coordinates[0]?.length ?? 0;
+  } else if (geometry.type === 'MultiPolygon') {
+    for (const poly of geometry.coordinates) {
+      vertexCount += poly[0]?.length ?? 0;
+    }
+  }
+  return { areaKm2, vertexCount };
+}
+
+export interface NamedZone {
+  id: string;
+  name: string;
+  geom: GeoJsonGeometry;
+}
+
+export function validateZone(input: {
+  geom: GeoJsonGeometry;
+  siblings?: NamedZone[];
+}): ZoneViolation[] {
+  const res = validateGeometry(input.geom);
+  const violations: ZoneViolation[] = res.violations.map((v) => ({
+    ...v,
+    rule: v.code,
+  }));
+  return violations;
+}
+

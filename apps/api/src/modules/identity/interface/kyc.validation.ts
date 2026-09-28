@@ -7,7 +7,7 @@ import {
   REJECTION_TYPES,
   VEHICLE_CATEGORIES,
   VEHICLE_VERIFICATION_STATUSES,
-} from '@cabzone/contracts';
+} from '@Cabzone/contracts';
 
 export const vehicleRegistrationSchema = z
   .string()

@@ -3,7 +3,7 @@
 ## Directory Topology
 
 ```text
-cabzone/
+Cabzone/
 ├── apps/                       Deployable applications
 │   ├── api/                    Node.js Express ESM REST/WebSocket API (port 4000)
 │   │                           + BullMQ queue worker process (src/worker.ts)
@@ -32,9 +32,9 @@ cabzone/
 
 ## Brand vs Scope Naming Standard
 
-- **Product / Commercial Brand**: **cabzone** (used in product copy, PRD, mobile app titles, and documentation).
-- **Package Scope**: `@cabzone/*` (e.g. `@cabzone/api`, `@cabzone/web`, `@cabzone/contracts`, `@cabzone/config`).
-- **Monorepo / Docker Namespace**: `cabzone` (e.g. root `package.json`, volume names `cabzone-mongo-data-*`).
+- **Product / Commercial Brand**: **Cabzone** (used in product copy, PRD, mobile app titles, and documentation).
+- **Package Scope**: `@Cabzone/*` (e.g. `@Cabzone/api`, `@Cabzone/web`, `@Cabzone/contracts`, `@Cabzone/config`).
+- **Monorepo / Docker Namespace**: `Cabzone` (e.g. root `package.json`, volume names `Cabzone-mongo-data-*`).
 
 ## Core Rules
 
@@ -50,4 +50,4 @@ As the platform scales to mobile clients and additional shared services, the mon
 - `apps/rider-mobile`: Cross-platform React Native / Expo application for riders.
 - `apps/driver-mobile`: Dedicated Android application for drivers featuring foreground location services and realtime ringing dispatch.
 - `packages/ui`: Shared design system component library if web and mobile share design tokens.
-- `packages/domain`: Dedicated shared domain package if pure algorithmic domain engines (fare, zones) are extracted beyond `@cabzone/contracts`.
+- `packages/domain`: Dedicated shared domain package if pure algorithmic domain engines (fare, zones) are extracted beyond `@Cabzone/contracts`.

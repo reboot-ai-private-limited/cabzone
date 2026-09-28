@@ -1,16 +1,16 @@
-# cabzone — Open Questions & Engineering Decisions
+# Cabzone — Open Questions & Engineering Decisions
 
 **Document:** `docs/LLD/open-questions.md`
 **Status:** Draft for Engineering Review
 **Version:** 0.1
-**Source:** cabzone Product Requirements Document v0.1
+**Source:** Cabzone Product Requirements Document v0.1
 **Purpose:** Identify unresolved product and engineering decisions that can materially affect the domain model, database schema, algorithms, APIs, security, financial flows, or operational behavior.
 
 ---
 
 ## 1. Purpose
 
-This document converts ambiguities and unresolved decisions in the cabzone PRD into explicit engineering questions.
+This document converts ambiguities and unresolved decisions in the Cabzone PRD into explicit engineering questions.
 
 Every question is classified as:
 
@@ -126,7 +126,7 @@ Pricing configuration keys by `(city_zone_id, vehicle_category)`. Future vehicle
 
 ### Why
 
-cabzone serves both cabs and electric rickshaws in its operating regions. Their capital, fuel/charging, and distance economics differ significantly. Deciding this now establishes clean `(city_zone, vehicle_category)` schemas across pricing, rides, dispatch, and mobile contracts.
+Cabzone serves both cabs and electric rickshaws in its operating regions. Their capital, fuel/charging, and distance economics differ significantly. Deciding this now establishes clean `(city_zone, vehicle_category)` schemas across pricing, rides, dispatch, and mobile contracts.
 
 ---
 
@@ -138,7 +138,7 @@ cabzone serves both cabs and electric rickshaws in its operating regions. Their 
 
 ### Question
 
-Is cabzone commission:
+Is Cabzone commission:
 
 1. A percentage of Agreed Fare?
 2. A fixed amount per ride?
@@ -698,7 +698,7 @@ All top-ups must create immutable wallet ledger transactions.
 
 ### Question
 
-How are payment-provider events reconciled against cabzone's internal payment state?
+How are payment-provider events reconciled against Cabzone's internal payment state?
 
 ### Recommended default
 
@@ -1119,6 +1119,6 @@ Before writing application code, resolve these decisions in this order:
 10. Payment + cash confirmation
 ```
 
-These decisions form the dependency chain for the core cabzone architecture.
+These decisions form the dependency chain for the core Cabzone architecture.
 
 Once they are resolved, the engineering team can freeze the domain model and database schema and proceed to the detailed LLD documents.

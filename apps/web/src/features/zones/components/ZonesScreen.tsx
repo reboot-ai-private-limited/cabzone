@@ -1,72 +1,111 @@
 'use client';
 
-import React, { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import dynamic from 'next/dynamic';
+import { List, LogIn, LogOut, Map as MapIcon } from 'lucide-react';
+import type { ZoneDto, ZoneType } from '@Cabzone/contracts';
+import type { Polygon } from '@Cabzone/geo';
 import {
-  activateZone,
-  createZone,
-  deactivateZone,
-  getZones,
-  updateZoneGeometry,
-  updateZoneMetadata,
-} from '../lib/api.js';
-import { AdminLoginDialog } from '../../auth/components/AdminLoginDialog.js';
-import { getStoredPhone, getStoredToken, logout } from '../../auth/lib/authApi.js';
-import { DeactivateZoneDialog } from './DeactivateZoneDialog.js';
-import { GeoJsonImportDialog } from './GeoJsonImportDialog.js';
-import { ZoneForm } from './ZoneForm.js';
-import { ZoneHistory } from './ZoneHistory.js';
-import { ZoneInspector } from './ZoneInspector.js';
-import { ZoneMap } from './ZoneMap.js';
-import { ZonesTable } from './ZonesTable.js';
-import { ZonesToolbar } from './ZonesToolbar.js';
-import type {
-  CreateZoneInputDto,
-  GeoJsonGeometry,
-  GeoJsonPolygon,
-  ZoneDto,
-  ZoneFilterState,
-  ZoneViewMode,
-} from '../types/zones.js';
+  Button,
+  ErrorState,
+  PageHeader,
+  SegmentedControl,
+  Skeleton,
+  TopProgressBar,
+  cn,
+} from '@Cabzone/design-system';
+import { ApiError } from '@/lib/api/ApiError';
+import { toErrorState } from '@/lib/api/toErrorState';
+import { useFilterParams } from '@/lib/hooks/useFilterParams';
+import { AdminLoginDialog } from '../../auth/components/AdminLoginDialog';
+import { getStoredPhone, getStoredToken, logout } from '../../auth/lib/authApi';
+import { useZones } from '../hooks/useZones';
+import { useIncityPackages } from '../hooks/useIncityPackages';
+import { useZoneValidation } from '../hooks/useZoneValidation';
+import {
+  useCreateZone,
+  useUpdateZoneGeometry,
+  useUpdateZoneMetadata,
+} from '../hooks/useZoneMutations';
+import { toGeoJsonExport } from '../lib/geojson-import';
+import { hasApiKey, type MapTypeId } from '../lib/google-maps';
+import { DeactivateZoneDialog } from './DeactivateZoneDialog';
+import { PlaceSearch } from './PlaceSearch';
+import { GeoJsonImportDialog } from './GeoJsonImportDialog';
+import { ZoneInspector, type ZoneForm } from './ZoneInspector';
+import { ZoneRail } from './ZoneRail';
+import { ZonesTable } from './ZonesTable';
+
+/**
+ * Coverage — the zones screen.
+ *
+ * ONE SCREEN, TWO VIEWS, AND THE MAP IS THE DEFAULT. The table this replaced was not wrong
+ * because it was a table; it was wrong because it rendered three different kinds of thing as
+ * one kind of row. A CITY zone is a setting (there is exactly one, operationally), a PICKUP
+ * zone is one of a fixed pair, and a HILL zone is one of a growing list — and the `pickup_charge`
+ * column being `—` on five rows out of seven was that mismatch showing through.
+ *
+ * The list view survives as the AUDIT surface, where superseded versions and inactive zones
+ * live. See `ZonesTable`.
+ *
+ * State that a colleague might need to see lives in the URL — the view, the selection — so a
+ * link to "the zone I am asking you about" is a link and not a description. Editor state
+ * (the draft polygon, the form) deliberately does not: a half-drawn boundary is not something
+ * to restore from a bookmark.
+ */
+
+/**
+ * MapLibre and Draw are ~210 kB of the zones route on their own, and NOTHING else in the panel
+ * needs them — nor does this screen's own list view. Loading them per route (which is what Next
+ * is still buying us, per docs/engineering/frontend-architecture.md) is not granular enough
+ * when the heavy thing is one of two views.
+ *
+ * `ssr: false` is the other half. MapLibre reaches for browser globals at module scope; there
+ * is no server render of a WebGL canvas worth having, and prerendering it only risks the kind
+ * of failure that shows up in production and not in `next dev`.
+ */
+const ZoneMap = dynamic(() => import('./ZoneMap').then((module) => module.ZoneMap), {
+  ssr: false,
+  loading: () => <div className="absolute inset-0 bg-surface-muted" />,
+});
+
+type FilterKey = 'view' | 'zone';
+
+interface EditSession {
+  /** `null` when creating — there is no saved zone behind the draft yet. */
+  zoneId: string | null;
+  type: ZoneType;
+}
+
+const BLANK_FORM: ZoneForm = { name: '', code: '' };
+
+function formFor(zone: ZoneDto): ZoneForm {
+  return {
+    name: zone.name,
+    code: zone.code,
+    bufferDistanceM: zone.bufferDistanceM != null ? String(zone.bufferDistanceM) : '',
+  };
+}
 
 export function ZonesScreen() {
-  const [zones, setZones] = useState<ZoneDto[]>([]);
-  const [selectedZone, setSelectedZone] = useState<ZoneDto | null>(null);
-  const [viewMode, setViewMode] = useState<ZoneViewMode>('list');
-  const [isLoading, setIsLoading] = useState(true);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const params = useFilterParams<FilterKey>();
+  const view = params.get('view') === 'list' ? 'list' : 'map';
+  const selectedId = params.get('zone') || null;
 
-  const [filter, setFilter] = useState<ZoneFilterState>({
-    type: 'ALL',
-    status: 'ALL',
-    search: '',
-    page: 1,
-    limit: 20,
-  });
-
-  const [pagination, setPagination] = useState({
-    page: 1,
-    limit: 20,
-    total: 0,
-  });
-
-  // Modal / Dialog states
-  const [isFormOpen, setIsFormOpen] = useState(false);
-  const [editingZone, setEditingZone] = useState<ZoneDto | null>(null);
-  const [isImportOpen, setIsImportOpen] = useState(false);
-  const [isDeactivateOpen, setIsDeactivateOpen] = useState(false);
-  const [deactivatingZone, setDeactivatingZone] = useState<ZoneDto | null>(null);
-  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
-  const [historyZone, setHistoryZone] = useState<ZoneDto | null>(null);
+  const [session, setSession] = useState<EditSession | null>(null);
+  const [draft, setDraft] = useState<Polygon | null>(null);
+  const [form, setForm] = useState<ZoneForm>(BLANK_FORM);
+  const [mapType, setMapType] = useState<MapTypeId>('roadmap');
+  const [mapInstance, setMapInstance] = useState<google.maps.Map | null>(null);
+  const [fitToken, setFitToken] = useState(0);
+  const [violationFocus, setViolationFocus] = useState<Polygon | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
+  const [deactivating, setDeactivating] = useState<ZoneDto | null>(null);
 
   // Authentication state
   const [adminPhone, setAdminPhone] = useState<string | null>(null);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
 
-  // Drawing mode state on map
-  const [isDrawing, setIsDrawing] = useState(false);
-  const [draftGeometry, setDraftGeometry] = useState<GeoJsonPolygon | null>(null);
-
-  // Check stored auth on mount
   useEffect(() => {
     const token = getStoredToken();
     const phone = getStoredPhone();
@@ -76,312 +115,407 @@ export function ZonesScreen() {
     }
   }, []);
 
-  // Load zones from API
-  const loadZones = useCallback(async () => {
-    setIsLoading(true);
-    setErrorMessage(null);
-    try {
-      const res = await getZones({
-        type: filter.type === 'ALL' ? undefined : filter.type,
-        status: filter.status === 'ALL' ? undefined : filter.status,
-        search: filter.search || undefined,
-        page: filter.page,
-        limit: filter.limit,
-      });
+  const zonesQuery = useZones();
+  const packagesQuery = useIncityPackages();
 
-      setZones(res.items);
-      setPagination(res.pagination);
-
-      // Keep selected zone reference synchronized
-      setSelectedZone((prev) => (prev ? res.items.find((z) => z.id === prev.id) ?? prev : null));
-    } catch (err: unknown) {
-      const msg = (err as Error).message || 'Failed to fetch zones.';
+  useEffect(() => {
+    if (zonesQuery.error) {
+      const msg = (zonesQuery.error as Error).message || '';
       if (
+        (zonesQuery.error instanceof ApiError && zonesQuery.error.status === 401) ||
         msg.includes('401') ||
-        msg.includes('UNAUTHENTICATED') ||
-        msg.includes('unauthorized') ||
-        msg.includes('FORBIDDEN')
+        msg.includes('UNAUTHENTICATED')
       ) {
         setIsAuthOpen(true);
       }
-      setErrorMessage(msg);
-    } finally {
-      setIsLoading(false);
     }
-  }, [filter]);
+  }, [zonesQuery.error]);
 
-  useEffect(() => {
-    loadZones();
-  }, [loadZones]);
-
-  // Compute counts for toolbar tabs
-  const counts = {
-    ALL: pagination.total,
-    CITY: zones.filter((z) => (z.zoneType ?? z.type) === 'CITY').length,
-    PICKUP: zones.filter((z) => (z.zoneType ?? z.type) === 'PICKUP').length,
-    EXCLUSION: zones.filter((z) => (z.zoneType ?? z.type) === 'EXCLUSION').length,
-  };
-
-  const cities = zones.filter((z) => (z.zoneType ?? z.type) === 'CITY' && z.status === 'ACTIVE');
-
-  // Handlers
-  const handleFilterChange = (update: Partial<ZoneFilterState>) => {
-    setFilter((prev) => ({ ...prev, ...update }));
-  };
-
-  const handleSelectZone = (zone: ZoneDto) => {
-    setSelectedZone(zone);
-  };
-
-  const handleCreateClick = () => {
-    setEditingZone(null);
-    setDraftGeometry(null);
-    setIsFormOpen(true);
-  };
-
-  const handleEditDetails = (zone: ZoneDto) => {
-    setEditingZone(zone);
-    setDraftGeometry(null);
-    setIsFormOpen(true);
-  };
-
-  const handleEditGeometry = (zone: ZoneDto) => {
-    setSelectedZone(zone);
-    setViewMode('map');
-    setIsDrawing(true);
-  };
-
-  const handleViewHistory = (zone: ZoneDto) => {
-    setHistoryZone(zone);
-    setIsHistoryOpen(true);
-  };
-
-  const handleToggleStatus = async (zone: ZoneDto) => {
-    if (zone.status === 'ACTIVE') {
-      setDeactivatingZone(zone);
-      setIsDeactivateOpen(true);
-    } else {
-      try {
-        await activateZone(zone.id);
-        await loadZones();
-      } catch (err: unknown) {
-        setErrorMessage((err as Error).message);
-      }
-    }
-  };
-
-  const handleConfirmDeactivate = async (zoneId: string, reason: string) => {
-    try {
-      await deactivateZone(zoneId, reason);
-      await loadZones();
-    } catch (err: unknown) {
-      setErrorMessage((err as Error).message);
-    }
-  };
-
-  const handleSaveZone = async (data: CreateZoneInputDto) => {
-    if (editingZone) {
-      // If editing existing zone
-      if (
-        draftGeometry &&
-        JSON.stringify(draftGeometry) !==
-          JSON.stringify(editingZone.geometry ?? editingZone.boundary)
-      ) {
-        // Geometry changed: call versioned geometry update
-        await updateZoneGeometry(editingZone.id, {
-          expectedVersion: editingZone.version,
-          geometry: draftGeometry,
-        });
-      }
-
-      await updateZoneMetadata(editingZone.id, {
-        name: data.name,
-        code: data.code,
-        stateCode: data.stateCode,
-        parentCityZoneId: data.parentCityZoneId,
-        bufferDistanceM: data.bufferDistanceM,
-      });
-    } else {
-      // Creating brand new zone
-      await createZone(data);
-    }
-
-    setDraftGeometry(null);
-    setIsDrawing(false);
-    await loadZones();
-  };
-
-  const handleSavePolygonFromMap = async (geometry: GeoJsonPolygon) => {
-    // 1. If currently updating an existing zone's geometry
-    const targetZone = editingZone ?? selectedZone;
-    if (targetZone) {
-      try {
-        setIsLoading(true);
-        await updateZoneGeometry(targetZone.id, {
-          expectedVersion: targetZone.version,
-          geometry,
-        });
-        setDraftGeometry(null);
-        setIsDrawing(false);
-        await loadZones();
-        return;
-      } catch (err: unknown) {
-        setErrorMessage((err as Error).message);
-        setIsLoading(false);
-        setEditingZone(targetZone);
-        setDraftGeometry(geometry);
-        setIsFormOpen(true);
-        return;
-      }
-    }
-
-    // 2. If creating a brand new zone, open creation modal with the autocompleted geometry
-    setEditingZone(null);
-    setDraftGeometry(geometry);
-    setIsFormOpen(true);
-  };
-
-  const handleImportGeometry = (geom: GeoJsonGeometry) => {
-    if (geom.type === 'Polygon') {
-      setDraftGeometry(geom);
-    } else {
-      setDraftGeometry({
-        type: 'Polygon',
-        coordinates: geom.coordinates[0] ?? [],
-      });
-    }
+  const handleAuthSuccess = () => {
+    setAdminPhone(getStoredPhone());
+    setIsAuthOpen(false);
+    void zonesQuery.refetch();
+    void packagesQuery.refetch();
   };
 
   const handleLogout = () => {
     logout();
     setAdminPhone(null);
-    setZones([]);
     setIsAuthOpen(true);
   };
 
-  const handleAuthSuccess = () => {
-    setAdminPhone(getStoredPhone());
-    setIsAuthOpen(false);
-    loadZones();
+  const zones = useMemo(() => zonesQuery.data?.zones ?? [], [zonesQuery.data]);
+  const selected = zones.find((zone) => zone.id === selectedId) ?? null;
+  const editing = session !== null;
+
+  const select = useCallback(
+    (id: string | null) => {
+      params.set({ zone: id ?? undefined });
+      setViolationFocus(null);
+      setFitToken((token) => token + 1);
+    },
+    [params],
+  );
+
+  const validation = useZoneValidation({
+    geometry: editing ? draft : (selected?.geometry?.type === 'Polygon' ? selected.geometry : null),
+    type: session?.type ?? selected?.type ?? 'PICKUP',
+    zones,
+    ...(session?.zoneId == null ? {} : { excludeZoneId: session.zoneId }),
+    enabled: editing,
+  });
+
+  const create = useCreateZone((zone) => {
+    setSession(null);
+    setDraft(null);
+    select(zone.id);
+    setFitToken((token) => token + 1);
+  });
+  const updateMetadata = useUpdateZoneMetadata();
+  const updateGeometry = useUpdateZoneGeometry((zone) => {
+    setSession(null);
+    setDraft(null);
+    // A geometry save inserts a NEW document — the id changes with the version. Re-selecting
+    // the returned zone is what stops the screen pointing at the row it just superseded.
+    select(zone.id);
+    setFitToken((token) => token + 1);
+  });
+
+  useEffect(() => {
+    if (zones.length > 0 && selectedId === null && fitToken === 0) {
+      setFitToken(1);
+    }
+  }, [zones.length, selectedId, fitToken]);
+
+  const saving = create.isPending || updateGeometry.isPending || updateMetadata.isPending;
+
+  /**
+   * A new zone starts EMPTY, and the admin places the first corner.
+   *
+   * Nothing is drawn here on purpose: the map goes to crosshair and waits. A previous version
+   * of this seeded a starter polygon automatically, which is not what creating a zone means —
+   * the boundary is the admin's to place, not something to be handed a guess at and asked to
+   * correct. What makes the tracing bearable is the rubber band in `ZoneMap`: once the first
+   * corner is down, the next edge follows the cursor, so every click is aimed rather than blind.
+   */
+  const startCreate = (type: 'CITY' | 'PICKUP' | 'EXCLUSION'): void => {
+    select(null);
+    setSession({ zoneId: null, type });
+    setDraft(null);
+    setForm(BLANK_FORM);
   };
 
+  const startEdit = (zone: ZoneDto): void => {
+    select(zone.id);
+    setSession({ zoneId: zone.id, type: zone.type });
+    setDraft(zone.geometry.type === 'Polygon' ? zone.geometry : null);
+    setForm(formFor(zone));
+    setFitToken((token) => token + 1);
+  };
+
+  const cancel = (): void => {
+    setSession(null);
+    setDraft(null);
+    setViolationFocus(null);
+  };
+
+  const save = (): void => {
+    if (draft === null || session === null) return;
+    const activeCity = zones.find((z) => z.type === 'CITY' && z.is_active);
+
+    if (session.zoneId === null) {
+      create.mutate({
+        type: session.type,
+        name: form.name.trim(),
+        code: form.code.trim(),
+        stateCode: 'WB',
+        parentCityZoneId: session.type === 'PICKUP' ? (activeCity?.id ?? null) : null,
+        bufferDistanceM: form.bufferDistanceM ? Number(form.bufferDistanceM) : null,
+        geometry: draft,
+      });
+      return;
+    }
+
+    const zone = zones.find((candidate) => candidate.id === session.zoneId);
+    if (zone === undefined) return;
+
+    const bufferM = form.bufferDistanceM ? Number(form.bufferDistanceM) : null;
+    const metadataChanged =
+      form.name.trim() !== zone.name ||
+      form.code.trim() !== zone.code ||
+      bufferM !== (zone.bufferDistanceM ?? null);
+
+    const commitGeometry = (): void => {
+      updateGeometry.mutate(
+        { id: zone.id, geometry: draft, expectedVersion: zone.version },
+        {
+          onError: (error) => {
+            if (error instanceof ApiError && (error.code as string) === 'ZONE_ALREADY_SUPERSEDED') cancel();
+          },
+        },
+      );
+    };
+
+    if (!metadataChanged) {
+      commitGeometry();
+      return;
+    }
+
+    updateMetadata.mutate(
+      {
+        id: zone.id,
+        patch: {
+          name: form.name.trim(),
+          code: form.code.trim(),
+          bufferDistanceM: bufferM,
+        },
+      },
+      { onSuccess: commitGeometry },
+    );
+  };
+
+  const exportSelected = (): void => {
+    if (selected === null) return;
+    void navigator.clipboard.writeText(
+      toGeoJsonExport(
+        selected.name,
+        selected.code,
+        selected.geometry.type === 'Polygon' ? selected.geometry : { type: 'Polygon', coordinates: [] },
+      ),
+    );
+  };
+
+  /**
+   * The edit session is a full-screen surface (see the `<section>` className). Two things a
+   * full-screen surface owes: the page behind it must not scroll, and there must be a keyboard
+   * way out. Escape does exactly what Cancel does — discards the draft and drops back to the
+   * normal split view. It is deliberately not gated on "mid-trace": abandoning a half-drawn
+   * boundary with Escape is the expected thing, and it is the same discard the Cancel button
+   * already offers.
+   */
+  useEffect(() => {
+    if (!editing) return undefined;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape' && !saving) cancel();
+    };
+    window.addEventListener('keydown', onKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', onKeyDown);
+    };
+    // `cancel` is a stable closure over setters only; re-subscribing on every `saving` flip is
+    // the point — the Escape guard has to see the current value.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editing, saving]);
+
+  const errorState = zonesQuery.isError
+    ? toErrorState(zonesQuery.error, () => void zonesQuery.refetch())
+    : undefined;
+
   return (
-    <div className="flex flex-col h-screen w-full bg-slate-100 overflow-hidden">
-      {/* Top Toolbar */}
-      <ZonesToolbar
-        filter={filter}
-        onFilterChange={handleFilterChange}
-        viewMode={viewMode}
-        onViewModeChange={setViewMode}
-        onCreateClick={handleCreateClick}
-        onRefresh={loadZones}
-        isLoading={isLoading}
-        counts={counts}
-        adminPhone={adminPhone}
-        onLoginClick={() => setIsAuthOpen(true)}
-        onLogoutClick={handleLogout}
+    <>
+      <PageHeader
+        title="Zones"
+        breadcrumbs={[{ label: 'Home', href: '/' }, { label: 'Zones' }]}
+        actions={
+          <div className="flex items-center gap-2">
+            <SegmentedControl
+              label="View"
+              value={view}
+              onValueChange={(next) => params.set({ view: next === 'map' ? undefined : next })}
+              segments={[
+                { value: 'map', label: 'Map', icon: <MapIcon aria-hidden className="size-3.5" /> },
+                { value: 'list', label: 'List', icon: <List aria-hidden className="size-3.5" /> },
+              ]}
+            />
+            {adminPhone ? (
+              <Button
+                size="sm"
+                variant="ghost"
+                icon={<LogOut aria-hidden className="size-3.5" />}
+                onClick={handleLogout}
+                title={`Logged in as ${adminPhone}. Click to log out.`}
+              >
+                Logout ({adminPhone.slice(-4)})
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                variant="secondary"
+                icon={<LogIn aria-hidden className="size-3.5" />}
+                onClick={() => setIsAuthOpen(true)}
+              >
+                Admin Login
+              </Button>
+            )}
+          </div>
+        }
       />
 
-      {/* Error banner */}
-      {errorMessage && (
-        <div className="bg-rose-50 border-b border-rose-200 px-4 py-2 text-xs text-rose-800 flex items-center justify-between">
-          <span>{errorMessage}</span>
-          <button
-            type="button"
-            onClick={() => setErrorMessage(null)}
-            className="text-rose-600 hover:text-rose-900 font-semibold"
-          >
-            Dismiss
-          </button>
-        </div>
+      {view === 'list' ? (
+        <ZonesTable
+          zones={zones}
+          loading={zonesQuery.isLoading}
+          refetching={zonesQuery.isFetching && !zonesQuery.isLoading}
+          error={errorState}
+          onSelect={(id) => {
+            select(id);
+            params.set({ view: undefined });
+          }}
+        />
+      ) : (
+        <section
+          className={cn(
+            'bg-surface border border-border rounded-md overflow-hidden',
+            // FULL SCREEN WHILE EDITING. Tracing a boundary against a ~380px map card is the
+            // complaint every admin has had — the corner being aimed at sits off the visible
+            // edge as often as not. In an edit session the map leaves the panel and takes the
+            // whole viewport; the rail (inert during editing anyway) is dropped, and the
+            // inspector docks to the bottom with its own scroll. Escape or Cancel leaves.
+            // z-50 clears the app rail (z-40); the GeoJSON dialog and toasts still land on top,
+            // being portalled later in the DOM.
+            editing && 'fixed inset-0 z-50 rounded-none border-0',
+          )}
+        >
+          {/* A background refetch dims nothing and blanks nothing — the polygon an admin is
+              editing must not vanish because a poll came back. */}
+          <TopProgressBar active={zonesQuery.isFetching && !zonesQuery.isLoading} />
+
+          {zonesQuery.isLoading ? (
+            <div className="flex">
+              <div className="w-80 shrink-0 border-r border-border p-4 flex flex-col gap-3">
+                {Array.from({ length: 5 }, (_, index) => (
+                  // eslint-disable-next-line react/no-array-index-key
+                  <Skeleton key={index} className="h-16 rounded-md" />
+                ))}
+              </div>
+              <Skeleton className="flex-1 h-[32rem] rounded-none" />
+            </div>
+          ) : errorState !== undefined ? (
+            <div className="p-6">
+              <ErrorState {...errorState} />
+            </div>
+          ) : (
+            <div className={cn('flex', editing ? 'h-full' : 'min-h-[36rem]')}>
+              {/* The rail is the accessible path through this screen: every zone by name, with
+                  the same selection state the map has. The map itself has no text alternative
+                  worth writing. */}
+              <div
+                className={cn(
+                  'w-80 shrink-0 border-r border-border',
+                  // Hidden, not dimmed: editing is full screen now, and a greyed-out rail
+                  // taking 320px of it is 320px the map is not using.
+                  editing && 'hidden',
+                )}
+              >
+                <ZoneRail
+                  zones={zones}
+                  packages={packagesQuery.data}
+                  selectedId={selectedId}
+                  onSelect={select}
+                  onEditGeometry={startEdit}
+                  onCreate={startCreate}
+                  busy={editing}
+                />
+              </div>
+
+              <div className="flex-1 flex flex-col min-w-0">
+                <div className="relative flex-1 min-h-[24rem]">
+                  {!hasApiKey ? (
+                    <MissingKeyNotice />
+                  ) : (
+                    <>
+                      <ZoneMap
+                        zones={zones}
+                        selectedId={selectedId}
+                        onSelect={select}
+                        editing={editing}
+                        draft={draft}
+                        onDraftChange={setDraft}
+                        violationGeometry={violationFocus}
+                        mapType={mapType}
+                        fitToken={fitToken}
+                        onMapReady={setMapInstance}
+                      />
+
+                      {/*
+                    Map type, and the three are not interchangeable.
+                    HYBRID is imagery WITH road labels, and it is the one that answers the
+                    question a pickup boundary actually asks — where the built-up area ends, and
+                    what road that is. Neither layer alone answers it.
+                    TERRAIN carries shaded relief, for hill zones: their edges are price
+                    boundaries that must cover the approach corridor, and relief is what shows
+                    where the corridor runs.
+                    ROADMAP is the default because it is the least visually noisy to select on.
+                  */}
+                      <div className="absolute top-2 left-2 flex items-center gap-2">
+                        <SegmentedControl
+                          label="Map type"
+                          value={mapType}
+                          onValueChange={setMapType}
+                          segments={[
+                            { value: 'roadmap', label: 'Map' },
+                            { value: 'hybrid', label: 'Satellite' },
+                            { value: 'terrain', label: 'Terrain' },
+                          ]}
+                        />
+                        {/* Search moves the viewport only — never the draft. */}
+                        <PlaceSearch map={mapInstance} />
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                <div className={cn('border-t border-border', editing && 'max-h-[42vh] overflow-y-auto')}>
+                  <ZoneInspector
+                    mode={editing ? 'edit' : 'view'}
+                    zone={session?.zoneId == null ? (editing ? null : selected) : selected}
+                    type={session?.type ?? selected?.type ?? 'PICKUP'}
+                    form={form}
+                    onFormChange={setForm}
+                    draft={editing ? draft : (selected?.geometry?.type === 'Polygon' ? selected.geometry : null)}
+                    validation={validation}
+                    saving={saving}
+                    hasParentCity={zones.some((z) => z.type === 'CITY' && z.is_active)}
+                    onEditGeometry={() => selected !== null && startEdit(selected)}
+                    onImport={() => setImportOpen(true)}
+                    onExport={exportSelected}
+                    onDeactivate={() => setDeactivating(selected)}
+                    onShowOnMap={(geometry) => {
+                      setViolationFocus(geometry);
+                      setFitToken((token) => token + 1);
+                    }}
+                    onCancel={cancel}
+                    onSave={save}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+        </section>
       )}
 
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col md:flex-row overflow-hidden relative">
-        {/* Table View */}
-        {viewMode === 'list' && (
-          <div className="flex-1 flex flex-col h-full overflow-hidden">
-            <ZonesTable
-              zones={zones}
-              selectedZoneId={selectedZone?.id}
-              onSelectZone={handleSelectZone}
-              onEditDetails={handleEditDetails}
-              onEditGeometry={handleEditGeometry}
-              onViewHistory={handleViewHistory}
-              onToggleStatus={handleToggleStatus}
-              isLoading={isLoading}
-              pagination={pagination}
-              onPageChange={(page) => handleFilterChange({ page })}
-            />
-          </div>
-        )}
-
-        {/* Map View */}
-        {viewMode === 'map' && (
-          <div className="flex-1 w-full h-full relative">
-            <ZoneMap
-              zones={zones}
-              selectedZoneId={selectedZone?.id}
-              onSelectZone={handleSelectZone}
-              draftGeometry={draftGeometry}
-              onDraftChange={setDraftGeometry}
-              isDrawing={isDrawing}
-              onToggleDrawing={() => setIsDrawing((d) => !d)}
-              onSavePolygon={handleSavePolygonFromMap}
-            />
-          </div>
-        )}
-      </div>
-
-      {/* Bottom Zone Inspector Drawer */}
-      <ZoneInspector
-        zone={selectedZone}
-        onClose={() => setSelectedZone(null)}
-        onEditDetails={handleEditDetails}
-        onEditGeometry={handleEditGeometry}
-        onViewHistory={handleViewHistory}
-        onToggleStatus={handleToggleStatus}
-      />
-
-      {/* Modals & Dialogs */}
-      <ZoneForm
-        isOpen={isFormOpen}
-        onClose={() => setIsFormOpen(false)}
-        onSave={handleSaveZone}
-        cities={cities}
-        initialData={editingZone}
-        draftGeometry={draftGeometry}
-        onOpenGeoJsonImport={() => setIsImportOpen(true)}
-        onStartDrawing={() => {
-          setIsFormOpen(false);
-          setViewMode('map');
-          setIsDrawing(true);
-        }}
-      />
-
       <GeoJsonImportDialog
-        isOpen={isImportOpen}
-        onClose={() => setIsImportOpen(false)}
-        onImport={handleImportGeometry}
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        onImport={(polygon) => {
+          // Importing outside an edit session starts one, so a paste is never a change the
+          // admin cannot see before it is saved.
+          if (session === null && selected !== null) startEdit(selected);
+          setDraft(polygon);
+          setFitToken((token) => token + 1);
+        }}
       />
 
       <DeactivateZoneDialog
-        zone={deactivatingZone}
-        isOpen={isDeactivateOpen}
-        onClose={() => {
-          setIsDeactivateOpen(false);
-          setDeactivatingZone(null);
-        }}
-        onConfirm={handleConfirmDeactivate}
-      />
-
-      <ZoneHistory
-        zone={historyZone}
-        isOpen={isHistoryOpen}
-        onClose={() => {
-          setIsHistoryOpen(false);
-          setHistoryZone(null);
-        }}
+        zone={deactivating}
+        onOpenChange={(open) => !open && setDeactivating(null)}
+        onDeactivated={() => select(null)}
       />
 
       <AdminLoginDialog
@@ -389,6 +523,32 @@ export function ZonesScreen() {
         onClose={adminPhone ? () => setIsAuthOpen(false) : undefined}
         onSuccess={handleAuthSuccess}
       />
+    </>
+  );
+}
+
+/**
+ * No API key. A blank grey rectangle would read as a broken map — this says which variable is
+ * missing and what it needs, because the person hitting it is a developer on a fresh checkout,
+ * not an admin.
+ *
+ * The rest of the screen keeps working: the rail lists every zone, the inspector shows its
+ * metadata and area, and the List view is entirely unaffected. Only drawing needs the map.
+ */
+function MissingKeyNotice() {
+  return (
+    <div className="absolute inset-0 flex items-center justify-center bg-surface-muted p-6">
+      <div className="max-w-sm text-center flex flex-col gap-2">
+        <p className="text-sm font-medium text-text">The map needs an API key</p>
+        <p className="text-xs text-text-subtle">
+          Set <code className="text-text">NEXT_PUBLIC_GOOGLE_MAPS_API_KEY</code> and rebuild — it is
+          inlined at build time, so a restart alone will not pick it up. Restrict the key by HTTP
+          referrer and to the Maps JavaScript and Places APIs before deploying it.
+        </p>
+        <p className="text-xs text-text-subtle">
+          Everything else on this screen works without it, except drawing a boundary.
+        </p>
+      </div>
     </div>
   );
 }

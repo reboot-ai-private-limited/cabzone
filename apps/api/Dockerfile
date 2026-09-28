@@ -16,8 +16,8 @@ COPY packages/config    packages/config
 COPY apps/api/tsconfig.json apps/api/.dependency-cruiser.cjs apps/api/esbuild.config.mjs apps/api/
 COPY apps/api/src apps/api/src
 
-RUN pnpm --filter @cabzone/api build
-RUN pnpm --filter @cabzone/api deploy --prod --legacy /prod/api
+RUN pnpm --filter @Cabzone/api build
+RUN pnpm --filter @Cabzone/api deploy --prod --legacy /prod/api
 
 FROM node:22-alpine AS runtime
 WORKDIR /app

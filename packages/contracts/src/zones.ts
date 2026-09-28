@@ -1,8 +1,8 @@
 /**
  * Geographic Zones and Contracts
  */
-export * from '@cabzone/geo';
-import type { GeoJsonGeometry, GeoJsonPolygon, GeoPoint } from '@cabzone/geo';
+export * from '@Cabzone/geo';
+import type { GeoJsonGeometry, GeoJsonPolygon, GeoPoint, ZoneViolation } from '@Cabzone/geo';
 
 export const ZONE_TYPES = ['CITY', 'PICKUP', 'EXCLUSION', 'HILL'] as const;
 export type ZoneType = (typeof ZONE_TYPES)[number];
@@ -29,21 +29,43 @@ export interface ZoneDto {
   type: ZoneType;
   zoneType: ZoneType; // backwards compatibility alias
   parentCityZoneId: string | null;
+  parent_city_zone_id?: string | null;
+  parent_zone_id?: string | null;
   stateCode: string;
+  state_code?: string;
   geometry: GeoJsonGeometry;
   boundary: GeoJsonPolygon; // backwards compatibility alias
   bufferDistanceM: number | null;
+  buffer_distance_m?: number | null;
   pickupChargeType?: PickupChargeType | null | undefined;
+  pickup_charge_type?: PickupChargeType | null | undefined;
   pickupChargePaise?: number | null | undefined;
+  pickup_charge_paise?: number | null | undefined;
   status: ZoneStatus;
+  is_active?: boolean;
+  priority?: number;
   currentPricingConfigId: string | null;
   version: number;
   supersedesZoneId: string | null;
+  supersedes_zone_id?: string | null;
   supersededByZoneId: string | null;
+  superseded_by_zone_id?: string | null;
   createdBy: string | null;
+  created_by?: string | null;
   updatedBy: string | null;
+  updated_by?: string | null;
   createdAt: string;
+  created_at?: string;
   updatedAt: string;
+  updated_at?: string;
+}
+
+export interface IncityPackageDto {
+  id: string;
+  name: string;
+  city_zone_id?: string;
+  cityZoneId?: string;
+  is_active?: boolean;
 }
 
 // Backward compatibility alias
@@ -126,8 +148,13 @@ export interface ZoneListQuery {
   limit?: number | undefined;
 }
 
+export type ListZonesQuery = ZoneListQuery;
+
+export type ZoneViolationDto = ZoneViolation;
+
 export interface ZoneListResponse {
   items: ZoneDto[];
+  zones?: ZoneDto[];
   pagination: {
     page: number;
     limit: number;

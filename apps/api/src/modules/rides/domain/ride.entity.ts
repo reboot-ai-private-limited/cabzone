@@ -4,7 +4,7 @@ import type {
   RideStatus,
   VehicleCategory,
   ZoneClassificationType,
-} from '@cabzone/contracts';
+} from '@Cabzone/contracts';
 
 export interface PassengerInfo {
   riderId: string | null;

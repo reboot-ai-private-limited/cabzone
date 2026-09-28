@@ -4,7 +4,7 @@ import type {
   ZoneDto,
   ZoneStatus,
   ZoneType,
-} from '@cabzone/contracts';
+} from '@Cabzone/contracts';
 export {
   distancePointToSegmentM,
   distanceToPolygonM,
@@ -24,7 +24,7 @@ export {
   validateCoordinates,
   validateGeometry,
   Z_CODES,
-} from '@cabzone/geo';
+} from '@Cabzone/geo';
 
 export interface ZoneEntity {
   id: string;
@@ -81,6 +81,11 @@ export function zoneEntityToDto(entity: ZoneEntity): ZoneDto {
     pickupChargeType: entity.pickupChargeType ?? (entity.zoneType === 'PICKUP' ? 'FREE' : null),
     pickupChargePaise: entity.pickupChargePaise ?? null,
     status: entity.status,
+    is_active: entity.status === 'ACTIVE',
+    parent_city_zone_id: entity.parentCityZoneId,
+    state_code: entity.stateCode,
+    buffer_distance_m: entity.bufferDistanceM,
+    priority: 0,
     currentPricingConfigId: entity.currentPricingConfigId,
     version: entity.version,
     supersedesZoneId: entity.supersedesZoneId ?? null,

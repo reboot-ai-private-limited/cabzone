@@ -1,5 +1,5 @@
 import mongoose, { type Document, Schema } from 'mongoose';
-import { STATE_PRICING_STATUSES, type StatePricingStatus } from '@cabzone/contracts';
+import { STATE_PRICING_STATUSES, type StatePricingStatus } from '@Cabzone/contracts';
 
 export interface StatePricingDocument extends Document<string> {
   _id: string;

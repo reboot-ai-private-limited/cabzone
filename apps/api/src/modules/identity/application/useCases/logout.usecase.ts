@@ -1,4 +1,4 @@
-import type { LogoutResponseDto } from '@cabzone/contracts';
+import type { LogoutResponseDto } from '@Cabzone/contracts';
 import { AppError } from '../../../../shared/errors/AppError.js';
 import type { SessionRepositoryPort } from '../../domain/index.js';
 

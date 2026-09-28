@@ -1,5 +1,5 @@
 {
-  "name": "cabzone",
+  "name": "Cabzone",
   "private": true,
   "version": "0.1.0",
   "engines": {
@@ -8,23 +8,23 @@
   "packageManager": "pnpm@11.18.0",
   "scripts": {
     "dev": "turbo run dev",
-    "dev:api": "turbo run dev --filter=@cabzone/api",
-    "dev:worker": "turbo run dev:worker --filter=@cabzone/api",
-    "dev:backend": "turbo run dev dev:worker --filter=@cabzone/api",
-    "dev:db": "pnpm --filter=@cabzone/api exec tsx src/scripts/devDb.ts",
-    "dev:web": "turbo run dev --filter=@cabzone/api --filter=@cabzone/web",
-    "dev:full": "turbo run dev dev:worker --filter=@cabzone/api --filter=@cabzone/web",
+    "dev:api": "turbo run dev --filter=@Cabzone/api",
+    "dev:worker": "turbo run dev:worker --filter=@Cabzone/api",
+    "dev:backend": "turbo run dev dev:worker --filter=@Cabzone/api",
+    "dev:db": "pnpm --filter=@Cabzone/api exec tsx src/scripts/devDb.ts",
+    "dev:web": "turbo run dev --filter=@Cabzone/api --filter=@Cabzone/web",
+    "dev:full": "turbo run dev dev:worker --filter=@Cabzone/api --filter=@Cabzone/web",
     "build": "turbo run build",
     "lint": "turbo run lint",
     "test": "turbo run test",
     "typecheck": "turbo run typecheck",
     "check": "turbo run typecheck lint test",
-    "seed": "pnpm --filter=@cabzone/api seed",
+    "seed": "pnpm --filter=@Cabzone/api seed",
     "format": "prettier --write \"**/*.{ts,tsx,js,cjs,mjs,json,md}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,cjs,mjs,json,md}\""
   },
   "devDependencies": {
-    "@cabzone/config": "workspace:*",
+    "@Cabzone/config": "workspace:*",
     "@typescript-eslint/eslint-plugin": "^8.18.0",
     "@typescript-eslint/parser": "^8.18.0",
     "eslint": "^8.57.0",

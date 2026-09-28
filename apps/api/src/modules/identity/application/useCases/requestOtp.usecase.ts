@@ -1,5 +1,5 @@
 import { createHmac, randomInt } from 'node:crypto';
-import type { RequestOtpResponseDto } from '@cabzone/contracts';
+import type { RequestOtpResponseDto } from '@Cabzone/contracts';
 import { AppError } from '../../../../shared/errors/AppError.js';
 import type { OtpStorePort, SmsGatewayPort } from '../../domain/index.js';
 

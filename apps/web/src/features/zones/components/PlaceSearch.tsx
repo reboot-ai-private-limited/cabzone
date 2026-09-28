@@ -1,79 +1,87 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
-import { Search, X } from 'lucide-react';
+import { useEffect, useRef } from 'react';
 
-interface PlaceSearchProps {
-  map: google.maps.Map | null;
-}
-
-export function PlaceSearch({ map }: PlaceSearchProps) {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
-  const [query, setQuery] = useState('');
+/**
+ * Type an address, the map goes there.
+ *
+ * THIS IS THE ANSWER TO THE POI GAP, and it is worth being precise about why. The problem was
+ * never that a basemap fails to draw every shop — you do not trace a service boundary along a
+ * shopfront, you trace it along a ring road, a river, or the edge of settlement. The problem was
+ * ORIENTATION: standing on a map of Siliguri and not knowing which part of it you are looking at.
+ *
+ * A search box solves that directly and a denser label layer only solves it by accident.
+ *
+ * `PlaceAutocompleteElement`, not `places.Autocomplete` — the latter is legacy and Google has
+ * stopped adding to it. It is a custom element rather than a React component, so it is mounted
+ * imperatively into a host div and its listener is bound by hand.
+ *
+ * Search MOVES THE MAP AND NOTHING ELSE. It never touches the draft geometry: an admin
+ * mid-boundary who looks up a landmark must not find their polygon changed when they get back.
+ */
+export function PlaceSearch({ map }: { map: google.maps.Map | null }) {
+  const host = useRef<HTMLDivElement>(null);
+  const element = useRef<google.maps.places.PlaceAutocompleteElement | null>(null);
 
   useEffect(() => {
-    if (!map || !inputRef.current || !window.google?.maps?.places?.Autocomplete) {
-      return;
-    }
+    if (map === null || host.current === null || element.current !== null) return;
 
-    if (!autocompleteRef.current) {
-      const autocomplete = new window.google.maps.places.Autocomplete(inputRef.current, {
-        componentRestrictions: { country: 'in' },
-        fields: ['geometry', 'name', 'formatted_address'],
-      });
+    // Siliguri and its hinterland. Not a hard restriction — a hill zone reaches well past the
+    // district — just a bias, so the first suggestion for "station" is the local one. Spread
+    // conditionally: `exactOptionalPropertyTypes` is on repo-wide, under which passing an
+    // explicit `undefined` is not the same as omitting the key.
+    const bounds = map.getBounds();
+    const autocomplete = new google.maps.places.PlaceAutocompleteElement({
+      ...(bounds === undefined || bounds === null ? {} : { locationBias: bounds }),
+      includedRegionCodes: ['in'],
+    });
 
-      autocomplete.bindTo('bounds', map);
+    // Without one the field is a magnifier over empty space, which reads as decoration rather
+    // than a control. Set as an attribute because the element exposes no typed property for it.
+    autocomplete.setAttribute('placeholder', 'Find a place');
+    autocomplete.style.colorScheme = 'light';
+    autocomplete.style.setProperty('--gmpx-color-surface', '#ffffff');
+    autocomplete.style.setProperty('--gmpx-color-on-surface', '#1c1b1f');
+    autocomplete.style.setProperty('--gmpx-color-outline', '#8a9281');
+    autocomplete.style.setProperty('--gmpx-font-family-base', 'inherit');
+    autocomplete.style.backgroundColor = '#ffffff';
+    autocomplete.style.color = '#1c1b1f';
+    autocomplete.style.borderRadius = '4px';
 
-      autocomplete.addListener('place_changed', () => {
-        const place = autocomplete.getPlace();
-        if (!place.geometry || !place.geometry.location) {
-          return;
-        }
+    autocomplete.addEventListener('gmp-select', (event: Event) => {
+      void (async () => {
+        const { placePrediction } = event as unknown as {
+          placePrediction: { toPlace: () => google.maps.places.Place };
+        };
+        const place = placePrediction.toPlace();
+        await place.fetchFields({ fields: ['location', 'viewport'] });
 
-        if (place.geometry.viewport) {
-          map.fitBounds(place.geometry.viewport);
-        } else {
-          map.setCenter(place.geometry.location);
+        // A viewport when the place has extent (a neighbourhood, a road), a point otherwise.
+        // Zooming a whole suburb to street level would be worse than useless here.
+        if (place.viewport) map.fitBounds(place.viewport);
+        else if (place.location) {
+          map.panTo(place.location);
           map.setZoom(15);
         }
+      })();
+    });
 
-        setQuery(place.name || place.formatted_address || '');
-      });
+    host.current.appendChild(autocomplete);
+    element.current = autocomplete;
 
-      autocompleteRef.current = autocomplete;
-    }
+    return () => {
+      autocomplete.remove();
+      element.current = null;
+    };
   }, [map]);
 
-  const handleClear = () => {
-    setQuery('');
-    if (inputRef.current) {
-      inputRef.current.value = '';
-    }
-  };
-
-  return (
-    <div className="relative flex items-center">
-      <div className="absolute left-2.5 text-slate-400 pointer-events-none">
-        <Search className="w-3.5 h-3.5" />
-      </div>
-      <input
-        ref={inputRef}
-        type="text"
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        placeholder="Search place or landmark..."
-        className="w-56 pl-8 pr-7 py-1.5 bg-slate-900/90 backdrop-blur-xs text-white placeholder-slate-400 text-xs rounded-lg border border-slate-700 focus:outline-none focus:border-indigo-500 shadow-md transition-colors"
-      />
-      {query && (
-        <button
-          type="button"
-          onClick={handleClear}
-          className="absolute right-2 text-slate-400 hover:text-white"
-        >
-          <X className="w-3.5 h-3.5" />
-        </button>
-      )}
-    </div>
-  );
+  /**
+   * The styling lives in `globals.css` under `.dz-place-search`, NOT in a Tailwind variant here.
+   *
+   * The previous `[&_input]:…` chain matched nothing: this custom element exposes no light-DOM
+   * `input` to select, so every one of those utilities was dead and the element kept Google's
+   * own dark-mode default — a black box on a light panel. It is themed through `color-scheme`
+   * and its Material custom properties instead, which is the surface Google actually supports.
+   */
+  return <div ref={host} className="dz-place-search w-64" />;
 }

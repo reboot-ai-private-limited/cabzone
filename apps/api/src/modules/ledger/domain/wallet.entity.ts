@@ -1,4 +1,4 @@
-import type { WalletStatus, WalletTransactionType } from '@cabzone/contracts';
+import type { WalletStatus, WalletTransactionType } from '@Cabzone/contracts';
 
 export interface WalletEntity {
   id: string;

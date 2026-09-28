@@ -4,7 +4,7 @@ import {
   ADMIN_STATUSES,
   type AdminRole,
   type AdminStatus,
-} from '@cabzone/contracts';
+} from '@Cabzone/contracts';
 
 export interface AdminUserDocument extends Document<string> {
   _id: string;

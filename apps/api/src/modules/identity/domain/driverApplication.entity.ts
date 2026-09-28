@@ -2,7 +2,7 @@ import type {
   DriverApplicationStatus,
   RejectionType,
   VerificationProvider,
-} from '@cabzone/contracts';
+} from '@Cabzone/contracts';
 
 export interface DriverApplicationEntity {
   id: string;

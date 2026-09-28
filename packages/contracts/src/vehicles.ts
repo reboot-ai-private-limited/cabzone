@@ -1,5 +1,5 @@
 /**
- * Vehicle categories supported by the cabzone platform.
+ * Vehicle categories supported by the Cabzone platform.
  *
  * Per Decision D-025:
  * - CAB: Active launch category (standard 4-wheeler cab/car).

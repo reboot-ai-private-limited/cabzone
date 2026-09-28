@@ -1,6 +1,6 @@
 # Technology Choices
 
-This document records the technology stack and architecture selections for **cabzone**. Material choices are recorded in [`decision-log.md`](../decision-log.md).
+This document records the technology stack and architecture selections for **Cabzone**. Material choices are recorded in [`decision-log.md`](../decision-log.md).
 
 ---
 
@@ -16,7 +16,7 @@ This document records the technology stack and architecture selections for **cab
 | **Admin Web Console**         | Next.js 15 (App Router) + React 19 | Selected     | Standalone Docker output, server-rendered views, fast dev server            |
 | **Styling**                   | Tailwind CSS v4                    | Selected     | Modern utility-first styling with zero runtime bundle overhead              |
 | **Monorepo Engine**           | pnpm 11 + Turborepo 2              | Selected     | Hoisted workspace resolution (`nodeLinker: hoisted`), task pipeline caching |
-| **Shared Contracts**          | `@cabzone/contracts` (Raw TS)      | Selected     | Zero-build live TypeScript sharing between API and frontend                 |
+| **Shared Contracts**          | `@Cabzone/contracts` (Raw TS)      | Selected     | Zero-build live TypeScript sharing between API and frontend                 |
 | **Architecture Gate**         | `dependency-cruiser`               | Selected     | Machine-checked 5-layer boundaries and private module internals             |
 | **Rider & Driver Mobile**     | React Native / Expo (Roadmap)      | Open         | Cross-platform framework to be finalized during mobile kick-off             |
 | **Geospatial Processing**     | MongoDB 2dsphere + Turf.js         | Selected     | GeoJSON point-in-polygon and distance calculations                          |
@@ -27,7 +27,7 @@ This document records the technology stack and architecture selections for **cab
 
 ## Operational Environments (Three-State Architecture)
 
-cabzone defines three distinct runtime environments:
+Cabzone defines three distinct runtime environments:
 
 1. **`development`**:
    - Host-driven runtime (`tsx watch`, `next dev`).
@@ -37,7 +37,7 @@ cabzone defines three distinct runtime environments:
 
 2. **`stage` / `staging`**:
    - Production-parity containerized deployment via `docker-compose.stage.yml`.
-   - Distinct Docker network and staging volumes (`cabzone-mongo-data-stage`).
+   - Distinct Docker network and staging volumes (`Cabzone-mongo-data-stage`).
    - Sanitized HTTP error responses (`isProdLike = true`, traces omitted).
    - Allows QA test shortcuts (e.g. fixed OTP) **only** when `STAGING_UNSAFE=true` is set.
 

@@ -2,7 +2,7 @@
 
 ## Operational Environments (Three-State Architecture)
 
-cabzone defines three distinct runtime environments:
+Cabzone defines three distinct runtime environments:
 
 1. **`development`**: Local developer environment. Infrastructure (MongoDB replica set `rs0` + Redis) runs in Docker via `docker-compose.dev.yml` bound to `127.0.0.1`. Applications run on the host with hot reload (`tsx watch`, `next dev`).
 2. **`stage` / `staging`**: Pre-production environment running containerized services via `docker-compose.stage.yml`. Used for QA, end-to-end verification, and validating production container artifacts.
@@ -14,11 +14,11 @@ cabzone defines three distinct runtime environments:
 
 The monorepo uses Turborepo to coordinate builds across packages:
 
-- **`apps/api` (`@cabzone/api`)**:
+- **`apps/api` (`@Cabzone/api`)**:
   - Validates types via `tsc --noEmit`.
   - Bundles via `esbuild.config.mjs` into `dist/server.js` (HTTP & WebSocket API) and `dist/worker.js` (BullMQ background worker).
-  - Shared workspace packages (`@cabzone/*`) are bundled in-line; external third-party dependencies remain external for native node_modules resolution.
-- **`apps/web` (`@cabzone/web`)**:
+  - Shared workspace packages (`@Cabzone/*`) are bundled in-line; external third-party dependencies remain external for native node_modules resolution.
+- **`apps/web` (`@Cabzone/web`)**:
   - Compiles via `next build` with `output: 'standalone'`, creating a minimal traced production server artifact at `apps/web/.next/standalone`.
 - **`packages/*`**:
   - Zero-build architecture. Raw TypeScript source is exported (`./src/index.ts`) and compiled on-the-fly by consumer build tools.
@@ -70,7 +70,7 @@ Pull Request
       ↓
 Turborepo CI Pipeline:
   ├── pnpm turbo run typecheck   (Static type safety across all packages)
-  ├── pnpm --filter @cabzone/api lint:deps (dependency-cruiser architecture gate)
+  ├── pnpm --filter @Cabzone/api lint:deps (dependency-cruiser architecture gate)
   ├── pnpm turbo run lint        (ESLint across all apps and packages)
   ├── pnpm turbo run test        (Vitest unit test suites)
   └── pnpm turbo run build       (Production artifact compilation)

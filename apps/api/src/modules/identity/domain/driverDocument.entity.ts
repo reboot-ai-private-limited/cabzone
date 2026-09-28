@@ -1,4 +1,4 @@
-import type { DocumentType, DocumentVerificationStatus } from '@cabzone/contracts';
+import type { DocumentType, DocumentVerificationStatus } from '@Cabzone/contracts';
 
 export interface DriverDocumentEntity {
   id: string;
