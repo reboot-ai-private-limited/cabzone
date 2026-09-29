@@ -2,7 +2,7 @@
 
 ## Frontend Applications
 
-Cabzone defines two categories of frontend clients:
+Cabzonee defines two categories of frontend clients:
 
 1. **Admin & Operations Web Console** (`apps/web` / `@cabzone/web`): Desktop-first portal for operations, city admins, dispute management, and configuration.
 2. **Mobile Applications** (Roadmap: `apps/rider-mobile` & `apps/driver-mobile`): End-user applications for riders and drivers.

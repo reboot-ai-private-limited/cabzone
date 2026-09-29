@@ -3,7 +3,7 @@
 ## Directory Topology
 
 ```text
-Cabzone/
+Cabzonee/
 ├── apps/                       Deployable applications
 │   ├── api/                    Node.js Express ESM REST/WebSocket API (port 4000)
 │   │                           + BullMQ queue worker process (src/worker.ts)
@@ -32,9 +32,9 @@ Cabzone/
 
 ## Brand vs Scope Naming Standard
 
-- **Product / Commercial Brand**: **Cabzone** (used in product copy, PRD, mobile app titles, and documentation).
+- **Product / Commercial Brand**: **Cabzonee** (used in product copy, PRD, mobile app titles, and documentation).
 - **Package Scope**: `@cabzone/*` (e.g. `@cabzone/api`, `@cabzone/web`, `@cabzone/contracts`, `@cabzone/config`).
-- **Monorepo / Docker Namespace**: `Cabzone` (e.g. root `package.json`, volume names `Cabzone-mongo-data-*`).
+- **Monorepo / Docker Namespace**: `Cabzonee` (e.g. root `package.json`, volume names `Cabzonee-mongo-data-*`).
 
 ## Core Rules
 

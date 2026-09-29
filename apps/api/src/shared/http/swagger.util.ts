@@ -49,7 +49,7 @@ export const errorResponse = z.object({
 });
 
 export function generateOpenApiDocument(
-  serviceTitle = 'Cabzone API Documentation',
+  serviceTitle = 'Cabzonee API Documentation',
   serviceVersion = '1.0.0',
 ) {
   const generator = new OpenApiGeneratorV3(registry.definitions);

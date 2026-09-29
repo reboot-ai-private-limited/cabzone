@@ -1,6 +1,6 @@
-# Cabzone Documentation
+# Cabzonee Documentation
 
-**Cabzone** is a zone-based ride-hailing and driver dispatch platform featuring:
+**Cabzonee** is a zone-based ride-hailing and driver dispatch platform featuring:
 
 - **Rider Mobile App** (Roadmap)
 - **Driver Mobile App** (Roadmap)
@@ -11,9 +11,9 @@ Its core product concepts are negotiable fares and zone-based pricing for in-cit
 
 > **Naming Standard**:
 >
-> - Commercial / Product Brand: **Cabzone**
+> - Commercial / Product Brand: **Cabzonee**
 > - NPM Package Scope: `@cabzone/*`
-> - Monorepo & Container Name: `Cabzone`
+> - Monorepo & Container Name: `Cabzonee`
 
 ---
 
@@ -33,6 +33,7 @@ docs/
 │   ├── ride-lifecycle.md       Ride state machine transitions and audit events
 │   ├── fare-engine.md          Fare formulas, integer paise calculations, and snapshots
 │   ├── zone-engine.md          Polygon classification, buffer fallback, and state splitting
+│   ├── geo-reference-and-routing.md State boundary reference data, route/toll provider, toll policy
 │   ├── dispatch-engine.md      Driver search, proximity queries, and offer broadcast
 │   ├── negotiation-engine.md   Rider proposals, driver acceptance, and bounded negotiation
 │   ├── wallet-and-commission.md Driver prepaid wallet, commission deduction, and ledger
@@ -80,6 +81,7 @@ Read the ride workflow specifications in order:
 - [`LLD/ride-lifecycle.md`](LLD/ride-lifecycle.md) — Ride state transitions and event emissions.
 - [`LLD/fare-engine.md`](LLD/fare-engine.md) — Base fare formulas, vehicle rates, and snapshots.
 - [`LLD/zone-engine.md`](LLD/zone-engine.md) — Point-in-polygon classification and buffer logic.
+- [`LLD/geo-reference-and-routing.md`](LLD/geo-reference-and-routing.md) — State boundary reference data, RouteProvider, toll policy, quote snapshots.
 - [`LLD/dispatch-engine.md`](LLD/dispatch-engine.md) — Driver matching, candidate filtering, and offers.
 - [`LLD/negotiation-engine.md`](LLD/negotiation-engine.md) — Fare proposal and acceptance rules.
 - [`LLD/wallet-and-commission.md`](LLD/wallet-and-commission.md) — Prepaid driver balance and commission ledger.

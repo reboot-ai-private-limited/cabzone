@@ -3,30 +3,15 @@
 import type { ReactNode } from 'react';
 import { AlertTriangle, ArrowUpRight, Pencil, Plus } from 'lucide-react';
 import Link from 'next/link';
-import type { IncityPackageDto, ZoneDto } from '@cabzone/contracts';
+import type { IncityPackageDto, ZoneDto, ZoneType } from '@cabzone/contracts';
 import { zoneStats } from '@cabzone/geo';
-import { Badge, Button, cn } from '@cabzone/design-system';
+import { Button, cn } from '@cabzone/design-system';
 import { packagesForZone } from '../hooks/useIncityPackages';
-import { pickupCoverageOfCity } from '../lib/coverage';
 
 /**
- * The rail is the answer to "why was the table wrong".
- *
- * A table renders every zone as the same kind of row, and the three types are not the same kind
- * of thing — which was already visible in the old table's `pickup_charge` column being `—` for
- * five rows out of seven. Sparse columns mean sparse ENTITIES.
- *
- *   CITY    exactly one, operationally. A SETTING, so it renders as a single card with no add
- *           button — the absence of that button is the strongest statement the UI can make that
- *           this is not a collection, stronger than any label saying so.
- *   PICKUP  a small fixed pair, FREE and PAID, and the only thing an admin reads off them is
- *           which is which and how much of the city they cover.
- *   HILL    a genuine list, N and growing.
- *
- * Nothing in the schema forbids a second city and nothing in the code assumes one
- * (docs/LLD/zones.md §The Siliguri instance). What is missing is only the admin surface, and
- * the trigger to build it is a second CITY zone being drawn — at which point this card becomes
- * a switcher and everything below it is unchanged.
+ * The zone rail aligns with docs/LLD/zones.md:
+ * - CITY: Operational geographic/pricing boundary & destination buffer. Multiple active
+ *   CITY zones can coexist; any point inside one resolves to that city.
  */
 
 export interface ZoneRailProps {
@@ -35,7 +20,7 @@ export interface ZoneRailProps {
   selectedId: string | null;
   onSelect: (id: string) => void;
   onEditGeometry: (zone: ZoneDto) => void;
-  onCreate: (type: 'CITY' | 'PICKUP' | 'EXCLUSION') => void;
+  onCreate: (type: ZoneType) => void;
   busy: boolean;
 }
 
@@ -49,118 +34,60 @@ export function ZoneRail({
   busy,
 }: ZoneRailProps) {
   const active = zones.filter((zone) => zone.status === 'ACTIVE' || zone.is_active === true);
-  const city = active.find((zone) => zone.type === 'CITY');
-  const pickups = active.filter((zone) => zone.type === 'PICKUP');
-  const exclusions = active.filter((zone) => zone.type === 'EXCLUSION');
+  const cities = active.filter((zone) => zone.type === 'CITY');
 
   return (
     <div className="flex flex-col gap-5 overflow-y-auto p-4">
-      <CityCard
-        city={city}
-        packages={packages}
-        selected={city !== undefined && city.id === selectedId}
-        onSelect={onSelect}
-        onEditGeometry={onEditGeometry}
-        onCreate={onCreate}
-        busy={busy}
-      />
+      <div className="flex items-baseline justify-between gap-2">
+        <SectionLabel>
+          Cities · <span className="tabular-nums">{cities.length}</span>
+        </SectionLabel>
+      </div>
 
-      <Section
-        title="Pickup Coverage"
-        count={pickups.length}
-        caption={<PickupCaption city={city} pickups={pickups} />}
-        onAdd={() => onCreate('PICKUP')}
-        addLabel="Pickup zone"
-        busy={busy}
-        empty="No pickup zone. Nothing can be booked — a pickup point must fall inside one."
-      >
-        {pickups.map((zone) => (
-          <ZoneRow
-            key={zone.id}
-            zone={zone}
-            selected={zone.id === selectedId}
+      {cities.length === 0 ? (
+        <p className="text-xs text-text-subtle border border-border rounded-md p-3">
+          No active city boundary configured. Pickups establish origin city when inside a CITY polygon.
+        </p>
+      ) : (
+        cities.map((city) => (
+          <CityCard
+            key={city.id}
+            city={city}
+            packages={packages}
+            selected={city.id === selectedId}
             onSelect={onSelect}
+            onEditGeometry={onEditGeometry}
           />
-        ))}
-      </Section>
+        ))
+      )}
 
-      <Section
-        title="Exclusion Areas"
-        count={exclusions.length}
-        caption={
-          <span>
-            Restricted and unavailable areas. Pickups and drops inside an exclusion zone are refused.
-          </span>
-        }
-        onAdd={() => onCreate('EXCLUSION')}
-        addLabel="Exclusion zone"
-        busy={busy}
-        empty="No exclusion zones configured."
+      <Button
+        size="sm"
+        variant="primary"
+        icon={<Plus aria-hidden className="size-3.5" />}
+        onClick={() => onCreate('CITY')}
+        disabled={busy}
+        className="self-start"
       >
-        {exclusions.map((zone) => (
-          <ZoneRow
-            key={zone.id}
-            zone={zone}
-            selected={zone.id === selectedId}
-            onSelect={onSelect}
-          />
-        ))}
-      </Section>
+        Add city boundary
+      </Button>
     </div>
   );
 }
 
-/**
- * The city, as a card rather than a row. Note what is NOT here: an add button.
- *
- * The package line is the other half of the job. `cityZoneId` is the only zone reference either
- * product carries, and it is invisible on every other screen — so an admin looking at the city
- * boundary has no way to know what sells against it, and no way to know that deactivating it
- * takes those packages dark. A count of zero is a real alert state, not an empty list: it means
- * every incity quote returns NO_PACKAGE_AVAILABLE.
- *
- * The link goes to the packages screen and the editing stays there. Two screens owning one form
- * is how the two of them drift.
- */
 function CityCard({
   city,
   packages,
   selected,
   onSelect,
   onEditGeometry,
-  onCreate,
-  busy,
 }: {
-  city: ZoneDto | undefined;
+  city: ZoneDto;
   packages: IncityPackageDto[] | undefined;
   selected: boolean;
   onSelect: (id: string) => void;
   onEditGeometry: (zone: ZoneDto) => void;
-  onCreate: (type: 'CITY' | 'PICKUP' | 'EXCLUSION') => void;
-  busy: boolean;
 }) {
-  if (city === undefined) {
-    return (
-      <section className="border border-border rounded-md p-3 flex flex-col gap-2">
-        <SectionLabel>City boundary</SectionLabel>
-        <p className="text-xs text-text-subtle">
-          No city boundary yet. Until one exists there is no such thing as an incity trip — every
-          quote resolves to outstation.
-        </p>
-        <Button
-          size="sm"
-          variant="primary"
-          icon={<Plus aria-hidden className="size-3.5" />}
-          onClick={() => onCreate('CITY')}
-          disabled={busy}
-          className="mt-1 self-start"
-        >
-          Create city boundary
-        </Button>
-      </section>
-    );
-  }
-
   const stats = zoneStats(city.geometry);
   const selling = packagesForZone(packages, city.id).filter((pkg) => pkg.is_active);
 
@@ -171,8 +98,6 @@ function CityCard({
         selected ? 'border-interactive bg-surface-muted' : 'border-border',
       )}
     >
-      <SectionLabel>City boundary</SectionLabel>
-
       <button
         type="button"
         onClick={() => onSelect(city.id)}
@@ -180,19 +105,25 @@ function CityCard({
       >
         <span className="text-sm font-semibold text-text">{city.name}</span>
         <span className="text-xs text-text-subtle tabular-nums">
-          {city.code} · {stats.areaKm2.toFixed(1)} km² · v{city.version}
+          {city.code} · {stats.areaKm2.toFixed(1)} km²
         </span>
       </button>
 
-      <div className="border-t border-border pt-2 flex flex-col gap-1.5">
-        <p className="text-xs text-text-subtle">Defines incity. Scopes the incity package.</p>
+      <div className="border-t border-border pt-2 flex flex-col gap-1.5 text-xs text-text-subtle">
+        <div className="flex items-center justify-between">
+          <span>Destination buffer</span>
+          <span className="font-mono text-text font-medium">
+            {city.bufferDistanceM != null ? `${city.bufferDistanceM} m` : '20 km (default)'}
+          </span>
+        </div>
+
         {packages === undefined ? null : selling.length === 0 ? (
-          <p className="flex items-start gap-1.5 text-xs text-warning">
+          <p className="flex items-start gap-1.5 text-xs text-warning pt-1">
             <AlertTriangle aria-hidden className="size-3.5 shrink-0 mt-0.5" />
-            No active package sells against this city. Every hourly quote returns no availability.
+            No active package sells against this city.
           </p>
         ) : (
-          <ul className="flex flex-col gap-1">
+          <ul className="flex flex-col gap-1 pt-1">
             {selling.map((pkg) => (
               <li key={pkg.id}>
                 <Link
@@ -208,7 +139,6 @@ function CityCard({
         )}
       </div>
 
-      {/* "Edit boundary", never "New city". There is one, and the button says which verb applies. */}
       <Button
         size="sm"
         icon={<Pencil aria-hidden className="size-3.5" />}
@@ -220,106 +150,8 @@ function CityCard({
   );
 }
 
-function PickupCaption({ city, pickups }: { city: ZoneDto | undefined; pickups: ZoneDto[] }) {
-  const coverage = pickupCoverageOfCity(city, pickups);
-  if (coverage === null)
-    return <span>The serviceability gate. A pickup outside every one is a trip we refuse.</span>;
-  return (
-    <span>
-      <span className="tabular-nums font-medium text-text">{coverage}%</span> of {city?.name}{' '}
-      covered
-    </span>
-  );
-}
-
 function SectionLabel({ children }: { children: ReactNode }) {
   return (
     <h3 className="text-xs font-semibold uppercase tracking-wide text-text-subtle">{children}</h3>
-  );
-}
-
-function Section({
-  title,
-  count,
-  caption,
-  onAdd,
-  addLabel,
-  busy,
-  empty,
-  children,
-}: {
-  title: string;
-  count: number;
-  caption: ReactNode;
-  onAdd: () => void;
-  addLabel: string;
-  busy: boolean;
-  empty: string;
-  children: ReactNode;
-}) {
-  return (
-    <section className="flex flex-col gap-2">
-      <div className="flex items-baseline justify-between gap-2">
-        <SectionLabel>
-          {title} · <span className="tabular-nums">{count}</span>
-        </SectionLabel>
-      </div>
-      <p className="text-xs text-text-subtle">{caption}</p>
-
-      {count === 0 ? (
-        <p className="text-xs text-warning border border-border rounded-md p-2">{empty}</p>
-      ) : (
-        <ul className="flex flex-col border border-border rounded-md divide-y divide-border overflow-hidden">
-          {children}
-        </ul>
-      )}
-
-      <Button
-        size="sm"
-        variant="ghost"
-        disabled={busy}
-        icon={<Plus aria-hidden className="size-3.5" />}
-        onClick={onAdd}
-        className="self-start"
-      >
-        {addLabel}
-      </Button>
-    </section>
-  );
-}
-
-function ZoneRow({
-  zone,
-  selected,
-  onSelect,
-}: {
-  zone: ZoneDto;
-  selected: boolean;
-  onSelect: (id: string) => void;
-}) {
-  const stats = zoneStats(zone.geometry);
-
-  return (
-    <li>
-      <button
-        type="button"
-        aria-current={selected ? 'true' : undefined}
-        onClick={() => onSelect(zone.id)}
-        className={cn(
-          'w-full text-left px-2.5 py-2 flex items-center justify-between gap-2 rounded-sm transition-colors',
-          selected ? 'bg-surface-muted text-interactive font-medium' : 'hover:bg-surface-muted text-text',
-        )}
-      >
-        <span className="flex flex-col gap-0.5 min-w-0">
-          <span className="text-sm truncate">{zone.name}</span>
-          <span className="text-xs text-text-subtle tabular-nums font-normal">
-            {stats.areaKm2.toFixed(1)} km² · v{zone.version}
-          </span>
-        </span>
-        <span className="flex items-center gap-1.5 shrink-0">
-          {selected && <Badge tone="info">Selected</Badge>}
-        </span>
-      </button>
-    </li>
   );
 }

@@ -78,7 +78,7 @@ export function zoneEntityToDto(entity: ZoneEntity): ZoneDto {
     geometry: geom,
     boundary: boundaryPoly,
     bufferDistanceM: entity.bufferDistanceM,
-    pickupChargeType: entity.pickupChargeType ?? (entity.zoneType === 'PICKUP' ? 'FREE' : null),
+    pickupChargeType: entity.pickupChargeType ?? null,
     pickupChargePaise: entity.pickupChargePaise ?? null,
     status: entity.status,
     is_active: entity.status === 'ACTIVE',

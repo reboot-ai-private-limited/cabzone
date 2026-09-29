@@ -50,7 +50,7 @@ services:
     env_file: [apps/api/.env.prod]
     environment:
       NODE_ENV: production
-      MONGO_URI: mongodb://mongo:27017/Cabzone_prod?replicaSet=rs0
+      MONGO_URI: mongodb://mongo:27017/Cabzonee_prod?replicaSet=rs0
       REDIS_URL: redis://redis:6379
     ports: ['4000:4000']
     restart: unless-stopped
@@ -71,7 +71,7 @@ services:
     env_file: [apps/api/.env.prod]
     environment:
       NODE_ENV: production
-      MONGO_URI: mongodb://mongo:27017/Cabzone_prod?replicaSet=rs0
+      MONGO_URI: mongodb://mongo:27017/Cabzonee_prod?replicaSet=rs0
       REDIS_URL: redis://redis:6379
     restart: unless-stopped
 
@@ -89,6 +89,6 @@ services:
 
 volumes:
   mongo-data:
-    name: Cabzone-mongo-data-prod
+    name: Cabzonee-mongo-data-prod
   redis-data:
-    name: Cabzone-redis-data-prod
+    name: Cabzonee-redis-data-prod

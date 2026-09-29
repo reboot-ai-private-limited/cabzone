@@ -1,6 +1,6 @@
 # Technology Choices
 
-This document records the technology stack and architecture selections for **Cabzone**. Material choices are recorded in [`decision-log.md`](../decision-log.md).
+This document records the technology stack and architecture selections for **Cabzonee**. Material choices are recorded in [`decision-log.md`](../decision-log.md).
 
 ---
 
@@ -27,7 +27,7 @@ This document records the technology stack and architecture selections for **Cab
 
 ## Operational Environments (Three-State Architecture)
 
-Cabzone defines three distinct runtime environments:
+Cabzonee defines three distinct runtime environments:
 
 1. **`development`**:
    - Host-driven runtime (`tsx watch`, `next dev`).
@@ -37,7 +37,7 @@ Cabzone defines three distinct runtime environments:
 
 2. **`stage` / `staging`**:
    - Production-parity containerized deployment via `docker-compose.stage.yml`.
-   - Distinct Docker network and staging volumes (`Cabzone-mongo-data-stage`).
+   - Distinct Docker network and staging volumes (`Cabzonee-mongo-data-stage`).
    - Sanitized HTTP error responses (`isProdLike = true`, traces omitted).
    - Allows QA test shortcuts (e.g. fixed OTP) **only** when `STAGING_UNSAFE=true` is set.
 

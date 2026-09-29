@@ -254,53 +254,10 @@ async function seed() {
     ],
   };
 
-  // Siliguri Central (Free Pickup)
-  const slgCentralPolygon: GeoJsonPolygon = {
-    type: 'Polygon',
-    coordinates: [
-      [
-        [88.41, 26.70],
-        [88.45, 26.70],
-        [88.45, 26.74],
-        [88.41, 26.74],
-        [88.41, 26.70],
-      ],
-    ],
-  };
-
-  // Siliguri North (Paid Pickup)
-  const slgNorthPolygon: GeoJsonPolygon = {
-    type: 'Polygon',
-    coordinates: [
-      [
-        [88.41, 26.74],
-        [88.46, 26.74],
-        [88.46, 26.76],
-        [88.41, 26.76],
-        [88.41, 26.74],
-      ],
-    ],
-  };
-
-  // Sukna Military Restricted Area (Exclusion Veto)
-  const suknaRestrictedPolygon: GeoJsonPolygon = {
-    type: 'Polygon',
-    coordinates: [
-      [
-        [88.36, 26.77],
-        [88.40, 26.77],
-        [88.40, 26.81],
-        [88.36, 26.81],
-        [88.36, 26.77],
-      ],
-    ],
-  };
-
   const zonesToSeed = [
     { name: 'Siliguri City', code: 'SILIGURI', type: 'CITY' as const, poly: siliguriPolygon, parent: null, buffer: 20_000 },
     { name: 'Darjeeling Hill Territory', code: 'HILL_DARJ', type: 'CITY' as const, poly: darjeelingPolygon, parent: null, buffer: 15_000 },
     { name: 'Kalimpong Hill Territory', code: 'HILL_KALIM', type: 'CITY' as const, poly: kalimpongPolygon, parent: null, buffer: 15_000 },
-    { name: 'Sukna Restricted Area', code: 'SUKNA_RESTRICTED', type: 'EXCLUSION' as const, poly: suknaRestrictedPolygon, parent: null, buffer: null },
   ];
 
   const cityMap = new Map<string, string>();
@@ -334,38 +291,6 @@ async function seed() {
   }
 
   const siliguriCityId = cityMap.get('SILIGURI')!;
-
-  const pickupZones = [
-    { name: 'Siliguri Central Coverage', code: 'SLG_CENTRAL', poly: slgCentralPolygon, parent: siliguriCityId },
-    { name: 'Siliguri North Coverage', code: 'SLG_NORTH', poly: slgNorthPolygon, parent: siliguriCityId },
-  ];
-
-  for (const p of pickupZones) {
-    const val = validateGeometry(p.poly);
-    if (!val.valid) {
-      throw new Error(`Seed polygon invalid for ${p.code}: ${val.violations[0]?.message}`);
-    }
-
-    await ZoneModel.findOneAndUpdate(
-      { code: p.code },
-      {
-        $setOnInsert: { _id: newUuid() },
-        $set: {
-          name: p.name,
-          code: p.code,
-          zone_type: 'PICKUP',
-          parent_city_zone_id: p.parent,
-          state_code: 'WB',
-          geometry: p.poly,
-          boundary: p.poly,
-          buffer_distance_m: null,
-          status: 'ACTIVE',
-          version: 1,
-        },
-      },
-      { upsert: true, new: true },
-    );
-  }
 
   // 3. Seed Pricing Configuration for Siliguri City
   logger.info('Seeding default city pricing config...');

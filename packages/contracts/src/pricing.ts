@@ -147,4 +147,47 @@ export interface StatePricingDto {
   effectiveTo: string | null;
   createdAt: string;
 }
+export interface CreatePricingConfigRequest {
+  cityZoneId: string;
+  vehicleType: VehicleCategory;
+  baseFarePaise: number;
+  ratePerKmPaise: number;
+  minimumFarePaise: number;
+  includedDistanceM?: number | undefined;
+  bufferSurchargePaise?: number | undefined;
+  negotiationFloorPercent?: number | undefined;
+  negotiationCeilingPercent?: number | undefined;
+  negotiationWindowSeconds?: number | undefined;
+  commissionPercent?: number | undefined;
+  status?: 'DRAFT' | 'ACTIVE' | undefined;
+  effectiveFrom?: string | undefined;
+}
 
+/** Patch-style update, only permitted while the config is still DRAFT. */
+export interface UpdatePricingConfigRequest {
+  baseFarePaise?: number | undefined;
+  ratePerKmPaise?: number | undefined;
+  minimumFarePaise?: number | undefined;
+  includedDistanceM?: number | undefined;
+  bufferSurchargePaise?: number | undefined;
+  negotiationFloorPercent?: number | undefined;
+  negotiationCeilingPercent?: number | undefined;
+  negotiationWindowSeconds?: number | undefined;
+  commissionPercent?: number | undefined;
+  effectiveFrom?: string | undefined;
+}
+
+export interface CreateStatePricingRequest {
+  stateCode: string;
+  ratePerKmPaise: number;
+  baseFarePaise: number;
+  minimumFarePaise: number;
+  effectiveFrom?: string | undefined;
+  status?: 'ACTIVE' | 'RETIRED' | undefined;
+}
+
+export interface ListPricingConfigsQuery {
+  cityZoneId?: string | undefined;
+  vehicleType?: VehicleCategory | undefined;
+  status?: PricingConfigStatus | undefined;
+}

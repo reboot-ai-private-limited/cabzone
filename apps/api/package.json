@@ -8,6 +8,7 @@
     "dev:worker": "tsx watch src/worker.ts",
     "clean": "node -e \"fs.rmSync('dist', { recursive: true, force: true })\"",
     "seed": "tsx src/scripts/seed.ts",
+    "import:states": "tsx src/scripts/importStates.ts",
     "build": "pnpm clean && tsc --noEmit && node esbuild.config.mjs",
     "start": "node dist/server.js",
     "start:worker": "node dist/worker.js",

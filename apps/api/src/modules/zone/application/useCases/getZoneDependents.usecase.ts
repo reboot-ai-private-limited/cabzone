@@ -21,20 +21,8 @@ export class GetZoneDependentsUseCase {
 
     if (zone.zoneType === 'CITY') {
       warnings.push(
-        'Deactivating this CITY zone will disable all rides and hourly packages operating within this city area.',
+        'Deactivating this CITY zone will disable all in-city rides and hourly packages operating within this city area.',
       );
-    }
-
-    if (zone.zoneType === 'PICKUP') {
-      const activePickups = await this.deps.zoneRepo.list({
-        type: 'PICKUP',
-        status: 'ACTIVE',
-      });
-      if (activePickups.length <= 1) {
-        warnings.push(
-          'This is the LAST active pickup zone. Deactivating it will prevent all new ride pickups across the entire service area.',
-        );
-      }
     }
 
     const childZones = await this.deps.zoneRepo.list({

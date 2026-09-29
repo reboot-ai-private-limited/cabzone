@@ -5,13 +5,12 @@ import type {
   ZoneEntity,
   ZoneRepositoryPort,
 } from '../../domain/index.js';
-import { distanceToPolygonM, getEffectiveBufferDistance, zoneEntityToDto } from '../../domain/index.js';
+import { distanceToPolygonM, getEffectiveBufferDistance, isPointInPolygon, zoneEntityToDto } from '../../domain/index.js';
 
 export interface ResolveZonesInput {
   pickup: GeoPoint;
   drop: GeoPoint;
   riderId?: string | undefined;
-  throwOnExclusion?: boolean | undefined;
 }
 
 export interface ResolveZonesDeps {
@@ -27,68 +26,38 @@ export class ResolveZonesUseCase {
     this.validateCoordinates(input.pickup, 'Pickup');
     this.validateCoordinates(input.drop, 'Drop');
 
-    const shouldThrow = input.throwOnExclusion !== false;
+    // 1. Resolve origin CITY containing pickup
+    const originCities = await this.deps.zoneRepo.findActiveCitiesContainingPoint(input.pickup);
+    const originCityEntity = originCities[0] ?? null;
 
-    // 1. Check EXCLUSION zones (absolute veto)
-    const [pickupExclusions, dropExclusions] = await Promise.all([
-      this.deps.zoneRepo.findActiveExclusionsContainingPoint(input.pickup),
-      this.deps.zoneRepo.findActiveExclusionsContainingPoint(input.drop),
-    ]);
-
-    const pickupExclusion = pickupExclusions[0] ? zoneEntityToDto(pickupExclusions[0]) : null;
-    const dropExclusion = dropExclusions[0] ? zoneEntityToDto(dropExclusions[0]) : null;
-
-    if (pickupExclusion && shouldThrow) {
-      throw AppError.badRequest(
-        'PICKUP_IN_EXCLUSION_ZONE: Pickup location is inside a restricted exclusion zone.',
-      );
-    }
-
-    if (dropExclusion && shouldThrow) {
-      throw AppError.badRequest(
-        'DROP_IN_EXCLUSION_ZONE: Drop location is inside a restricted exclusion zone.',
-      );
-    }
-
-    // 2. Resolve CITY containing pickup
-    const cities = await this.deps.zoneRepo.findActiveCitiesContainingPoint(input.pickup);
-    const cityEntity = cities[0] ?? null;
-
-    // 3. Resolve PICKUP zone containing pickup
-    const pickups = await this.deps.zoneRepo.findActivePickupsContainingPoint(input.pickup);
-    const pickupZoneEntity = pickups[0] ?? null;
-
-    // Telemetry: record unserved demand coordinates for ops expansion
-    if (!pickupZoneEntity && this.deps.coverageRepo) {
-      void this.deps.coverageRepo.recordCoverageRequest({
-        lat: input.pickup.lat,
-        lng: input.pickup.lng,
-        riderId: input.riderId,
-      });
-    }
-
-    // 4. Resolve HILL terrain containing drop point
-    const hills = this.deps.zoneRepo.findActiveHillsContainingPoint
-      ? await this.deps.zoneRepo.findActiveHillsContainingPoint(input.drop)
-      : [];
-    const dropHillEntity = hills[0] ?? null;
-
-    // 5. Calculate pickup surcharge if applicable
-    let pickupChargePaise = 0;
-    if (pickupZoneEntity?.pickupChargeType === 'PAID') {
-      pickupChargePaise = pickupZoneEntity.pickupChargePaise ?? 0;
-    }
-
-    // 6. Resolve derived buffer coverage when outside any CITY polygon
-    let isWithinBuffer = false;
     let nearestCityEntity: ZoneEntity | null = null;
-
-    if (!cityEntity) {
+    if (!originCityEntity) {
       nearestCityEntity = await this.deps.zoneRepo.findNearestActiveCity(input.pickup);
-      if (nearestCityEntity) {
-        const distM = distanceToPolygonM(input.pickup, nearestCityEntity.boundary);
+    }
+
+    // 2. Resolve destination CITY containing drop
+    const dropCities = await this.deps.zoneRepo.findActiveCitiesContainingPoint(input.drop);
+    const dropCityEntity = dropCities[0] ?? null;
+
+    // 3. Evaluate destination buffer relative to origin city boundary
+    let isWithinBuffer = false;
+    let distanceToCityBoundaryM: number | null = null;
+
+    if (originCityEntity) {
+      const dropInsideOriginCity = isPointInPolygon(input.drop, originCityEntity.boundary);
+      if (dropInsideOriginCity) {
+        isWithinBuffer = false;
+        distanceToCityBoundaryM = 0;
+      } else if (dropCityEntity) {
+        // Drop is inside another operational city boundary -> OUTSTATION, buffer never swallows another city
+        isWithinBuffer = false;
+        distanceToCityBoundaryM = 0;
+      } else {
+        // Drop is outside all operational cities -> check distance to origin city boundary
+        const distM = distanceToPolygonM(input.drop, originCityEntity.boundary);
+        distanceToCityBoundaryM = distM;
         const effectiveBufferM = getEffectiveBufferDistance(
-          nearestCityEntity,
+          originCityEntity,
           this.deps.globalDefaultBufferM ?? 20_000,
         );
         isWithinBuffer = distM <= effectiveBufferM;
@@ -96,14 +65,14 @@ export class ResolveZonesUseCase {
     }
 
     return {
-      pickupExclusion,
-      dropExclusion,
-      city: cityEntity ? zoneEntityToDto(cityEntity) : null,
-      pickupCoverage: pickupZoneEntity ? zoneEntityToDto(pickupZoneEntity) : null,
-      dropHill: dropHillEntity ? zoneEntityToDto(dropHillEntity) : null,
-      pickupChargePaise,
+      city: originCityEntity ? zoneEntityToDto(originCityEntity) : null,
+      destinationCity: dropCityEntity ? zoneEntityToDto(dropCityEntity) : null,
       isWithinBuffer,
+      distanceToCityBoundaryM,
       nearestCity: nearestCityEntity ? zoneEntityToDto(nearestCityEntity) : null,
+      pickupCoverage: null,
+      dropHill: null,
+      pickupChargePaise: 0,
     };
   }
 
@@ -122,3 +91,4 @@ export class ResolveZonesUseCase {
     }
   }
 }
+

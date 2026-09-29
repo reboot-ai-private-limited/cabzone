@@ -26,6 +26,11 @@ export function createApp(containerOverrides?: Partial<AppContainers>): Express 
   app.use(
     express.json({
       limit: '1mb',
+      // State boundary uploads are large GeoJSON files; that route parses its own body after
+      // authentication (see stateBoundary.routes.ts).
+      type: (req) =>
+        !(req.url ?? '').startsWith('/api/v1/admin/reference/states/import') &&
+        String(req.headers['content-type'] ?? '').includes('application/json'),
       verify: (req, _res, buf) => {
         if (shouldCaptureRawBody(req.url)) {
           (req as express.Request).rawBody = buf.toString('utf8');

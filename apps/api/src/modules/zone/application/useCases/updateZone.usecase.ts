@@ -31,12 +31,9 @@ export class UpdateZoneUseCase {
       if (existing.zoneType === 'CITY' && input.parentCityZoneId !== null) {
         throw AppError.badRequest('CITY zone cannot have a parent zone.');
       }
-      if (existing.zoneType === 'PICKUP' && !input.parentCityZoneId) {
-        throw AppError.badRequest('PICKUP zone must specify a parent CITY zone.');
-      }
       if (input.parentCityZoneId) {
         const parent = await this.deps.zoneRepo.findById(input.parentCityZoneId);
-        if (!parent || (existing.zoneType === 'PICKUP' && parent.zoneType !== 'CITY')) {
+        if (!parent || parent.zoneType !== 'CITY') {
           throw AppError.badRequest('Referenced parent city does not exist or is not a CITY zone.');
         }
       }
@@ -75,7 +72,7 @@ export class UpdateZoneUseCase {
         input.currentPricingConfigId !== undefined
           ? input.currentPricingConfigId
           : existing.currentPricingConfigId,
-      version: existing.version + 1,
+
       updatedBy: actorId,
       updatedAt: now,
     };

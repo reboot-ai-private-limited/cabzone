@@ -11,3 +11,4 @@ export * from './activateZone.usecase.js';
 export * from './deactivateZone.usecase.js';
 export * from './getZoneHistory.usecase.js';
 export * from './getZoneDependents.usecase.js';
+export * from './deleteZone.usecase.js';

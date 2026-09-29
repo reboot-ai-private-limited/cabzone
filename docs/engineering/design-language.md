@@ -2,7 +2,7 @@
 
 ## Product Character
 
-Cabzone is a practical ride-hailing product intended for riders, drivers and city-level operations.
+Cabzonee is a practical ride-hailing product intended for riders, drivers and city-level operations.
 
 The UI should prioritize:
 

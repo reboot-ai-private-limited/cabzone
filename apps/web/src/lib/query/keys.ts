@@ -18,8 +18,16 @@ export const keys = {
     validate: (fingerprint: string) => ['zones', 'validate', fingerprint] as const,
     history: (id: string) => ['zones', 'history', id] as const,
   },
+  states: {
+    all: () => ['states'] as const,
+  },
   packages: {
     all: () => ['packages'] as const,
     incityList: (query?: unknown) => ['packages', 'incity', query] as const,
+  },
+  pricing: {
+    all: () => ['pricing'] as const,
+    configs: (query?: unknown) => ['pricing', 'configs', query] as const,
+    states: (status?: string) => ['pricing', 'states', status] as const,
   },
 };

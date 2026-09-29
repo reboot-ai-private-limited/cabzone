@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { bbox } from '@turf/bbox';
 import type { ZoneDto } from '@cabzone/contracts';
 import type { Polygon } from '@cabzone/geo';
+import type { StateBoundaryDto } from '@/lib/api/endpoints/states';
 import { DEFAULT_CENTER, DEFAULT_ZOOM, loadMapLibraries, type MapTypeId } from '../lib/google-maps';
 import { bboxToBounds, pathToPolygon, polygonToPath } from '../lib/google-geometry';
 import {
@@ -34,7 +35,25 @@ export interface ZoneMapProps {
   fitToken: number;
   /** Somewhere to hang the Places search box, which must live inside the map's own container. */
   onMapReady?: (map: google.maps.Map) => void;
+  /** Serviceable state borders, drawn as a yellow outline beneath the zones. */
+  stateBorders?: StateBoundaryDto[];
+  showStateBorders?: boolean;
 }
+
+/** Stable identity: a fresh `[]` default would re-run the border effect on every render. */
+const NO_STATE_BORDERS: StateBoundaryDto[] = [];
+
+/** Yellow reads on roadmap, terrain and satellite alike. Outline only, never clickable, so the
+ * zones above it stay selectable. */
+const STATE_BORDER_STYLE: google.maps.Data.StyleOptions = {
+  strokeColor: '#FACC15',
+  strokeWeight: 3,
+  strokeOpacity: 0.95,
+  fillColor: '#FACC15',
+  fillOpacity: 0.04,
+  clickable: false,
+  zIndex: 0,
+};
 
 export function ZoneMap({
   zones,
@@ -47,9 +66,12 @@ export function ZoneMap({
   mapType,
   fitToken,
   onMapReady,
+  stateBorders = NO_STATE_BORDERS,
+  showStateBorders = true,
 }: ZoneMapProps) {
   const container = useRef<HTMLDivElement>(null);
   const map = useRef<google.maps.Map | null>(null);
+  const stateData = useRef<google.maps.Data | null>(null);
   const zoneData = useRef<google.maps.Data | null>(null);
   const violationData = useRef<google.maps.Data | null>(null);
   const cityOutline = useRef<google.maps.Polyline | null>(null);
@@ -107,6 +129,11 @@ export function ZoneMap({
           disableDoubleClickZoom: true,
         });
 
+        // Created first so it sits beneath the zone layers.
+        const stateLayer = new maps.Data({ map: instance });
+        stateLayer.setStyle(STATE_BORDER_STYLE);
+        stateData.current = stateLayer;
+
         const zoneLayer = new maps.Data({ map: instance });
         zoneLayer.setStyle((feature) =>
           zoneFeatureStyle({
@@ -149,6 +176,8 @@ export function ZoneMap({
       chain.current?.setMap(null);
       zoneData.current?.setMap(null);
       violationData.current?.setMap(null);
+      stateData.current?.setMap(null);
+      stateData.current = null;
       draftShape.current = null;
       cityOutline.current = null;
       chain.current = null;
@@ -199,6 +228,24 @@ export function ZoneMap({
       });
     }
   }, [ready, zones, selectedId, editing, replaceFeatures]);
+
+  // ── State borders (yellow reference layer) ───────────────────────────────────────────────
+  useEffect(() => {
+    if (!ready) return;
+    replaceFeatures(
+      stateData.current,
+      showStateBorders
+        ? {
+            type: 'FeatureCollection',
+            features: stateBorders.map((s) => ({
+              type: 'Feature',
+              properties: { stateCode: s.stateCode, stateName: s.stateName },
+              geometry: s.geometry,
+            })),
+          }
+        : EMPTY_COLLECTION,
+    );
+  }, [ready, stateBorders, showStateBorders, replaceFeatures]);
 
   // ── Violation overlay ────────────────────────────────────────────────────────────────────
   useEffect(() => {

@@ -1,6 +1,6 @@
-# Cabzone — Development & Infrastructure Setup Guide
+# Cabzonee — Development & Infrastructure Setup Guide
 
-Comprehensive setup, architectural mechanics, and operational workflows for the **Cabzone** platform.
+Comprehensive setup, architectural mechanics, and operational workflows for the **Cabzonee** platform.
 
 > **Note:** This document is mirrored at the repository root in [setup-development.md](../setup-development.md).
 
@@ -25,10 +25,10 @@ Local Workstation
 | :--- | :--- | :--- |
 | **Containers Run** | MongoDB, `mongo-init`, Redis, (optional OSRM) | API, BullMQ Worker, Admin Web, MongoDB, Redis |
 | **Application Runtime** | Host OS via `pnpm` (`tsx watch`, `next dev`) | Containerized Docker images (`dist/server.js`, `next start`) |
-| **Port Binding** | Strictly `127.0.0.1` (MongoDB: `27017`, Redis: `6379`) | Internal bridge network (`Cabzone-net`); DB ports closed to host |
+| **Port Binding** | Strictly `127.0.0.1` (MongoDB: `27017`, Redis: `6379`) | Internal bridge network (`Cabzonee-net`); DB ports closed to host |
 | **Hot Reload** | Sub-second native HMR & incremental TS compilation | Disabled (immutable build artifacts) |
 | **Environment File** | `apps/api/.env` | `apps/api/.env.prod` |
-| **Volumes** | `Cabzone-mongo-data-dev`, `Cabzone-redis-data-dev` | `Cabzone-mongo-data-prod`, `Cabzone-redis-data-prod` |
+| **Volumes** | `Cabzonee-mongo-data-dev`, `Cabzonee-redis-data-dev` | `Cabzonee-mongo-data-prod`, `Cabzonee-redis-data-prod` |
 
 > **The Explicit `-f` Rule:**  
 > There is **no bare `docker-compose.yml`** in the repository. Requiring `-f docker-compose.dev.yml` or `-f docker-compose.prod.yml` prevents accidental destruction of dev volumes or exposing production workloads to local development host ports.
@@ -69,7 +69,7 @@ Ensure the default variables in `apps/api/.env` are populated:
 ```env
 PORT=4000
 NODE_ENV=development
-MONGO_URI=mongodb://127.0.0.1:27017/Cabzone_dev?replicaSet=rs0&directConnection=true
+MONGO_URI=mongodb://127.0.0.1:27017/Cabzonee_dev?replicaSet=rs0&directConnection=true
 REDIS_URL=redis://127.0.0.1:6379
 JWT_SECRET=super-secret-development-jwt-signing-key-32-chars-minimum
 JWT_REFRESH_SECRET=super-secret-development-refresh-signing-key-32-chars-minimum
@@ -123,9 +123,9 @@ Rebuilding Docker containers on every code change takes minutes, breaks TypeScri
 ### The Single-Node Replica Set (`rs0`) Requirement
 MongoDB is started with `--replSet rs0` and connected via:
 ```text
-mongodb://127.0.0.1:27017/Cabzone_dev?replicaSet=rs0&directConnection=true
+mongodb://127.0.0.1:27017/Cabzonee_dev?replicaSet=rs0&directConnection=true
 ```
-*Why?* The Cabzone core domain relies on **Multi-Document ACID Transactions** (`session.withTransaction()` / atomic concurrency locks) for financial integrity:
+*Why?* The Cabzonee core domain relies on **Multi-Document ACID Transactions** (`session.withTransaction()` / atomic concurrency locks) for financial integrity:
 1. Ride acceptance & driver wallet balance verification.
 2. Commission debit settlement upon trip completion.
 3. Cancellation compensation credit allocation.
@@ -236,10 +236,10 @@ docker compose -f docker-compose.prod.yml up -d --build
 ```
 
 ### Critical Production Invariants
-1. **Isolated Data Volumes:** Production uses `Cabzone-mongo-data-prod` and `Cabzone-redis-data-prod` to avoid polluting development databases.
+1. **Isolated Data Volumes:** Production uses `Cabzonee-mongo-data-prod` and `Cabzonee-redis-data-prod` to avoid polluting development databases.
 2. **Build-Time Variable Injection (`NEXT_PUBLIC_API_BASE_URL`):**  
    Next.js bakes `NEXT_PUBLIC_*` environment variables directly into client-side JavaScript bundles **at build time**. Supplying `NEXT_PUBLIC_API_BASE_URL` as a runtime Docker environment variable will fail; it must be supplied as a build argument or declared in the build context.
-3. **Closing Database Ports:** In production, MongoDB and Redis do not expose ports on the host machine. They communicate strictly over the internal container network (`Cabzone-net`).
+3. **Closing Database Ports:** In production, MongoDB and Redis do not expose ports on the host machine. They communicate strictly over the internal container network (`Cabzonee-net`).
 4. **Tearing Down Production Containers:** To release host ports `3000` and `4000`:
    ```bash
    docker compose -f docker-compose.prod.yml down
@@ -277,9 +277,6 @@ pnpm seed --reset
 | **`SILIGURI`** | `CITY` | Authoritative geographic boundary for Siliguri city with 20 km derived buffer. |
 | **`HILL_DARJ`** | `CITY` | Outstation hill territory classifier (Darjeeling municipality). |
 | **`HILL_KALIM`** | `CITY` | Outstation hill territory classifier (Kalimpong municipality). |
-| **`SLG_CENTRAL`** | `PICKUP` | High-density central Siliguri coverage area (standard free pickup). |
-| **`SLG_NORTH`** | `PICKUP` | Extended northern coverage perimeter. |
-| **`SUKNA_RESTRICTED`** | `EXCLUSION` | Military cantonment restricted area (absolute dispatch and pickup/drop veto). |
 
 ### Contract-Driven Seeding Invariants
 The seeder imports directly from `zones.public.ts`. All seed coordinates and polygon rings are validated against `@cabzone/geo` validation engines (Z-001 through Z-006) before insertion, ensuring corrupt or open polygons are never seeded.

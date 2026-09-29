@@ -27,9 +27,9 @@ export async function verifyOtp(
   });
 
   if (typeof window !== 'undefined' && data.accessToken) {
-    localStorage.setItem('Cabzone_access_token', data.accessToken);
-    localStorage.setItem('Cabzone_refresh_token', data.refreshToken);
-    localStorage.setItem('Cabzone_admin_phone', phoneE164);
+    localStorage.setItem('Cabzonee_access_token', data.accessToken);
+    localStorage.setItem('Cabzonee_refresh_token', data.refreshToken);
+    localStorage.setItem('Cabzonee_admin_phone', phoneE164);
   }
 
   return data;
@@ -37,18 +37,18 @@ export async function verifyOtp(
 
 export function getStoredToken(): string | null {
   if (typeof window === 'undefined') return null;
-  return localStorage.getItem('Cabzone_access_token');
+  return localStorage.getItem('Cabzonee_access_token');
 }
 
 export function getStoredPhone(): string | null {
   if (typeof window === 'undefined') return null;
-  return localStorage.getItem('Cabzone_admin_phone');
+  return localStorage.getItem('Cabzonee_admin_phone');
 }
 
 export function logout(): void {
   if (typeof window !== 'undefined') {
-    localStorage.removeItem('Cabzone_access_token');
-    localStorage.removeItem('Cabzone_refresh_token');
-    localStorage.removeItem('Cabzone_admin_phone');
+    localStorage.removeItem('Cabzonee_access_token');
+    localStorage.removeItem('Cabzonee_refresh_token');
+    localStorage.removeItem('Cabzonee_admin_phone');
   }
 }

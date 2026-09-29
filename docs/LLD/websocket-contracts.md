@@ -1,4 +1,4 @@
-# Cabzone — WebSocket Contracts
+# Cabzonee — WebSocket Contracts
 
 **Document:** `docs/LLD/websocket-contracts.md`  
 **Status:** Draft for Engineering Review  

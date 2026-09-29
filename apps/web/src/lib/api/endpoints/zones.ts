@@ -74,7 +74,6 @@ export const zonesApi = {
   ): Promise<ZoneDto> {
     const payload = {
       geometry: body?.geometry,
-      expectedVersion: body?.expectedVersion ?? body?.expected_version ?? 1,
     };
     return request<ZoneDto>(`/v1/admin/zones/${id}/geometry`, {
       method: 'PATCH',
@@ -108,6 +107,13 @@ export const zonesApi = {
     return request<unknown>(`/v1/admin/zones/${id}/deactivate`, {
       method: 'POST',
       body: {},
+      token,
+    });
+  },
+
+  async remove(token?: string, id?: string): Promise<unknown> {
+    return request<unknown>(`/v1/admin/zones/${id}`, {
+      method: 'DELETE',
       token,
     });
   },

@@ -37,7 +37,7 @@ export function zonesToFeatureCollection(
       .filter((zone) => Boolean(zone && (zone.geometry || zone.boundary)))
       .map((zone) => {
         const geom = (zone.geometry ?? zone.boundary) as Geometry;
-        const zoneType = (zone.type ?? zone.zoneType ?? 'PICKUP') as ZoneDto['type'];
+        const zoneType = (zone.type ?? zone.zoneType ?? 'CITY') as ZoneDto['type'];
         return {
           type: 'Feature',
           id: zone.id,
@@ -56,8 +56,6 @@ export function zonesToFeatureCollection(
 
 function fillColour(type: ZoneDto['type']): string {
   if (type === 'CITY') return colors.zoneCity;
-  if (type === 'PICKUP') return colors.zonePickupFree;
-  if (type === 'EXCLUSION') return colors.zoneViolation;
   return colors.interactive;
 }
 

@@ -6,12 +6,7 @@ import type {
   VehicleCategory,
 } from '@cabzone/contracts';
 import { AppError } from '../../../../shared/errors/AppError.js';
-import {
-  distanceToPolygonM,
-  getEffectiveBufferDistance,
-  isPointInPolygon,
-  type ZoneEntity,
-} from '../../domain/index.js';
+import { isPointInPolygon } from '../../domain/index.js';
 import type { ResolveZonesUseCase } from './resolveZones.usecase.js';
 
 export interface ClassifyServiceInput {
@@ -22,7 +17,13 @@ export interface ClassifyServiceInput {
   vehicleCategory?: VehicleCategory | undefined;
 }
 
+/** Rejects trips whose pickup or drop is outside the serviceable area (throws NOT_SERVICEABLE). */
+export interface ServiceabilityGuard {
+  execute(pickup: GeoPoint, drop: GeoPoint): Promise<unknown>;
+}
+
 export interface ServiceClassificationDeps {
+  serviceabilityGuard?: ServiceabilityGuard | undefined;
   resolveZonesUseCase: ResolveZonesUseCase;
   globalDefaultBufferM?: number | undefined;
 }
@@ -31,6 +32,8 @@ export class ServiceClassificationUseCase {
   constructor(private readonly deps: ServiceClassificationDeps) {}
 
   async execute(input: ClassifyServiceInput): Promise<ServiceClassificationDto> {
+    await this.deps.serviceabilityGuard?.execute(input.pickup, input.drop);
+
     const segments = input.routeStateSegments ?? [];
 
     // 1. Check Interstate via route state segments
@@ -38,40 +41,36 @@ export class ServiceClassificationUseCase {
       segments.map((s) => s.stateCode.trim().toUpperCase()).filter(Boolean),
     );
 
-    // 2. Resolve geographic zones (enforces EXCLUSION veto)
+    // 2. Resolve geographic zones
     const resolved = await this.deps.resolveZonesUseCase.execute({
       pickup: input.pickup,
       drop: input.drop,
-      throwOnExclusion: true,
     });
 
-    const activeCity = resolved.city ?? (resolved.isWithinBuffer ? resolved.nearestCity : null);
+    const originCity = resolved.city;
 
     let geoRecommendedType: ServiceClassificationType;
     let bufferApplied = false;
 
     if (distinctStates.size > 1) {
       geoRecommendedType = 'INTERSTATE';
-    } else if (!activeCity) {
+    } else if (!originCity) {
       geoRecommendedType = 'OUTSTATION';
     } else {
-      const dropInsideCity = isPointInPolygon(input.drop, activeCity.boundary);
-      if (dropInsideCity) {
+      const dropInsideOriginCity = isPointInPolygon(input.drop, originCity.boundary);
+      if (dropInsideOriginCity) {
         geoRecommendedType = 'IN_CITY';
-        bufferApplied = resolved.isWithinBuffer;
+        bufferApplied = false;
+      } else if (resolved.destinationCity && resolved.destinationCity.id !== originCity.id) {
+        // Drop is inside another operational city boundary -> OUTSTATION
+        geoRecommendedType = 'OUTSTATION';
+        bufferApplied = false;
+      } else if (resolved.isWithinBuffer) {
+        geoRecommendedType = 'IN_CITY';
+        bufferApplied = true;
       } else {
-        const dropDistM = distanceToPolygonM(input.drop, activeCity.boundary);
-        const effectiveBufferM = getEffectiveBufferDistance(
-          activeCity as unknown as ZoneEntity,
-          this.deps.globalDefaultBufferM ?? 20_000,
-        );
-
-        if (dropDistM <= effectiveBufferM) {
-          geoRecommendedType = 'IN_CITY';
-          bufferApplied = true;
-        } else {
-          geoRecommendedType = 'OUTSTATION';
-        }
+        geoRecommendedType = 'OUTSTATION';
+        bufferApplied = false;
       }
     }
 
@@ -97,8 +96,8 @@ export class ServiceClassificationUseCase {
 
     return {
       type: finalType,
-      cityZoneId: activeCity?.id ?? null,
-      cityName: activeCity?.name ?? null,
+      cityZoneId: originCity?.id ?? null,
+      cityName: originCity?.name ?? null,
       bufferApplied,
       stateSegments: segments,
       requestedService: input.requestedService ?? null,

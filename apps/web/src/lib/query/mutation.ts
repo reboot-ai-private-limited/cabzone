@@ -23,7 +23,7 @@ export function useApiMutation<TVariables = void, TData = unknown>(
     mutationFn: async (variables: TVariables): Promise<TData> => {
       const token =
         typeof window !== 'undefined'
-          ? localStorage.getItem('Cabzone_access_token') ?? undefined
+          ? localStorage.getItem('Cabzonee_access_token') ?? undefined
           : undefined;
       const idempotencyKey =
         typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'

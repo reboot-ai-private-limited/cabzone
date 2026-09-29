@@ -37,7 +37,6 @@ export const zoneResolutionResultSchema = z.object({
   dropZoneId: z.string().uuid().nullable(),
   pickupCityZoneId: z.string().uuid().nullable(),
   dropCityZoneId: z.string().uuid().nullable(),
-  isInExclusionZone: z.boolean(),
   nearestCityZoneId: z.string().uuid().nullable(),
   isWithinBuffer: z.boolean(),
 });

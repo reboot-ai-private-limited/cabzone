@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { List, LogIn, LogOut, Map as MapIcon } from 'lucide-react';
+import { List, LogIn, LogOut, Map as MapIcon, Upload } from 'lucide-react';
 import type { ZoneDto, ZoneType } from '@cabzone/contracts';
 import type { Polygon } from '@cabzone/geo';
 import {
@@ -20,6 +20,7 @@ import { useFilterParams } from '@/lib/hooks/useFilterParams';
 import { AdminLoginDialog } from '../../auth/components/AdminLoginDialog';
 import { getStoredPhone, getStoredToken, logout } from '../../auth/lib/authApi';
 import { useZones } from '../hooks/useZones';
+import { useStateBoundaries } from '../hooks/useStateBoundaries';
 import { useIncityPackages } from '../hooks/useIncityPackages';
 import { useZoneValidation } from '../hooks/useZoneValidation';
 import {
@@ -30,7 +31,9 @@ import {
 import { toGeoJsonExport } from '../lib/geojson-import';
 import { hasApiKey, type MapTypeId } from '../lib/google-maps';
 import { DeactivateZoneDialog } from './DeactivateZoneDialog';
+import { DeleteZoneDialog } from './DeleteZoneDialog';
 import { PlaceSearch } from './PlaceSearch';
+import { StateImportDialog } from './StateImportDialog';
 import { GeoJsonImportDialog } from './GeoJsonImportDialog';
 import { ZoneInspector, type ZoneForm } from './ZoneInspector';
 import { ZoneRail } from './ZoneRail';
@@ -101,6 +104,7 @@ export function ZonesScreen() {
   const [violationFocus, setViolationFocus] = useState<Polygon | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [deactivating, setDeactivating] = useState<ZoneDto | null>(null);
+  const [deleting, setDeleting] = useState<ZoneDto | null>(null);
 
   // Authentication state
   const [adminPhone, setAdminPhone] = useState<string | null>(null);
@@ -114,6 +118,10 @@ export function ZonesScreen() {
       setIsAuthOpen(true);
     }
   }, []);
+
+  const [showStateBorders, setShowStateBorders] = useState(true);
+  const [stateImportOpen, setStateImportOpen] = useState(false);
+  const stateBorders = useStateBoundaries().data;
 
   const zonesQuery = useZones();
   const packagesQuery = useIncityPackages();
@@ -159,7 +167,7 @@ export function ZonesScreen() {
 
   const validation = useZoneValidation({
     geometry: editing ? draft : (selected?.geometry?.type === 'Polygon' ? selected.geometry : null),
-    type: session?.type ?? selected?.type ?? 'PICKUP',
+    type: session?.type ?? selected?.type ?? 'CITY',
     zones,
     ...(session?.zoneId == null ? {} : { excludeZoneId: session.zoneId }),
     enabled: editing,
@@ -175,8 +183,7 @@ export function ZonesScreen() {
   const updateGeometry = useUpdateZoneGeometry((zone) => {
     setSession(null);
     setDraft(null);
-    // A geometry save inserts a NEW document — the id changes with the version. Re-selecting
-    // the returned zone is what stops the screen pointing at the row it just superseded.
+    // Geometry saves overwrite the zone in place; re-select to refresh the view.
     select(zone.id);
     setFitToken((token) => token + 1);
   });
@@ -198,7 +205,7 @@ export function ZonesScreen() {
    * correct. What makes the tracing bearable is the rubber band in `ZoneMap`: once the first
    * corner is down, the next edge follows the cursor, so every click is aimed rather than blind.
    */
-  const startCreate = (type: 'CITY' | 'PICKUP' | 'EXCLUSION'): void => {
+  const startCreate = (type: ZoneType): void => {
     select(null);
     setSession({ zoneId: null, type });
     setDraft(null);
@@ -221,7 +228,6 @@ export function ZonesScreen() {
 
   const save = (): void => {
     if (draft === null || session === null) return;
-    const activeCity = zones.find((z) => z.type === 'CITY' && z.is_active);
 
     if (session.zoneId === null) {
       create.mutate({
@@ -229,7 +235,6 @@ export function ZonesScreen() {
         name: form.name.trim(),
         code: form.code.trim(),
         stateCode: 'WB',
-        parentCityZoneId: session.type === 'PICKUP' ? (activeCity?.id ?? null) : null,
         bufferDistanceM: form.bufferDistanceM ? Number(form.bufferDistanceM) : null,
         geometry: draft,
       });
@@ -247,7 +252,7 @@ export function ZonesScreen() {
 
     const commitGeometry = (): void => {
       updateGeometry.mutate(
-        { id: zone.id, geometry: draft, expectedVersion: zone.version },
+        { id: zone.id, geometry: draft },
         {
           onError: (error) => {
             if (error instanceof ApiError && (error.code as string) === 'ZONE_ALREADY_SUPERSEDED') cancel();
@@ -441,6 +446,8 @@ export function ZonesScreen() {
                         mapType={mapType}
                         fitToken={fitToken}
                         onMapReady={setMapInstance}
+                        stateBorders={stateBorders}
+                        showStateBorders={showStateBorders}
                       />
 
                       {/*
@@ -467,6 +474,35 @@ export function ZonesScreen() {
                         {/* Search moves the viewport only — never the draft. */}
                         <PlaceSearch map={mapInstance} />
                       </div>
+
+                      {/* State borders (reference data): yellow outline, toggle + import. */}
+                      <div className="absolute top-2 right-2 flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          aria-pressed={showStateBorders}
+                          icon={
+                            <span
+                              aria-hidden
+                              className={cn(
+                                'size-2.5 rounded-full border border-black/30',
+                                showStateBorders ? 'bg-yellow-400' : 'bg-transparent',
+                              )}
+                            />
+                          }
+                          onClick={() => setShowStateBorders((v) => !v)}
+                        >
+                          State borders
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          icon={<Upload aria-hidden className="size-3.5" />}
+                          onClick={() => setStateImportOpen(true)}
+                        >
+                          Import states
+                        </Button>
+                      </div>
                     </>
                   )}
                 </div>
@@ -475,17 +511,17 @@ export function ZonesScreen() {
                   <ZoneInspector
                     mode={editing ? 'edit' : 'view'}
                     zone={session?.zoneId == null ? (editing ? null : selected) : selected}
-                    type={session?.type ?? selected?.type ?? 'PICKUP'}
+                    type={session?.type ?? selected?.type ?? 'CITY'}
                     form={form}
                     onFormChange={setForm}
                     draft={editing ? draft : (selected?.geometry?.type === 'Polygon' ? selected.geometry : null)}
                     validation={validation}
                     saving={saving}
-                    hasParentCity={zones.some((z) => z.type === 'CITY' && z.is_active)}
                     onEditGeometry={() => selected !== null && startEdit(selected)}
                     onImport={() => setImportOpen(true)}
                     onExport={exportSelected}
                     onDeactivate={() => setDeactivating(selected)}
+                    onDelete={() => setDeleting(selected)}
                     onShowOnMap={(geometry) => {
                       setViolationFocus(geometry);
                       setFitToken((token) => token + 1);
@@ -516,6 +552,14 @@ export function ZonesScreen() {
         zone={deactivating}
         onOpenChange={(open) => !open && setDeactivating(null)}
         onDeactivated={() => select(null)}
+      />
+
+      <StateImportDialog open={stateImportOpen} onOpenChange={setStateImportOpen} />
+
+      <DeleteZoneDialog
+        zone={deleting}
+        onOpenChange={(open) => !open && setDeleting(null)}
+        onDeleted={() => select(null)}
       />
 
       <AdminLoginDialog

@@ -33,6 +33,6 @@ services:
 
 volumes:
   mongo-data:
-    name: Cabzone-mongo-data-dev
+    name: Cabzonee-mongo-data-dev
   redis-data:
-    name: Cabzone-redis-data-dev
+    name: Cabzonee-redis-data-dev

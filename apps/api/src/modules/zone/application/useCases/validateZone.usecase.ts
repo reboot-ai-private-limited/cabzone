@@ -130,19 +130,6 @@ export class ValidateZoneUseCase {
           });
         }
       }
-
-      // Z-007: Same-Type Conflicts for PICKUP zones
-      if (input.type === 'PICKUP' && existing.zoneType === 'PICKUP') {
-        if (doGeometriesOverlap(input.geometry, existing.geometry)) {
-          violations.push({
-            code: Z_CODES.Z007_SAME_TYPE_CONFLICT,
-            severity: 'ERROR',
-            message: `Polygon overlaps active pickup zone "${existing.name}" (${existing.code}).`,
-            offendingZoneId: existing.id,
-            offendingGeometry: existing.geometry,
-          });
-        }
-      }
     }
 
     return {
