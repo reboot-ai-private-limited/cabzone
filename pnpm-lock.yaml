@@ -13,7 +13,7 @@ importers:
 
   .:
     devDependencies:
-      '@Cabzone/config':
+      '@cabzone/config':
         specifier: workspace:*
         version: link:packages/config
       '@typescript-eslint/eslint-plugin':
@@ -55,10 +55,10 @@ importers:
       '@asteasolutions/zod-to-openapi':
         specifier: ^7.3.4
         version: 7.3.4(zod@3.25.76)
-      '@Cabzone/contracts':
+      '@cabzone/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
-      '@Cabzone/geo':
+      '@cabzone/geo':
         specifier: workspace:*
         version: link:../../packages/geo
       bullmq:
@@ -110,7 +110,7 @@ importers:
         specifier: ^3.24.1
         version: 3.25.76
     devDependencies:
-      '@Cabzone/config':
+      '@cabzone/config':
         specifier: workspace:*
         version: link:../../packages/config
       '@types/cookie-parser':
@@ -158,13 +158,13 @@ importers:
 
   apps/web:
     dependencies:
-      '@Cabzone/contracts':
+      '@cabzone/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
-      '@Cabzone/design-system':
+      '@cabzone/design-system':
         specifier: workspace:*
         version: link:../../packages/design-system
-      '@Cabzone/geo':
+      '@cabzone/geo':
         specifier: workspace:*
         version: link:../../packages/geo
       '@tanstack/react-query':
@@ -198,7 +198,7 @@ importers:
         specifier: 19.2.3
         version: 19.2.3(react@19.2.3)
     devDependencies:
-      '@Cabzone/config':
+      '@cabzone/config':
         specifier: workspace:*
         version: link:../../packages/config
       '@tailwindcss/postcss':
@@ -252,11 +252,11 @@ importers:
 
   packages/contracts:
     dependencies:
-      '@Cabzone/geo':
+      '@cabzone/geo':
         specifier: workspace:*
         version: link:../geo
     devDependencies:
-      '@Cabzone/config':
+      '@cabzone/config':
         specifier: workspace:*
         version: link:../config
       typescript:
@@ -302,7 +302,7 @@ importers:
         specifier: ^2.6.0
         version: 2.6.1
     devDependencies:
-      '@Cabzone/config':
+      '@cabzone/config':
         specifier: workspace:*
         version: link:../config
       '@types/react':
@@ -317,7 +317,7 @@ importers:
 
   packages/geo:
     devDependencies:
-      '@Cabzone/config':
+      '@cabzone/config':
         specifier: workspace:*
         version: link:../config
       typescript:

@@ -323,7 +323,7 @@ The pricing schema keys by `(city_zone_id, vehicle_category)`. Adding future cat
 
 **Alternatives Considered:** Uniform city-wide rate (rejected because operating economics of cabs and electric rickshaws are vastly different).  
 **Reason:** Matches operational economics in target markets (e.g. Siliguri) and provides architectural readiness for e-rickshaws.  
-**Affected Components:** `CityZone`, `PricingConfig`, Fare Engine, Dispatch Matching, Ride Snapshot, Admin Pricing UI, API Contracts (`@Cabzone/contracts`).  
+**Affected Components:** `CityZone`, `PricingConfig`, Fare Engine, Dispatch Matching, Ride Snapshot, Admin Pricing UI, API Contracts (`@cabzone/contracts`).  
 **Approved by:** Product & Engineering (via OQ-001)
 
 ---

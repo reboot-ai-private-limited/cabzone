@@ -1,4 +1,4 @@
-import type { ZoneDto } from '@Cabzone/contracts';
+import type { ZoneDto } from '@cabzone/contracts';
 import { area } from '@turf/area';
 import { featureCollection, polygon as turfPolygon } from '@turf/helpers';
 import { intersect } from '@turf/intersect';

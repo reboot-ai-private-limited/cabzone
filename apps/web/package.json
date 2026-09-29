@@ -1,5 +1,5 @@
 {
-  "name": "@Cabzone/web",
+  "name": "@cabzone/web",
   "private": true,
   "version": "0.1.0",
   "scripts": {
@@ -11,9 +11,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@Cabzone/contracts": "workspace:*",
-    "@Cabzone/design-system": "workspace:*",
-    "@Cabzone/geo": "workspace:*",
+    "@cabzone/contracts": "workspace:*",
+    "@cabzone/design-system": "workspace:*",
+    "@cabzone/geo": "workspace:*",
     "@tanstack/react-query": "^5.104.0",
     "@turf/area": "^7.4.0",
     "@turf/bbox": "^7.4.0",
@@ -26,7 +26,7 @@
     "react-dom": "19.2.3"
   },
   "devDependencies": {
-    "@Cabzone/config": "workspace:*",
+    "@cabzone/config": "workspace:*",
     "@tailwindcss/postcss": "^4.0.0",
     "@types/geojson": "^7946.0.16",
     "@types/google.maps": "^3.66.4",

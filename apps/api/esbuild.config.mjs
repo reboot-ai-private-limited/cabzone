@@ -3,7 +3,7 @@ import esbuild from 'esbuild';
 
 const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'));
 
-const external = Object.keys(pkg.dependencies).filter((d) => !d.startsWith('@Cabzone/'));
+const external = Object.keys(pkg.dependencies).filter((d) => !d.startsWith('@cabzone/'));
 
 await esbuild.build({
   entryPoints: ['src/server.ts', 'src/worker.ts'],

@@ -1,4 +1,4 @@
-import type { GeoPoint, ResolvedZones } from '@Cabzone/contracts';
+import type { GeoPoint, ResolvedZones } from '@cabzone/contracts';
 import { AppError } from '../../../../shared/errors/AppError.js';
 import type {
   CoverageRequestRepositoryPort,

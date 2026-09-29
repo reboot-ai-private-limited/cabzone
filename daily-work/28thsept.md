@@ -13,7 +13,7 @@ Today we implemented, integrated, and verified the complete **Cabzone Zones Cont
 - Implemented and verified backend use cases including zone creation, geometry and metadata updates with optimistic concurrency (`expected_version`), validation engine checks, deactivation, audit logging, and `GetZoneDependentsUseCase` for blast-radius impact analysis.
 - Connected and seeded MongoDB Atlas with initial Siliguri City, pickup coverage, and Sukna exclusion zones, fixing immutable `_id` upserts using `$setOnInsert`.
 - Built the operational Next.js control plane in `apps/web/src/features/zones` with Google Maps SDK vector polygon rendering, Google Places search, interactive boundary creation, and a collapsible/expandable bottom inspector.
-- Updated all monorepo package identifiers and dependencies to `@Cabzone/*`.
+- Updated all monorepo package identifiers and dependencies to `@cabzone/*`.
 - Monorepo automated test suite expanded to **197 passing tests** across 18 test files with Next.js production build verified.
 
 ---
@@ -26,7 +26,7 @@ Today we implemented, integrated, and verified the complete **Cabzone Zones Cont
   - `PICKUP`: Active dispatch serviceability gate.
   - `EXCLUSION`: Forbidden geographic area where pickups and drops are automatically rejected.
   - Removed speculative `HILL` zone types and unrequested surcharge options in accordance with Cabzone architecture.
-- **Topological & Geometric Validation (`@Cabzone/geo`):**
+- **Topological & Geometric Validation (`@cabzone/geo`):**
   - RFC 7946 winding order normalization (counter-clockwise exterior rings, clockwise interior holes) to prevent MongoDB 2dsphere whole-Earth complement inversion.
   - Z-code checks: ring closure (Z-002), minimum vertices (Z-003), bounds validation (Z-004), self-intersection detection (Z-005), and operational conflicts (Z-007, Z-008).
   - Minimum area (1 hectare) and maximum ceiling (100,000 km²) thresholds.

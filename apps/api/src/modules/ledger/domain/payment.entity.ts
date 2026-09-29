@@ -1,4 +1,4 @@
-import type { PaymentMethod, PaymentStatus } from '@Cabzone/contracts';
+import type { PaymentMethod, PaymentStatus } from '@cabzone/contracts';
 
 export interface PaymentEntity {
   id: string;

@@ -1,4 +1,4 @@
-import type { NegotiationAction, NegotiationActor } from '@Cabzone/contracts';
+import type { NegotiationAction, NegotiationActor } from '@cabzone/contracts';
 
 export interface FareNegotiationEntity {
   id: string;

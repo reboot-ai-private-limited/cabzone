@@ -6,8 +6,8 @@ import type {
   ZoneListResponse,
   ZoneType,
   ZoneViolationDto,
-} from '@Cabzone/contracts';
-import type { Polygon } from '@Cabzone/geo';
+} from '@cabzone/contracts';
+import type { Polygon } from '@cabzone/geo';
 import { request } from '../client.js';
 
 export interface ZonesListResult extends ZoneListResponse {

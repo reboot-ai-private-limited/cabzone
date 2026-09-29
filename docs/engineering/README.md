@@ -37,7 +37,7 @@ Cabzone contains:
 
 - **Rider Mobile App** (Roadmap)
 - **Driver Mobile App** (Roadmap)
-- **Admin Web Dashboard** (`apps/web`, `@Cabzone/web`)
-- **Backend API & Queue Worker** (`apps/api`, `@Cabzone/api`)
+- **Admin Web Dashboard** (`apps/web`, `@cabzone/web`)
+- **Backend API & Queue Worker** (`apps/api`, `@cabzone/api`)
 
 Core product areas include driver verification, rider authentication, zones, pricing, negotiation, dispatch, ride execution, payments, wallet/commission, ratings, trust, history, and disputes.

@@ -1,5 +1,5 @@
 import { Suspense } from 'react';
-import { Skeleton } from '@Cabzone/design-system';
+import { Skeleton } from '@cabzone/design-system';
 import { ZonesScreen } from '@/features/zones/components/ZonesScreen';
 
 /**

@@ -6,7 +6,7 @@ import {
   type DriverApplicationStatus,
   type RejectionType,
   type VerificationProvider,
-} from '@Cabzone/contracts';
+} from '@cabzone/contracts';
 
 export interface DriverApplicationDocument extends Document<string> {
   _id: string;

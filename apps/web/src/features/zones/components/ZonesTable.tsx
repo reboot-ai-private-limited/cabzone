@@ -2,13 +2,13 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { Building2 } from 'lucide-react';
-import type { ZoneDto, ZoneType } from '@Cabzone/contracts';
+import type { ZoneDto, ZoneType } from '@cabzone/contracts';
 /**
  * The SAME function the API reports `stats` from on POST /admin/zones/validate. Area and
  * vertex count are computed in the browser rather than fetched, and cannot disagree with the
  * server because it is not a second implementation — it is the same one.
  */
-import { zoneStats } from '@Cabzone/geo';
+import { zoneStats } from '@cabzone/geo';
 import {
   Badge,
   CellStack,
@@ -24,7 +24,7 @@ import {
   type Column,
   type ErrorStateProps,
   type SortState,
-} from '@Cabzone/design-system';
+} from '@cabzone/design-system';
 import { useDebouncedValue } from '@/lib/hooks/useDebouncedValue';
 import { useFilterParams } from '@/lib/hooks/useFilterParams';
 import { SEARCH_DEBOUNCE_MS } from '@/lib/hooks/timing';

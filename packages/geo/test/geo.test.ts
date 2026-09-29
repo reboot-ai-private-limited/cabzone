@@ -31,7 +31,7 @@ import {
   type Position,
 } from '../src/index.js';
 
-describe('@Cabzone/geo Engine', () => {
+describe('@cabzone/geo Engine', () => {
   // Test fixture: Siliguri region polygon
   const siliguriBox: GeoJsonPolygon = {
     type: 'Polygon',

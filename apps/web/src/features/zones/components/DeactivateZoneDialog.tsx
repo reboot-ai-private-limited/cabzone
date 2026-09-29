@@ -1,7 +1,7 @@
 'use client';
 
-import type { ZoneDto } from '@Cabzone/contracts';
-import { ConfirmDialog } from '@Cabzone/design-system';
+import type { ZoneDto } from '@cabzone/contracts';
+import { ConfirmDialog } from '@cabzone/design-system';
 import { useDeactivateZone } from '../hooks/useDeactivateZone';
 import { useZoneDependents } from '../hooks/useZoneDependents';
 

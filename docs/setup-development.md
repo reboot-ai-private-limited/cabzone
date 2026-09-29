@@ -211,13 +211,13 @@ pnpm check
 *(Alias for: `pnpm turbo run typecheck lint test`)*
 
 ### Verification Layers
-1. **TypeScript Typecheck (`tsc --noEmit`):** Validates contracts, DTOs, and strict null/optional compatibility across `@Cabzone/contracts`, `@Cabzone/geo`, `@Cabzone/api`, and `@Cabzone/web`.
+1. **TypeScript Typecheck (`tsc --noEmit`):** Validates contracts, DTOs, and strict null/optional compatibility across `@cabzone/contracts`, `@cabzone/geo`, `@cabzone/api`, and `@cabzone/web`.
 2. **ESLint (`eslint src --ext .ts,.tsx`):** Enforces code style, unused variables, and accessibility (`jsx-a11y`) standards.
 3. **Architecture Boundary Enforcement (`depcruise`):** Runs `dependency-cruiser` against `.dependency-cruiser.cjs` to enforce Clean Architecture invariants:
    - Domain layers cannot import from infrastructure or interface layers.
    - Modules cannot reach into private internals of sibling modules without using `.public.ts` interfaces.
 4. **Automated Vitest Suites (`vitest run`):** Runs all unit and integration test suites:
-   - Geometric validity, ring closure, bow-tie self-intersection (`@Cabzone/geo`).
+   - Geometric validity, ring closure, bow-tie self-intersection (`@cabzone/geo`).
    - Domain entity invariants, OTP lockouts, wallet gate, and zone resolution.
    - Real MongoDB atomic claims on replica sets (`test/integration/`).
 
@@ -282,7 +282,7 @@ pnpm seed --reset
 | **`SUKNA_RESTRICTED`** | `EXCLUSION` | Military cantonment restricted area (absolute dispatch and pickup/drop veto). |
 
 ### Contract-Driven Seeding Invariants
-The seeder imports directly from `zones.public.ts`. All seed coordinates and polygon rings are validated against `@Cabzone/geo` validation engines (Z-001 through Z-006) before insertion, ensuring corrupt or open polygons are never seeded.
+The seeder imports directly from `zones.public.ts`. All seed coordinates and polygon rings are validated against `@cabzone/geo` validation engines (Z-001 through Z-006) before insertion, ensuring corrupt or open polygons are never seeded.
 
 ### Fixed Dev OTP Bypass (`DEV_FIXED_OTP`)
 In `apps/api/.env`, setting:
@@ -347,7 +347,7 @@ allows entering `000000` to verify any phone number instantly in local developme
 - **Cause:** Stale cache or conflicting dependency hoisting.
 - **Fix:**
   ```bash
-  pnpm --filter=@Cabzone/customer start --reset-cache
+  pnpm --filter=@cabzone/customer start --reset-cache
   ```
   Ensure `pnpm-workspace.yaml` preserves `nodeLinker: hoisted`.
 

@@ -1,4 +1,4 @@
-import type { ExtensionStatus } from '@Cabzone/contracts';
+import type { ExtensionStatus } from '@cabzone/contracts';
 
 export interface LocationCoordinates {
   lat: number;

@@ -1,7 +1,7 @@
 import type {
   PricingConfigStatus,
   VehicleCategory,
-} from '@Cabzone/contracts';
+} from '@cabzone/contracts';
 
 export interface PricingConfigEntity {
   id: string;

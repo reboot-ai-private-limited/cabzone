@@ -5,7 +5,7 @@
 > **Naming Standards**:
 >
 > - **Product / Brand**: **Cabzone**
-> - **NPM Package Scope**: `@Cabzone/*`
+> - **NPM Package Scope**: `@cabzone/*`
 > - **Monorepo / Container Namespace**: `Cabzone`
 
 ---
@@ -36,9 +36,9 @@ Cabzone/
 
 | Component         | Package / Path              | Technology                    | Port    | Purpose                                                |
 | ----------------- | --------------------------- | ----------------------------- | ------- | ------------------------------------------------------ |
-| **API Server**    | `apps/api` (`@Cabzone/api`) | Express 4 (ESM), TypeScript   | `4000`  | REST API, WebSockets, health probes                    |
+| **API Server**    | `apps/api` (`@cabzone/api`) | Express 4 (ESM), TypeScript   | `4000`  | REST API, WebSockets, health probes                    |
 | **Queue Worker**  | `apps/api/src/worker.ts`    | BullMQ, ioredis               | N/A     | Asynchronous background jobs and presence checks       |
-| **Admin Console** | `apps/web` (`@Cabzone/web`) | Next.js 15, Tailwind v4       | `3000`  | Operations, driver KYC, and zone management            |
+| **Admin Console** | `apps/web` (`@cabzone/web`) | Next.js 15, Tailwind v4       | `3000`  | Operations, driver KYC, and zone management            |
 | **MongoDB**       | `docker-compose.*.yml`      | MongoDB 7 (Replica Set `rs0`) | `27017` | Primary database with multi-document ACID transactions |
 | **Redis**         | `docker-compose.*.yml`      | Redis 7 Alpine (Append-only)  | `6379`  | BullMQ queue transport, proximity cache, rate limiting |
 
@@ -98,7 +98,7 @@ pnpm dev:full      # Start API, worker, and Web console simultaneously
 pnpm turbo run typecheck
 
 # Check Clean Architecture boundaries (dependency-cruiser)
-pnpm --filter @Cabzone/api lint:deps
+pnpm --filter @cabzone/api lint:deps
 
 # Run ESLint across workspace
 pnpm turbo run lint

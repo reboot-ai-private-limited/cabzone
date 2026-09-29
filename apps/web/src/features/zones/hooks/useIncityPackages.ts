@@ -1,7 +1,7 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import type { IncityPackageDto } from '@Cabzone/contracts';
+import type { IncityPackageDto } from '@cabzone/contracts';
 import { packagesApi } from '@/lib/api/endpoints/packages';
 import { authedQueryOptions } from '@/lib/query/factory';
 import { keys, staleTime } from '@/lib/query/keys';

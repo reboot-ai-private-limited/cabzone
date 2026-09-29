@@ -1,4 +1,4 @@
-import type { RejectionType } from '@Cabzone/contracts';
+import type { RejectionType } from '@cabzone/contracts';
 import { AppError } from '../../../../shared/errors/AppError.js';
 import type {
   DriverApplicationEntity,

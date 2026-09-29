@@ -4,7 +4,7 @@ import type {
   ZoneType,
   ZoneValidationResult,
   ZoneViolation,
-} from '@Cabzone/contracts';
+} from '@cabzone/contracts';
 import {
   doBoundingBoxesOverlap,
   doSegmentsIntersect,

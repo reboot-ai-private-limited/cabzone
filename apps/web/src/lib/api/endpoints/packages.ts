@@ -1,4 +1,4 @@
-import type { IncityPackageDto } from '@Cabzone/contracts';
+import type { IncityPackageDto } from '@cabzone/contracts';
 import { request } from '../client.js';
 
 export const packagesApi = {

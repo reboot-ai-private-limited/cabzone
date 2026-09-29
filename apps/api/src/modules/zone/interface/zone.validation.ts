@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { PICKUP_CHARGE_TYPES, ZONE_STATUSES, ZONE_TYPES } from '@Cabzone/contracts';
+import { PICKUP_CHARGE_TYPES, ZONE_STATUSES, ZONE_TYPES } from '@cabzone/contracts';
 
 export const geoPointSchema = z.object({
   lat: z.number().min(-90).max(90),

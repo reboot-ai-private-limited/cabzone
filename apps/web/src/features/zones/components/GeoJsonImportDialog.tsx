@@ -2,8 +2,8 @@
 
 import { useState } from 'react';
 import { Info } from 'lucide-react';
-import type { Polygon } from '@Cabzone/geo';
-import { Button, Dialog } from '@Cabzone/design-system';
+import type { Polygon } from '@cabzone/geo';
+import { Button, Dialog } from '@cabzone/design-system';
 import { parseZoneGeoJson } from '../lib/geojson-import';
 
 /**

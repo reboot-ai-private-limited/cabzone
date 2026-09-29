@@ -166,15 +166,15 @@
 
 ### Community 0 - "web/package.json"
 Cohesion: 0.04
-Nodes (41): config, dependencies, @Cabzone/contracts, lucide-react, next, react, react-dom, devDependencies (+33 more)
+Nodes (41): config, dependencies, @cabzone/contracts, lucide-react, next, react, react-dom, devDependencies (+33 more)
 
 ### Community 1 - "package.json"
 Cohesion: 0.04
-Nodes (45): devDependencies, @Cabzone/config, eslint, eslint-config-prettier, eslint-plugin-jsx-a11y, eslint-plugin-react, eslint-plugin-react-hooks, prettier (+37 more)
+Nodes (45): devDependencies, @cabzone/config, eslint, eslint-config-prettier, eslint-plugin-jsx-a11y, eslint-plugin-react, eslint-plugin-react-hooks, prettier (+37 more)
 
 ### Community 2 - "api/package.json"
 Cohesion: 0.07
-Nodes (27): external, pkg, @Cabzone/config, @Cabzone/contracts, @types/node, typescript, vitest, name (+19 more)
+Nodes (27): external, pkg, @cabzone/config, @cabzone/contracts, @types/node, typescript, vitest, name (+19 more)
 
 ### Community 3 - "kyc-vehicle.test.ts"
 Cohesion: 0.12
@@ -222,7 +222,7 @@ Nodes (21): calculateBaseFareEstimate(), isPricingConfigEffective(), PricingConf
 
 ### Community 14 - "dependencies"
 Cohesion: 0.05
-Nodes (42): dependencies, bullmq, @Cabzone/contracts, cookie-parser, cors, dotenv, express, express-rate-limit (+34 more)
+Nodes (42): dependencies, bullmq, @cabzone/contracts, cookie-parser, cors, dotenv, express, express-rate-limit (+34 more)
 
 ### Community 15 - "docker-compose.prod.yml"
 Cohesion: 0.25
@@ -230,7 +230,7 @@ Nodes (12): API Service (Production), Mongo Service (Production), Mongo Replica 
 
 ### Community 16 - "contracts/package.json"
 Cohesion: 0.14
-Nodes (13): devDependencies, @Cabzone/config, typescript, exports, @Cabzone/config, typescript, name, private (+5 more)
+Nodes (13): devDependencies, @cabzone/config, typescript, exports, @cabzone/config, typescript, name, private (+5 more)
 
 ### Community 17 - "SessionEntity"
 Cohesion: 0.09
@@ -238,7 +238,7 @@ Nodes (7): LogoutDeps, SessionEntity, SessionRepositoryPort, MongoSessionReposit
 
 ### Community 18 - "Monorepo Layout"
 Cohesion: 0.20
-Nodes (12): esbuild Bundle (server.js + worker.js), Turborepo CI/CD Pipeline, Admin Web Console (Next.js 15 App Router), API Client SDK (HttpSuccessBody / ApiError), apps/api (@Cabzone/api), apps/web (@Cabzone/web), Clean Architecture Modular Monolith, Monorepo Layout (+4 more)
+Nodes (12): esbuild Bundle (server.js + worker.js), Turborepo CI/CD Pipeline, Admin Web Console (Next.js 15 App Router), API Client SDK (HttpSuccessBody / ApiError), apps/api (@cabzone/api), apps/web (@cabzone/web), Clean Architecture Modular Monolith, Monorepo Layout (+4 more)
 
 ### Community 19 - "identity.ts"
 Cohesion: 0.10
@@ -278,7 +278,7 @@ Nodes (6): Critical E2E User Flows, Edge-Case Testing Matrix, Adapter & Infrastr
 
 ### Community 28 - "contracts/tsconfig.json"
 Cohesion: 0.29
-Nodes (6): compilerOptions, module, moduleResolution, extends, include, @Cabzone/config/tsconfig.base.json
+Nodes (6): compilerOptions, module, moduleResolution, extends, include, @cabzone/config/tsconfig.base.json
 
 ### Community 29 - "Technology Stack"
 Cohesion: 0.20

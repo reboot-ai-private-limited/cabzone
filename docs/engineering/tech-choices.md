@@ -16,7 +16,7 @@ This document records the technology stack and architecture selections for **Cab
 | **Admin Web Console**         | Next.js 15 (App Router) + React 19 | Selected     | Standalone Docker output, server-rendered views, fast dev server            |
 | **Styling**                   | Tailwind CSS v4                    | Selected     | Modern utility-first styling with zero runtime bundle overhead              |
 | **Monorepo Engine**           | pnpm 11 + Turborepo 2              | Selected     | Hoisted workspace resolution (`nodeLinker: hoisted`), task pipeline caching |
-| **Shared Contracts**          | `@Cabzone/contracts` (Raw TS)      | Selected     | Zero-build live TypeScript sharing between API and frontend                 |
+| **Shared Contracts**          | `@cabzone/contracts` (Raw TS)      | Selected     | Zero-build live TypeScript sharing between API and frontend                 |
 | **Architecture Gate**         | `dependency-cruiser`               | Selected     | Machine-checked 5-layer boundaries and private module internals             |
 | **Rider & Driver Mobile**     | React Native / Expo (Roadmap)      | Open         | Cross-platform framework to be finalized during mobile kick-off             |
 | **Geospatial Processing**     | MongoDB 2dsphere + Turf.js         | Selected     | GeoJSON point-in-polygon and distance calculations                          |

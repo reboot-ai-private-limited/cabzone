@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { List, LogIn, LogOut, Map as MapIcon } from 'lucide-react';
-import type { ZoneDto, ZoneType } from '@Cabzone/contracts';
-import type { Polygon } from '@Cabzone/geo';
+import type { ZoneDto, ZoneType } from '@cabzone/contracts';
+import type { Polygon } from '@cabzone/geo';
 import {
   Button,
   ErrorState,
@@ -13,7 +13,7 @@ import {
   Skeleton,
   TopProgressBar,
   cn,
-} from '@Cabzone/design-system';
+} from '@cabzone/design-system';
 import { ApiError } from '@/lib/api/ApiError';
 import { toErrorState } from '@/lib/api/toErrorState';
 import { useFilterParams } from '@/lib/hooks/useFilterParams';

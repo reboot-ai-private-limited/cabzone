@@ -1,4 +1,4 @@
-import { normalizeWinding, type Polygon } from '@Cabzone/geo';
+import { normalizeWinding, type Polygon } from '@cabzone/geo';
 import { area } from '@turf/area';
 import { polygon as turfPolygon } from '@turf/helpers';
 

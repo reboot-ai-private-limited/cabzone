@@ -6,7 +6,7 @@ import {
   type GeoJsonPolygon,
   type ZoneStatus,
   type ZoneType,
-} from '@Cabzone/contracts';
+} from '@cabzone/contracts';
 
 export interface ZoneDocument extends Document<string> {
   _id: string;

@@ -1,4 +1,4 @@
-import type { AuthRole } from '@Cabzone/contracts';
+import type { AuthRole } from '@cabzone/contracts';
 import type { AdminUserRepositoryPort } from './adminUser.port.js';
 import type { DriverRepositoryPort } from './driver.port.js';
 import type { RiderRepositoryPort } from './rider.port.js';

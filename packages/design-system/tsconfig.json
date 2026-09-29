@@ -1,1 +1,1 @@
-{ "extends": "@Cabzone/config/tsconfig.react.json", "include": ["src"] }
+{ "extends": "@cabzone/config/tsconfig.react.json", "include": ["src"] }

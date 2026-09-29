@@ -1,4 +1,4 @@
-import type { HttpErrorBody, HttpSuccessBody, RequestMeta } from '@Cabzone/contracts';
+import type { HttpErrorBody, HttpSuccessBody, RequestMeta } from '@cabzone/contracts';
 import type { Request, Response } from 'express';
 import { isProdLike } from '@/config/env.js';
 import { getRequestId } from './request-context.js';

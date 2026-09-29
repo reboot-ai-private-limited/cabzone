@@ -1,7 +1,7 @@
 'use client';
 
-import type { CreateZoneRequest, UpdateZoneMetadataRequest, ZoneDto } from '@Cabzone/contracts';
-import type { Polygon } from '@Cabzone/geo';
+import type { CreateZoneRequest, UpdateZoneMetadataRequest, ZoneDto } from '@cabzone/contracts';
+import type { Polygon } from '@cabzone/geo';
 import { zonesApi } from '@/lib/api/endpoints/zones';
 import { keys } from '@/lib/query/keys';
 import { useApiMutation } from '@/lib/query/mutation';

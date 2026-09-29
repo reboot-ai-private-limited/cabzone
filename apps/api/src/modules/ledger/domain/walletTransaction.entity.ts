@@ -1,7 +1,7 @@
 import type {
   TransactionReferenceType,
   WalletTransactionType,
-} from '@Cabzone/contracts';
+} from '@cabzone/contracts';
 
 export interface WalletTransactionEntity {
   id: string;

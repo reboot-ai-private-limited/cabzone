@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { GeoJsonPolygon, ZoneDto } from '@Cabzone/contracts';
+import type { GeoJsonPolygon, ZoneDto } from '@cabzone/contracts';
 import { pickupCoverageOfCity } from './coverage';
 
 /**

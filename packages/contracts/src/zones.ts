@@ -1,8 +1,8 @@
 /**
  * Geographic Zones and Contracts
  */
-export * from '@Cabzone/geo';
-import type { GeoJsonGeometry, GeoJsonPolygon, GeoPoint, ZoneViolation } from '@Cabzone/geo';
+export * from '@cabzone/geo';
+import type { GeoJsonGeometry, GeoJsonPolygon, GeoPoint, ZoneViolation } from '@cabzone/geo';
 
 export const ZONE_TYPES = ['CITY', 'PICKUP', 'EXCLUSION', 'HILL'] as const;
 export type ZoneType = (typeof ZONE_TYPES)[number];

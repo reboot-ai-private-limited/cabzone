@@ -2,8 +2,8 @@
 
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import type { ZoneDto, ZoneType, ZoneViolationDto } from '@Cabzone/contracts';
-import { validateZone, zoneStats, type NamedZone, type Polygon } from '@Cabzone/geo';
+import type { ZoneDto, ZoneType, ZoneViolationDto } from '@cabzone/contracts';
+import { validateZone, zoneStats, type NamedZone, type Polygon } from '@cabzone/geo';
 import { zonesApi } from '@/lib/api/endpoints/zones';
 import { authedQueryOptions } from '@/lib/query/factory';
 import { keys, staleTime } from '@/lib/query/keys';
@@ -23,7 +23,7 @@ import { VALIDATE_DEBOUNCE_MS } from '@/lib/hooks/timing';
  * drawing.
  *
  * The two CANNOT drift, because `validateZone` here is not a second implementation of the
- * server's check — it is literally the same function from `@Cabzone/geo`, which is the
+ * server's check — it is literally the same function from `@cabzone/geo`, which is the
  * entire reason that package exists (docs/engineering/shared-packages.md).
  */
 
@@ -38,7 +38,7 @@ export interface ZoneValidation {
   confirming: boolean;
 }
 
-/** `@Cabzone/geo` returns `ZoneViolation`; the wire type is `ZoneViolationDto`. Same shape. */
+/** `@cabzone/geo` returns `ZoneViolation`; the wire type is `ZoneViolationDto`. Same shape. */
 function toDto(violations: ReturnType<typeof validateZone>): ZoneViolationDto[] {
   return violations.map((violation) => ({
     code: violation.code ?? violation.rule ?? 'Z-UNKNOWN',

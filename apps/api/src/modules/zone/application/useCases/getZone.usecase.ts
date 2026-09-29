@@ -1,4 +1,4 @@
-import type { ZoneDto } from '@Cabzone/contracts';
+import type { ZoneDto } from '@cabzone/contracts';
 import { AppError } from '../../../../shared/errors/AppError.js';
 import type { ZoneRepositoryPort } from '../../domain/index.js';
 import { zoneEntityToDto } from '../../domain/index.js';

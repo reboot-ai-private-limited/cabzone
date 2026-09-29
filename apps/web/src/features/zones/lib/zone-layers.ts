@@ -1,5 +1,5 @@
-import type { ZoneDto } from '@Cabzone/contracts';
-import { colors } from '@Cabzone/design-system';
+import type { ZoneDto } from '@cabzone/contracts';
+import { colors } from '@cabzone/design-system';
 import type { FeatureCollection, Geometry, Polygon } from 'geojson';
 
 /**

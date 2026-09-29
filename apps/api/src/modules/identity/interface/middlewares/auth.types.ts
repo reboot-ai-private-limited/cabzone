@@ -1,4 +1,4 @@
-import type { AuthContext } from '@Cabzone/contracts';
+import type { AuthContext } from '@cabzone/contracts';
 
 declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace

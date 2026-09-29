@@ -1,5 +1,5 @@
 import mongoose, { type Document, Schema } from 'mongoose';
-import { EXTENSION_STATUSES, type ExtensionStatus } from '@Cabzone/contracts';
+import { EXTENSION_STATUSES, type ExtensionStatus } from '@cabzone/contracts';
 
 export interface RideExtensionDocument extends Document<string> {
   _id: string;

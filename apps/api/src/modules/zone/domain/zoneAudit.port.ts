@@ -1,4 +1,4 @@
-import type { ZoneAuditAction, ZoneAuditDto } from '@Cabzone/contracts';
+import type { ZoneAuditAction, ZoneAuditDto } from '@cabzone/contracts';
 
 export interface ZoneAuditEntity {
   id: string;

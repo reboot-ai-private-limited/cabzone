@@ -4,7 +4,7 @@ import {
   RIDE_STATUSES,
   type RideEventActor,
   type RideStatus,
-} from '@Cabzone/contracts';
+} from '@cabzone/contracts';
 
 export interface RideEventDocument extends Document<string> {
   _id: string;

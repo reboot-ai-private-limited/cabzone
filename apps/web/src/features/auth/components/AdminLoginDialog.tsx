@@ -11,7 +11,7 @@ import {
   ShieldCheck,
   X,
 } from 'lucide-react';
-import { Badge, Button, Input } from '@Cabzone/design-system';
+import { Badge, Button, Input } from '@cabzone/design-system';
 import { requestOtp, verifyOtp } from '../lib/authApi.js';
 
 interface AdminLoginDialogProps {

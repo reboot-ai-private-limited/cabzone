@@ -1,4 +1,4 @@
-const base = require('@Cabzone/config/eslint.base.cjs');
+const base = require('@cabzone/config/eslint.base.cjs');
 
 module.exports = {
   ...base,

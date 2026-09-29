@@ -4,7 +4,7 @@ import type {
   ZoneDto,
   ZoneStatus,
   ZoneType,
-} from '@Cabzone/contracts';
+} from '@cabzone/contracts';
 export {
   distancePointToSegmentM,
   distanceToPolygonM,
@@ -24,7 +24,7 @@ export {
   validateCoordinates,
   validateGeometry,
   Z_CODES,
-} from '@Cabzone/geo';
+} from '@cabzone/geo';
 
 export interface ZoneEntity {
   id: string;

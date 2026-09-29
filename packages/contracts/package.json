@@ -1,5 +1,5 @@
 {
-  "name": "@Cabzone/contracts",
+  "name": "@cabzone/contracts",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -11,10 +11,10 @@
     "lint": "eslint src --ext .ts"
   },
   "dependencies": {
-    "@Cabzone/geo": "workspace:*"
+    "@cabzone/geo": "workspace:*"
   },
   "devDependencies": {
-    "@Cabzone/config": "workspace:*",
+    "@cabzone/config": "workspace:*",
     "typescript": "^5.7.2"
   }
 }

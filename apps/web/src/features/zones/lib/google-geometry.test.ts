@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Position } from '@Cabzone/geo';
+import type { Position } from '@cabzone/geo';
 import { bboxToBounds, pathToPolygon, polygonToPath, type PathLike } from './google-geometry';
 
 /**

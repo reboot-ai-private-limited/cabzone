@@ -1,7 +1,7 @@
 /**
  * Design tokens — the ONE file shared between web and native.
  *
- * Plain values, no imports. That is what lets @Cabzone/mobile-ui consume it without
+ * Plain values, no imports. That is what lets @cabzone/mobile-ui consume it without
  * pulling a single web dependency into a React Native bundle. Components cannot be shared
  * across the two (a `div` is not a `View`); the values behind them can and should be.
  *

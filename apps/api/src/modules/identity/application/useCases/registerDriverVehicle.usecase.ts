@@ -1,4 +1,4 @@
-import type { VehicleCategory } from '@Cabzone/contracts';
+import type { VehicleCategory } from '@cabzone/contracts';
 import { newUuid } from '../../../../shared/ids.js';
 import { AppError } from '../../../../shared/errors/AppError.js';
 import type {

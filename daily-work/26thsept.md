@@ -105,8 +105,8 @@ Domain -> Geometry/Validation Engine -> Repository -> Admin API
 -> Audit/Versioning -> Zone Resolution -> Admin Web UI
 ```
 
-### 1. Shared Geometry Engine (`@Cabzone/geo`)
-- Created `@Cabzone/geo` workspace package with 25 unit tests (`test/geo.test.ts`):
+### 1. Shared Geometry Engine (`@cabzone/geo`)
+- Created `@cabzone/geo` workspace package with 25 unit tests (`test/geo.test.ts`):
   - **Coordinates (`coords.ts`):** `toPosition`, `fromPosition`, `toGeoJsonPoint`, `haversineDistanceM`, `validateCoordinates` (detecting swapped coordinate inversions).
   - **Polygon (`polygon.ts`):** `GeoJsonPolygon`, `GeoJsonMultiPolygon`, `BoundingBox`, `getCentroid`, `distancePointToSegmentM`, `distanceToPolygonM`.
   - **Point-in-Polygon (`point-in-polygon.ts`):** Ray-casting point containment for polygons with interior exclusion holes and multi-polygons.

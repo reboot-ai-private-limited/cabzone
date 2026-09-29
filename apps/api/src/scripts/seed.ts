@@ -1,4 +1,4 @@
-import { validateGeometry, type GeoJsonPolygon } from '@Cabzone/geo';
+import { validateGeometry, type GeoJsonPolygon } from '@cabzone/geo';
 import { env } from '../config/env.js';
 import {
   AdminUserModel,

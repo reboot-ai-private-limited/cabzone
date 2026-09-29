@@ -14,11 +14,11 @@ Cabzone defines three distinct runtime environments:
 
 The monorepo uses Turborepo to coordinate builds across packages:
 
-- **`apps/api` (`@Cabzone/api`)**:
+- **`apps/api` (`@cabzone/api`)**:
   - Validates types via `tsc --noEmit`.
   - Bundles via `esbuild.config.mjs` into `dist/server.js` (HTTP & WebSocket API) and `dist/worker.js` (BullMQ background worker).
-  - Shared workspace packages (`@Cabzone/*`) are bundled in-line; external third-party dependencies remain external for native node_modules resolution.
-- **`apps/web` (`@Cabzone/web`)**:
+  - Shared workspace packages (`@cabzone/*`) are bundled in-line; external third-party dependencies remain external for native node_modules resolution.
+- **`apps/web` (`@cabzone/web`)**:
   - Compiles via `next build` with `output: 'standalone'`, creating a minimal traced production server artifact at `apps/web/.next/standalone`.
 - **`packages/*`**:
   - Zero-build architecture. Raw TypeScript source is exported (`./src/index.ts`) and compiled on-the-fly by consumer build tools.
@@ -70,7 +70,7 @@ Pull Request
       ↓
 Turborepo CI Pipeline:
   ├── pnpm turbo run typecheck   (Static type safety across all packages)
-  ├── pnpm --filter @Cabzone/api lint:deps (dependency-cruiser architecture gate)
+  ├── pnpm --filter @cabzone/api lint:deps (dependency-cruiser architecture gate)
   ├── pnpm turbo run lint        (ESLint across all apps and packages)
   ├── pnpm turbo run test        (Vitest unit test suites)
   └── pnpm turbo run build       (Production artifact compilation)

@@ -1,7 +1,7 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import type { ListZonesQuery } from '@Cabzone/contracts';
+import type { ListZonesQuery } from '@cabzone/contracts';
 import { zonesApi } from '@/lib/api/endpoints/zones';
 import { authedQueryOptions } from '@/lib/query/factory';
 import { keys, staleTime } from '@/lib/query/keys';

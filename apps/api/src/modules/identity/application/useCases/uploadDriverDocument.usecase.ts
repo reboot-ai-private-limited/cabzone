@@ -1,4 +1,4 @@
-import type { DocumentType } from '@Cabzone/contracts';
+import type { DocumentType } from '@cabzone/contracts';
 import { newUuid } from '../../../../shared/ids.js';
 import { AppError } from '../../../../shared/errors/AppError.js';
 import type {

@@ -6,7 +6,7 @@ import {
   DRIVER_STATUSES,
   VEHICLE_CATEGORIES,
   VEHICLE_VERIFICATION_STATUSES,
-} from '@Cabzone/contracts';
+} from '@cabzone/contracts';
 import { registry, successResponse, errorResponse, bearerAuth } from '@/shared/http/swagger.util.js';
 import {
   requestOtpSchema,

@@ -1,4 +1,4 @@
-import { normalizeWinding, type Polygon, type Position } from '@Cabzone/geo';
+import { normalizeWinding, type Polygon, type Position } from '@cabzone/geo';
 
 /**
  * Between Google's polygon paths and GeoJSON. Two conventions differ, and BOTH of them differ

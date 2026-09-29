@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   calculateCommissionPaise,
   calculateNegotiationBounds,
-} from '@Cabzone/contracts';
+} from '@cabzone/contracts';
 import {
   calculateBaseFareEstimate,
   CityZoneModel,

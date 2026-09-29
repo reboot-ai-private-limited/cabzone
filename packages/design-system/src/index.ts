@@ -1,11 +1,11 @@
 /**
  * Web-only React components and the design tokens.
  *
- * Native equivalents live in @Cabzone/mobile-ui, which consumes `./tokens` alone — that
+ * Native equivalents live in @cabzone/mobile-ui, which consumes `./tokens` alone — that
  * subpath imports nothing, which is what keeps a web dependency out of a Metro bundle.
  * See docs/engineering/shared-packages.md.
  *
- * The theme is a separate export: `@Cabzone/design-system/theme.css`.
+ * The theme is a separate export: `@cabzone/design-system/theme.css`.
  *
  * EVERY COMPONENT HERE CARRIES `'use client'`. Most of them genuinely need it — hooks, Radix
  * context, event handlers — and marking the handful that do not would give the package two
@@ -14,7 +14,7 @@
  * a design system whose components are all client components costs it nothing.
  *
  * `tokens.ts` is the exception and stays a plain module: it has no React in it at all, which
- * is what lets @Cabzone/mobile-ui consume it from a Metro bundle.
+ * is what lets @cabzone/mobile-ui consume it from a Metro bundle.
  */
 export * from './tokens';
 

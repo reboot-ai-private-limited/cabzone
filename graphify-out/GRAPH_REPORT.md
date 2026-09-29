@@ -328,15 +328,15 @@
 
 ### Community 0 - "web/package.json"
 Cohesion: 0.09
-Nodes (22): @Cabzone/config, @Cabzone/contracts, @Cabzone/geo, lucide-react, react, react-dom, @types/node, @types/react (+14 more)
+Nodes (22): @cabzone/config, @cabzone/contracts, @cabzone/geo, lucide-react, react, react-dom, @types/node, @types/react (+14 more)
 
 ### Community 1 - "package.json"
 Cohesion: 0.04
-Nodes (47): devDependencies, @Cabzone/config, eslint, eslint-config-prettier, eslint-plugin-jsx-a11y, eslint-plugin-react, eslint-plugin-react-hooks, prettier (+39 more)
+Nodes (47): devDependencies, @cabzone/config, eslint, eslint-config-prettier, eslint-plugin-jsx-a11y, eslint-plugin-react, eslint-plugin-react-hooks, prettier (+39 more)
 
 ### Community 2 - "api/package.json"
 Cohesion: 0.06
-Nodes (28): @Cabzone/config, @Cabzone/contracts, @Cabzone/geo, @types/node, typescript, vitest, name, private (+20 more)
+Nodes (28): @cabzone/config, @cabzone/contracts, @cabzone/geo, @types/node, typescript, vitest, name, private (+20 more)
 
 ### Community 3 - "ride.model.ts"
 Cohesion: 0.13
@@ -384,7 +384,7 @@ Nodes (31): getEffectiveBufferDistance(), isStatePricingEffective(), StatePricin
 
 ### Community 14 - "dependencies"
 Cohesion: 0.10
-Nodes (20): dependencies, @asteasolutions/zod-to-openapi, bullmq, @Cabzone/contracts, @Cabzone/geo, cookie-parser, cors, dotenv (+12 more)
+Nodes (20): dependencies, @asteasolutions/zod-to-openapi, bullmq, @cabzone/contracts, @cabzone/geo, cookie-parser, cors, dotenv (+12 more)
 
 ### Community 15 - "docker-compose.prod.yml"
 Cohesion: 0.25
@@ -392,7 +392,7 @@ Nodes (12): API Service (Production), Mongo Service (Production), Mongo Replica 
 
 ### Community 16 - "contracts/package.json"
 Cohesion: 0.12
-Nodes (16): dependencies, @Cabzone/geo, devDependencies, @Cabzone/config, typescript, exports, @Cabzone/config, @Cabzone/geo (+8 more)
+Nodes (16): dependencies, @cabzone/geo, devDependencies, @cabzone/config, typescript, exports, @cabzone/config, @cabzone/geo (+8 more)
 
 ### Community 17 - "zone-api.test.ts"
 Cohesion: 0.05
@@ -400,7 +400,7 @@ Nodes (21): LogoutDeps, apps_api_src_modules_identity_domain_index_sessionentity
 
 ### Community 18 - "Monorepo Layout"
 Cohesion: 0.20
-Nodes (12): esbuild Bundle (server.js + worker.js), Turborepo CI/CD Pipeline, Admin Web Console (Next.js 15 App Router), API Client SDK (HttpSuccessBody / ApiError), apps/api (@Cabzone/api), apps/web (@Cabzone/web), Clean Architecture Modular Monolith, Monorepo Layout (+4 more)
+Nodes (12): esbuild Bundle (server.js + worker.js), Turborepo CI/CD Pipeline, Admin Web Console (Next.js 15 App Router), API Client SDK (HttpSuccessBody / ApiError), apps/api (@cabzone/api), apps/web (@cabzone/web), Clean Architecture Modular Monolith, Monorepo Layout (+4 more)
 
 ### Community 19 - "identity.ts"
 Cohesion: 0.13
@@ -440,7 +440,7 @@ Nodes (6): Critical E2E User Flows, Edge-Case Testing Matrix, Adapter & Infrastr
 
 ### Community 28 - "contracts/tsconfig.json"
 Cohesion: 0.29
-Nodes (6): compilerOptions, module, moduleResolution, extends, include, @Cabzone/config/tsconfig.base.json
+Nodes (6): compilerOptions, module, moduleResolution, extends, include, @cabzone/config/tsconfig.base.json
 
 ### Community 29 - "Technology Stack"
 Cohesion: 0.20
@@ -640,7 +640,7 @@ Nodes (51): actionLabel(), applyConfigureBarChrome(), bindConfigureCountPillTool
 
 ### Community 106 - "design-system/package.json"
 Cohesion: 0.07
-Nodes (27): devDependencies, @Cabzone/config, @types/react, typescript, vitest, exports, ./theme.css, ./tokens (+19 more)
+Nodes (27): devDependencies, @cabzone/config, @types/react, typescript, vitest, exports, ./theme.css, ./tokens (+19 more)
 
 ### Community 107 - "Cabzone-zones-full-implementation-plan.md"
 Cohesion: 0.04
@@ -696,7 +696,7 @@ Nodes (43): apps_api_src_modules_ledger_index_memorywalletrepository, apps_api_s
 
 ### Community 120 - "devDependencies"
 Cohesion: 0.12
-Nodes (16): devDependencies, @Cabzone/config, dependency-cruiser, esbuild, mongodb-memory-server, pino-pretty, supertest, tsx (+8 more)
+Nodes (16): devDependencies, @cabzone/config, dependency-cruiser, esbuild, mongodb-memory-server, pino-pretty, supertest, tsx (+8 more)
 
 ### Community 121 - "isDriverEligibleForNewRides"
 Cohesion: 0.11
@@ -780,7 +780,7 @@ Nodes (17): 48. Implementation Phases, Phase 0 â€” Architecture Lock, Phase 10 â
 
 ### Community 141 - "geo/package.json"
 Cohesion: 0.12
-Nodes (16): devDependencies, @Cabzone/config, typescript, vitest, exports, @Cabzone/config, typescript, vitest (+8 more)
+Nodes (16): devDependencies, @cabzone/config, typescript, vitest, exports, @cabzone/config, typescript, vitest (+8 more)
 
 ### Community 142 - "animate.md"
 Cohesion: 0.12
@@ -1004,7 +1004,7 @@ Nodes (7): 44. Testing Strategy, API tests, Concurrency tests, Domain tests, Rep
 
 ### Community 197 - "geo/tsconfig.json"
 Cohesion: 0.29
-Nodes (6): compilerOptions, module, moduleResolution, extends, include, @Cabzone/config/tsconfig.base.json
+Nodes (6): compilerOptions, module, moduleResolution, extends, include, @cabzone/config/tsconfig.base.json
 
 ### Community 198 - "29. ANTI-AI-SLOP RULES"
 Cohesion: 0.33
@@ -1124,7 +1124,7 @@ Nodes (13): UploadDriverDocumentDto, isDocumentValid(), DriverDocumentDocument, 
 
 ### Community 230 - "dependencies"
 Cohesion: 0.14
-Nodes (14): dependencies, @Cabzone/contracts, @Cabzone/design-system, @Cabzone/geo, geojson, lucide-react, next, react (+6 more)
+Nodes (14): dependencies, @cabzone/contracts, @cabzone/design-system, @cabzone/geo, geojson, lucide-react, next, react (+6 more)
 
 ### Community 231 - "DateFilter.tsx"
 Cohesion: 0.23
@@ -1144,7 +1144,7 @@ Nodes (11): AdminUserDocument, AdminUserModel, adminUserSchema, ADMIN_ROLES, ADM
 
 ### Community 235 - "devDependencies"
 Cohesion: 0.17
-Nodes (12): devDependencies, @Cabzone/config, postcss, tailwindcss, @tailwindcss/postcss, @types/geojson, @types/google.maps, @types/node (+4 more)
+Nodes (12): devDependencies, @cabzone/config, postcss, tailwindcss, @tailwindcss/postcss, @types/geojson, @types/google.maps, @types/node (+4 more)
 
 ### Community 238 - "dependencies"
 Cohesion: 0.18
@@ -1192,7 +1192,7 @@ Nodes (3): @turf/area, @turf/helpers, @turf/intersect
 
 ### Community 249 - "design-system/tsconfig.json"
 Cohesion: 0.50
-Nodes (3): extends, include, @Cabzone/config/tsconfig.react.json
+Nodes (3): extends, include, @cabzone/config/tsconfig.react.json
 
 ## Knowledge Gaps
 - **1592 isolated node(s):** `MODULE_TIERS`, `layeringRules`, `base`, `pkg`, `external` (+1587 more)

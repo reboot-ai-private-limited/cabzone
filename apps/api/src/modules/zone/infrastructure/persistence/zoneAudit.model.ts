@@ -1,5 +1,5 @@
 import mongoose, { type Document, Schema } from 'mongoose';
-import { ZONE_AUDIT_ACTIONS, type ZoneAuditAction } from '@Cabzone/contracts';
+import { ZONE_AUDIT_ACTIONS, type ZoneAuditAction } from '@cabzone/contracts';
 
 export interface ZoneAuditDocument extends Document<string> {
   _id: string;

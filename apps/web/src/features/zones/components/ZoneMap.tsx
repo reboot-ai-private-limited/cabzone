@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { bbox } from '@turf/bbox';
-import type { ZoneDto } from '@Cabzone/contracts';
-import type { Polygon } from '@Cabzone/geo';
+import type { ZoneDto } from '@cabzone/contracts';
+import type { Polygon } from '@cabzone/geo';
 import { DEFAULT_CENTER, DEFAULT_ZOOM, loadMapLibraries, type MapTypeId } from '../lib/google-maps';
 import { bboxToBounds, pathToPolygon, polygonToPath } from '../lib/google-geometry';
 import {

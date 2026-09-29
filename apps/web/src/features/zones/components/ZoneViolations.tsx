@@ -1,9 +1,9 @@
 'use client';
 
 import { AlertTriangle, CheckCircle2, Crosshair, Loader2, XCircle } from 'lucide-react';
-import type { ZoneViolationDto } from '@Cabzone/contracts';
-import type { Polygon } from '@Cabzone/geo';
-import { Button, cn } from '@Cabzone/design-system';
+import type { ZoneViolationDto } from '@cabzone/contracts';
+import type { Polygon } from '@cabzone/geo';
+import { Button, cn } from '@cabzone/design-system';
 
 /**
  * The live verdict, rendered as the admin draws.
@@ -11,7 +11,7 @@ import { Button, cn } from '@Cabzone/design-system';
  * TWO RULES THIS COMPONENT EXISTS TO ENFORCE:
  *
  * 1. **`message` is rendered verbatim.** It arrives already written for a person — "Overlaps
- *    'Siliguri Central' by 0.42 km²" — from the same `@Cabzone/geo` rule the API refuses the
+ *    'Siliguri Central' by 0.42 km²" — from the same `@cabzone/geo` rule the API refuses the
  *    save with. Building copy from `rule` here would mean a rule added later renders as a blank
  *    or a fallback string (docs/engineering/coding-standards.md §Frontend).
  *

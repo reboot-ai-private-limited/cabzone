@@ -1,4 +1,4 @@
-import type { RideEventActor, RideStatus } from '@Cabzone/contracts';
+import type { RideEventActor, RideStatus } from '@cabzone/contracts';
 
 export interface RideEventEntity {
   id: string;
