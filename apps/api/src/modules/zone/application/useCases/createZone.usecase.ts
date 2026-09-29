@@ -30,9 +30,9 @@ export class CreateZoneUseCase {
   }
 
   async execute(input: CreateZoneInputDto, actorId: string = 'system'): Promise<ZoneDto> {
-    const zoneType = (input.zoneType ?? input.type) as ZoneType;
-    if (!zoneType) {
-      throw AppError.badRequest('Zone type must be provided (CITY, PICKUP, EXCLUSION).');
+    const zoneType = (input.zoneType ?? input.type ?? 'CITY') as ZoneType;
+    if (zoneType !== 'CITY') {
+      throw AppError.badRequest('Zone type must be CITY.');
     }
 
     const rawGeometry = input.geometry ?? input.boundary;
@@ -60,28 +60,11 @@ export class CreateZoneUseCase {
       );
     }
 
-    // 2. Validate Parent City relationships
+    // 2. CITY zones are top-level; they cannot have a parent
     const parentCityZoneId = input.parentCityZoneId ?? null;
 
-    if (zoneType === 'PICKUP') {
-      if (!parentCityZoneId) {
-        throw AppError.badRequest(
-          'INVALID_PARENT_ZONE: PICKUP zone must specify a parent CITY zone.',
-        );
-      }
-      const parent = await this.deps.zoneRepo.findById(parentCityZoneId);
-      if (!parent || parent.zoneType !== 'CITY') {
-        throw AppError.badRequest(
-          'INVALID_PARENT_ZONE: Referenced parent city does not exist or is not a CITY zone.',
-        );
-      }
-    } else if (zoneType === 'CITY' && parentCityZoneId) {
+    if (parentCityZoneId) {
       throw AppError.badRequest('CITY zone cannot have a parent zone.');
-    } else if (parentCityZoneId) {
-      const parent = await this.deps.zoneRepo.findById(parentCityZoneId);
-      if (!parent) {
-        throw AppError.badRequest('INVALID_PARENT_ZONE: Referenced parent zone does not exist.');
-      }
     }
 
     // 3. Format or generate zone code (e.g. SLG_WEST)
@@ -113,7 +96,7 @@ export class CreateZoneUseCase {
       geometry,
       boundary,
       bufferDistanceM: input.bufferDistanceM ?? null,
-      pickupChargeType: input.pickupChargeType ?? (zoneType === 'PICKUP' ? 'FREE' : null),
+      pickupChargeType: input.pickupChargeType ?? null,
       pickupChargePaise: input.pickupChargePaise ?? null,
       status: 'ACTIVE',
       currentPricingConfigId: input.currentPricingConfigId ?? null,

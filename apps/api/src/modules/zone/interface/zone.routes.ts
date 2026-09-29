@@ -11,6 +11,7 @@ export interface AdminZoneRouterDeps {
   listZones: RequestHandler;
   activateZone: RequestHandler;
   deactivateZone: RequestHandler;
+  deleteZone: RequestHandler;
   getZoneHistory: RequestHandler;
   getZoneDependents: RequestHandler;
 }
@@ -27,6 +28,7 @@ export function buildAdminZoneRouter(deps: AdminZoneRouterDeps): Router {
   router.get('/:id', deps.getZone);
   router.patch('/:id', deps.updateZone);
   router.patch('/:id/geometry', deps.updateZoneGeometry);
+  router.delete('/:id', deps.deleteZone);
   router.post('/:id/activate', deps.activateZone);
   router.post('/:id/deactivate', deps.deactivateZone);
   router.get('/:id/history', deps.getZoneHistory);

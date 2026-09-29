@@ -371,7 +371,7 @@ interface DriverBid {
 
 ---
 
-## 4. Key Architectural Patterns & Takeaways for Cabzone
+## 4. Key Architectural Patterns & Takeaways for Cabzonee
 
 1. **Two-Way Negotiation as Friction Reducer, Not Barrier:**
    - The algorithmic "Recommended fare" provides a psychological anchor for both riders and drivers, preventing extreme market stalls.

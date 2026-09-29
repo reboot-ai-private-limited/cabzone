@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "@cabzone/design-system/theme.css";
+@source "../../../../packages/design-system/src";
 
 /* System base layer defaults */
 :root {

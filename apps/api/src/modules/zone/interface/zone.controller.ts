@@ -5,6 +5,7 @@ import type {
   ActivateZoneUseCase,
   CreateZoneUseCase,
   DeactivateZoneUseCase,
+  DeleteZoneUseCase,
   GetZoneDependentsUseCase,
   GetZoneHistoryUseCase,
   GetZoneUseCase,
@@ -125,5 +126,14 @@ export function makeResolveZonesController(useCase: ResolveZonesUseCase): Reques
     const parsed = resolveZonesRequestSchema.parse(req.body);
     const result = await useCase.execute(parsed);
     sendSuccess(req, res, result, 'Zones resolved successfully', 200);
+  });
+}
+
+export function makeDeleteZoneController(useCase: DeleteZoneUseCase): RequestHandler {
+  return asyncHandler(async (req: Request, res: Response) => {
+    const { id } = zoneIdParamSchema.parse(req.params);
+    const actorId = req.auth?.userId ?? 'system';
+    await useCase.execute(id, actorId);
+    sendSuccess(req, res, { id }, 'Zone deleted successfully', 200);
   });
 }

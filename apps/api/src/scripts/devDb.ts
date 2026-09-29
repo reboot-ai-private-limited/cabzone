@@ -16,7 +16,7 @@ async function startDevDb() {
     ],
   });
 
-  const uri = replSet.getUri('Cabzone_dev');
+  const uri = replSet.getUri('Cabzonee_dev');
   console.log(`[dev-db] Embedded MongoDB replica set ready!`);
   console.log(`[dev-db] URI: ${uri}`);
   console.log(`[dev-db] Press Ctrl+C to stop.`);

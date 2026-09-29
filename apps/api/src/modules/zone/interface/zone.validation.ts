@@ -48,19 +48,6 @@ export const createZoneSchema = z
     currentPricingConfigId: z.string().uuid().nullable().optional(),
   })
   .refine(
-    (data) => {
-      const resolvedType = data.zoneType ?? data.type;
-      if (!resolvedType) return false;
-      if (resolvedType === 'PICKUP' && !data.parentCityZoneId) {
-        return false;
-      }
-      return true;
-    },
-    {
-      message: 'PICKUP zone must specify a valid parentCityZoneId referencing its parent CITY.',
-    },
-  )
-  .refine(
     (data) => Boolean(data.geometry || data.boundary),
     {
       message: 'Zone geometry or boundary is required.',
@@ -88,7 +75,7 @@ export const updateZoneSchema = z.object({
 });
 
 export const updateZoneGeometrySchema = z.object({
-  expectedVersion: z.number().int().min(1),
+  expectedVersion: z.number().int().min(1).optional(),
   geometry: geoJsonGeometrySchema,
 });
 
@@ -114,5 +101,4 @@ export const resolveZonesRequestSchema = z.object({
   pickup: geoPointSchema,
   drop: geoPointSchema,
   riderId: z.string().uuid().optional(),
-  throwOnExclusion: z.boolean().optional(),
 });

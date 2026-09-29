@@ -3,11 +3,14 @@ import {
   ActivateZoneUseCase,
   CreateZoneUseCase,
   DeactivateZoneUseCase,
+  DeleteZoneUseCase,
   GetZoneDependentsUseCase,
   GetZoneHistoryUseCase,
   GetZoneUseCase,
   ListZonesUseCase,
   ResolveZonesUseCase,
+  ServiceClassificationUseCase,
+  type ServiceabilityGuard,
   UpdateZoneGeometryUseCase,
   UpdateZoneMetadataUseCase,
   UpdateZoneUseCase,
@@ -30,6 +33,7 @@ import {
   makeActivateZoneController,
   makeCreateZoneController,
   makeDeactivateZoneController,
+  makeDeleteZoneController,
   makeGetZoneController,
   makeGetZoneDependentsController,
   makeGetZoneHistoryController,
@@ -52,9 +56,11 @@ export interface ZoneContainer {
   listZonesUseCase: ListZonesUseCase;
   activateZoneUseCase: ActivateZoneUseCase;
   deactivateZoneUseCase: DeactivateZoneUseCase;
+  deleteZoneUseCase: DeleteZoneUseCase;
   getZoneHistoryUseCase: GetZoneHistoryUseCase;
   getZoneDependentsUseCase: GetZoneDependentsUseCase;
   resolveZonesUseCase: ResolveZonesUseCase;
+  serviceClassificationUseCase: ServiceClassificationUseCase;
   zoneRepo: ZoneRepositoryPort;
   auditRepo: ZoneAuditRepositoryPort;
   coverageRepo?: CoverageRequestRepositoryPort | undefined;
@@ -67,6 +73,7 @@ export interface ZoneContainerDeps {
   auditRepo?: ZoneAuditRepositoryPort | undefined;
   coverageRepo?: CoverageRequestRepositoryPort | undefined;
   globalDefaultBufferM?: number | undefined;
+  serviceabilityGuard?: ServiceabilityGuard | undefined;
 }
 
 export function buildZoneContainer(deps?: ZoneContainerDeps): ZoneContainer {
@@ -96,12 +103,18 @@ export function buildZoneContainer(deps?: ZoneContainerDeps): ZoneContainer {
   const listZonesUseCase = new ListZonesUseCase({ zoneRepo });
   const activateZoneUseCase = new ActivateZoneUseCase({ zoneRepo, auditRepo });
   const deactivateZoneUseCase = new DeactivateZoneUseCase({ zoneRepo, auditRepo });
+  const deleteZoneUseCase = new DeleteZoneUseCase({ zoneRepo, auditRepo });
   const getZoneHistoryUseCase = new GetZoneHistoryUseCase({ zoneRepo, auditRepo });
   const getZoneDependentsUseCase = new GetZoneDependentsUseCase({ zoneRepo });
   const resolveZonesUseCase = new ResolveZonesUseCase({
     zoneRepo,
     coverageRepo,
     globalDefaultBufferM: deps?.globalDefaultBufferM,
+  });
+  const serviceClassificationUseCase = new ServiceClassificationUseCase({
+    resolveZonesUseCase,
+    globalDefaultBufferM: deps?.globalDefaultBufferM,
+    serviceabilityGuard: deps?.serviceabilityGuard,
   });
 
   const createZone = makeCreateZoneController(createZoneUseCase);
@@ -112,6 +125,7 @@ export function buildZoneContainer(deps?: ZoneContainerDeps): ZoneContainer {
   const listZones = makeListZonesController(listZonesUseCase);
   const activateZone = makeActivateZoneController(activateZoneUseCase);
   const deactivateZone = makeDeactivateZoneController(deactivateZoneUseCase);
+  const deleteZone = makeDeleteZoneController(deleteZoneUseCase);
   const getZoneHistory = makeGetZoneHistoryController(getZoneHistoryUseCase);
   const getZoneDependents = makeGetZoneDependentsController(getZoneDependentsUseCase);
   const resolveZones = makeResolveZonesController(resolveZonesUseCase);
@@ -126,9 +140,11 @@ export function buildZoneContainer(deps?: ZoneContainerDeps): ZoneContainer {
     listZonesUseCase,
     activateZoneUseCase,
     deactivateZoneUseCase,
+    deleteZoneUseCase,
     getZoneHistoryUseCase,
     getZoneDependentsUseCase,
     resolveZonesUseCase,
+    serviceClassificationUseCase,
     zoneRepo,
     auditRepo,
     coverageRepo,
@@ -143,6 +159,7 @@ export function buildZoneContainer(deps?: ZoneContainerDeps): ZoneContainer {
         listZones,
         activateZone,
         deactivateZone,
+        deleteZone,
         getZoneHistory,
         getZoneDependents,
       }),

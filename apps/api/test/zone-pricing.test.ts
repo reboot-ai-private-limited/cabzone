@@ -225,7 +225,7 @@ describe('Pricing & Zone Boundary Validations (Zod Schemas)', () => {
       negotiationFloorPercent: 80,
       negotiationCeilingPercent: 150,
       commissionPercent: 10,
-      effectiveFrom: new Date(),
+      effectiveFrom: new Date().toISOString(),
       createdByAdminId: '018f0a00-0000-7000-8000-000000000099',
     };
     expect(createPricingConfigSchema.safeParse(valid).success).toBe(true);
@@ -255,7 +255,7 @@ describe('Pricing & Zone Boundary Validations (Zod Schemas)', () => {
       ratePerKmPaise: 1400,
       baseFarePaise: 4000,
       minimumFarePaise: 6000,
-      effectiveFrom: new Date(),
+      effectiveFrom: new Date().toISOString(),
     };
     expect(createStatePricingSchema.safeParse(valid).success).toBe(true);
   });

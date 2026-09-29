@@ -5,19 +5,6 @@ import { distanceToPolygonM, isPointInGeometry } from '../../domain/index.js';
 export class MemoryZoneRepository implements ZoneRepositoryPort {
   private readonly zones = new Map<string, ZoneEntity>();
 
-  async findActiveExclusionsContainingPoint(point: GeoPoint): Promise<ZoneEntity[]> {
-    const results: ZoneEntity[] = [];
-    for (const zone of this.zones.values()) {
-      if (zone.zoneType === 'EXCLUSION' && zone.status === 'ACTIVE') {
-        const geom = zone.geometry ?? zone.boundary;
-        if (geom && isPointInGeometry(point, geom)) {
-          results.push({ ...zone });
-        }
-      }
-    }
-    return results;
-  }
-
   async findActiveCitiesContainingPoint(point: GeoPoint): Promise<ZoneEntity[]> {
     const results: ZoneEntity[] = [];
     for (const zone of this.zones.values()) {
@@ -31,30 +18,12 @@ export class MemoryZoneRepository implements ZoneRepositoryPort {
     return results;
   }
 
-  async findActivePickupsContainingPoint(point: GeoPoint): Promise<ZoneEntity[]> {
-    const results: ZoneEntity[] = [];
-    for (const zone of this.zones.values()) {
-      if (zone.zoneType === 'PICKUP' && zone.status === 'ACTIVE') {
-        const geom = zone.geometry ?? zone.boundary;
-        if (geom && isPointInGeometry(point, geom)) {
-          results.push({ ...zone });
-        }
-      }
-    }
-    return results;
+  async findActivePickupsContainingPoint(_point: GeoPoint): Promise<ZoneEntity[]> {
+    return [];
   }
 
-  async findActiveHillsContainingPoint(point: GeoPoint): Promise<ZoneEntity[]> {
-    const results: ZoneEntity[] = [];
-    for (const zone of this.zones.values()) {
-      if (zone.zoneType === 'HILL' && zone.status === 'ACTIVE') {
-        const geom = zone.geometry ?? zone.boundary;
-        if (geom && isPointInGeometry(point, geom)) {
-          results.push({ ...zone });
-        }
-      }
-    }
-    return results;
+  async findActiveHillsContainingPoint(_point: GeoPoint): Promise<ZoneEntity[]> {
+    return [];
   }
 
   async findNearestActiveCity(point: GeoPoint): Promise<ZoneEntity | null> {
@@ -102,6 +71,10 @@ export class MemoryZoneRepository implements ZoneRepositoryPort {
     };
     this.zones.set(zone.id, entity);
     return { ...entity };
+  }
+
+  async deleteById(id: string): Promise<boolean> {
+    return this.zones.delete(id);
   }
 
   async list(filter?: ZoneFilter): Promise<ZoneEntity[]> {

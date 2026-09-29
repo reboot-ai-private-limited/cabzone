@@ -35,15 +35,29 @@ export function Dialog({
   return (
     <Radix.Root open={open} onOpenChange={onOpenChange}>
       <Radix.Portal>
-        <Radix.Overlay className="fixed inset-0 z-50 bg-text/30" />
+        {/* The overlay is itself the centering container: flexbox, no transforms or offsets. */}
+        <Radix.Overlay
+          className="bg-text/50 backdrop-blur-[2px]"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 50,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1rem',
+            overflowY: 'auto',
+          }}
+        >
         <Radix.Content
+          style={{ width: '100%', maxHeight: 'calc(100dvh - 2rem)' }}
           className={cn(
-            'fixed left-1/2 top-1/2 z-50 w-full max-w-lg -translate-x-1/2 -translate-y-1/2',
-            'bg-surface border border-border-strong rounded-md',
+            'relative flex flex-col max-w-lg',
+            'bg-surface border border-border-strong rounded-lg shadow-2xl overflow-hidden outline-none',
             className,
           )}
         >
-          <header className="flex items-start justify-between gap-4 px-4 py-2 border-b border-border">
+          <header className="shrink-0 flex items-start justify-between gap-4 px-5 py-3.5 border-b border-border bg-surface">
             <div className="flex flex-col gap-1">
               <Radix.Title className="text-sm font-semibold text-text">{title}</Radix.Title>
               {description !== undefined && (
@@ -56,21 +70,26 @@ export function Dialog({
               <button
                 type="button"
                 aria-label="Close"
-                className="text-text-subtle hover:text-text p-1 -m-1 rounded-sm"
+                className="text-text-subtle hover:text-text p-1 -m-1 rounded-sm transition-colors focus-visible:outline-2 focus-visible:outline-interactive"
               >
                 <X aria-hidden className="size-4" />
               </button>
             </Radix.Close>
           </header>
 
-          {children !== undefined && <div className="px-4 py-4">{children}</div>}
+          {children !== undefined && (
+            <div className="flex-1 overflow-y-auto min-h-0 px-5 py-4">
+              {children}
+            </div>
+          )}
 
           {footer !== undefined && (
-            <footer className="flex items-center justify-end gap-2 px-4 py-2 border-t border-border">
+            <footer className="shrink-0 flex items-center justify-end gap-2 px-5 py-3 border-t border-border bg-surface">
               {footer}
             </footer>
           )}
         </Radix.Content>
+        </Radix.Overlay>
       </Radix.Portal>
     </Radix.Root>
   );

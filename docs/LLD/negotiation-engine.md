@@ -1,4 +1,4 @@
-# Cabzone — Negotiation Engine
+# Cabzonee — Negotiation Engine
 
 **Document:** `docs/LLD/negotiation-engine.md`  
 **Status:** Draft for Engineering Review  

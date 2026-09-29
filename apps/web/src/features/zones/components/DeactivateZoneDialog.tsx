@@ -61,8 +61,8 @@ export function DeactivateZoneDialog({
     >
       <p className="mt-3 text-xs text-text-subtle">
         The zone is deactivated, not deleted — bookings that resolved against it keep their
-        reference, and their fare snapshot records the geometry they were quoted on. Permanent
-        removal is a separate action and only works once a zone is already inactive.
+        reference, and their fare snapshot records the geometry they were quoted on.
+        You can delete a zone permanently with the Delete action.
       </p>
     </ConfirmDialog>
   );

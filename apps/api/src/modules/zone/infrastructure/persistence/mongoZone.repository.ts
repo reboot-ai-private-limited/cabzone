@@ -3,26 +3,6 @@ import type { ZoneEntity, ZoneFilter, ZoneRepositoryPort } from '../../domain/in
 import { ZoneModel, type ZoneDocument } from './zone.model.js';
 
 export class MongoZoneRepository implements ZoneRepositoryPort {
-  async findActiveExclusionsContainingPoint(point: GeoPoint): Promise<ZoneEntity[]> {
-    const geoPoint = {
-      type: 'Point',
-      coordinates: [point.lng, point.lat],
-    };
-
-    const docs = await ZoneModel.find({
-      zone_type: 'EXCLUSION',
-      status: 'ACTIVE',
-      $or: [
-        { geometry: { $geoIntersects: { $geometry: geoPoint } } },
-        { boundary: { $geoIntersects: { $geometry: geoPoint } } },
-      ],
-    })
-      .lean<ZoneDocument[]>()
-      .exec();
-
-    return docs.map((doc) => this.toEntity(doc));
-  }
-
   async findActiveCitiesContainingPoint(point: GeoPoint): Promise<ZoneEntity[]> {
     const geoPoint = {
       type: 'Point',
@@ -168,6 +148,11 @@ export class MongoZoneRepository implements ZoneRepositoryPort {
     return this.toEntity(doc);
   }
 
+  async deleteById(id: string): Promise<boolean> {
+    const res = await ZoneModel.deleteOne({ _id: id }).exec();
+    return res.deletedCount > 0;
+  }
+
   async list(filter?: ZoneFilter): Promise<ZoneEntity[]> {
     const query = this.buildFilterQuery(filter);
     const docs = await ZoneModel.find(query).sort({ created_at: -1 }).lean<ZoneDocument[]>().exec();
@@ -247,7 +232,7 @@ export class MongoZoneRepository implements ZoneRepositoryPort {
       geometry,
       boundary,
       bufferDistanceM: doc.buffer_distance_m,
-      pickupChargeType: doc.pickup_charge_type ?? (doc.zone_type === 'PICKUP' ? 'FREE' : null),
+      pickupChargeType: doc.pickup_charge_type ?? null,
       pickupChargePaise: doc.pickup_charge_paise ?? null,
       status: doc.status,
       currentPricingConfigId: doc.current_pricing_config_id,

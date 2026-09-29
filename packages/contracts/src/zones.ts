@@ -4,7 +4,7 @@
 export * from '@cabzone/geo';
 import type { GeoJsonGeometry, GeoJsonPolygon, GeoPoint, ZoneViolation } from '@cabzone/geo';
 
-export const ZONE_TYPES = ['CITY', 'PICKUP', 'EXCLUSION', 'HILL'] as const;
+export const ZONE_TYPES = ['CITY'] as const;
 export type ZoneType = (typeof ZONE_TYPES)[number];
 
 export const PICKUP_CHARGE_TYPES = ['FREE', 'PAID'] as const;
@@ -19,6 +19,7 @@ export const ZONE_AUDIT_ACTIONS = [
   'UPDATE_GEOMETRY',
   'ACTIVATE',
   'DEACTIVATE',
+  'DELETE',
 ] as const;
 export type ZoneAuditAction = (typeof ZONE_AUDIT_ACTIONS)[number];
 
@@ -72,14 +73,14 @@ export interface IncityPackageDto {
 export type CityZoneDto = ZoneDto;
 
 export interface ResolvedZones {
-  pickupExclusion: ZoneDto | null;
-  dropExclusion: ZoneDto | null;
-  city: ZoneDto | null;
-  pickupCoverage: ZoneDto | null;
+  city: ZoneDto | null; // Origin city containing pickup
+  destinationCity: ZoneDto | null; // Destination city containing drop
+  isWithinBuffer: boolean; // Drop outside all cities but within origin city's buffer
+  distanceToCityBoundaryM?: number | null;
+  nearestCity: ZoneDto | null;
+  pickupCoverage?: ZoneDto | null;
   dropHill?: ZoneDto | null;
   pickupChargePaise?: number;
-  nearestCity: ZoneDto | null;
-  isWithinBuffer: boolean;
 }
 
 export interface CreateZoneInputDto {
@@ -117,7 +118,7 @@ export interface UpdateZoneInputDto extends UpdateZoneMetadataRequest {
 }
 
 export interface UpdateZoneGeometryRequest {
-  expectedVersion: number;
+  expectedVersion?: number | undefined;
   geometry: GeoJsonGeometry;
 }
 
@@ -166,7 +167,6 @@ export interface ResolveZonesInputDto {
   pickup: GeoPoint;
   drop: GeoPoint;
   riderId?: string | undefined;
-  throwOnExclusion?: boolean | undefined;
 }
 
 export interface CoverageRequestDto {

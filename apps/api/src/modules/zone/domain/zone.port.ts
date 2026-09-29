@@ -12,7 +12,6 @@ export interface ZoneFilter {
 }
 
 export interface ZoneRepositoryPort {
-  findActiveExclusionsContainingPoint(point: GeoPoint): Promise<ZoneEntity[]>;
   findActiveCitiesContainingPoint(point: GeoPoint): Promise<ZoneEntity[]>;
   findActivePickupsContainingPoint(point: GeoPoint): Promise<ZoneEntity[]>;
   findActiveHillsContainingPoint?(point: GeoPoint): Promise<ZoneEntity[]>;
@@ -20,6 +19,7 @@ export interface ZoneRepositoryPort {
   findById(id: string): Promise<ZoneEntity | null>;
   findByCode(code: string): Promise<ZoneEntity | null>;
   save(zone: ZoneEntity): Promise<ZoneEntity>;
+  deleteById(id: string): Promise<boolean>;
   list(filter?: ZoneFilter): Promise<ZoneEntity[]>;
   listPaginated?(filter?: ZoneFilter): Promise<{ items: ZoneEntity[]; total: number }>;
   findHistoryByZoneId?(zoneId: string): Promise<ZoneEntity[]>;

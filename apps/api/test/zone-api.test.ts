@@ -116,19 +116,6 @@ describe('Zone Admin & Resolution HTTP Endpoints', () => {
     ],
   };
 
-  const cantonmentPolygon = {
-    type: 'Polygon' as const,
-    coordinates: [
-      [
-        [88.43, 26.73],
-        [88.44, 26.73],
-        [88.44, 26.74],
-        [88.43, 26.74],
-        [88.43, 26.73],
-      ],
-    ],
-  };
-
   it('rejects unauthenticated requests to admin zone endpoints', async () => {
     const { app } = createTestApp();
 
@@ -206,7 +193,7 @@ describe('Zone Admin & Resolution HTTP Endpoints', () => {
     expect(city.zoneType).toBe('CITY');
     expect(city.status).toBe('ACTIVE');
 
-    // 2. Reject PICKUP zone creation without parentCityZoneId
+    // 2. Reject unsupported zone type creation (e.g. PICKUP is not a persisted zone type)
     const badPickupRes = await request(app)
       .post('/api/v1/admin/zones')
       .set('Authorization', `Bearer ${adminToken}`)
@@ -219,48 +206,7 @@ describe('Zone Admin & Resolution HTTP Endpoints', () => {
 
     expect(badPickupRes.status).toBe(400);
 
-    // 3. Create valid PICKUP zone linked to City
-    const pickupRes = await request(app)
-      .post('/api/v1/admin/zones')
-      .set('Authorization', `Bearer ${adminToken}`)
-      .send({
-        name: 'Siliguri Junction Coverage',
-        zoneType: 'PICKUP',
-        parentCityZoneId: city.id,
-        stateCode: 'WB',
-        boundary: {
-          type: 'Polygon',
-          coordinates: [
-            [
-              [88.42, 26.72],
-              [88.45, 26.72],
-              [88.45, 26.75],
-              [88.42, 26.75],
-              [88.42, 26.72],
-            ],
-          ],
-        },
-      });
-
-    expect(pickupRes.status).toBe(201);
-    const pickupZone = pickupRes.body.data;
-    expect(pickupZone.parentCityZoneId).toBe(city.id);
-
-    // 4. Create EXCLUSION zone
-    const exclusionRes = await request(app)
-      .post('/api/v1/admin/zones')
-      .set('Authorization', `Bearer ${adminToken}`)
-      .send({
-        name: 'Sukna Cantonment Restricted Area',
-        zoneType: 'EXCLUSION',
-        stateCode: 'WB',
-        boundary: cantonmentPolygon,
-      });
-
-    expect(exclusionRes.status).toBe(201);
-    const exclusionZone = exclusionRes.body.data;
-
-    // 5. Get Zone by ID
+    // 3. Get Zone by ID
     const getRes = await request(app)
       .get(`/api/v1/admin/zones/${city.id}`)
       .set('Authorization', `Bearer ${adminToken}`);
@@ -268,7 +214,7 @@ describe('Zone Admin & Resolution HTTP Endpoints', () => {
     expect(getRes.status).toBe(200);
     expect(getRes.body.data.id).toBe(city.id);
 
-    // 6. Update Zone (e.g. deactivate or update buffer)
+    // 4. Update Zone (e.g. update buffer distance)
     const patchRes = await request(app)
       .patch(`/api/v1/admin/zones/${city.id}`)
       .set('Authorization', `Bearer ${adminToken}`)
@@ -279,7 +225,7 @@ describe('Zone Admin & Resolution HTTP Endpoints', () => {
     expect(patchRes.status).toBe(200);
     expect(patchRes.body.data.bufferDistanceM).toBe(30_000);
 
-    // 7. List Zones with filters
+    // 5. List Zones with filters
     const listCitiesRes = await request(app)
       .get('/api/v1/admin/zones?zoneType=CITY')
       .set('Authorization', `Bearer ${adminToken}`);
@@ -293,7 +239,7 @@ describe('Zone Admin & Resolution HTTP Endpoints', () => {
       .set('Authorization', `Bearer ${adminToken}`);
 
     expect(listAllRes.status).toBe(200);
-    expect(listAllRes.body.data.length).toBe(3);
+    expect(listAllRes.body.data.length).toBe(1);
   });
 
   it('resolves zones via public POST /api/v1/zones/resolve', async () => {
@@ -314,23 +260,7 @@ describe('Zone Admin & Resolution HTTP Endpoints', () => {
       updatedAt: new Date(),
     };
 
-    const exclusionZone: ZoneEntity = {
-      id: '018f0a00-0000-7000-8000-000000000003',
-      name: 'Sukna Cantonment',
-      zoneType: 'EXCLUSION',
-      parentCityZoneId: cityZone.id,
-      stateCode: 'WB',
-      boundary: cantonmentPolygon,
-      bufferDistanceM: null,
-      status: 'ACTIVE',
-      currentPricingConfigId: null,
-      version: 1,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-
     await zoneRepo.save(cityZone);
-    await zoneRepo.save(exclusionZone);
 
     // 1. Normal resolution inside city
     const normalRes = await request(app)
@@ -342,33 +272,8 @@ describe('Zone Admin & Resolution HTTP Endpoints', () => {
 
     expect(normalRes.status).toBe(200);
     expect(normalRes.body.data.city?.name).toBe('Siliguri City');
-    expect(normalRes.body.data.pickupExclusion).toBeNull();
-    expect(normalRes.body.data.dropExclusion).toBeNull();
 
-    // 2. Pickup in exclusion zone -> throws 400 Bad Request
-    const excludedPickupRes = await request(app)
-      .post('/api/v1/zones/resolve')
-      .send({
-        pickup: { lat: 26.735, lng: 88.435 },
-        drop: { lat: 26.78, lng: 88.48 },
-      });
-
-    expect(excludedPickupRes.status).toBe(400);
-    expect(excludedPickupRes.body.message).toContain('PICKUP_IN_EXCLUSION_ZONE');
-
-    // 3. Drop in exclusion zone with throwOnExclusion: false -> returns 200 with dropExclusion
-    const nonThrowingRes = await request(app)
-      .post('/api/v1/zones/resolve')
-      .send({
-        pickup: { lat: 26.78, lng: 88.48 },
-        drop: { lat: 26.735, lng: 88.435 },
-        throwOnExclusion: false,
-      });
-
-    expect(nonThrowingRes.status).toBe(200);
-    expect(nonThrowingRes.body.data.dropExclusion?.name).toBe('Sukna Cantonment');
-
-    // 4. Invalid coordinates -> 400 validation error
+    // 2. Invalid coordinates -> 400 validation error
     const badCoordsRes = await request(app)
       .post('/api/v1/zones/resolve')
       .send({
@@ -379,7 +284,7 @@ describe('Zone Admin & Resolution HTTP Endpoints', () => {
     expect(badCoordsRes.status).toBe(400);
   });
 
-  it('handles validation, versioned geometry updates, concurrency, activation, and history', async () => {
+  it('handles validation, in-place geometry updates, activation, and history', async () => {
     const { app, sessionRepo, tokenAdapter } = createTestApp();
     const adminUserId = '018f0a00-0000-7000-8000-000000000001';
     const sessionId = '018f0a00-0000-7000-8000-000000000002';
@@ -421,13 +326,25 @@ describe('Zone Admin & Resolution HTTP Endpoints', () => {
     expect(zoneV1.status).toBe('ACTIVE');
 
     // 2. Dry-run validation endpoint (POST /api/v1/admin/zones/validate)
-    // 2a. Valid geometry dry run
+    // 2a. Valid geometry dry run (a CITY that does not overlap the existing DARJ_CITY)
+    const nonOverlappingPolygon = {
+      type: 'Polygon' as const,
+      coordinates: [
+        [
+          [88.6, 26.5],
+          [88.75, 26.5],
+          [88.75, 26.6],
+          [88.6, 26.6],
+          [88.6, 26.5],
+        ],
+      ],
+    };
     const validValidateRes = await request(app)
       .post('/api/v1/admin/zones/validate')
       .set('Authorization', `Bearer ${adminToken}`)
       .send({
-        type: 'PICKUP',
-        geometry: cantonmentPolygon,
+        type: 'CITY',
+        geometry: nonOverlappingPolygon,
       });
     expect(validValidateRes.status).toBe(200);
     expect(validValidateRes.body.data.valid).toBe(true);
@@ -469,29 +386,10 @@ describe('Zone Admin & Resolution HTTP Endpoints', () => {
 
     expect(updateGeomRes.status).toBe(200);
     const zoneV2 = updateGeomRes.body.data;
-    expect(zoneV2.id).not.toBe(zoneV1.id);
-    expect(zoneV2.version).toBe(2);
-    expect(zoneV2.supersedesZoneId).toBe(zoneV1.id);
+    // Edits overwrite in place: same id, same version, still ACTIVE.
+    expect(zoneV2.id).toBe(zoneV1.id);
+    expect(zoneV2.version).toBe(zoneV1.version);
     expect(zoneV2.status).toBe('ACTIVE');
-
-    // Verify old zone v1 is now INACTIVE
-    const oldZoneRes = await request(app)
-      .get(`/api/v1/admin/zones/${zoneV1.id}`)
-      .set('Authorization', `Bearer ${adminToken}`);
-    expect(oldZoneRes.status).toBe(200);
-    expect(oldZoneRes.body.data.status).toBe('INACTIVE');
-    expect(oldZoneRes.body.data.supersededByZoneId).toBe(zoneV2.id);
-
-    // 4. Concurrency Conflict (Admin B tries to update using stale version 1)
-    const conflictRes = await request(app)
-      .patch(`/api/v1/admin/zones/${zoneV1.id}/geometry`)
-      .set('Authorization', `Bearer ${adminToken}`)
-      .send({
-        expectedVersion: 1,
-        geometry: expandedPolygon,
-      });
-    expect(conflictRes.status).toBe(409);
-    expect(conflictRes.body.message).toContain('ZONE_VERSION_CONFLICT');
 
     // 5. Deactivation & Activation
     // Deactivate v2
@@ -529,7 +427,7 @@ describe('Zone Admin & Resolution HTTP Endpoints', () => {
       .get(`/api/v1/admin/zones/${zoneV2.id}/history`)
       .set('Authorization', `Bearer ${adminToken}`);
     expect(historyRes.status).toBe(200);
-    expect(historyRes.body.data.versions.length).toBeGreaterThanOrEqual(2);
+    expect(historyRes.body.data.versions.length).toBeGreaterThanOrEqual(1);
     expect(historyRes.body.data.auditLogs.length).toBeGreaterThanOrEqual(3);
 
     // 7. Paginated list with search (GET /api/v1/admin/zones?search=darj&page=1&limit=10)
@@ -541,5 +439,15 @@ describe('Zone Admin & Resolution HTTP Endpoints', () => {
     expect(paginatedRes.body.data.pagination.page).toBe(1);
     expect(paginatedRes.body.data.pagination.limit).toBe(10);
     expect(paginatedRes.body.data.items.length).toBeGreaterThanOrEqual(1);
+
+    // 6b. Delete removes the zone permanently
+    const deleteRes = await request(app)
+      .delete(`/api/v1/admin/zones/${zoneV2.id}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(deleteRes.status).toBe(200);
+    const afterDeleteRes = await request(app)
+      .get(`/api/v1/admin/zones/${zoneV2.id}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(afterDeleteRes.status).toBe(404);
   });
 });

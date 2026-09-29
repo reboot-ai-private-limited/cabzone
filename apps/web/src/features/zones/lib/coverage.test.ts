@@ -3,9 +3,7 @@ import type { GeoJsonPolygon, ZoneDto } from '@cabzone/contracts';
 import { pickupCoverageOfCity } from './coverage';
 
 /**
- * The percentage on the city card. It is the one number on the screen that tells an admin
- * whether the city can actually be booked from — zone COUNTS tell them nothing, since two
- * pickup zones can cover everything or one neighbourhood.
+ * The percentage of city area covered by coverage zones.
  */
 
 const box = (west: number, south: number, east: number, north: number): GeoJsonPolygon => ({
@@ -24,7 +22,7 @@ const box = (west: number, south: number, east: number, north: number): GeoJsonP
 function zone(
   id: string,
   geometry: ZoneDto['geometry'],
-  type: ZoneDto['type'] = 'PICKUP',
+  type: ZoneDto['type'] = 'CITY',
 ): ZoneDto {
   return {
     id,

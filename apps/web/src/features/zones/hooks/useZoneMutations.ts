@@ -55,11 +55,10 @@ export function useUpdateZoneMetadata() {
  * is a better confirmation than a message that covers part of what it is confirming.
  */
 export function useUpdateZoneGeometry(onSaved?: (zone: ZoneDto) => void) {
-  return useApiMutation<{ id: string; geometry: Polygon; expectedVersion: number }, ZoneDto>({
+  return useApiMutation<{ id: string; geometry: Polygon }, ZoneDto>({
     call: (token, vars) =>
       zonesApi.updateGeometry(token, vars.id, {
         geometry: vars.geometry,
-        expected_version: vars.expectedVersion,
       }),
     invalidates: [keys.zones.all()],
     ...(onSaved === undefined ? {} : { onSuccess: onSaved }),

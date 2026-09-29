@@ -1,4 +1,4 @@
-# Cabzone — Fare Engine
+# Cabzonee — Fare Engine
 
 **Document:** `docs/LLD/fare-engine.md`  
 **Status:** Draft for Engineering Review  

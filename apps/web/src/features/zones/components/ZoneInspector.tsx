@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ChevronDown, ChevronUp, Download, Pencil, Power, Upload } from 'lucide-react';
+import { ChevronDown, ChevronUp, Download, Pencil, Power, Trash2, Upload } from 'lucide-react';
 import type { ZoneDto, ZoneType } from '@cabzone/contracts';
 import type { Polygon } from '@cabzone/geo';
 import {
@@ -20,10 +20,9 @@ import { ZoneViolations } from './ZoneViolations';
 /**
  * The panel under the map: what this zone is, and — in edit mode — what it is becoming.
  *
- * In Cabzone, zones represent geographic operational control:
- * - CITY: Metropolitan / municipal boundary and fallback distance buffer
- * - PICKUP: Serviceability gate for active ride dispatch
- * - EXCLUSION: Prohibited geographic area where pickups and drops are refused
+ * In Cabzonee, a zone is a CITY: the metropolitan/municipal boundary and its fallback
+ * distance buffer. Multiple active CITY zones can coexist; any point inside one resolves
+ * to that city.
  */
 
 export interface ZoneForm {
@@ -42,11 +41,11 @@ export interface ZoneInspectorProps {
   draft: Polygon | null;
   validation: ZoneValidation;
   saving: boolean;
-  hasParentCity?: boolean;
   onEditGeometry: () => void;
   onImport: () => void;
   onExport: () => void;
   onDeactivate: () => void;
+  onDelete: () => void;
   onShowOnMap: (geometry: Polygon) => void;
   onCancel: () => void;
   onSave: () => void;
@@ -82,7 +81,6 @@ export function ZoneInspector(props: ZoneInspectorProps) {
           <StatusPill status={type} />
           {zone !== null && (
             <>
-              <Badge tone="neutral">v{zone.version}</Badge>
               {!zone.is_active && <Badge tone="neutral">Inactive</Badge>}
             </>
           )}
@@ -121,6 +119,7 @@ function ViewBody({
   onImport,
   onExport,
   onDeactivate,
+  onDelete,
 }: ZoneInspectorProps) {
   if (zone === null) return null;
 
@@ -176,6 +175,15 @@ function ViewBody({
             Deactivate
           </Button>
         )}
+        <Button
+          size="sm"
+          variant="ghost"
+          className={`text-danger${zone.is_active ? '' : ' ml-auto'}`}
+          icon={<Trash2 aria-hidden className="size-3.5" />}
+          onClick={onDelete}
+        >
+          Delete
+        </Button>
       </div>
     </>
   );
@@ -189,7 +197,6 @@ function EditBody({
   draft,
   validation,
   saving,
-  hasParentCity = true,
   onImport,
   onShowOnMap,
   onCancel,
@@ -199,25 +206,15 @@ function EditBody({
   const set = <K extends keyof ZoneForm>(key: K, value: ZoneForm[K]): void =>
     onFormChange({ ...form, [key]: value });
 
-  const isMissingCity = creating && type === 'PICKUP' && !hasParentCity;
-
-  // Save is blocked on an ERROR, missing city for pickup, or missing fields.
+  // Save is blocked on an ERROR or missing fields.
   const blocked =
     draft === null ||
     validation.errors.length > 0 ||
     form.name.trim() === '' ||
-    form.code.trim() === '' ||
-    isMissingCity;
+    form.code.trim() === '';
 
   return (
     <>
-      {isMissingCity && (
-        <div className="p-3 bg-danger/10 border border-danger/30 rounded-sm text-xs text-danger">
-          <strong>Missing Parent City:</strong> A PICKUP zone must reference an active CITY zone.
-          Please create a City boundary before adding pickup coverage.
-        </div>
-      )}
-
       <div className="grid grid-cols-2 gap-3">
         <FormField label="Zone Name" required>
           {({ id, invalid }) => (
@@ -226,13 +223,7 @@ function EditBody({
               invalid={invalid}
               value={form.name}
               onChange={(event) => set('name', event.target.value)}
-              placeholder={
-                type === 'CITY'
-                  ? 'Siliguri City Area'
-                  : type === 'PICKUP'
-                    ? 'Siliguri Core Pickup'
-                    : 'Military Cantonment Exclusion'
-              }
+              placeholder="Siliguri City Area"
             />
           )}
         </FormField>
@@ -245,13 +236,7 @@ function EditBody({
               aria-describedby={describedBy}
               value={form.code}
               onChange={(event) => set('code', event.target.value.toUpperCase())}
-              placeholder={
-                type === 'CITY'
-                  ? 'SMC-MAIN'
-                  : type === 'PICKUP'
-                    ? 'SLG-PICKUP-CORE'
-                    : 'SLG-EXCL-ARMY'
-              }
+              placeholder="SMC-MAIN"
             />
           )}
         </FormField>

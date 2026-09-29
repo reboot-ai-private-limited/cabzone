@@ -25,5 +25,23 @@ export function buildApiRouter(c: AppContainers): Router {
     }),
   );
   router.use('/v1/zones', c.zone.buildZoneRouter());
+  router.use(
+    '/v1/admin/reference/states',
+    c.stateBoundary.buildAdminStateRouter({
+      authenticate: c.identity.authenticate,
+      requireAdminRole: c.identity.requireRole('SUPER_ADMIN', 'CITY_ADMIN'),
+      requireSuperAdmin: c.identity.requireRole('SUPER_ADMIN'),
+    }),
+  );
+
+  router.use(
+    '/v1/admin/pricing',
+    c.pricing.buildAdminPricingRouter({
+      authenticate: c.identity.authenticate,
+      requireAdminRole: c.identity.requireRole('SUPER_ADMIN', 'CITY_ADMIN'),
+    }),
+  );
+  router.use('/v1/pricing', c.pricing.buildPricingRouter());
+
   return router;
 }

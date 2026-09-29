@@ -104,7 +104,6 @@ export function ZonesTable({ zones, loading, refetching, error, onSelect }: Zone
       const direction = sort.direction === 'asc' ? 1 : -1;
       if (sort.key === 'area')
         return (zoneStats(a.geometry).areaKm2 - zoneStats(b.geometry).areaKm2) * direction;
-      if (sort.key === 'version') return (a.version - b.version) * direction;
       if (sort.key === 'type') return a.type.localeCompare(b.type) * direction;
       return a.name.localeCompare(b.name) * direction;
     });
@@ -146,18 +145,9 @@ export function ZonesTable({ zones, loading, refetching, error, onSelect }: Zone
       render: (zone) => zoneStats(zone.geometry).vertexCount,
     },
     {
-      key: 'version',
-      header: 'Ver',
-      width: COLUMN_WIDTHS[4] ?? '',
-      align: 'right',
-      numeric: true,
-      sortable: true,
-      render: (zone) => zone.version,
-    },
-    {
       key: 'active',
       header: 'Status',
-      width: COLUMN_WIDTHS[5] ?? '',
+      width: COLUMN_WIDTHS[4] ?? '',
       render: (zone) => (
         <Badge tone={zone.is_active ? 'success' : 'neutral'}>
           {zone.is_active ? 'Active' : 'Inactive'}
@@ -184,8 +174,6 @@ export function ZonesTable({ zones, loading, refetching, error, onSelect }: Zone
             options={[
               { value: 'ALL', label: 'All types' },
               { value: 'CITY', label: 'City' },
-              { value: 'PICKUP', label: 'Pickup' },
-              { value: 'EXCLUSION', label: 'Exclusion' },
             ]}
           />
         </FilterField>
@@ -201,7 +189,7 @@ export function ZonesTable({ zones, loading, refetching, error, onSelect }: Zone
             title: zones.length === 0 ? 'No zones yet' : 'No zones match those filters',
             description:
               zones.length === 0
-                ? 'Draw a city boundary and at least one pickup zone before anything can be booked.'
+                ? 'Configure an operational city boundary to establish the origin city.'
                 : 'Try a different type, or clear the search.',
           }}
           skeleton={<SkeletonTable rows={10} columns={COLUMN_WIDTHS} />}

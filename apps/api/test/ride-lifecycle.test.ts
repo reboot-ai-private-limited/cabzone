@@ -488,7 +488,7 @@ describe('Ride Lifecycle: Curbside Arrival & En-Route Progression', () => {
   });
 
   describe('CompleteRideUseCase: Trip Completion & Commission Settlement', () => {
-    it('calculates 8% commission, debits driver wallet via double-entry transaction, sets completedAt/settledAt, and logs TRIP_COMPLETED & RIDE_SETTLED events', async () => {
+    it('calculates 10% commission, debits driver wallet via double-entry transaction, sets completedAt/settledAt, and logs TRIP_COMPLETED & RIDE_SETTLED events', async () => {
       const fixture = setupFixture();
       const { ride } = await createStartedRide(fixture);
 

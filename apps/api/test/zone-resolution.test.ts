@@ -10,7 +10,7 @@ import {
   type ZoneEntity,
 } from '../src/modules/zone/index.js';
 
-describe('Zone Resolution & EXCLUSION Veto Tests', () => {
+describe('Zone Resolution Tests', () => {
   // Test polygons around Siliguri
   // City Polygon: roughly [88.40, 26.70] to [88.50, 26.80]
   const siliguriCityZone: ZoneEntity = {
@@ -39,65 +39,9 @@ describe('Zone Resolution & EXCLUSION Veto Tests', () => {
     updatedAt: new Date(),
   };
 
-  // Pickup pocket inside Siliguri: Junction area [88.42, 26.72] to [88.45, 26.75]
-  const junctionPickupZone: ZoneEntity = {
-    id: '018f0a00-0000-7000-8000-000000000002',
-    name: 'Siliguri Junction Coverage',
-    zoneType: 'PICKUP',
-    parentCityZoneId: siliguriCityZone.id,
-    stateCode: 'WB',
-    boundary: {
-      type: 'Polygon',
-      coordinates: [
-        [
-          [88.42, 26.72],
-          [88.45, 26.72],
-          [88.45, 26.75],
-          [88.42, 26.75],
-          [88.42, 26.72],
-        ],
-      ],
-    },
-    bufferDistanceM: null,
-    status: 'ACTIVE',
-    currentPricingConfigId: null,
-    version: 1,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  };
-
-  // Military Cantonment inside Siliguri: [88.43, 26.73] to [88.44, 26.74]
-  const cantonmentExclusionZone: ZoneEntity = {
-    id: '018f0a00-0000-7000-8000-000000000003',
-    name: 'Sukna / Army Cantonment Restricted Area',
-    zoneType: 'EXCLUSION',
-    parentCityZoneId: siliguriCityZone.id,
-    stateCode: 'WB',
-    boundary: {
-      type: 'Polygon',
-      coordinates: [
-        [
-          [88.43, 26.73],
-          [88.44, 26.73],
-          [88.44, 26.74],
-          [88.43, 26.74],
-          [88.43, 26.73],
-        ],
-      ],
-    },
-    bufferDistanceM: null,
-    status: 'ACTIVE',
-    currentPricingConfigId: null,
-    version: 1,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  };
-
   function setupRepo(): MemoryZoneRepository {
     const repo = new MemoryZoneRepository();
     repo.save(siliguriCityZone);
-    repo.save(junctionPickupZone);
-    repo.save(cantonmentExclusionZone);
     return repo;
   }
 
@@ -113,110 +57,104 @@ describe('Zone Resolution & EXCLUSION Veto Tests', () => {
     ).rejects.toThrow('invalid geographic coordinates');
   });
 
-  it('enforces EXCLUSION absolute veto on pickup', async () => {
+  it('resolves origin city when pickup is inside city boundary', async () => {
     const repo = setupRepo();
     const useCase = new ResolveZonesUseCase({ zoneRepo: repo });
 
-    // Point inside Cantonment: lat 26.735, lng 88.435
-    await expect(
-      useCase.execute({
-        pickup: { lat: 26.735, lng: 88.435 },
-        drop: { lat: 26.76, lng: 88.46 },
-      }),
-    ).rejects.toThrow('PICKUP_IN_EXCLUSION_ZONE');
-  });
-
-  it('enforces EXCLUSION absolute veto on drop', async () => {
-    const repo = setupRepo();
-    const useCase = new ResolveZonesUseCase({ zoneRepo: repo });
-
-    // Drop point inside Cantonment: lat 26.735, lng 88.435
-    await expect(
-      useCase.execute({
-        pickup: { lat: 26.76, lng: 88.46 },
-        drop: { lat: 26.735, lng: 88.435 },
-      }),
-    ).rejects.toThrow('DROP_IN_EXCLUSION_ZONE');
-  });
-
-  it('returns exclusion info without throwing when throwOnExclusion is false', async () => {
-    const repo = setupRepo();
-    const useCase = new ResolveZonesUseCase({ zoneRepo: repo });
-
+    // Inside Siliguri City: lat 26.75, lng 88.45
     const result = await useCase.execute({
-      pickup: { lat: 26.735, lng: 88.435 },
-      drop: { lat: 26.76, lng: 88.46 },
-      throwOnExclusion: false,
-    });
-
-    expect(result.pickupExclusion).not.toBeNull();
-    expect(result.pickupExclusion?.name).toBe('Sukna / Army Cantonment Restricted Area');
-    expect(result.dropExclusion).toBeNull();
-  });
-
-  it('resolves city and pickup zone when inside active service pocket', async () => {
-    const repo = setupRepo();
-    const useCase = new ResolveZonesUseCase({ zoneRepo: repo });
-
-    // Inside Junction pocket: lat 26.725, lng 88.425 (outside cantonment)
-    const result = await useCase.execute({
-      pickup: { lat: 26.725, lng: 88.425 },
+      pickup: { lat: 26.75, lng: 88.45 },
       drop: { lat: 26.76, lng: 88.46 },
     });
 
-    expect(result.pickupExclusion).toBeNull();
-    expect(result.dropExclusion).toBeNull();
     expect(result.city).not.toBeNull();
     expect(result.city?.name).toBe('Siliguri City');
-    expect(result.pickupCoverage).not.toBeNull();
-    expect(result.pickupCoverage?.name).toBe('Siliguri Junction Coverage');
     expect(result.isWithinBuffer).toBe(false);
   });
 
-  it('resolves city when inside city boundary but outside specific pickup pocket', async () => {
+  it('allows pickup outside all cities and marks originCity null', async () => {
     const repo = setupRepo();
     const useCase = new ResolveZonesUseCase({ zoneRepo: repo });
 
-    // Inside Siliguri City: lat 26.78, lng 88.48 (outside junction pocket)
-    const result = await useCase.execute({
-      pickup: { lat: 26.78, lng: 88.48 },
-      drop: { lat: 26.71, lng: 88.41 },
-    });
-
-    expect(result.city?.name).toBe('Siliguri City');
-    expect(result.pickupCoverage).toBeNull();
-    expect(result.isWithinBuffer).toBe(false);
-  });
-
-  it('resolves derived buffer coverage when pickup is outside city but within buffer distance', async () => {
-    const repo = setupRepo();
-    const useCase = new ResolveZonesUseCase({ zoneRepo: repo });
-
-    // Point ~5 km outside Siliguri boundary: lat 26.83, lng 88.45 (Siliguri northern border is 26.80)
-    // 0.03 deg lat ~ 3.3 km, well within 25 km buffer
+    // Pickup outside all cities: lat 26.83, lng 88.45
     const result = await useCase.execute({
       pickup: { lat: 26.83, lng: 88.45 },
       drop: { lat: 26.75, lng: 88.45 },
     });
 
     expect(result.city).toBeNull();
-    expect(result.isWithinBuffer).toBe(true);
     expect(result.nearestCity?.name).toBe('Siliguri City');
   });
 
-  it('marks isWithinBuffer false when pickup is far outside city and outside buffer', async () => {
+  it('evaluates drop destination buffer relative to origin city boundary', async () => {
     const repo = setupRepo();
     const useCase = new ResolveZonesUseCase({ zoneRepo: repo });
 
-    // Point ~100 km away: lat 27.50, lng 88.45 (0.7 deg lat ~ 77 km + distance to polygon > 25km)
+    // Pickup in Siliguri City, drop ~4km outside northern border (26.80) -> within 25km buffer
     const result = await useCase.execute({
-      pickup: { lat: 27.5, lng: 88.45 },
-      drop: { lat: 27.52, lng: 88.46 },
+      pickup: { lat: 26.75, lng: 88.45 },
+      drop: { lat: 26.84, lng: 88.45 },
     });
 
-    expect(result.city).toBeNull();
+    expect(result.city?.name).toBe('Siliguri City');
+    expect(result.isWithinBuffer).toBe(true);
+    expect(result.destinationCity).toBeNull();
+  });
+
+  it('marks isWithinBuffer false when drop is outside origin city buffer distance', async () => {
+    const repo = setupRepo();
+    const useCase = new ResolveZonesUseCase({ zoneRepo: repo });
+
+    // Pickup in Siliguri, drop ~100 km away
+    const result = await useCase.execute({
+      pickup: { lat: 26.75, lng: 88.45 },
+      drop: { lat: 27.5, lng: 88.45 },
+    });
+
+    expect(result.city?.name).toBe('Siliguri City');
     expect(result.isWithinBuffer).toBe(false);
-    expect(result.nearestCity?.name).toBe('Siliguri City');
+  });
+
+  it('marks isWithinBuffer false when drop is inside another active city', async () => {
+    const repo = setupRepo();
+    // Second city: Jalpaiguri
+    const jalpaiguriCity: ZoneEntity = {
+      id: '018f0a00-0000-7000-8000-000000000010',
+      name: 'Jalpaiguri City',
+      zoneType: 'CITY',
+      parentCityZoneId: null,
+      stateCode: 'WB',
+      boundary: {
+        type: 'Polygon',
+        coordinates: [
+          [
+            [88.6, 26.5],
+            [88.75, 26.5],
+            [88.75, 26.6],
+            [88.6, 26.6],
+            [88.6, 26.5],
+          ],
+        ],
+      },
+      bufferDistanceM: 10_000,
+      status: 'ACTIVE',
+      currentPricingConfigId: null,
+      version: 1,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    await repo.save(jalpaiguriCity);
+
+    const useCase = new ResolveZonesUseCase({ zoneRepo: repo });
+    // Pickup in Siliguri, drop in Jalpaiguri
+    const result = await useCase.execute({
+      pickup: { lat: 26.75, lng: 88.45 },
+      drop: { lat: 26.55, lng: 88.65 },
+    });
+
+    expect(result.city?.name).toBe('Siliguri City');
+    expect(result.destinationCity?.name).toBe('Jalpaiguri City');
+    expect(result.isWithinBuffer).toBe(false);
   });
 
   it('ignores inactive zones', async () => {
@@ -231,110 +169,6 @@ describe('Zone Resolution & EXCLUSION Veto Tests', () => {
 
     expect(result.city).toBeNull();
     expect(result.nearestCity).toBeNull();
-  });
-
-  it('resolves dropHill when destination is inside a HILL terrain zone', async () => {
-    const repo = setupRepo();
-    // Darjeeling Hill zone: roughly [88.20, 27.00] to [88.35, 27.10]
-    const darjeelingHillZone: ZoneEntity = {
-      id: '018f0a00-0000-7000-8000-000000000004',
-      name: 'Darjeeling Hill Corridor',
-      zoneType: 'HILL',
-      parentCityZoneId: null,
-      stateCode: 'WB',
-      boundary: {
-        type: 'Polygon',
-        coordinates: [
-          [
-            [88.2, 27.0],
-            [88.35, 27.0],
-            [88.35, 27.1],
-            [88.2, 27.1],
-            [88.2, 27.0],
-          ],
-        ],
-      },
-      bufferDistanceM: null,
-      status: 'ACTIVE',
-      currentPricingConfigId: null,
-      version: 1,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-    await repo.save(darjeelingHillZone);
-
-    const useCase = new ResolveZonesUseCase({ zoneRepo: repo });
-    const result = await useCase.execute({
-      pickup: { lat: 26.725, lng: 88.425 }, // Siliguri Junction
-      drop: { lat: 27.05, lng: 88.25 }, // Darjeeling Mall
-    });
-
-    expect(result.dropHill).not.toBeNull();
-    expect(result.dropHill?.name).toBe('Darjeeling Hill Corridor');
-    expect(result.dropHill?.type).toBe('HILL');
-  });
-
-  it('calculates pickupChargePaise when pickup zone has PAID surcharge', async () => {
-    const repo = new MemoryZoneRepository();
-    // Bagdogra Airport paid pickup zone: surcharge ₹50 (5,000 paise)
-    const bagdograPaidPickup: ZoneEntity = {
-      id: '018f0a00-0000-7000-8000-000000000005',
-      name: 'Bagdogra Airport Pickup Zone',
-      zoneType: 'PICKUP',
-      parentCityZoneId: siliguriCityZone.id,
-      stateCode: 'WB',
-      boundary: {
-        type: 'Polygon',
-        coordinates: [
-          [
-            [88.3, 26.65],
-            [88.35, 26.65],
-            [88.35, 26.7],
-            [88.3, 26.7],
-            [88.3, 26.65],
-          ],
-        ],
-      },
-      bufferDistanceM: null,
-      pickupChargeType: 'PAID',
-      pickupChargePaise: 5000,
-      status: 'ACTIVE',
-      currentPricingConfigId: null,
-      version: 1,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-    await repo.save(siliguriCityZone);
-    await repo.save(bagdograPaidPickup);
-
-    const useCase = new ResolveZonesUseCase({ zoneRepo: repo });
-    const result = await useCase.execute({
-      pickup: { lat: 26.68, lng: 88.32 }, // Bagdogra Airport
-      drop: { lat: 26.75, lng: 88.45 },
-    });
-
-    expect(result.pickupCoverage).not.toBeNull();
-    expect(result.pickupCoverage?.pickupChargeType).toBe('PAID');
-    expect(result.pickupChargePaise).toBe(5000);
-  });
-
-  it('records unserved demand telemetry in coverageRepo when pickup is outside coverage', async () => {
-    const repo = setupRepo();
-    const coverageRepo = new MemoryCoverageRequestRepository();
-    const useCase = new ResolveZonesUseCase({ zoneRepo: repo, coverageRepo });
-
-    // Location with no pickup coverage: lat 26.50, lng 88.20
-    const result = await useCase.execute({
-      pickup: { lat: 26.5, lng: 88.2 },
-      drop: { lat: 26.75, lng: 88.45 },
-      riderId: '018f0a00-0000-7000-8000-000000000099',
-    });
-
-    expect(result.pickupCoverage).toBeNull();
-    expect(coverageRepo.requests).toHaveLength(1);
-    expect(coverageRepo.requests[0]?.lat).toBe(26.5);
-    expect(coverageRepo.requests[0]?.lng).toBe(88.2);
-    expect(coverageRepo.requests[0]?.riderId).toBe('018f0a00-0000-7000-8000-000000000099');
   });
 });
 
@@ -369,11 +203,10 @@ describe('Zone Validation Schemas (Zod)', () => {
     expect(geoJsonPolygonSchema.safeParse(unclosed).success).toBe(false);
   });
 
-  it('requires parentCityZoneId when zoneType is PICKUP', () => {
-    const validPickup = {
-      name: 'Baghdogra Airport Pocket',
-      zoneType: 'PICKUP' as const,
-      parentCityZoneId: '018f0a00-0000-7000-8000-000000000001',
+  it('validates zoneType enum in createZoneSchema', () => {
+    const validCity = {
+      name: 'Siliguri City Area',
+      zoneType: 'CITY' as const,
       stateCode: 'WB',
       boundary: {
         type: 'Polygon' as const,
@@ -388,21 +221,19 @@ describe('Zone Validation Schemas (Zod)', () => {
         ],
       },
     };
-    expect(createZoneSchema.safeParse(validPickup).success).toBe(true);
+    expect(createZoneSchema.safeParse(validCity).success).toBe(true);
 
-    // Missing parentCityZoneId for PICKUP
-    const invalidPickup = {
-      ...validPickup,
-      parentCityZoneId: null,
+    const invalidType = {
+      ...validCity,
+      zoneType: 'INVALID_TYPE',
     };
-    expect(createZoneSchema.safeParse(invalidPickup).success).toBe(false);
+    expect(createZoneSchema.safeParse(invalidType).success).toBe(false);
   });
 
   it('validates resolveZonesRequestSchema', () => {
     const valid = {
       pickup: { lat: 26.72, lng: 88.42 },
       drop: { lat: 26.75, lng: 88.45 },
-      throwOnExclusion: true,
     };
     expect(resolveZonesRequestSchema.safeParse(valid).success).toBe(true);
 
@@ -441,36 +272,9 @@ describe('ServiceClassificationUseCase Tests', () => {
     updatedAt: new Date(),
   };
 
-  const cantonmentExclusionZone: ZoneEntity = {
-    id: '018f0a00-0000-7000-8000-000000000003',
-    name: 'Army Cantonment',
-    zoneType: 'EXCLUSION',
-    parentCityZoneId: siliguriCityZone.id,
-    stateCode: 'WB',
-    boundary: {
-      type: 'Polygon',
-      coordinates: [
-        [
-          [88.43, 26.73],
-          [88.44, 26.73],
-          [88.44, 26.74],
-          [88.43, 26.74],
-          [88.43, 26.73],
-        ],
-      ],
-    },
-    bufferDistanceM: null,
-    status: 'ACTIVE',
-    currentPricingConfigId: null,
-    version: 1,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  };
-
   function setupServiceClassifier() {
     const repo = new MemoryZoneRepository();
     repo.save(siliguriCityZone);
-    repo.save(cantonmentExclusionZone);
     const resolveZonesUseCase = new ResolveZonesUseCase({ zoneRepo: repo });
     const serviceClassifier = new ServiceClassificationUseCase({ resolveZonesUseCase });
     return { serviceClassifier };
@@ -525,15 +329,5 @@ describe('ServiceClassificationUseCase Tests', () => {
     });
 
     expect(result.type).toBe('INTERSTATE');
-  });
-
-  it('enforces absolute EXCLUSION veto during service classification', async () => {
-    const { serviceClassifier } = setupServiceClassifier();
-    await expect(
-      serviceClassifier.execute({
-        pickup: { lat: 26.735, lng: 88.435 }, // inside cantonment
-        drop: { lat: 26.78, lng: 88.48 },
-      }),
-    ).rejects.toThrow('PICKUP_IN_EXCLUSION_ZONE');
   });
 });

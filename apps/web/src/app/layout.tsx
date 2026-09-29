@@ -3,8 +3,8 @@ import './globals.css';
 import { Providers } from './providers';
 
 export const metadata: Metadata = {
-  title: 'Cabzone Admin',
-  description: 'Cabzone Operations & Management Console',
+  title: 'Cabzonee Admin',
+  description: 'Cabzonee Operations & Management Console',
 };
 
 export default function RootLayout({

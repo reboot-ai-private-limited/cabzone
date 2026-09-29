@@ -16,7 +16,7 @@ export function authedQueryOptions<TData, TQueryKey extends QueryKey = QueryKey>
     queryFn: async ({ signal }: QueryFunctionContext<TQueryKey>): Promise<TData> => {
       const token =
         typeof window !== 'undefined'
-          ? localStorage.getItem('Cabzone_access_token') ?? undefined
+          ? localStorage.getItem('Cabzonee_access_token') ?? undefined
           : undefined;
       return config.fetch(token, signal);
     },

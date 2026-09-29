@@ -1,4 +1,4 @@
-# Graph Report - Cabzonenew  (2026-09-28)
+# Graph Report - Cabzoneenew  (2026-09-28)
 
 ## Corpus Check
 - 446 files · ~301,405 words
@@ -23,7 +23,7 @@
 - ZoneContainer
 - health.container.ts
 - worker.ts
-- Cabzone Platform
+- Cabzonee Platform
 - tasks
 - Ride (Central Transactional Aggregate)
 - docs/engineering/clean-architecture-and-solid.md
@@ -77,7 +77,7 @@
 - Zone-Based Pricing Model
 - wallet-ledger.test.ts
 - rideExtension.model.ts
-- Cabzone — Development & Infrastructure Setup Guide
+- Cabzonee — Development & Infrastructure Setup Guide
 - my-notes.md
 - VehicleEntity
 - docs/engineering/boundaries-and-enforcement.md
@@ -116,7 +116,7 @@
 - client.ts
 - el
 - design-system/package.json
-- Cabzone-zones-full-implementation-plan.md
+- Cabzonee-zones-full-implementation-plan.md
 - RideEntity
 - brandkit/SKILL.md
 - design-system/src/index.ts
@@ -178,7 +178,7 @@
 - 22. STYLE VARIATION ENGINE
 - Init flow
 - Protocol: Premium Utilitarian Minimalism UI Architect
-- 11. Cabzone Validation Rules
+- 11. Cabzonee Validation Rules
 - 11. COMPONENT EXECUTION GUIDELINES
 - 18. EXTRA CREATIVITY & IMPLEMENTATION EDGE
 - Common Cognitive Load Violations
@@ -233,7 +233,7 @@
 - Heuristics Scoring Guide
 - ref_features_zones_components_zonesscreen_js
 - imagegen-frontend-web/SKILL.md
-- Cabzone Zones Tab & Backend — Full Implementation Plan
+- Cabzonee Zones Tab & Backend — Full Implementation Plan
 - env.ts
 - identity.test.ts
 - identity.validation.ts
@@ -307,7 +307,7 @@
 - `Executive Summary` --references--> `MongoRideRepository`  [INFERRED]
   daily-work/26thsept.md → apps/api/src/modules/rides/infrastructure/persistence/mongoRide.repository.ts
 - `23. Zone Resolution Backend` --references--> `ResolveZonesUseCase`  [INFERRED]
-  Cabzone-zones-full-implementation-plan.md → apps/api/src/modules/zone/application/useCases/resolveZones.usecase.ts
+  Cabzonee-zones-full-implementation-plan.md → apps/api/src/modules/zone/application/useCases/resolveZones.usecase.ts
 - `4. Quote Lifecycle & First-to-Accept Ride Engine` --references--> `WalletRepositoryPort`  [INFERRED]
   daily-work/25thsept.md → apps/api/src/modules/ledger/domain/wallet.port.ts
 - `2. Trip Completion & Commission Settlement (Prompt 2)` --references--> `WalletRepositoryPort`  [INFERRED]
@@ -356,7 +356,7 @@ Nodes (15): GetHealthUseCase, DependencyHealth, DependencyStatus, HealthReport, 
 Cohesion: 0.24
 Nodes (17): env, loadEnv(), seed(), main(), CONNECTION_STATES, connectMongo(), disconnectMongo(), logger (+9 more)
 
-### Community 7 - "Cabzone Platform"
+### Community 7 - "Cabzonee Platform"
 Cohesion: 0.14
 Nodes (21): MongoDB Dev Service (docker-compose.dev.yml), Redis Dev Service (docker-compose.dev.yml), Decision Log (ADR), Adding a Module Checklist, Ride Module Reference Structure, Module Encapsulation and Access Rules, Standard Module Anatomy, Engineering Handbook (+13 more)
 
@@ -438,7 +438,7 @@ Nodes (12): D-026: Commission = % of Agreed Fare, D-028: Fare Negotiation Bounds
 
 ### Community 27 - "docs/engineering/testing.md"
 Cohesion: 0.33
-Nodes (6): Critical E2E User Flows, Edge-Case Testing Matrix, Adapter & Infrastructure Integration Testing, Cabzone Testing Pyramid, Business Invariant Regression Mandate, Deterministic Business Logic Unit Testing
+Nodes (6): Critical E2E User Flows, Edge-Case Testing Matrix, Adapter & Infrastructure Integration Testing, Cabzonee Testing Pyramid, Business Invariant Regression Mandate, Deterministic Business Logic Unit Testing
 
 ### Community 28 - "contracts/tsconfig.json"
 Cohesion: 0.29
@@ -458,7 +458,7 @@ Nodes (6): Auth Endpoints (/v1/auth/otp), OTP Authentication Flow, Refresh Token
 
 ### Community 32 - "docs/engineering/design-language.md"
 Cohesion: 0.18
-Nodes (8): Map Interaction & Zone Visualization Guidelines, Cabzone UI Design Character, Role-Based Interface Priorities, Multi-Modal Status Indicator Standard, packages/contracts Specification, packages/domain Specification, Shared Package Dependency & Non-Circularity Rules, packages/validation Specification
+Nodes (8): Map Interaction & Zone Visualization Guidelines, Cabzonee UI Design Character, Role-Based Interface Priorities, Multi-Modal Status Indicator Standard, packages/contracts Specification, packages/domain Specification, Shared Package Dependency & Non-Circularity Rules, packages/validation Specification
 
 ### Community 33 - "requestOtp.usecase.ts"
 Cohesion: 0.10
@@ -496,13 +496,13 @@ Nodes (44): apps_api_src_modules_ledger_index_adminadjustwalletschema, apps_api_
 Cohesion: 0.21
 Nodes (10): LocationCoordinates, RideExtensionEntity, pointSchema, RideExtensionDocument, RideExtensionModel, rideExtensionSchema, packages_contracts_src_index_extension_statuses, packages_contracts_src_index_extensionstatus (+2 more)
 
-### Community 66 - "Cabzone — Development & Infrastructure Setup Guide"
+### Community 66 - "Cabzonee — Development & Infrastructure Setup Guide"
 Cohesion: 0.05
 Nodes (39): 10. OSRM (Open Source Routing Machine), 1. `MongoServerError: not primary and secondaryOk=false`, 1. Two Distinct Workflows (Dev vs. Prod), 2. Host Port Collisions (`27017` or `6379` in use), 2. Prerequisites & Environment, 3. Port `3000` or `4000` Already in Use, 3. Step-by-Step Development Quickstart, 4. Architectural Explanations of Dev Configs (+31 more)
 
 ### Community 67 - "my-notes.md"
 Cohesion: 0.15
-Nodes (12): 10. What happens if the wallet reaches zero during an active ride?, 11. What happens when a ride crosses a state?, 12. What happens if pricing changes after a rider requests a ride?, 1. What problem does Cabzone solve?, 2. Who are the three users/platforms?, 3. What happens when a rider requests a ride?, 4. What is Suggested Fare?, 5. What is Rider Proposed Fare? (+4 more)
+Nodes (12): 10. What happens if the wallet reaches zero during an active ride?, 11. What happens when a ride crosses a state?, 12. What happens if pricing changes after a rider requests a ride?, 1. What problem does Cabzonee solve?, 2. Who are the three users/platforms?, 3. What happens when a rider requests a ride?, 4. What is Suggested Fare?, 5. What is Rider Proposed Fare? (+4 more)
 
 ### Community 68 - "VehicleEntity"
 Cohesion: 0.19
@@ -614,7 +614,7 @@ Nodes (12): ResolveZonesDeps, CoverageRequestInput, CoverageRequestRepositoryPor
 
 ### Community 98 - "ZoneAuditEntity"
 Cohesion: 0.29
-Nodes (6): ZoneAuditEntity, MemoryZoneAuditRepository, MongoZoneAuditRepository, 2. Zone Domain & Persistence, 4. Admin API Endpoints (`apps/api`), 5. Cabzone Zones Full Implementation (PR 1 - PR 4)
+Nodes (6): ZoneAuditEntity, MemoryZoneAuditRepository, MongoZoneAuditRepository, 2. Zone Domain & Persistence, 4. Admin API Endpoints (`apps/api`), 5. Cabzonee Zones Full Implementation (PR 1 - PR 4)
 
 ### Community 100 - "modern-screenshot.umd.js"
 Cohesion: 0.09
@@ -644,7 +644,7 @@ Nodes (51): actionLabel(), applyConfigureBarChrome(), bindConfigureCountPillTool
 Cohesion: 0.06
 Nodes (31): devDependencies, @cabzone/config, @types/react, typescript, vitest, exports, ./theme.css, ./tokens (+23 more)
 
-### Community 107 - "Cabzone-zones-full-implementation-plan.md"
+### Community 107 - "Cabzonee-zones-full-implementation-plan.md"
 Cohesion: 0.04
 Nodes (45): 10. Geometry Validation Engine, 12. Do Not Add Arbitrary Area Limits, 13. Create Zone API, 14. Zone Validation API, 15. Update Geometry API, 16. Geometry Versioning, 17. Metadata Updates, 18. Activation / Deactivation (+37 more)
 
@@ -702,7 +702,7 @@ Nodes (16): devDependencies, @cabzone/config, dependency-cruiser, esbuild, mongo
 
 ### Community 121 - "isDriverEligibleForNewRides"
 Cohesion: 0.11
-Nodes (17): isDriverEligibleForNewRides(), 1. Zone Architecture & Domain Taxonomy Lock (Stage 2), 3. PRD v2 Alignment & Non-Breaking Core Adjustments, Changed / Added Artifacts, Daily Work Log - Cabzone Platform, Detailed Chronology of Work Completed, Executive Summary, Test Verification & Metrics (+9 more)
+Nodes (17): isDriverEligibleForNewRides(), 1. Zone Architecture & Domain Taxonomy Lock (Stage 2), 3. PRD v2 Alignment & Non-Breaking Core Adjustments, Changed / Added Artifacts, Daily Work Log - Cabzonee Platform, Detailed Chronology of Work Completed, Executive Summary, Test Verification & Metrics (+9 more)
 
 ### Community 122 - "WalletEntity"
 Cohesion: 0.13
@@ -892,9 +892,9 @@ Nodes (10): Completion gate, Init flow, Step 1: Load current state, Step 2: Expl
 Cohesion: 0.20
 Nodes (9): 1. Protocol Overview, 2. Absolute Negative Constraints (Banned Elements), 3. Typographic Architecture, 4. Color Palette (Warm Monochrome + Spot Pastels), 5. Component Specifications, 6. Iconography & Imagery Directives, 7. Subtle Motion & Micro-Animations, 8. Execution Protocol (+1 more)
 
-### Community 169 - "11. Cabzone Validation Rules"
+### Community 169 - "11. Cabzonee Validation Rules"
 Cohesion: 0.20
-Nodes (10): 11. Cabzone Validation Rules, Z-001 — Invalid Geometry, Z-002 — Ring Closure, Z-003 — Minimum Polygon Structure, Z-004 — Coordinate Validity, Z-005 — Self Intersection, Z-006 — Supported Geometry, Z-007 — Same-Type Conflicts (+2 more)
+Nodes (10): 11. Cabzonee Validation Rules, Z-001 — Invalid Geometry, Z-002 — Ring Closure, Z-003 — Minimum Polygon Structure, Z-004 — Coordinate Validity, Z-005 — Self Intersection, Z-006 — Supported Geometry, Z-007 — Same-Type Conflicts (+2 more)
 
 ### Community 170 - "11. COMPONENT EXECUTION GUIDELINES"
 Cohesion: 0.22
@@ -1104,9 +1104,9 @@ Nodes (4): 20. EXAMPLE INTERPRETATIONS, Example 1, Example 2, Example 3
 Cohesion: 0.50
 Nodes (4): Heuristics Scoring Guide, Issue Severity (P0–P3), Reference Material, Score Summary
 
-### Community 224 - "Cabzone Zones Tab & Backend — Full Implementation Plan"
+### Community 224 - "Cabzonee Zones Tab & Backend — Full Implementation Plan"
 Cohesion: 0.67
-Nodes (3): 1. Objective, 2. Architecture, Cabzone Zones Tab & Backend — Full Implementation Plan
+Nodes (3): 1. Objective, 2. Architecture, Cabzonee Zones Tab & Backend — Full Implementation Plan
 
 ### Community 226 - "env.ts"
 Cohesion: 0.11

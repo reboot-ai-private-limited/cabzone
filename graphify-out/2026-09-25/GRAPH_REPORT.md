@@ -1,4 +1,4 @@
-# Graph Report - Cabzonenew  (2026-09-25)
+# Graph Report - Cabzoneenew  (2026-09-25)
 
 ## Corpus Check
 - 242 files · ~60,008 words
@@ -23,7 +23,7 @@
 - ApiError.ts
 - health.container.ts
 - env.ts
-- Cabzone Platform
+- Cabzonee Platform
 - tasks
 - Ride (Central Transactional Aggregate)
 - docs/engineering/clean-architecture-and-solid.md
@@ -142,7 +142,7 @@
   apps/api/src/modules/identity/application/useCases/registerDriverVehicle.usecase.ts → packages/contracts/src/vehicles.ts
 - `ResolveZonesInput` --references--> `GeoPoint`  [EXTRACTED]
   apps/api/src/modules/zone/application/useCases/resolveZones.usecase.ts → packages/contracts/src/zones.ts
-- `Cabzone Platform` --references--> `Ride (Central Transactional Aggregate)`  [INFERRED]
+- `Cabzonee Platform` --references--> `Ride (Central Transactional Aggregate)`  [INFERRED]
   README.md → docs/LLD/domain-model.md
 - `ReviewDriverApplicationDto` --references--> `RejectionType`  [EXTRACTED]
   apps/api/src/modules/identity/application/useCases/reviewDriverApplication.usecase.ts → packages/contracts/src/kyc.ts
@@ -192,7 +192,7 @@ Nodes (15): GetHealthUseCase, DependencyHealth, DependencyStatus, HealthReport, 
 Cohesion: 0.15
 Nodes (26): allowDevShortcuts, env, isDevelopment, isProduction, isStaging, isTest, loadEnv(), parsed (+18 more)
 
-### Community 7 - "Cabzone Platform"
+### Community 7 - "Cabzonee Platform"
 Cohesion: 0.14
 Nodes (21): MongoDB Dev Service (docker-compose.dev.yml), Redis Dev Service (docker-compose.dev.yml), Decision Log (ADR), Adding a Module Checklist, Ride Module Reference Structure, Module Encapsulation and Access Rules, Standard Module Anatomy, Engineering Handbook (+13 more)
 
@@ -274,7 +274,7 @@ Nodes (12): D-026: Commission = % of Agreed Fare, D-028: Fare Negotiation Bounds
 
 ### Community 27 - "docs/engineering/testing.md"
 Cohesion: 0.33
-Nodes (6): Critical E2E User Flows, Edge-Case Testing Matrix, Adapter & Infrastructure Integration Testing, Cabzone Testing Pyramid, Business Invariant Regression Mandate, Deterministic Business Logic Unit Testing
+Nodes (6): Critical E2E User Flows, Edge-Case Testing Matrix, Adapter & Infrastructure Integration Testing, Cabzonee Testing Pyramid, Business Invariant Regression Mandate, Deterministic Business Logic Unit Testing
 
 ### Community 28 - "contracts/tsconfig.json"
 Cohesion: 0.29
@@ -294,7 +294,7 @@ Nodes (6): Auth Endpoints (/v1/auth/otp), OTP Authentication Flow, Refresh Token
 
 ### Community 32 - "docs/engineering/design-language.md"
 Cohesion: 0.18
-Nodes (8): Map Interaction & Zone Visualization Guidelines, Cabzone UI Design Character, Role-Based Interface Priorities, Multi-Modal Status Indicator Standard, packages/contracts Specification, packages/domain Specification, Shared Package Dependency & Non-Circularity Rules, packages/validation Specification
+Nodes (8): Map Interaction & Zone Visualization Guidelines, Cabzonee UI Design Character, Role-Based Interface Priorities, Multi-Modal Status Indicator Standard, packages/contracts Specification, packages/domain Specification, Shared Package Dependency & Non-Circularity Rules, packages/validation Specification
 
 ### Community 33 - "requestOtp.usecase.ts"
 Cohesion: 0.13
@@ -338,7 +338,7 @@ Nodes (12): adminStatusSchema, createAdminUserSchema, createDriverProfileSchema,
 
 ### Community 67 - "my-notes.md"
 Cohesion: 0.15
-Nodes (12): 10. What happens if the wallet reaches zero during an active ride?, 11. What happens when a ride crosses a state?, 12. What happens if pricing changes after a rider requests a ride?, 1. What problem does Cabzone solve?, 2. Who are the three users/platforms?, 3. What happens when a rider requests a ride?, 4. What is Suggested Fare?, 5. What is Rider Proposed Fare? (+4 more)
+Nodes (12): 10. What happens if the wallet reaches zero during an active ride?, 11. What happens when a ride crosses a state?, 12. What happens if pricing changes after a rider requests a ride?, 1. What problem does Cabzonee solve?, 2. Who are the three users/platforms?, 3. What happens when a rider requests a ride?, 4. What is Suggested Fare?, 5. What is Rider Proposed Fare? (+4 more)
 
 ### Community 68 - "adminUser.model.ts"
 Cohesion: 0.20
