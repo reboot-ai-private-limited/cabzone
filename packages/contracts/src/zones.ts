@@ -2,10 +2,13 @@
  * Geographic Zones and Contracts
  */
 export * from '@cabzone/geo';
-import type { GeoJsonGeometry, GeoJsonPolygon, GeoPoint } from '@cabzone/geo';
+import type { GeoJsonGeometry, GeoJsonPolygon, GeoPoint, ZoneViolation } from '@cabzone/geo';
 
-export const ZONE_TYPES = ['CITY', 'PICKUP', 'EXCLUSION'] as const;
+export const ZONE_TYPES = ['CITY', 'PICKUP', 'EXCLUSION', 'HILL'] as const;
 export type ZoneType = (typeof ZONE_TYPES)[number];
+
+export const PICKUP_CHARGE_TYPES = ['FREE', 'PAID'] as const;
+export type PickupChargeType = (typeof PICKUP_CHARGE_TYPES)[number];
 
 export const ZONE_STATUSES = ['ACTIVE', 'INACTIVE'] as const;
 export type ZoneStatus = (typeof ZONE_STATUSES)[number];
@@ -26,19 +29,43 @@ export interface ZoneDto {
   type: ZoneType;
   zoneType: ZoneType; // backwards compatibility alias
   parentCityZoneId: string | null;
+  parent_city_zone_id?: string | null;
+  parent_zone_id?: string | null;
   stateCode: string;
+  state_code?: string;
   geometry: GeoJsonGeometry;
   boundary: GeoJsonPolygon; // backwards compatibility alias
   bufferDistanceM: number | null;
+  buffer_distance_m?: number | null;
+  pickupChargeType?: PickupChargeType | null | undefined;
+  pickup_charge_type?: PickupChargeType | null | undefined;
+  pickupChargePaise?: number | null | undefined;
+  pickup_charge_paise?: number | null | undefined;
   status: ZoneStatus;
+  is_active?: boolean;
+  priority?: number;
   currentPricingConfigId: string | null;
   version: number;
   supersedesZoneId: string | null;
+  supersedes_zone_id?: string | null;
   supersededByZoneId: string | null;
+  superseded_by_zone_id?: string | null;
   createdBy: string | null;
+  created_by?: string | null;
   updatedBy: string | null;
+  updated_by?: string | null;
   createdAt: string;
+  created_at?: string;
   updatedAt: string;
+  updated_at?: string;
+}
+
+export interface IncityPackageDto {
+  id: string;
+  name: string;
+  city_zone_id?: string;
+  cityZoneId?: string;
+  is_active?: boolean;
 }
 
 // Backward compatibility alias
@@ -49,6 +76,8 @@ export interface ResolvedZones {
   dropExclusion: ZoneDto | null;
   city: ZoneDto | null;
   pickupCoverage: ZoneDto | null;
+  dropHill?: ZoneDto | null;
+  pickupChargePaise?: number;
   nearestCity: ZoneDto | null;
   isWithinBuffer: boolean;
 }
@@ -63,6 +92,8 @@ export interface CreateZoneInputDto {
   geometry?: GeoJsonGeometry | undefined;
   boundary?: GeoJsonPolygon | undefined;
   bufferDistanceM?: number | null | undefined;
+  pickupChargeType?: PickupChargeType | null | undefined;
+  pickupChargePaise?: number | null | undefined;
   currentPricingConfigId?: string | null | undefined;
 }
 
@@ -74,6 +105,8 @@ export interface UpdateZoneMetadataRequest {
   stateCode?: string | undefined;
   parentCityZoneId?: string | null | undefined;
   bufferDistanceM?: number | null | undefined;
+  pickupChargeType?: PickupChargeType | null | undefined;
+  pickupChargePaise?: number | null | undefined;
   status?: ZoneStatus | undefined;
   currentPricingConfigId?: string | null | undefined;
 }
@@ -115,8 +148,13 @@ export interface ZoneListQuery {
   limit?: number | undefined;
 }
 
+export type ListZonesQuery = ZoneListQuery;
+
+export type ZoneViolationDto = ZoneViolation;
+
 export interface ZoneListResponse {
   items: ZoneDto[];
+  zones?: ZoneDto[];
   pagination: {
     page: number;
     limit: number;
@@ -127,5 +165,15 @@ export interface ZoneListResponse {
 export interface ResolveZonesInputDto {
   pickup: GeoPoint;
   drop: GeoPoint;
+  riderId?: string | undefined;
   throwOnExclusion?: boolean | undefined;
 }
+
+export interface CoverageRequestDto {
+  id: string;
+  lat: number;
+  lng: number;
+  riderId?: string | null | undefined;
+  createdAt: string;
+}
+

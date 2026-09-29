@@ -15,7 +15,15 @@ export const Z_CODES = {
   Z007_SAME_TYPE_CONFLICT: 'Z-007',
   Z008_CONFLICTING_CITY: 'Z-008',
   Z009_EXCLUSION_PRECEDENCE: 'Z-009',
+  Z010_MIN_AREA: 'Z-MIN-AREA',
+  Z011_MAX_AREA: 'Z-MAX-AREA',
 } as const;
+
+/** Minimum operational zone area: 1 hectare = 10,000 m² */
+export const MIN_ZONE_AREA_M2 = 10_000;
+
+/** Maximum operational zone ceiling: 100,000 km² */
+export const MAX_ZONE_AREA_M2 = 100_000_000_000;
 
 export type ZoneViolationCode =
   | (typeof Z_CODES)[keyof typeof Z_CODES]
@@ -26,6 +34,7 @@ export type ZoneViolationCode =
 
 export interface ZoneViolation {
   code: string;
+  rule?: string;
   severity: 'ERROR' | 'WARNING';
   message: string;
   offendingZoneId?: string;
@@ -129,6 +138,113 @@ export function hasRingSelfIntersection(ring: Position[]): boolean {
   }
 
   return false;
+}
+
+/**
+ * Computes signed planar area using Shoelace formula.
+ * Positive = Counter-Clockwise (CCW). Negative = Clockwise (CW).
+ */
+export function ringSignedArea(ring: Position[]): number {
+  if (ring.length < 3) return 0;
+  let sum = 0;
+  for (let i = 0; i < ring.length - 1; i++) {
+    const p1 = ring[i]!;
+    const p2 = ring[i + 1]!;
+    sum += p1[0] * p2[1] - p2[0] * p1[1];
+  }
+  return sum / 2;
+}
+
+export function isRingCounterClockwise(ring: Position[]): boolean {
+  return ringSignedArea(ring) > 0;
+}
+
+/**
+ * Normalizes a coordinate ring to either CCW (exterior) or CW (interior hole).
+ */
+export function normalizeRingWinding(ring: Position[], shouldBeCcw: boolean): Position[] {
+  if (ring.length < 4) return ring;
+  const isCcw = isRingCounterClockwise(ring);
+  if (isCcw === shouldBeCcw) {
+    return ring;
+  }
+  return [...ring].reverse();
+}
+
+/**
+ * Computes approximate area in square meters using spherical trapezoid projection.
+ */
+export function computeRingAreaM2(ring: Position[]): number {
+  if (ring.length < 4) return 0;
+  const R = 6371008.8; // Mean Earth radius in meters
+  let total = 0;
+  const rad = Math.PI / 180;
+
+  for (let i = 0; i < ring.length - 1; i++) {
+    const p1 = ring[i]!;
+    const p2 = ring[i + 1]!;
+    const lon1 = p1[0] * rad;
+    const lon2 = p2[0] * rad;
+    const lat1 = p1[1] * rad;
+    const lat2 = p2[1] * rad;
+    total += (lon2 - lon1) * (2 + Math.sin(lat1) + Math.sin(lat2));
+  }
+
+  return Math.abs((total * R * R) / 2);
+}
+
+/**
+ * Computes net polygon area in square meters (exterior ring minus all holes).
+ */
+export function computePolygonAreaM2(coordinates: Position[][]): number {
+  if (!coordinates || coordinates.length === 0) return 0;
+  const outerArea = computeRingAreaM2(coordinates[0]!);
+  let holesArea = 0;
+  for (let i = 1; i < coordinates.length; i++) {
+    holesArea += computeRingAreaM2(coordinates[i]!);
+  }
+  return Math.max(0, outerArea - holesArea);
+}
+
+/**
+ * Computes total area in square meters across Polygon or MultiPolygon.
+ */
+export function computeGeometryAreaM2(geometry: GeoJsonGeometry): number {
+  if (geometry.type === 'Polygon') {
+    return computePolygonAreaM2(geometry.coordinates);
+  }
+  let total = 0;
+  for (const poly of geometry.coordinates) {
+    total += computePolygonAreaM2(poly);
+  }
+  return total;
+}
+
+/**
+ * Enforces RFC 7946 GeoJSON winding order:
+ * - Exterior rings MUST be counter-clockwise (CCW).
+ * - Interior rings (holes) MUST be clockwise (CW).
+ *
+ * This prevents MongoDB 2dsphere indexes from interpreting clockwise polygons as the entire Earth complement!
+ */
+export function ensureRfc7946Winding<T extends GeoJsonGeometry>(geometry: T): T {
+  if (geometry.type === 'Polygon') {
+    const normalizedRings = geometry.coordinates.map((ring, idx) =>
+      normalizeRingWinding(ring, idx === 0),
+    );
+    return {
+      ...geometry,
+      coordinates: normalizedRings,
+    };
+  }
+
+  const normalizedPolys = geometry.coordinates.map((poly) =>
+    poly.map((ring, idx) => normalizeRingWinding(ring, idx === 0)),
+  );
+  return {
+    ...geometry,
+    coordinates: normalizedPolys,
+  };
 }
 
 /**
@@ -312,6 +428,28 @@ export function validateGeometry(geometry: unknown): ZoneValidationResult {
     }
   }
 
+  // Z-MIN-AREA and Z-MAX-AREA checks
+  if (violations.length === 0) {
+    try {
+      const areaM2 = computeGeometryAreaM2(geom as unknown as GeoJsonGeometry);
+      if (areaM2 < MIN_ZONE_AREA_M2) {
+        violations.push({
+          code: Z_CODES.Z010_MIN_AREA,
+          severity: 'ERROR',
+          message: `Polygon area of ${(areaM2 / 10_000).toFixed(2)} hectares is below minimum operational threshold of 1 hectare (10,000 m²).`,
+        });
+      } else if (areaM2 > MAX_ZONE_AREA_M2) {
+        violations.push({
+          code: Z_CODES.Z011_MAX_AREA,
+          severity: 'ERROR',
+          message: `Polygon area of ${(areaM2 / 1_000_000).toFixed(0)} km² exceeds maximum operational ceiling of 100,000 km².`,
+        });
+      }
+    } catch {
+      // Ignore math errors if geometry was invalid
+    }
+  }
+
   return {
     valid: violations.length === 0,
     violations,
@@ -319,7 +457,8 @@ export function validateGeometry(geometry: unknown): ZoneValidationResult {
 }
 
 /**
- * Normalizes input GeoJSON from raw Geometry, Feature, or FeatureCollection into GeoJsonGeometry.
+ * Normalizes input GeoJSON from raw Geometry, Feature, or FeatureCollection into GeoJsonGeometry,
+ * and enforces RFC 7946 winding order (CCW exterior ring, CW interior holes).
  */
 export function normalizeGeoJson(input: unknown): GeoJsonGeometry {
   if (!input || typeof input !== 'object') {
@@ -329,13 +468,13 @@ export function normalizeGeoJson(input: unknown): GeoJsonGeometry {
   const raw = input as Record<string, unknown>;
 
   if (raw.type === 'Polygon' || raw.type === 'MultiPolygon') {
-    return raw as unknown as GeoJsonGeometry;
+    return ensureRfc7946Winding(raw as unknown as GeoJsonGeometry);
   }
 
   if (raw.type === 'Feature' && raw.geometry && typeof raw.geometry === 'object') {
     const geom = raw.geometry as Record<string, unknown>;
     if (geom.type === 'Polygon' || geom.type === 'MultiPolygon') {
-      return geom as unknown as GeoJsonGeometry;
+      return ensureRfc7946Winding(geom as unknown as GeoJsonGeometry);
     }
     throw new Error(`Unsupported feature geometry type: ${String(geom.type)}`);
   }
@@ -356,7 +495,7 @@ export function normalizeGeoJson(input: unknown): GeoJsonGeometry {
     }
 
     if (validGeoms.length === 1) {
-      return validGeoms[0]!;
+      return ensureRfc7946Winding(validGeoms[0]!);
     }
 
     // Merge multiple polygons into a MultiPolygon
@@ -369,11 +508,46 @@ export function normalizeGeoJson(input: unknown): GeoJsonGeometry {
       }
     }
 
-    return {
+    return ensureRfc7946Winding({
       type: 'MultiPolygon',
       coordinates: multiCoords,
-    };
+    });
   }
 
   throw new Error(`Unsupported GeoJSON root type: ${String(raw.type)}`);
 }
+
+export const normalizeWinding = ensureRfc7946Winding;
+
+export function zoneStats(geometry: GeoJsonGeometry): { areaKm2: number; vertexCount: number } {
+  const areaM2 = computeGeometryAreaM2(geometry);
+  const areaKm2 = Math.round((areaM2 / 1_000_000) * 100) / 100;
+  let vertexCount = 0;
+  if (geometry.type === 'Polygon') {
+    vertexCount = geometry.coordinates[0]?.length ?? 0;
+  } else if (geometry.type === 'MultiPolygon') {
+    for (const poly of geometry.coordinates) {
+      vertexCount += poly[0]?.length ?? 0;
+    }
+  }
+  return { areaKm2, vertexCount };
+}
+
+export interface NamedZone {
+  id: string;
+  name: string;
+  geom: GeoJsonGeometry;
+}
+
+export function validateZone(input: {
+  geom: GeoJsonGeometry;
+  siblings?: NamedZone[];
+}): ZoneViolation[] {
+  const res = validateGeometry(input.geom);
+  const violations: ZoneViolation[] = res.violations.map((v) => ({
+    ...v,
+    rule: v.code,
+  }));
+  return violations;
+}
+

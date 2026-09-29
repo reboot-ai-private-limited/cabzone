@@ -18,6 +18,13 @@ import {
   validateCoordinates,
   validateGeometry,
   Z_CODES,
+  isRingCounterClockwise,
+  normalizeRingWinding,
+  ensureRfc7946Winding,
+  computeRingAreaM2,
+  computePolygonAreaM2,
+  MIN_ZONE_AREA_M2,
+  MAX_ZONE_AREA_M2,
   type GeoJsonMultiPolygon,
   type GeoJsonPolygon,
   type GeoPoint,
@@ -430,6 +437,106 @@ describe('@cabzone/geo Engine', () => {
       const centroid = getCentroid(siliguriBox);
       expect(centroid.lat).toBeCloseTo(26.75, 4);
       expect(centroid.lng).toBeCloseTo(88.45, 4);
+    });
+  });
+
+  describe('Winding Order & RFC 7946 Compliance (Anti-Inversion)', () => {
+    // CCW: (0,0) -> (1,0) -> (1,1) -> (0,1) -> (0,0)
+    const ccwRing: Position[] = [
+      [88.4, 26.7],
+      [88.5, 26.7],
+      [88.5, 26.8],
+      [88.4, 26.8],
+      [88.4, 26.7],
+    ];
+
+    // CW (Clockwise reversed)
+    const cwRing: Position[] = [
+      [88.4, 26.7],
+      [88.4, 26.8],
+      [88.5, 26.8],
+      [88.5, 26.7],
+      [88.4, 26.7],
+    ];
+
+    it('distinguishes counter-clockwise (CCW) vs clockwise (CW) rings', () => {
+      expect(isRingCounterClockwise(ccwRing)).toBe(true);
+      expect(isRingCounterClockwise(cwRing)).toBe(false);
+    });
+
+    it('normalizes ring winding order accurately', () => {
+      const normalizedCcw = normalizeRingWinding(cwRing, true);
+      expect(isRingCounterClockwise(normalizedCcw)).toBe(true);
+
+      const normalizedCw = normalizeRingWinding(ccwRing, false);
+      expect(isRingCounterClockwise(normalizedCw)).toBe(false);
+    });
+
+    it('enforces RFC 7946 winding on polygons (CCW exterior ring, CW hole)', () => {
+      // Create a polygon with deliberately clockwise exterior ring
+      const deliberateCwPolygon: GeoJsonPolygon = {
+        type: 'Polygon',
+        coordinates: [
+          cwRing, // Exterior (deliberately CW)
+          ccwRing, // Hole (deliberately CCW)
+        ],
+      };
+
+      const normalized = ensureRfc7946Winding(deliberateCwPolygon);
+
+      // Exterior must be normalized to CCW (stops Mongo whole-earth inversion)
+      expect(isRingCounterClockwise(normalized.coordinates[0]!)).toBe(true);
+      // Interior hole must be normalized to CW
+      expect(isRingCounterClockwise(normalized.coordinates[1]!)).toBe(false);
+    });
+
+    it('calculates polygon area in square meters', () => {
+      const areaM2 = computePolygonAreaM2(ccwRing.length ? [ccwRing] : []);
+      // 0.1 deg x 0.1 deg near Siliguri is approx 110-120 km² (110M to 125M m²)
+      expect(areaM2).toBeGreaterThan(100_000_000);
+      expect(areaM2).toBeLessThan(130_000_000);
+    });
+
+    it('rejects sub-hectare polygon with Z-MIN-AREA violation', () => {
+      // Tiny micro-polygon: 0.00005 deg x 0.00005 deg (~5 meters x 5 meters = ~25 m² < 10,000 m²)
+      const tinyPolygon: GeoJsonPolygon = {
+        type: 'Polygon',
+        coordinates: [
+          [
+            [88.40000, 26.70000],
+            [88.40005, 26.70000],
+            [88.40005, 26.70005],
+            [88.40000, 26.70005],
+            [88.40000, 26.70000],
+          ],
+        ],
+      };
+
+      const res = validateGeometry(tinyPolygon);
+      expect(res.valid).toBe(false);
+      expect(res.violations.some((v) => v.code === Z_CODES.Z010_MIN_AREA)).toBe(true);
+      expect(res.violations[0]?.message).toContain('below minimum operational threshold');
+    });
+
+    it('rejects gigantic polygon (> 100,000 km²) with Z-MAX-AREA violation', () => {
+      // Huge polygon spanning 15 deg x 15 deg across India (~ 1,500 km x 1,500 km > 2,000,000 km²)
+      const giantPolygon: GeoJsonPolygon = {
+        type: 'Polygon',
+        coordinates: [
+          [
+            [75.0, 15.0],
+            [90.0, 15.0],
+            [90.0, 30.0],
+            [75.0, 30.0],
+            [75.0, 15.0],
+          ],
+        ],
+      };
+
+      const res = validateGeometry(giantPolygon);
+      expect(res.valid).toBe(false);
+      expect(res.violations.some((v) => v.code === Z_CODES.Z011_MAX_AREA)).toBe(true);
+      expect(res.violations[0]?.message).toContain('exceeds maximum operational ceiling');
     });
   });
 });

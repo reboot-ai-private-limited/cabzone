@@ -1,6 +1,6 @@
-# cabzone Documentation
+# Cabzone Documentation
 
-**cabzone** is a zone-based ride-hailing and driver dispatch platform featuring:
+**Cabzone** is a zone-based ride-hailing and driver dispatch platform featuring:
 
 - **Rider Mobile App** (Roadmap)
 - **Driver Mobile App** (Roadmap)
@@ -11,9 +11,9 @@ Its core product concepts are negotiable fares and zone-based pricing for in-cit
 
 > **Naming Standard**:
 >
-> - Commercial / Product Brand: **cabzone**
+> - Commercial / Product Brand: **Cabzone**
 > - NPM Package Scope: `@cabzone/*`
-> - Monorepo & Container Name: `cabzone`
+> - Monorepo & Container Name: `Cabzone`
 
 ---
 

@@ -18,7 +18,7 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   const token =
     explicitToken ??
     (typeof window !== 'undefined'
-      ? localStorage.getItem('cabzone_access_token') ?? undefined
+      ? localStorage.getItem('Cabzone_access_token') ?? undefined
       : undefined);
 
   const url = new URL(BASE_URL + path);

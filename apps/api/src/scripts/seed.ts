@@ -47,11 +47,13 @@ async function seed() {
   await UserModel.findOneAndUpdate(
     { phone_e164: '+919000000001' },
     {
-      _id: adminId,
-      phone_e164: '+919000000001',
-      phone_verified_at: now,
-      status: 'ACTIVE',
-      version: 1,
+      $setOnInsert: { _id: adminId },
+      $set: {
+        phone_e164: '+919000000001',
+        phone_verified_at: now,
+        status: 'ACTIVE',
+        version: 1,
+      },
     },
     { upsert: true, new: true },
   );
@@ -59,11 +61,13 @@ async function seed() {
   await AdminUserModel.findOneAndUpdate(
     { user_id: adminId },
     {
-      _id: newUuid(),
-      user_id: adminId,
-      role: 'SUPER_ADMIN',
-      city_zone_ids: [],
-      status: 'ACTIVE',
+      $setOnInsert: { _id: newUuid() },
+      $set: {
+        user_id: adminId,
+        role: 'SUPER_ADMIN',
+        city_zone_ids: [],
+        status: 'ACTIVE',
+      },
     },
     { upsert: true, new: true },
   );
@@ -73,11 +77,13 @@ async function seed() {
   await UserModel.findOneAndUpdate(
     { phone_e164: '+919000000002' },
     {
-      _id: driverUserId,
-      phone_e164: '+919000000002',
-      phone_verified_at: now,
-      status: 'ACTIVE',
-      version: 1,
+      $setOnInsert: { _id: driverUserId },
+      $set: {
+        phone_e164: '+919000000002',
+        phone_verified_at: now,
+        status: 'ACTIVE',
+        version: 1,
+      },
     },
     { upsert: true, new: true },
   );
@@ -90,11 +96,13 @@ async function seed() {
   await WalletModel.findOneAndUpdate(
     { driver_id: driverProfileId },
     {
-      _id: driverWalletId,
-      driver_id: driverProfileId,
-      balance_paise: 50_000,
-      status: 'ACTIVE',
-      version: 1,
+      $setOnInsert: { _id: driverWalletId },
+      $set: {
+        driver_id: driverProfileId,
+        balance_paise: 50_000,
+        status: 'ACTIVE',
+        version: 1,
+      },
     },
     { upsert: true, new: true },
   );
@@ -102,17 +110,19 @@ async function seed() {
   await DriverModel.findOneAndUpdate(
     { user_id: driverUserId },
     {
-      _id: driverProfileId,
-      user_id: driverUserId,
-      status: 'ACTIVE',
-      kyc_status: 'VERIFIED',
-      operational_status: 'OFFLINE',
-      rating_average: 4.8,
-      rating_count: 24,
-      trust_score: 95,
-      current_vehicle_id: driverVehicleId,
-      wallet_id: driverWalletId,
-      version: 1,
+      $setOnInsert: { _id: driverProfileId },
+      $set: {
+        user_id: driverUserId,
+        status: 'ACTIVE',
+        kyc_status: 'VERIFIED',
+        operational_status: 'OFFLINE',
+        rating_average: 4.8,
+        rating_count: 24,
+        trust_score: 95,
+        current_vehicle_id: driverVehicleId,
+        wallet_id: driverWalletId,
+        version: 1,
+      },
     },
     { upsert: true, new: true },
   );
@@ -120,14 +130,16 @@ async function seed() {
   await DriverApplicationModel.findOneAndUpdate(
     { driver_id: driverProfileId },
     {
-      _id: newUuid(),
-      driver_id: driverProfileId,
-      status: 'APPROVED',
-      reapply_count: 0,
-      submitted_at: now,
-      reviewed_at: now,
-      reviewer_admin_id: adminId,
-      version: 1,
+      $setOnInsert: { _id: newUuid() },
+      $set: {
+        driver_id: driverProfileId,
+        status: 'APPROVED',
+        reapply_count: 0,
+        submitted_at: now,
+        reviewed_at: now,
+        reviewer_admin_id: adminId,
+        version: 1,
+      },
     },
     { upsert: true, new: true },
   );
@@ -135,15 +147,17 @@ async function seed() {
   await VehicleModel.findOneAndUpdate(
     { registration_number: 'WB74A1234' },
     {
-      _id: driverVehicleId,
-      driver_id: driverProfileId,
-      vehicle_type: 'CAB',
-      make: 'Maruti Suzuki',
-      model: 'Dzire',
-      registration_number: 'WB74A1234',
-      manufacture_year: 2022,
-      verification_status: 'APPROVED',
-      version: 1,
+      $setOnInsert: { _id: driverVehicleId },
+      $set: {
+        driver_id: driverProfileId,
+        vehicle_type: 'CAB',
+        make: 'Maruti Suzuki',
+        model: 'Dzire',
+        registration_number: 'WB74A1234',
+        manufacture_year: 2022,
+        verification_status: 'APPROVED',
+        version: 1,
+      },
     },
     { upsert: true, new: true },
   );
@@ -153,11 +167,13 @@ async function seed() {
   await UserModel.findOneAndUpdate(
     { phone_e164: '+919000000003' },
     {
-      _id: completeRiderUserId,
-      phone_e164: '+919000000003',
-      phone_verified_at: now,
-      status: 'ACTIVE',
-      version: 1,
+      $setOnInsert: { _id: completeRiderUserId },
+      $set: {
+        phone_e164: '+919000000003',
+        phone_verified_at: now,
+        status: 'ACTIVE',
+        version: 1,
+      },
     },
     { upsert: true, new: true },
   );
@@ -165,12 +181,14 @@ async function seed() {
   await RiderModel.findOneAndUpdate(
     { user_id: completeRiderUserId },
     {
-      _id: newUuid(),
-      user_id: completeRiderUserId,
-      name: 'Priya Mukherjee',
-      rating_average: 4.9,
-      rating_count: 12,
-      version: 1,
+      $setOnInsert: { _id: newUuid() },
+      $set: {
+        user_id: completeRiderUserId,
+        name: 'Priya Mukherjee',
+        rating_average: 4.9,
+        rating_count: 12,
+        version: 1,
+      },
     },
     { upsert: true, new: true },
   );
@@ -180,11 +198,13 @@ async function seed() {
   await UserModel.findOneAndUpdate(
     { phone_e164: '+919000000004' },
     {
-      _id: emptyRiderUserId,
-      phone_e164: '+919000000004',
-      phone_verified_at: now,
-      status: 'ACTIVE',
-      version: 1,
+      $setOnInsert: { _id: emptyRiderUserId },
+      $set: {
+        phone_e164: '+919000000004',
+        phone_verified_at: now,
+        status: 'ACTIVE',
+        version: 1,
+      },
     },
     { upsert: true, new: true },
   );
@@ -294,17 +314,19 @@ async function seed() {
     const doc = await ZoneModel.findOneAndUpdate(
       { code: z.code },
       {
-        _id: newUuid(),
-        name: z.name,
-        code: z.code,
-        zone_type: z.type,
-        parent_city_zone_id: z.parent,
-        state_code: 'WB',
-        geometry: z.poly,
-        boundary: z.poly,
-        buffer_distance_m: z.buffer,
-        status: 'ACTIVE',
-        version: 1,
+        $setOnInsert: { _id: newUuid() },
+        $set: {
+          name: z.name,
+          code: z.code,
+          zone_type: z.type,
+          parent_city_zone_id: z.parent,
+          state_code: 'WB',
+          geometry: z.poly,
+          boundary: z.poly,
+          buffer_distance_m: z.buffer,
+          status: 'ACTIVE',
+          version: 1,
+        },
       },
       { upsert: true, new: true },
     );
@@ -327,17 +349,19 @@ async function seed() {
     await ZoneModel.findOneAndUpdate(
       { code: p.code },
       {
-        _id: newUuid(),
-        name: p.name,
-        code: p.code,
-        zone_type: 'PICKUP',
-        parent_city_zone_id: p.parent,
-        state_code: 'WB',
-        geometry: p.poly,
-        boundary: p.poly,
-        buffer_distance_m: null,
-        status: 'ACTIVE',
-        version: 1,
+        $setOnInsert: { _id: newUuid() },
+        $set: {
+          name: p.name,
+          code: p.code,
+          zone_type: 'PICKUP',
+          parent_city_zone_id: p.parent,
+          state_code: 'WB',
+          geometry: p.poly,
+          boundary: p.poly,
+          buffer_distance_m: null,
+          status: 'ACTIVE',
+          version: 1,
+        },
       },
       { upsert: true, new: true },
     );
@@ -348,23 +372,25 @@ async function seed() {
   await PricingConfigModel.findOneAndUpdate(
     { city_zone_id: siliguriCityId, vehicle_type: 'CAB' },
     {
-      _id: newUuid(),
-      city_zone_id: siliguriCityId,
-      version: 1,
-      vehicle_type: 'CAB',
-      base_fare_paise: 5000, // ₹50
-      rate_per_km_paise: 1500, // ₹15 / km
-      minimum_fare_paise: 8000, // ₹80 min
-      included_distance_m: 2000, // 2 km included
-      buffer_surcharge_paise: 2000, // ₹20 buffer surcharge
-      negotiation_floor_percent: 80,
-      negotiation_ceiling_percent: 150,
-      negotiation_window_seconds: 90,
-      commission_percent: 8,
-      status: 'ACTIVE',
-      effective_from: new Date('2026-01-01'),
-      effective_to: null,
-      created_by_admin_id: adminId,
+      $setOnInsert: { _id: newUuid() },
+      $set: {
+        city_zone_id: siliguriCityId,
+        version: 1,
+        vehicle_type: 'CAB',
+        base_fare_paise: 5000, // ₹50
+        rate_per_km_paise: 1500, // ₹15 / km
+        minimum_fare_paise: 8000, // ₹80 min
+        included_distance_m: 2000, // 2 km included
+        buffer_surcharge_paise: 2000, // ₹20 buffer surcharge
+        negotiation_floor_percent: 80,
+        negotiation_ceiling_percent: 150,
+        negotiation_window_seconds: 90,
+        commission_percent: 8,
+        status: 'ACTIVE',
+        effective_from: new Date('2026-01-01'),
+        effective_to: null,
+        created_by_admin_id: adminId,
+      },
     },
     { upsert: true, new: true },
   );

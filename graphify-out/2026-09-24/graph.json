@@ -1443,7 +1443,7 @@
       "source_location": "L20"
     },
     {
-      "id": "apps_api_package_dependencies_cabzone_contracts",
+      "id": "apps_api_package_dependencies_Cabzone_contracts",
       "label": "@cabzone/contracts",
       "_origin": "ast",
       "community": 11,
@@ -1619,7 +1619,7 @@
       "source_location": "L36"
     },
     {
-      "id": "apps_api_package_devdependencies_cabzone_config",
+      "id": "apps_api_package_devdependencies_Cabzone_config",
       "label": "@cabzone/config",
       "_origin": "ast",
       "community": 12,
@@ -1784,7 +1784,7 @@
       "source_location": "L13"
     },
     {
-      "id": "packages_contracts_package_devdependencies_cabzone_config",
+      "id": "packages_contracts_package_devdependencies_Cabzone_config",
       "label": "@cabzone/config",
       "_origin": "ast",
       "community": 13,
@@ -1894,7 +1894,7 @@
       "source_location": "L3"
     },
     {
-      "id": "packages_contracts_package_json_ref_cabzone_config",
+      "id": "packages_contracts_package_json_ref_Cabzone_config",
       "label": "@cabzone/config",
       "_origin": "ast",
       "community": 13,
@@ -1927,7 +1927,7 @@
       "source_location": "L24"
     },
     {
-      "id": "package_devdependencies_cabzone_config",
+      "id": "package_devdependencies_Cabzone_config",
       "label": "@cabzone/config",
       "_origin": "ast",
       "community": 14,
@@ -2290,7 +2290,7 @@
       "source_location": "L10"
     },
     {
-      "id": "apps_api_tsconfig_json_ref_cabzone_config_tsconfig_base_json",
+      "id": "apps_api_tsconfig_json_ref_Cabzone_config_tsconfig_base_json",
       "label": "@cabzone/config/tsconfig.base.json",
       "_origin": "ast",
       "community": 16,
@@ -2576,7 +2576,7 @@
       "source_location": "L14"
     },
     {
-      "id": "ref_cabzone_config_tsconfig_react_json",
+      "id": "ref_Cabzone_config_tsconfig_react_json",
       "label": "@cabzone/config/tsconfig.react.json",
       "_origin": "ast",
       "community": 19,
@@ -2785,7 +2785,7 @@
       "source_location": "L4"
     },
     {
-      "id": "packages_contracts_tsconfig_json_ref_cabzone_config_tsconfig_base_json",
+      "id": "packages_contracts_tsconfig_json_ref_Cabzone_config_tsconfig_base_json",
       "label": "@cabzone/config/tsconfig.base.json",
       "_origin": "ast",
       "community": 20,
@@ -2884,7 +2884,7 @@
       "source_location": "L2"
     },
     {
-      "id": "tsconfig_json_ref_cabzone_config_tsconfig_base_json",
+      "id": "tsconfig_json_ref_Cabzone_config_tsconfig_base_json",
       "label": "@cabzone/config/tsconfig.base.json",
       "_origin": "ast",
       "community": 24,
@@ -2972,7 +2972,7 @@
       "source_location": "L12"
     },
     {
-      "id": "apps_web_package_dependencies_cabzone_contracts",
+      "id": "apps_web_package_dependencies_Cabzone_contracts",
       "label": "@cabzone/contracts",
       "_origin": "ast",
       "community": 3,
@@ -3038,7 +3038,7 @@
       "source_location": "L19"
     },
     {
-      "id": "apps_web_package_devdependencies_cabzone_config",
+      "id": "apps_web_package_devdependencies_Cabzone_config",
       "label": "@cabzone/config",
       "_origin": "ast",
       "community": 3,
@@ -3225,7 +3225,7 @@
       "source_location": "L4"
     },
     {
-      "id": "apps_web_package_json_ref_cabzone_config",
+      "id": "apps_web_package_json_ref_Cabzone_config",
       "label": "@cabzone/config",
       "_origin": "ast",
       "community": 3,
@@ -3236,7 +3236,7 @@
       "source_location": "L20"
     },
     {
-      "id": "apps_web_package_json_ref_cabzone_contracts",
+      "id": "apps_web_package_json_ref_Cabzone_contracts",
       "label": "@cabzone/contracts",
       "_origin": "ast",
       "community": 3,
@@ -3533,7 +3533,7 @@
       "source_location": "L4"
     },
     {
-      "id": "apps_api_package_json_ref_cabzone_config",
+      "id": "apps_api_package_json_ref_Cabzone_config",
       "label": "@cabzone/config",
       "_origin": "ast",
       "community": 5,
@@ -3544,7 +3544,7 @@
       "source_location": "L37"
     },
     {
-      "id": "apps_api_package_json_ref_cabzone_contracts",
+      "id": "apps_api_package_json_ref_Cabzone_contracts",
       "label": "@cabzone/contracts",
       "_origin": "ast",
       "community": 5,
@@ -4039,7 +4039,7 @@
       "source_location": "L4"
     },
     {
-      "id": "package_json_ref_cabzone_config",
+      "id": "package_json_ref_Cabzone_config",
       "label": "@cabzone/config",
       "_origin": "ast",
       "community": 6,
@@ -5241,14 +5241,14 @@
     },
     {
       "id": "docs_readme_doc",
-      "label": "cabzone Documentation Root",
+      "label": "Cabzone Documentation Root",
       "author": null,
       "captured_at": null,
       "community": 0,
       "community_name": "Infrastructure & Architecture Docs",
       "contributor": null,
       "file_type": "document",
-      "norm_label": "cabzone documentation root",
+      "norm_label": "Cabzone documentation root",
       "source_file": "docs/README.md",
       "source_location": null,
       "source_url": null
@@ -6463,7 +6463,7 @@
     },
     {
       "source": "apps_api_tsconfig",
-      "target": "apps_api_tsconfig_json_ref_cabzone_config_tsconfig_base_json",
+      "target": "apps_api_tsconfig_json_ref_Cabzone_config_tsconfig_base_json",
       "relation": "extends",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -6475,7 +6475,7 @@
     },
     {
       "source": "apps_web_tsconfig",
-      "target": "ref_cabzone_config_tsconfig_react_json",
+      "target": "ref_Cabzone_config_tsconfig_react_json",
       "relation": "extends",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -6499,7 +6499,7 @@
     },
     {
       "source": "packages_contracts_tsconfig",
-      "target": "packages_contracts_tsconfig_json_ref_cabzone_config_tsconfig_base_json",
+      "target": "packages_contracts_tsconfig_json_ref_Cabzone_config_tsconfig_base_json",
       "relation": "extends",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -6511,7 +6511,7 @@
     },
     {
       "source": "tsconfig",
-      "target": "tsconfig_json_ref_cabzone_config_tsconfig_base_json",
+      "target": "tsconfig_json_ref_Cabzone_config_tsconfig_base_json",
       "relation": "extends",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -6523,7 +6523,7 @@
     },
     {
       "source": "apps_api_package",
-      "target": "apps_api_package_json_ref_cabzone_contracts",
+      "target": "apps_api_package_json_ref_Cabzone_contracts",
       "relation": "imports",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -6715,7 +6715,7 @@
     },
     {
       "source": "apps_api_package",
-      "target": "apps_api_package_json_ref_cabzone_config",
+      "target": "apps_api_package_json_ref_Cabzone_config",
       "relation": "imports",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -7771,7 +7771,7 @@
     },
     {
       "source": "apps_web_package",
-      "target": "apps_web_package_json_ref_cabzone_contracts",
+      "target": "apps_web_package_json_ref_Cabzone_contracts",
       "relation": "imports",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -7831,7 +7831,7 @@
     },
     {
       "source": "apps_web_package",
-      "target": "apps_web_package_json_ref_cabzone_config",
+      "target": "apps_web_package_json_ref_Cabzone_config",
       "relation": "imports",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -8023,7 +8023,7 @@
     },
     {
       "source": "package",
-      "target": "package_json_ref_cabzone_config",
+      "target": "package_json_ref_Cabzone_config",
       "relation": "imports",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -8227,7 +8227,7 @@
     },
     {
       "source": "packages_contracts_package",
-      "target": "packages_contracts_package_json_ref_cabzone_config",
+      "target": "packages_contracts_package_json_ref_Cabzone_config",
       "relation": "imports",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -9697,7 +9697,7 @@
     },
     {
       "source": "apps_api_package_dependencies",
-      "target": "apps_api_package_dependencies_cabzone_contracts",
+      "target": "apps_api_package_dependencies_Cabzone_contracts",
       "relation": "contains",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -9873,7 +9873,7 @@
     },
     {
       "source": "apps_api_package_devdependencies",
-      "target": "apps_api_package_devdependencies_cabzone_config",
+      "target": "apps_api_package_devdependencies_Cabzone_config",
       "relation": "contains",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -10995,7 +10995,7 @@
     },
     {
       "source": "apps_web_package_dependencies",
-      "target": "apps_web_package_dependencies_cabzone_contracts",
+      "target": "apps_web_package_dependencies_Cabzone_contracts",
       "relation": "contains",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -11050,7 +11050,7 @@
     },
     {
       "source": "apps_web_package_devdependencies",
-      "target": "apps_web_package_devdependencies_cabzone_config",
+      "target": "apps_web_package_devdependencies_Cabzone_config",
       "relation": "contains",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -11424,7 +11424,7 @@
     },
     {
       "source": "package_devdependencies",
-      "target": "package_devdependencies_cabzone_config",
+      "target": "package_devdependencies_Cabzone_config",
       "relation": "contains",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -12293,7 +12293,7 @@
     },
     {
       "source": "packages_contracts_package_devdependencies",
-      "target": "packages_contracts_package_devdependencies_cabzone_config",
+      "target": "packages_contracts_package_devdependencies_Cabzone_config",
       "relation": "contains",
       "_origin": "ast",
       "confidence": "EXTRACTED",

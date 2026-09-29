@@ -63,6 +63,26 @@ export class MongoZoneRepository implements ZoneRepositoryPort {
     return docs.map((doc) => this.toEntity(doc));
   }
 
+  async findActiveHillsContainingPoint(point: GeoPoint): Promise<ZoneEntity[]> {
+    const geoPoint = {
+      type: 'Point',
+      coordinates: [point.lng, point.lat],
+    };
+
+    const docs = await ZoneModel.find({
+      zone_type: 'HILL',
+      status: 'ACTIVE',
+      $or: [
+        { geometry: { $geoIntersects: { $geometry: geoPoint } } },
+        { boundary: { $geoIntersects: { $geometry: geoPoint } } },
+      ],
+    })
+      .lean<ZoneDocument[]>()
+      .exec();
+
+    return docs.map((doc) => this.toEntity(doc));
+  }
+
   async findNearestActiveCity(point: GeoPoint): Promise<ZoneEntity | null> {
     const geoPoint = {
       type: 'Point',
@@ -130,6 +150,8 @@ export class MongoZoneRepository implements ZoneRepositoryPort {
         geometry: zone.geometry,
         boundary: zone.boundary,
         buffer_distance_m: zone.bufferDistanceM,
+        pickup_charge_type: zone.pickupChargeType ?? null,
+        pickup_charge_paise: zone.pickupChargePaise ?? null,
         status: zone.status,
         current_pricing_config_id: zone.currentPricingConfigId,
         version: zone.version,
@@ -225,6 +247,8 @@ export class MongoZoneRepository implements ZoneRepositoryPort {
       geometry,
       boundary,
       bufferDistanceM: doc.buffer_distance_m,
+      pickupChargeType: doc.pickup_charge_type ?? (doc.zone_type === 'PICKUP' ? 'FREE' : null),
+      pickupChargePaise: doc.pickup_charge_paise ?? null,
       status: doc.status,
       currentPricingConfigId: doc.current_pricing_config_id,
       version: doc.version ?? 1,

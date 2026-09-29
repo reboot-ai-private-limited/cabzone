@@ -44,6 +44,19 @@ export class MemoryZoneRepository implements ZoneRepositoryPort {
     return results;
   }
 
+  async findActiveHillsContainingPoint(point: GeoPoint): Promise<ZoneEntity[]> {
+    const results: ZoneEntity[] = [];
+    for (const zone of this.zones.values()) {
+      if (zone.zoneType === 'HILL' && zone.status === 'ACTIVE') {
+        const geom = zone.geometry ?? zone.boundary;
+        if (geom && isPointInGeometry(point, geom)) {
+          results.push({ ...zone });
+        }
+      }
+    }
+    return results;
+  }
+
   async findNearestActiveCity(point: GeoPoint): Promise<ZoneEntity | null> {
     let nearest: ZoneEntity | null = null;
     let minDistance = Infinity;

@@ -1,19 +1,19 @@
-# cabzone — Zone-Based Ride-Hailing Platform
+# Cabzone — Zone-Based Ride-Hailing Platform
 
-**cabzone** is a production-grade full-stack monorepo for a zone-based ride-hailing and driver dispatch platform featuring negotiable fares, multi-tier geographic classifications (in-city, outstation, interstate), and prepaid driver commission ledgers.
+**Cabzone** is a production-grade full-stack monorepo for a zone-based ride-hailing and driver dispatch platform featuring negotiable fares, multi-tier geographic classifications (in-city, outstation, interstate), and prepaid driver commission ledgers.
 
 > **Naming Standards**:
 >
-> - **Product / Brand**: **cabzone**
+> - **Product / Brand**: **Cabzone**
 > - **NPM Package Scope**: `@cabzone/*`
-> - **Monorepo / Container Namespace**: `cabzone`
+> - **Monorepo / Container Namespace**: `Cabzone`
 
 ---
 
 ## System Architecture
 
 ```text
-cabzone/
+Cabzone/
 ├── apps/
 │   ├── api/                    Node.js 22 (ESM) + Express + BullMQ (port 4000)
 │   └── web/                    Next.js 15 (App Router) + React 19 + Tailwind CSS (port 3000)
@@ -67,7 +67,7 @@ cabzone/
 ```bash
 # Clone and install dependencies
 git clone <repository-url>
-cd cabzone
+cd Cabzone
 pnpm install
 
 # Setup environment variables

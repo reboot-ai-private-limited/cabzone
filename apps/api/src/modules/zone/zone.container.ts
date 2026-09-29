@@ -3,6 +3,7 @@ import {
   ActivateZoneUseCase,
   CreateZoneUseCase,
   DeactivateZoneUseCase,
+  GetZoneDependentsUseCase,
   GetZoneHistoryUseCase,
   GetZoneUseCase,
   ListZonesUseCase,
@@ -12,10 +13,16 @@ import {
   UpdateZoneUseCase,
   ValidateZoneUseCase,
 } from './application/useCases/index.js';
-import type { ZoneAuditRepositoryPort, ZoneRepositoryPort } from './domain/index.js';
+import type {
+  CoverageRequestRepositoryPort,
+  ZoneAuditRepositoryPort,
+  ZoneRepositoryPort,
+} from './domain/index.js';
 import {
+  MemoryCoverageRequestRepository,
   MemoryZoneAuditRepository,
   MemoryZoneRepository,
+  MongoCoverageRequestRepository,
   MongoZoneAuditRepository,
   MongoZoneRepository,
 } from './infrastructure/persistence/index.js';
@@ -24,6 +31,7 @@ import {
   makeCreateZoneController,
   makeDeactivateZoneController,
   makeGetZoneController,
+  makeGetZoneDependentsController,
   makeGetZoneHistoryController,
   makeListZonesController,
   makeResolveZonesController,
@@ -45,9 +53,11 @@ export interface ZoneContainer {
   activateZoneUseCase: ActivateZoneUseCase;
   deactivateZoneUseCase: DeactivateZoneUseCase;
   getZoneHistoryUseCase: GetZoneHistoryUseCase;
+  getZoneDependentsUseCase: GetZoneDependentsUseCase;
   resolveZonesUseCase: ResolveZonesUseCase;
   zoneRepo: ZoneRepositoryPort;
   auditRepo: ZoneAuditRepositoryPort;
+  coverageRepo?: CoverageRequestRepositoryPort | undefined;
   buildAdminZoneRouter: (deps: { authenticate: RequestHandler; requireAdminRole: RequestHandler }) => Router;
   buildZoneRouter: () => Router;
 }
@@ -55,6 +65,7 @@ export interface ZoneContainer {
 export interface ZoneContainerDeps {
   zoneRepo?: ZoneRepositoryPort | undefined;
   auditRepo?: ZoneAuditRepositoryPort | undefined;
+  coverageRepo?: CoverageRequestRepositoryPort | undefined;
   globalDefaultBufferM?: number | undefined;
 }
 
@@ -66,6 +77,11 @@ export function buildZoneContainer(deps?: ZoneContainerDeps): ZoneContainer {
     (deps?.zoneRepo instanceof MemoryZoneRepository
       ? new MemoryZoneAuditRepository()
       : new MongoZoneAuditRepository());
+  const coverageRepo =
+    deps?.coverageRepo ??
+    (deps?.zoneRepo instanceof MemoryZoneRepository
+      ? new MemoryCoverageRequestRepository()
+      : new MongoCoverageRequestRepository());
 
   const validateZoneUseCase = new ValidateZoneUseCase({ zoneRepo });
   const createZoneUseCase = new CreateZoneUseCase({ zoneRepo, auditRepo, validateZoneUseCase });
@@ -81,8 +97,10 @@ export function buildZoneContainer(deps?: ZoneContainerDeps): ZoneContainer {
   const activateZoneUseCase = new ActivateZoneUseCase({ zoneRepo, auditRepo });
   const deactivateZoneUseCase = new DeactivateZoneUseCase({ zoneRepo, auditRepo });
   const getZoneHistoryUseCase = new GetZoneHistoryUseCase({ zoneRepo, auditRepo });
+  const getZoneDependentsUseCase = new GetZoneDependentsUseCase({ zoneRepo });
   const resolveZonesUseCase = new ResolveZonesUseCase({
     zoneRepo,
+    coverageRepo,
     globalDefaultBufferM: deps?.globalDefaultBufferM,
   });
 
@@ -95,6 +113,7 @@ export function buildZoneContainer(deps?: ZoneContainerDeps): ZoneContainer {
   const activateZone = makeActivateZoneController(activateZoneUseCase);
   const deactivateZone = makeDeactivateZoneController(deactivateZoneUseCase);
   const getZoneHistory = makeGetZoneHistoryController(getZoneHistoryUseCase);
+  const getZoneDependents = makeGetZoneDependentsController(getZoneDependentsUseCase);
   const resolveZones = makeResolveZonesController(resolveZonesUseCase);
 
   return {
@@ -108,9 +127,11 @@ export function buildZoneContainer(deps?: ZoneContainerDeps): ZoneContainer {
     activateZoneUseCase,
     deactivateZoneUseCase,
     getZoneHistoryUseCase,
+    getZoneDependentsUseCase,
     resolveZonesUseCase,
     zoneRepo,
     auditRepo,
+    coverageRepo,
     buildAdminZoneRouter: (authDeps) =>
       buildAdminZoneRouter({
         ...authDeps,
@@ -123,6 +144,7 @@ export function buildZoneContainer(deps?: ZoneContainerDeps): ZoneContainer {
         activateZone,
         deactivateZone,
         getZoneHistory,
+        getZoneDependents,
       }),
     buildZoneRouter: () =>
       buildZoneRouter({
