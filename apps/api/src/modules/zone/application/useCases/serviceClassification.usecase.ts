@@ -17,9 +17,18 @@ export interface ClassifyServiceInput {
   vehicleCategory?: VehicleCategory | undefined;
 }
 
+/** A state as resolved from a point; structurally what the state boundary module returns. */
+export interface GuardedState {
+  stateCode: string;
+  boundaryVersion: number;
+  configVersion: number;
+  intrastateEnabled: boolean;
+  interstateDropOffEnabled: boolean;
+}
+
 /** Rejects trips whose pickup or drop is outside the serviceable area (throws NOT_SERVICEABLE). */
 export interface ServiceabilityGuard {
-  execute(pickup: GeoPoint, drop: GeoPoint): Promise<unknown>;
+  execute(pickup: GeoPoint, drop: GeoPoint): Promise<{ pickup: GuardedState; drop: GuardedState }>;
 }
 
 export interface ServiceClassificationDeps {
@@ -32,7 +41,7 @@ export class ServiceClassificationUseCase {
   constructor(private readonly deps: ServiceClassificationDeps) {}
 
   async execute(input: ClassifyServiceInput): Promise<ServiceClassificationDto> {
-    await this.deps.serviceabilityGuard?.execute(input.pickup, input.drop);
+    const states = await this.deps.serviceabilityGuard?.execute(input.pickup, input.drop);
 
     const segments = input.routeStateSegments ?? [];
 
@@ -52,7 +61,12 @@ export class ServiceClassificationUseCase {
     let geoRecommendedType: ServiceClassificationType;
     let bufferApplied = false;
 
-    if (distinctStates.size > 1) {
+    // The route's states are authoritative when known; otherwise fall back to the endpoints' states.
+    const crossesStates =
+      distinctStates.size > 1 ||
+      (states !== undefined && states.pickup.stateCode !== states.drop.stateCode);
+
+    if (crossesStates) {
       geoRecommendedType = 'INTERSTATE';
     } else if (!originCity) {
       geoRecommendedType = 'OUTSTATION';
@@ -94,7 +108,27 @@ export class ServiceClassificationUseCase {
       input.requestedService && input.requestedService !== geoRecommendedType,
     );
 
+    // 5. Route scope and state serviceability. City trips need no state configuration.
+    const serviceType = finalType === 'IN_CITY' ? 'CITY' : 'OUTSTATION';
+    const routeScope = serviceType === 'CITY' ? null : crossesStates ? 'INTERSTATE' : 'INTRA_STATE';
+    if (states !== undefined && routeScope === 'INTRA_STATE' && !states.drop.intrastateEnabled) {
+      throw AppError.badRequest(
+        'INTRASTATE_SERVICE_DISABLED: Outstation trips within this state are not available right now.',
+      );
+    }
+    if (states !== undefined && routeScope === 'INTERSTATE' && !states.drop.interstateDropOffEnabled) {
+      throw AppError.badRequest(
+        'INTERSTATE_SERVICE_DISABLED: Drop-offs in the destination state are not available right now.',
+      );
+    }
+
     return {
+      serviceType,
+      routeScope,
+      originStateCode: states?.pickup.stateCode ?? null,
+      destinationStateCode: states?.drop.stateCode ?? null,
+      stateBoundaryVersion: states?.drop.boundaryVersion ?? null,
+      stateConfigVersion: states?.drop.configVersion ?? null,
       type: finalType,
       cityZoneId: originCity?.id ?? null,
       cityName: originCity?.name ?? null,

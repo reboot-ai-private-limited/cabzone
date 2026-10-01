@@ -95,3 +95,9 @@ export const vehicleVerificationStatusSchema = z.enum(VEHICLE_VERIFICATION_STATU
 export const driverApplicationStatusSchema = z.enum(DRIVER_APPLICATION_STATUSES);
 export const documentTypeSchema = z.enum(DOCUMENT_TYPES);
 export const documentVerificationStatusSchema = z.enum(DOCUMENT_VERIFICATION_STATUSES);
+
+export const listDriverApplicationsQuerySchema = z.object({
+  status: driverApplicationStatusSchema.optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(25),
+  offset: z.coerce.number().int().min(0).default(0),
+});

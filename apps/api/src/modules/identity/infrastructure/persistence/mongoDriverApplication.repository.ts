@@ -1,4 +1,8 @@
-import type { DriverApplicationEntity, DriverApplicationRepositoryPort } from '../../domain/index.js';
+import type {
+  DriverApplicationEntity,
+  DriverApplicationListFilter,
+  DriverApplicationRepositoryPort,
+} from '../../domain/index.js';
 import { DriverApplicationModel, type DriverApplicationDocument } from './driverApplication.model.js';
 
 export class MongoDriverApplicationRepository implements DriverApplicationRepositoryPort {
@@ -15,6 +19,16 @@ export class MongoDriverApplicationRepository implements DriverApplicationReposi
       .exec();
     if (!doc) return null;
     return this.toEntity(doc);
+  }
+
+  async list(filter: DriverApplicationListFilter): Promise<DriverApplicationEntity[]> {
+    const docs = await DriverApplicationModel.find(filter.status ? { status: filter.status } : {})
+      .sort({ created_at: -1 })
+      .skip(filter.offset)
+      .limit(filter.limit)
+      .lean<DriverApplicationDocument[]>()
+      .exec();
+    return docs.map((d) => this.toEntity(d));
   }
 
   async create(app: DriverApplicationEntity): Promise<DriverApplicationEntity> {

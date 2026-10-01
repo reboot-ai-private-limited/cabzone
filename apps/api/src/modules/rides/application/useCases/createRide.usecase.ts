@@ -4,6 +4,7 @@ import { newUuid } from '../../../../shared/ids.js';
 import {
   CreateQuoteUseCase,
   type PricingConfigRepositoryPort,
+  type StatePricingRepositoryPort,
 } from '../../../pricing/pricing.public.js';
 import type { RideEntity, RideRepositoryPort } from '../../domain/index.js';
 
@@ -18,10 +19,20 @@ export interface CreateRideInput {
   vehicleCategory: VehicleCategory;
 }
 
+/** Re-checks the quote's destination state against current settings. Structural: rides must not import stateBoundary. */
+export interface QuoteStateVerifier {
+  execute(input: {
+    destinationStateCode: string | null | undefined;
+    routeScope: 'INTRA_STATE' | 'INTERSTATE' | null | undefined;
+  }): Promise<void>;
+}
+
 export interface CreateRideDeps {
   rideRepo: RideRepositoryPort;
   pricingConfigRepo: PricingConfigRepositoryPort;
+  statePricingRepo?: StatePricingRepositoryPort | undefined;
   tokenSecret: string;
+  quoteStateVerifier?: QuoteStateVerifier | undefined;
 }
 
 export class CreateRideUseCase {
@@ -50,6 +61,24 @@ export class CreateRideUseCase {
       throw AppError.conflict(
         'PRICING_VERSION_MISMATCH: Pricing configuration has been updated. Please fetch a fresh quote.',
       );
+    }
+
+    // 3b. The destination state may have been disabled since the quote was issued.
+    await this.deps.quoteStateVerifier?.execute({
+      destinationStateCode: quote.destinationStateCode,
+      routeScope: quote.routeScope,
+    });
+
+    // 3c. Compare current state pricing versions
+    if (quote.statePricingVersions && this.deps.statePricingRepo) {
+      for (const [stateCode, expectedVer] of Object.entries(quote.statePricingVersions)) {
+        const currentSp = await this.deps.statePricingRepo.findByStateCode(stateCode);
+        if (!currentSp || currentSp.version !== expectedVer) {
+          throw AppError.conflict(
+            'PRICING_VERSION_MISMATCH: State pricing has been updated since the quote was issued. Please fetch a fresh quote.',
+          );
+        }
+      }
     }
 
     // 4. Validate rider proposed fare against server negotiation bounds
@@ -91,7 +120,7 @@ export class CreateRideUseCase {
         address: null,
       },
       routeSnapshot: {
-        provider: 'HAVERSINE_ESTIMATE',
+        provider: quote.routeProvider ?? 'GOOGLE_ROUTES',
         distanceM: quote.distanceM,
         durationSeconds: quote.durationSeconds,
         polyline: '',
@@ -100,7 +129,15 @@ export class CreateRideUseCase {
       zoneSnapshot: {
         classification: quote.serviceType,
         cityZoneId: quote.cityZoneId,
-        stateSegments: [],
+        routeScope: quote.routeScope ?? null,
+        destinationStateCode: quote.destinationStateCode ?? null,
+        stateBoundaryVersion: quote.stateBoundaryVersion ?? null,
+        stateConfigVersion: quote.stateConfigVersion ?? null,
+        stateSegments: (quote.stateSegments ?? []).map((s) => ({
+          stateCode: s.stateCode,
+          distanceM: s.distanceM,
+          ratePerKmPaise: s.ratePerKmPaise,
+        })),
       },
       pricingSnapshot: {
         pricingConfigId: quote.pricingConfigId,

@@ -38,6 +38,25 @@ export function SideNav() {
 
                 const Icon = item.icon;
 
+                if (item.comingSoon) {
+                  return (
+                    <div
+                      key={item.href}
+                      aria-disabled="true"
+                      title="Coming soon"
+                      className="group flex items-center justify-between px-3 py-2 rounded-sm text-sm text-text-subtle/50 cursor-not-allowed border border-transparent"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <Icon aria-hidden className="size-4 shrink-0 opacity-50" />
+                        <span>{item.label}</span>
+                      </div>
+                      <span className="text-[10px] font-medium tracking-tight opacity-0 group-hover:opacity-100 transition-opacity">
+                        Coming soon
+                      </span>
+                    </div>
+                  );
+                }
+
                 if (item.external) {
                   return (
                     <a

@@ -1,0 +1,60 @@
+import { AppError } from '../../../../shared/errors/AppError.js';
+import type { RideEntity, RideRepositoryPort } from '../../../rides/rides.public.js';
+import { haversineDistanceM, type DriverPresencePort } from '../../domain/presence.port.js';
+import type {
+  DispatchConfig,
+  DispatchLookups,
+  RideOfferDto,
+} from '../dispatch.types.js';
+import type { DriverOfferEligibility } from './driverOfferEligibility.js';
+
+export function toRideOffer(ride: RideEntity, distanceToPickupM: number): RideOfferDto {
+  return {
+    rideId: ride.id,
+    vehicleCategory: ride.vehicleCategory,
+    pickup: ride.pickup,
+    drop: ride.drop,
+    proposedFarePaise: ride.proposedFarePaise ?? ride.suggestedFarePaise,
+    distanceToPickupM: Math.round(distanceToPickupM),
+    expiresAt: (ride.offeringExpiresAt ?? new Date()).toISOString(),
+  };
+}
+
+/**
+ * Pull-based view of open offers for a driver. This is also the resync path after a WebSocket
+ * reconnect (websocket-contracts.md §9), so it must never depend on missed events.
+ */
+export class ListDriverOffersUseCase {
+  constructor(
+    private readonly presence: DriverPresencePort,
+    private readonly rideRepo: RideRepositoryPort,
+    private readonly eligibility: DriverOfferEligibility,
+    private readonly lookups: DispatchLookups,
+    private readonly config: DispatchConfig,
+  ) {}
+
+  async execute(userId: string, now: Date = new Date()): Promise<RideOfferDto[]> {
+    const profile = await this.lookups.getDriverProfileByUserId(userId);
+    if (!profile) {
+      throw AppError.forbidden('DRIVER_PROFILE_REQUIRED: No driver profile for this account.');
+    }
+    const here = await this.presence.get(profile.driverId);
+    if (!here) return [];
+    if (now.getTime() - here.locationUpdatedAt.getTime() > this.config.locationMaxAgeMs) return [];
+    if (!(await this.eligibility.canReceiveOffers(profile.driverId))) return [];
+
+    const open = await this.rideRepo.list({
+      statuses: ['OFFERING'],
+      vehicleCategory: here.vehicleCategory,
+      offeringExpiresAfter: now,
+      limit: 100,
+      offset: 0,
+    });
+
+    return open
+      .map((ride) => ({ ride, distance: haversineDistanceM(here, ride.pickup) }))
+      .filter(({ distance }) => distance <= this.config.offerRadiusM)
+      .sort((a, b) => a.distance - b.distance)
+      .map(({ ride, distance }) => toRideOffer(ride, distance));
+  }
+}

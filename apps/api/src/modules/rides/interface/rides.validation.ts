@@ -46,3 +46,30 @@ export const cancelRideSchema = z.object({
 export const rideStatusSchema = z.enum(RIDE_STATUSES);
 export const negotiationActionSchema = z.enum(NEGOTIATION_ACTIONS);
 export const cancellationReasonSchema = z.enum(CANCELLATION_REASONS);
+
+export const createRideRequestSchema = z.object({
+  quoteToken: z.string().trim().min(1, 'quoteToken is required'),
+  proposedFarePaise: z.number().int().positive('Proposed fare must be positive'),
+  passenger: passengerSchema.pick({ name: true, phoneE164: true }),
+  vehicleCategory: z.enum(VEHICLE_CATEGORIES),
+  pickup: locationPointSchema.pick({ lat: true, lng: true }),
+  drop: locationPointSchema.pick({ lat: true, lng: true }),
+});
+
+export const startRideRequestSchema = z.object({
+  otp: z.string().trim().regex(/^\d{4}$/, 'OTP must be 4 digits'),
+});
+
+export const rideIdParamSchema = z.object({ id: z.string().uuid() });
+
+export const listRidesQuerySchema = z.object({
+  status: z
+    .string()
+    .optional()
+    .transform((v) => (v ? v.split(',').map((s) => s.trim()) : undefined))
+    .pipe(z.array(rideStatusSchema).optional()),
+  riderId: z.string().uuid().optional(),
+  driverId: z.string().uuid().optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+  offset: z.coerce.number().int().min(0).default(0),
+});

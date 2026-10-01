@@ -2,6 +2,11 @@ import type { RiderEntity, RiderRepositoryPort } from '../../domain/index.js';
 import { RiderModel, type RiderDocument } from './rider.model.js';
 
 export class MongoRiderRepository implements RiderRepositoryPort {
+  async findById(riderId: string): Promise<RiderEntity | null> {
+    const doc = await RiderModel.findById(riderId).lean<RiderDocument | null>().exec();
+    return doc ? this.toEntity(doc) : null;
+  }
+
   async findByUserId(userId: string): Promise<RiderEntity | null> {
     const doc = await RiderModel.findOne({ user_id: userId }).lean<RiderDocument | null>().exec();
     if (!doc) return null;

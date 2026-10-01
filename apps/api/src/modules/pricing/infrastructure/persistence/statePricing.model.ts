@@ -11,6 +11,7 @@ export interface StatePricingDocument extends Document<string> {
   status: StatePricingStatus;
   effective_from: Date;
   effective_to: Date | null;
+  created_by_admin_id: string;
   created_at: Date;
 }
 
@@ -30,6 +31,7 @@ const statePricingSchema = new Schema<StatePricingDocument>(
     },
     effective_from: { type: Date, required: true },
     effective_to: { type: Date, default: null },
+    created_by_admin_id: { type: String, default: 'SYSTEM' },
     created_at: { type: Date, default: () => new Date() },
   },
   {
@@ -40,9 +42,15 @@ const statePricingSchema = new Schema<StatePricingDocument>(
   },
 );
 
+// Partial unique index guarantees at most one ACTIVE state pricing per state
+statePricingSchema.index(
+  { state_code: 1 },
+  { unique: true, partialFilterExpression: { status: 'ACTIVE' } },
+);
 statePricingSchema.index({ state_code: 1, status: 1 });
 statePricingSchema.index({ state_code: 1, version: -1 });
 
 export const StatePricingModel: mongoose.Model<StatePricingDocument> =
   (mongoose.models.StatePricing as mongoose.Model<StatePricingDocument>) ||
   mongoose.model<StatePricingDocument>('StatePricing', statePricingSchema);
+

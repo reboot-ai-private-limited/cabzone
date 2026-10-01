@@ -7,4 +7,7 @@ export interface StatePricingRepositoryPort {
   save(statePricing: StatePricingEntity): Promise<StatePricingEntity>;
   findAll(status?: StatePricingStatus): Promise<StatePricingEntity[]>;
   findLatestVersion(stateCode: string): Promise<number>;
+  createNewVersionAtomically(next: StatePricingEntity): Promise<StatePricingEntity>;
+  retire(id: string, expectedVersion: number): Promise<StatePricingEntity | null>;
 }
+

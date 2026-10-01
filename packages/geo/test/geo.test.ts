@@ -7,6 +7,7 @@ import {
   getCentroid,
   haversineDistanceM,
   hasRingSelfIntersection,
+  findRingSelfIntersection,
   isPointInGeometry,
   isPointInMultiPolygon,
   isPointInPolygon,
@@ -17,6 +18,8 @@ import {
   toPosition,
   validateCoordinates,
   validateGeometry,
+  repairPolygonalGeometry,
+  computeGeometryAreaM2,
   Z_CODES,
   isRingCounterClockwise,
   normalizeRingWinding,
@@ -538,5 +541,176 @@ describe('@cabzone/geo Engine', () => {
       expect(res.violations.some((v) => v.code === Z_CODES.Z011_MAX_AREA)).toBe(true);
       expect(res.violations[0]?.message).toContain('exceeds maximum operational ceiling');
     });
+
+    it('skips the operational area limits when enforceOperationalArea is false', () => {
+      const giantPolygon: GeoJsonPolygon = {
+        type: 'Polygon',
+        coordinates: [
+          [
+            [75.0, 15.0],
+            [90.0, 15.0],
+            [90.0, 30.0],
+            [75.0, 30.0],
+            [75.0, 15.0],
+          ],
+        ],
+      };
+
+      expect(validateGeometry(giantPolygon, { enforceOperationalArea: false }).valid).toBe(true);
+    });
+
+    it('still applies structural checks when the area limits are skipped', () => {
+      const openRing = {
+        type: 'Polygon',
+        coordinates: [
+          [
+            [75.0, 15.0],
+            [90.0, 15.0],
+            [90.0, 30.0],
+            [75.0, 30.0],
+          ],
+        ],
+      };
+
+      expect(validateGeometry(openRing, { enforceOperationalArea: false }).valid).toBe(false);
+    });
+  });
+});
+
+describe('repairPolygonalGeometry', () => {
+  const bowTie: GeoJsonPolygon = {
+    type: 'Polygon',
+    coordinates: [
+      [
+        [88.0, 26.0],
+        [88.2, 26.2],
+        [88.2, 26.0],
+        [88.0, 26.2],
+        [88.0, 26.0],
+      ],
+    ],
+  };
+
+  it('turns a self-intersecting ring into a valid geometry', () => {
+    expect(validateGeometry(bowTie, { enforceOperationalArea: false }).valid).toBe(false);
+    const fixed = repairPolygonalGeometry(bowTie);
+    expect(fixed).not.toBeNull();
+    expect(validateGeometry(fixed, { enforceOperationalArea: false }).valid).toBe(true);
+  });
+
+  it('leaves a valid polygon equivalent (same area)', () => {
+    const square: GeoJsonPolygon = {
+      type: 'Polygon',
+      coordinates: [
+        [
+          [88.0, 26.0],
+          [88.2, 26.0],
+          [88.2, 26.2],
+          [88.0, 26.2],
+          [88.0, 26.0],
+        ],
+      ],
+    };
+    const fixed = repairPolygonalGeometry(square)!;
+    expect(computeGeometryAreaM2(fixed)).toBeCloseTo(computeGeometryAreaM2(square), -3);
+  });
+
+  it('returns null for a degenerate input', () => {
+    expect(
+      repairPolygonalGeometry({
+        type: 'Polygon',
+        coordinates: [
+          [
+            [88, 26],
+            [89, 27],
+            [88, 26],
+          ],
+        ],
+      }),
+    ).toBeNull();
+  });
+});
+
+describe('ring self-intersection edge cases', () => {
+  it('does not flag repeated consecutive vertices on a valid ring', () => {
+    const ring: [number, number][] = [
+      [0, 0],
+      [1, 0],
+      [1, 0],
+      [1, 1],
+      [0, 1],
+      [0, 0],
+    ];
+    expect(hasRingSelfIntersection(ring)).toBe(false);
+  });
+
+  it('still flags a real bow-tie, reports where, and works with repeated vertices around it', () => {
+    const ring: [number, number][] = [
+      [0, 0],
+      [1, 1],
+      [1, 1],
+      [1, 0],
+      [0, 1],
+      [0, 0],
+    ];
+    expect(hasRingSelfIntersection(ring)).toBe(true);
+    expect(findRingSelfIntersection(ring)).toMatchObject({ edgeA: 0 });
+  });
+
+  it('includes the crossing edges in the violation message', () => {
+    const res = validateGeometry(
+      {
+        type: 'Polygon',
+        coordinates: [
+          [
+            [88.0, 26.0],
+            [88.2, 26.2],
+            [88.2, 26.0],
+            [88.0, 26.2],
+            [88.0, 26.0],
+          ],
+        ],
+      },
+      { enforceOperationalArea: false },
+    );
+    expect(res.violations[0]?.message).toMatch(/edges \d+ and \d+, near \[/);
+  });
+});
+
+describe('ring self-intersection: tiny-scale geometry', () => {
+  it('does not flag a valid ring whose vertex passes 1e-10 deg from another edge', () => {
+    const ring: [number, number][] = [
+      [0, 0],
+      [1, 1],
+      [1, 0],
+      [0.5 + 1e-10, 0.5],
+      [0.2, 0],
+      [0, 0],
+    ];
+    expect(hasRingSelfIntersection(ring)).toBe(false);
+  });
+
+  it('does not flag a sub-metre wiggle at a corner', () => {
+    const ring: [number, number][] = [
+      [0, 0],
+      [1, 0],
+      [1 - 1e-11, 1e-11],
+      [1, 1],
+      [0, 1],
+      [0, 0],
+    ];
+    expect(hasRingSelfIntersection(ring)).toBe(false);
+  });
+
+  it('still catches a genuine bow-tie at a tiny scale', () => {
+    const s = 1e-6;
+    const ring: [number, number][] = [
+      [88, 26],
+      [88 + s, 26 + s],
+      [88 + s, 26],
+      [88, 26 + s],
+      [88, 26],
+    ];
+    expect(hasRingSelfIntersection(ring)).toBe(true);
   });
 });

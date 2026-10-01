@@ -17,10 +17,10 @@ export class AssertServiceableUseCase {
       this.resolveState.execute(drop),
     ]);
     if (!pickupState) {
-      throw AppError.badRequest('NOT_SERVICEABLE: Pickup location is outside our service area.');
+      throw AppError.badRequest('PICKUP_NOT_SERVICEABLE: Pickup location is outside our service area.');
     }
     if (!dropState) {
-      throw AppError.badRequest('NOT_SERVICEABLE: Drop location is outside our service area.');
+      throw AppError.badRequest('DESTINATION_NOT_SERVICEABLE: Drop location is outside our service area.');
     }
     return { pickup: pickupState, drop: dropState };
   }

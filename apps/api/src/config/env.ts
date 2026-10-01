@@ -54,6 +54,18 @@ const schema = z.object({
     .string()
     .regex(/^\d{6}$/, 'DEV_FIXED_OTP must be exactly 6 digits')
     .optional(),
+
+  /** Routing module configuration */
+  ROUTING_PROVIDER: z
+    .enum(['google', 'haversine'])
+    .default(process.env.NODE_ENV === 'production' ? 'google' : 'haversine'),
+  GOOGLE_ROUTES_API_KEY: z.string().optional(),
+  ROUTING_TIMEOUT_MS: z.coerce.number().int().positive().default(4000),
+  ROUTING_CACHE_TTL_S: z.coerce.number().int().positive().default(600),
+  ROUTING_TRAFFIC_AWARE: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true'),
 });
 
 const parsed = schema.safeParse(process.env);
@@ -73,6 +85,10 @@ export const env: Env = parsed.success
         CLOUDINARY_CLOUD_NAME: z.string().default('test-cloud'),
         CLOUDINARY_API_KEY: z.string().default('test-key'),
         CLOUDINARY_API_SECRET: z.string().default('test-secret'),
+        ROUTING_PROVIDER: z.enum(['google', 'haversine']).default('haversine'),
+        ROUTING_TIMEOUT_MS: z.coerce.number().default(4000),
+        ROUTING_CACHE_TTL_S: z.coerce.number().default(600),
+        ROUTING_TRAFFIC_AWARE: z.boolean().default(false),
       })
       .parse({});
 
@@ -98,6 +114,14 @@ export function loadEnv(): Env {
     console.error(
       'Invalid environment:\n  DEV_FIXED_OTP: must not be set when NODE_ENV=production. ' +
         'Fixed OTP is strictly forbidden in live production.',
+    );
+    process.exit(1);
+  }
+
+  // Google Routes API key validation when provider is google
+  if (parsed.data.ROUTING_PROVIDER === 'google' && !parsed.data.GOOGLE_ROUTES_API_KEY) {
+    console.error(
+      'Invalid environment:\n  GOOGLE_ROUTES_API_KEY: is required when ROUTING_PROVIDER="google".',
     );
     process.exit(1);
   }
