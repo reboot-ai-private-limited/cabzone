@@ -4,7 +4,9 @@ import { createApp } from '../src/app.js';
 import {
   CreateDriverApplicationUseCase,
   CreateDriverProfileUseCase,
+  GetDriverApplicationDetailUseCase,
   GetDriverProfileUseCase,
+  ListDriverApplicationsUseCase,
   LogoutUseCase,
   RefreshTokenUseCase,
   RegisterDriverVehicleUseCase,
@@ -38,7 +40,9 @@ import {
   buildDriverRouter,
   makeCreateDriverApplicationController,
   makeCreateDriverProfileController,
+  makeGetDriverApplicationController,
   makeGetDriverProfileController,
+  makeListDriverApplicationsController,
   makeLogoutController,
   makeRefreshTokenController,
   makeRegisterDriverVehicleController,
@@ -99,6 +103,13 @@ class MemoryDriverApplicationRepository implements DriverApplicationRepositoryPo
       if (a.driverId === driverId) return { ...a };
     }
     return null;
+  }
+
+  async list(filter: { status?: string | undefined; limit: number; offset: number }): Promise<DriverApplicationEntity[]> {
+    return [...this.apps.values()]
+      .filter((a) => filter.status === undefined || a.status === filter.status)
+      .slice(filter.offset, filter.offset + filter.limit)
+      .map((a) => ({ ...a }));
   }
 
   async create(app: DriverApplicationEntity): Promise<DriverApplicationEntity> {
@@ -323,6 +334,16 @@ describe('Driver Onboarding Endpoints (Supertest)', () => {
       sessionRepo,
     });
 
+    const adminDeps = {
+      applicationRepo: appRepo,
+      driverRepo,
+      documentRepo: docRepo,
+      vehicleRepo,
+      userRepo: {
+        findById: async (id: string) => ({ id, phoneE164: '+919800000001' }),
+      } as never,
+    };
+
     const driverRouter = buildDriverRouter({
       authenticate,
       createProfile: makeCreateDriverProfileController(createProfile),
@@ -337,6 +358,8 @@ describe('Driver Onboarding Endpoints (Supertest)', () => {
       authenticate,
       requireAdminRole: requireRole('SUPER_ADMIN', 'CITY_ADMIN'),
       reviewApplication: makeReviewDriverApplicationController(reviewApplication),
+      listApplications: makeListDriverApplicationsController(new ListDriverApplicationsUseCase(adminDeps)),
+      getApplication: makeGetDriverApplicationController(new GetDriverApplicationDetailUseCase(adminDeps)),
     });
 
     const identityContainer = {
@@ -481,6 +504,38 @@ describe('Driver Onboarding Endpoints (Supertest)', () => {
 
     expect(reviewRes.body.success).toBe(true);
     expect(reviewRes.body.data.status).toBe('APPROVED');
+
+    // 7b. Admin read APIs: list (filterable) and detail with documents
+    const listRes = await request(app)
+      .get('/api/v1/admin/driver-applications?status=APPROVED')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    expect(listRes.body.data).toHaveLength(1);
+    expect(listRes.body.data[0]).toMatchObject({
+      phoneE164: '+919800000001',
+      application: { id: applicationId, status: 'APPROVED' },
+      vehicle: { registrationNumber: 'WB74AB1234' },
+    });
+
+    const emptyRes = await request(app)
+      .get('/api/v1/admin/driver-applications?status=REJECTED')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    expect(emptyRes.body.data).toEqual([]);
+
+    const detailRes = await request(app)
+      .get(`/api/v1/admin/driver-applications/${applicationId}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    expect(detailRes.body.data.documents).toHaveLength(2);
+    await request(app)
+      .get('/api/v1/admin/driver-applications/does-not-exist')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(404);
+    await request(app)
+      .get('/api/v1/admin/driver-applications')
+      .set('Authorization', `Bearer ${driverToken}`)
+      .expect(403);
 
     // 8. GET /api/v1/driver/profile/me
     const meRes = await request(app)

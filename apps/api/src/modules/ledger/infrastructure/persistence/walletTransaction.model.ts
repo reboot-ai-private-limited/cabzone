@@ -18,6 +18,7 @@ export interface WalletTransactionDocument extends Document<string> {
   balance_before_paise: number;
   balance_after_paise: number;
   created_by: string | null;
+  note?: string | null;
   created_at: Date;
 }
 
@@ -47,6 +48,7 @@ const walletTransactionSchema = new Schema<WalletTransactionDocument>(
     balance_before_paise: { type: Number, required: true },
     balance_after_paise: { type: Number, required: true },
     created_by: { type: String, default: null },
+    note: { type: String, default: null },
     created_at: { type: Date, default: () => new Date() },
   },
   {

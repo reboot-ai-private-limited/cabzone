@@ -1,3 +1,4 @@
+import type { RideStatus, VehicleCategory } from '@cabzone/contracts';
 import type { RideEntity } from './ride.entity.js';
 
 export interface AtomicClaimResult {
@@ -5,9 +6,25 @@ export interface AtomicClaimResult {
   agreedFarePaise: number;
 }
 
+export interface RideListFilter {
+  /** Matches the booking rider or the passenger rider. */
+  riderId?: string | undefined;
+  driverId?: string | undefined;
+  statuses?: readonly RideStatus[] | undefined;
+  vehicleCategory?: VehicleCategory | undefined;
+  /** Only rides whose offer window closes after this instant. */
+  offeringExpiresAfter?: Date | undefined;
+  limit: number;
+  offset: number;
+}
+
 export interface RideRepositoryPort {
   save(ride: RideEntity): Promise<RideEntity>;
   findById(id: string): Promise<RideEntity | null>;
+  /** Newest first. */
+  list(filter: RideListFilter): Promise<RideEntity[]>;
+  /** OFFERING rides whose offer window closed before `now`, oldest first. */
+  findExpiredOfferings(now: Date, limit: number): Promise<RideEntity[]>;
   atomicClaimRide(opts: {
     rideId: string;
     driverId: string;

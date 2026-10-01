@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Building2, MoreHorizontal, Pencil, PowerOff, Trash2 } from 'lucide-react';
+import { Building2 } from 'lucide-react';
 import type { ZoneDto, ZoneType } from '@cabzone/contracts';
 /**
  * The SAME function the API reports `stats` from on POST /admin/zones/validate. Area and
@@ -11,15 +11,9 @@ import type { ZoneDto, ZoneType } from '@cabzone/contracts';
 import { zoneStats } from '@cabzone/geo';
 import {
   Badge,
-  Button,
   CellStack,
   DataState,
   DataTable,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
   FilterBar,
   FilterField,
   Pagination,
@@ -51,7 +45,7 @@ import { SEARCH_DEBOUNCE_MS } from '@/lib/hooks/timing';
 const PAGE_SIZE = 15;
 
 /** The skeleton uses the SAME widths as the columns, so nothing shifts when the data lands. */
-const COLUMN_WIDTHS = ['w-72', 'w-32', 'w-28', 'w-24', 'w-20', 'w-24', 'w-16'];
+const COLUMN_WIDTHS = ['w-72', 'w-32', 'w-28', 'w-24', 'w-20', 'w-24'];
 
 type FilterKey = 'q' | 'type' | 'page' | 'sort' | 'dir';
 
@@ -61,21 +55,9 @@ export interface ZonesTableProps {
   refetching: boolean;
   error: ErrorStateProps | undefined;
   onSelect: (id: string) => void;
-  onEdit: (zone: ZoneDto) => void;
-  onDeactivate: (zone: ZoneDto) => void;
-  onDelete: (zone: ZoneDto) => void;
 }
 
-export function ZonesTable({
-  zones,
-  loading,
-  refetching,
-  error,
-  onSelect,
-  onEdit,
-  onDeactivate,
-  onDelete,
-}: ZonesTableProps) {
+export function ZonesTable({ zones, loading, refetching, error, onSelect }: ZonesTableProps) {
   const params = useFilterParams<FilterKey>();
 
   /**
@@ -170,58 +152,6 @@ export function ZonesTable({
         <Badge tone={zone.is_active ? 'success' : 'neutral'}>
           {zone.is_active ? 'Active' : 'Inactive'}
         </Badge>
-      ),
-    },
-    {
-      key: 'actions',
-      header: '',
-      width: COLUMN_WIDTHS[5] ?? '',
-      align: 'right',
-      render: (zone) => (
-        /**
-         * Stop propagation so clicking inside the menu does not also trigger onRowClick,
-         * which would select the zone and switch to the map view.
-         */
-        // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
-        <div onClick={(e) => e.stopPropagation()}>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                size="sm"
-                variant="ghost"
-                aria-label={`Actions for ${zone.name}`}
-                icon={<MoreHorizontal aria-hidden className="size-4" />}
-              />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem
-                icon={<Pencil aria-hidden className="size-3.5" />}
-                onSelect={() => onEdit(zone)}
-              >
-                Edit
-              </DropdownMenuItem>
-              {zone.is_active && (
-                <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    icon={<PowerOff aria-hidden className="size-3.5" />}
-                    onSelect={() => onDeactivate(zone)}
-                  >
-                    Deactivate
-                  </DropdownMenuItem>
-                </>
-              )}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                icon={<Trash2 aria-hidden className="size-3.5" />}
-                destructive
-                onSelect={() => onDelete(zone)}
-              >
-                Delete
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
       ),
     },
   ];

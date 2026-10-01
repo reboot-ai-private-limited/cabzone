@@ -372,14 +372,6 @@ export function ZonesScreen() {
             select(id);
             params.set({ view: undefined });
           }}
-          onEdit={(zone) => {
-            // Switch to the map view first, then open the edit session so
-            // the admin immediately sees the polygon they are about to change.
-            params.set({ view: undefined });
-            startEdit(zone);
-          }}
-          onDeactivate={(zone) => setDeactivating(zone)}
-          onDelete={(zone) => setDeleting(zone)}
         />
       ) : (
         <section

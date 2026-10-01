@@ -109,8 +109,8 @@ describe('Admin state boundary API', () => {
       .set('Authorization', auth)
       .send({ geojson, sourceVersion: '2026-01' });
     expect(res.status).toBe(200);
-    expect(res.body.data.imported.sort()).toEqual(['SK', 'WB']);
-    expect(res.body.data.skippedNotServiceable).toEqual([]);
+    expect(res.body.data.imported.sort()).toEqual(['KL', 'SK', 'WB']);
+    expect(res.body.data.disabledOnImport).toEqual(['KL']);
     expect(res.body.data.missing.sort()).toEqual(['AS', 'BR']);
 
     const list = await request(app).get('/api/v1/admin/reference/states').set('Authorization', auth);
@@ -140,5 +140,98 @@ describe('Admin state boundary API', () => {
       .set('Authorization', auth)
       .send({ geojson: { type: 'Nope' } });
     expect(res.status).toBe(400);
+  });
+
+  describe('state management', () => {
+    const base = '/api/v1/admin/reference/states';
+    const importAll = async () => {
+      const ctx = await setup('SUPER_ADMIN');
+      await request(ctx.app).post(`${base}/import`).set('Authorization', ctx.auth).send({ geojson });
+      return ctx;
+    };
+
+    it('updates config with If-Match-Version and rejects a stale version with 409', async () => {
+      const { app, auth } = await importAll();
+      const ok = await request(app)
+        .patch(`${base}/WB`)
+        .set('Authorization', auth)
+        .set('If-Match-Version', '1')
+        .send({ interstateDropOffEnabled: false });
+      expect(ok.status).toBe(200);
+      expect(ok.body.data.state.interstateDropOffEnabled).toBe(false);
+      expect(ok.body.data.state.configVersion).toBe(2);
+      // Boundary version is untouched by config edits.
+      expect(ok.body.data.state.version).toBe(1);
+
+      const stale = await request(app)
+        .patch(`${base}/WB`)
+        .set('Authorization', auth)
+        .set('If-Match-Version', '1')
+        .send({ intrastateEnabled: false });
+      expect(stale.status).toBe(409);
+    });
+
+    it('requires a version for edits', async () => {
+      const { app, auth } = await importAll();
+      const res = await request(app)
+        .patch(`${base}/WB`)
+        .set('Authorization', auth)
+        .send({ intrastateEnabled: false });
+      expect(res.status).toBe(400);
+    });
+
+    it('deactivate hides the state from the default list but keeps it, and activate restores it', async () => {
+      const { app, auth } = await importAll();
+      const off = await request(app)
+        .post(`${base}/SK/deactivate`)
+        .set('Authorization', auth)
+        .send({ expectedVersion: 1 });
+      expect(off.status).toBe(200);
+      expect(off.body.data.state.status).toBe('INACTIVE');
+
+      const active = await request(app).get(base).set('Authorization', auth);
+      expect(active.body.data.states.map((s: { stateCode: string }) => s.stateCode)).toEqual(['WB']);
+      const all = await request(app).get(`${base}?includeInactive=true`).set('Authorization', auth);
+      expect(all.body.data.states).toHaveLength(3);
+
+      const on = await request(app)
+        .post(`${base}/SK/activate`)
+        .set('Authorization', auth)
+        .send({ expectedVersion: 2 });
+      expect(on.body.data.state.status).toBe('ACTIVE');
+    });
+
+    it('re-import bumps the boundary version, keeps status/config, and records the old border', async () => {
+      const { app, auth } = await importAll();
+      await request(app)
+        .post(`${base}/WB/deactivate`)
+        .set('Authorization', auth)
+        .send({ expectedVersion: 1 });
+      await request(app).post(`${base}/import`).set('Authorization', auth).send({ geojson });
+
+      const state = await request(app).get(`${base}/WB`).set('Authorization', auth);
+      expect(state.body.data.state.version).toBe(2);
+      expect(state.body.data.state.status).toBe('INACTIVE');
+
+      const history = await request(app).get(`${base}/WB/history`).set('Authorization', auth);
+      const entries = history.body.data.history as {
+        action: string;
+        previousGeometry: unknown;
+      }[];
+      expect(entries.map((h) => h.action).sort()).toEqual(['DEACTIVATED', 'IMPORTED', 'IMPORTED']);
+      expect(entries.filter((h) => h.previousGeometry !== null)).toHaveLength(1);
+    });
+
+    it('404s for an unknown state and only SUPER_ADMIN may edit', async () => {
+      const { app, auth } = await importAll();
+      expect((await request(app).get(`${base}/ZZ`).set('Authorization', auth)).status).toBe(404);
+      const city = await setup('CITY_ADMIN');
+      const res = await request(city.app)
+        .patch(`${base}/WB`)
+        .set('Authorization', city.auth)
+        .set('If-Match-Version', '1')
+        .send({ intrastateEnabled: false });
+      expect(res.status).toBe(403);
+    });
   });
 });

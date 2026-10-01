@@ -9,3 +9,4 @@ export * from './uploadDriverDocument.usecase.js';
 export * from './registerDriverVehicle.usecase.js';
 export * from './submitDriverApplication.usecase.js';
 export * from './reviewDriverApplication.usecase.js';
+export * from './adminDriverApplications.usecase.js';

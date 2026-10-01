@@ -15,5 +15,7 @@ export interface WalletTransactionEntity {
   balanceBeforePaise: number;
   balanceAfterPaise: number;
   createdBy: string | null;
+  /** Free-text justification, required for admin adjustments. */
+  note?: string | null;
   createdAt: Date;
 }

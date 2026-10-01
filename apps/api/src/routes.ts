@@ -42,6 +42,27 @@ export function buildApiRouter(c: AppContainers): Router {
     }),
   );
   router.use('/v1/pricing', c.pricing.buildPricingRouter());
+  const walletAuth = {
+    authenticate: c.identity.authenticate,
+    requireRole: c.identity.requireRole,
+  };
+  router.use('/v1/admin/wallets', c.ledger.buildAdminWalletRouter(walletAuth));
+  router.use('/v1/driver/wallet', c.ledger.buildDriverWalletRouter(walletAuth));
+  router.use('/v1/driver', c.dispatch.buildDispatchRouter(walletAuth));
+  router.use(
+    '/v1/rides',
+    c.rides.buildRidesRouter({
+      authenticate: c.identity.authenticate,
+      requireRole: c.identity.requireRole,
+    }),
+  );
+  router.use(
+    '/v1/admin/routing',
+    c.routing.buildAdminRoutingRouter({
+      authenticate: c.identity.authenticate,
+      requireSuperAdmin: c.identity.requireRole('SUPER_ADMIN'),
+    }),
+  );
 
   return router;
 }

@@ -1,0 +1,73 @@
+import type { WalletTransactionType } from '@cabzone/contracts';
+import { AppError } from '../../../../shared/errors/AppError.js';
+import { newUuid } from '../../../../shared/ids.js';
+import {
+  calculateNewBalance,
+  type WalletEntity,
+  type WalletRepositoryPort,
+  type WalletTransactionEntity,
+} from '../../domain/index.js';
+
+export interface AdminAdjustWalletInput {
+  driverId: string;
+  amountPaise: number;
+  type: Extract<WalletTransactionType, 'CREDIT' | 'DEBIT'>;
+  reason: string;
+  adminId: string;
+  idempotencyKey?: string | undefined;
+}
+
+export interface AdminAdjustWalletResult {
+  wallet: WalletEntity;
+  transaction: WalletTransactionEntity;
+}
+
+/** Manual credit/debit by finance staff. Creates the driver's wallet on first use. */
+export class AdminAdjustWalletUseCase {
+  constructor(private readonly walletRepo: WalletRepositoryPort) {}
+
+  async execute(input: AdminAdjustWalletInput): Promise<AdminAdjustWalletResult> {
+    const now = new Date();
+    const wallet: WalletEntity = (await this.walletRepo.findByDriverId(input.driverId)) ?? {
+      id: newUuid(),
+      driverId: input.driverId,
+      balancePaise: 0,
+      status: 'ACTIVE',
+      version: 0,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    if (wallet.status !== 'ACTIVE') {
+      throw AppError.conflict(`WALLET_NOT_ACTIVE: Wallet is ${wallet.status}.`);
+    }
+    if (input.type === 'DEBIT' && wallet.balancePaise < input.amountPaise) {
+      throw AppError.badRequest('INSUFFICIENT_BALANCE: Debit would take the wallet below zero.');
+    }
+
+    const balanceAfter = calculateNewBalance(wallet.balancePaise, input.amountPaise, input.type);
+    const transaction = await this.walletRepo.recordTransaction({
+      id: newUuid(),
+      walletId: wallet.id,
+      driverId: wallet.driverId,
+      type: input.type,
+      amountPaise: input.amountPaise,
+      referenceType: 'ADMIN_ADJUSTMENT',
+      referenceId: null,
+      idempotencyKey: input.idempotencyKey ?? `admin_adj_${newUuid()}`,
+      balanceBeforePaise: wallet.balancePaise,
+      balanceAfterPaise: balanceAfter,
+      createdBy: input.adminId,
+      note: input.reason,
+      createdAt: now,
+    });
+
+    const saved = await this.walletRepo.save({
+      ...wallet,
+      balancePaise: balanceAfter,
+      version: wallet.version + 1,
+      updatedAt: now,
+    });
+    return { wallet: saved, transaction };
+  }
+}

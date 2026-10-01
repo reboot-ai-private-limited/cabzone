@@ -6,6 +6,11 @@ export interface AdminStateRouterDeps {
   requireSuperAdmin: RequestHandler;
   listStates: RequestHandler;
   importStates: RequestHandler;
+  getState: RequestHandler;
+  updateState: RequestHandler;
+  activateState: RequestHandler;
+  deactivateState: RequestHandler;
+  stateHistory: RequestHandler;
 }
 
 export function buildAdminStateRouter(deps: AdminStateRouterDeps): Router {
@@ -22,6 +27,13 @@ export function buildAdminStateRouter(deps: AdminStateRouterDeps): Router {
     express.json({ limit: '30mb' }),
     deps.importStates,
   );
+
+  // Registered after /import so the literal path is never read as a stateCode.
+  router.get('/:stateCode', deps.requireAdminRole, deps.getState);
+  router.get('/:stateCode/history', deps.requireAdminRole, deps.stateHistory);
+  router.patch('/:stateCode', deps.requireSuperAdmin, deps.updateState);
+  router.post('/:stateCode/activate', deps.requireSuperAdmin, deps.activateState);
+  router.post('/:stateCode/deactivate', deps.requireSuperAdmin, deps.deactivateState);
 
   return router;
 }

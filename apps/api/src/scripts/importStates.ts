@@ -12,8 +12,9 @@ import {
 /**
  * Usage: pnpm --filter @cabzone/api import:states <geojson-path> [source] [sourceVersion]
  *
- * Same import as the admin panel. Only the launch states (WB, BR, SK, AS) are imported; every
- * other feature is skipped, which is what makes the rest of India NOT_SERVICEABLE.
+ * Same import as the admin panel. Every state in the file is stored, with its code, name and
+ * dataset version read from the file. New states outside the launch set (WB, BR, SK, AS) are
+ * imported disabled, so they stay NOT_SERVICEABLE until an admin enables them.
  */
 async function main() {
   const [path, source = 'INDIA_STATE_BOUNDARY_DATASET', sourceVersion = null] = process.argv.slice(2);
@@ -35,7 +36,7 @@ async function main() {
   if (result.missing.length > 0 || result.rejected.length > 0) {
     logger.warn(
       { expected: LAUNCH_STATE_CODES, missing: result.missing, rejected: result.rejected },
-      'Some launch states were not imported; they remain NOT_SERVICEABLE.',
+      'Some launch states were missing or features were rejected; those remain NOT_SERVICEABLE.',
     );
     process.exitCode = 1;
   }

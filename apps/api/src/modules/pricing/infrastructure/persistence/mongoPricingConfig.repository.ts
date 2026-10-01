@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import type { StatePricingStatus, VehicleCategory } from '@cabzone/contracts';
 import type {
   PricingConfigEntity,
@@ -49,6 +50,7 @@ function toStatePricingEntity(doc: StatePricingDocument): StatePricingEntity {
     status: doc.status,
     effectiveFrom: doc.effective_from,
     effectiveTo: doc.effective_to,
+    createdByAdminId: doc.created_by_admin_id ?? undefined,
     createdAt: doc.created_at,
   };
 }
@@ -176,5 +178,80 @@ export class MongoStatePricingRepository implements StatePricingRepositoryPort {
       state_code: stateCode.toUpperCase(),
     }).sort({ version: -1 });
     return doc ? doc.version : 0;
+  }
+
+  async createNewVersionAtomically(next: StatePricingEntity): Promise<StatePricingEntity> {
+    const session = await mongoose.startSession();
+    try {
+      let result: StatePricingEntity | null = null;
+      await session.withTransaction(async () => {
+        const code = next.stateCode.toUpperCase();
+        // 1. Find current active version for this state, if any, and retire it
+        const currentActive = await StatePricingModel.findOne({
+          state_code: code,
+          status: 'ACTIVE',
+        }).session(session);
+
+        if (currentActive) {
+          currentActive.status = 'RETIRED';
+          currentActive.effective_to = next.effectiveFrom;
+          await currentActive.save({ session });
+        }
+
+        // 2. Find latest version number
+        const latestDoc = await StatePricingModel.findOne({
+          state_code: code,
+        })
+          .sort({ version: -1 })
+          .session(session);
+
+        const version = latestDoc ? latestDoc.version + 1 : 1;
+
+        // 3. Insert new active document
+        const created = await StatePricingModel.create(
+          [
+            {
+              _id: next.id,
+              state_code: code,
+              rate_per_km_paise: next.ratePerKmPaise,
+              base_fare_paise: next.baseFarePaise,
+              minimum_fare_paise: next.minimumFarePaise,
+              version,
+              status: 'ACTIVE',
+              effective_from: next.effectiveFrom,
+              effective_to: null,
+              created_by_admin_id: next.createdByAdminId ?? 'SYSTEM',
+              created_at: next.createdAt ?? new Date(),
+            },
+          ],
+          { session },
+        );
+
+        result = toStatePricingEntity(created[0]!);
+      });
+
+      return result!;
+    } finally {
+      await session.endSession();
+    }
+  }
+
+  async retire(id: string, expectedVersion: number): Promise<StatePricingEntity | null> {
+    const doc = await StatePricingModel.findOneAndUpdate(
+      {
+        _id: id,
+        version: expectedVersion,
+        status: { $ne: 'RETIRED' },
+      },
+      {
+        $set: {
+          status: 'RETIRED',
+          effective_to: new Date(),
+        },
+      },
+      { new: true },
+    );
+
+    return doc ? toStatePricingEntity(doc) : null;
   }
 }

@@ -8,6 +8,8 @@ import {
   RefreshTokenUseCase,
   RegisterDriverVehicleUseCase,
   RequestOtpUseCase,
+  GetDriverApplicationDetailUseCase,
+  ListDriverApplicationsUseCase,
   ReviewDriverApplicationUseCase,
   SubmitDriverApplicationUseCase,
   UploadDriverDocumentUseCase,
@@ -38,6 +40,8 @@ import {
   makeCreateDriverProfileController,
   makeGetDriverProfileController,
   makeRegisterDriverVehicleController,
+  makeGetDriverApplicationController,
+  makeListDriverApplicationsController,
   makeReviewDriverApplicationController,
   makeSubmitDriverApplicationController,
   makeUploadDriverDocumentController,
@@ -45,6 +49,7 @@ import {
 import { buildAdminDriverRouter, buildDriverRouter } from './interface/driver.routes.js';
 import {
   makeAuthenticate,
+  makeTokenVerifier,
   makeRequireZoneAccess,
   requireRole,
 } from './interface/middlewares/index.js';
@@ -55,6 +60,8 @@ export interface IdentityContainer {
   buildDriverRouter: () => Router;
   buildAdminDriverRouter: () => Router;
   authenticate: ReturnType<typeof makeAuthenticate>;
+  /** Token check for non-HTTP transports (WebSocket upgrade). */
+  verifyToken?: ReturnType<typeof makeTokenVerifier>;
   requireRole: typeof requireRole;
   requireZoneAccess: ReturnType<typeof makeRequireZoneAccess>;
 }
@@ -159,6 +166,8 @@ export function buildIdentityContainer(deps?: IdentityContainerDeps): IdentityCo
     vehicleRepo,
   });
 
+  const adminApplicationDeps = { applicationRepo, driverRepo, userRepo, vehicleRepo, documentRepo };
+
   const authenticate = makeAuthenticate({
     tokenVerifier: tokenAdapter,
     sessionRepo,
@@ -192,8 +201,15 @@ export function buildIdentityContainer(deps?: IdentityContainerDeps): IdentityCo
         authenticate,
         requireAdminRole: requireRole('SUPER_ADMIN', 'CITY_ADMIN'),
         reviewApplication: makeReviewDriverApplicationController(reviewDriverApplicationUseCase),
+        listApplications: makeListDriverApplicationsController(
+          new ListDriverApplicationsUseCase(adminApplicationDeps),
+        ),
+        getApplication: makeGetDriverApplicationController(
+          new GetDriverApplicationDetailUseCase(adminApplicationDeps),
+        ),
       }),
     authenticate,
+    verifyToken: makeTokenVerifier({ tokenVerifier: tokenAdapter, sessionRepo }),
     requireRole,
     requireZoneAccess,
   };

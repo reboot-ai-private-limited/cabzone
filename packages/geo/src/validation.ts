@@ -76,7 +76,10 @@ export function doSegmentsIntersect(
     // If they share an endpoint, check if they are collinear and overlapping
     const d1 = ccw(a1, a2, b1);
     const d2 = ccw(a1, a2, b2);
-    if (Math.abs(d1) < 1e-9 && Math.abs(d2) < 1e-9) {
+    // Exactly collinear only. An absolute tolerance here (it was 1e-9 on a cross product in
+    // degrees) makes every sub-metre edge look collinear with its neighbours, which flagged valid
+    // river and coastline borders as self-intersecting.
+    if (d1 === 0 && d2 === 0) {
       // Collinear: check if non-shared endpoint lies on the other segment
       const sameA1B1 = Math.abs(a1[0] - b1[0]) < 1e-9 && Math.abs(a1[1] - b1[1]) < 1e-9;
       const sameA1B2 = Math.abs(a1[0] - b2[0]) < 1e-9 && Math.abs(a1[1] - b2[1]) < 1e-9;
@@ -95,16 +98,15 @@ export function doSegmentsIntersect(
   const d4 = ccw(b1, b2, a2);
 
   // General case: lines cross
-  if (((d1 > 1e-9 && d2 < -1e-9) || (d1 < -1e-9 && d2 > 1e-9)) &&
-      ((d3 > 1e-9 && d4 < -1e-9) || (d3 < -1e-9 && d4 > 1e-9))) {
+  if (((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) && ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0))) {
     return true;
   }
 
-  // Collinear and on segment cases
-  if (Math.abs(d1) < 1e-9 && onSegment(b1, a1, a2)) return true;
-  if (Math.abs(d2) < 1e-9 && onSegment(b2, a1, a2)) return true;
-  if (Math.abs(d3) < 1e-9 && onSegment(a1, b1, b2)) return true;
-  if (Math.abs(d4) < 1e-9 && onSegment(a2, b1, b2)) return true;
+  // Collinear and on segment cases (an endpoint exactly on the other segment)
+  if (d1 === 0 && onSegment(b1, a1, a2)) return true;
+  if (d2 === 0 && onSegment(b2, a1, a2)) return true;
+  if (d3 === 0 && onSegment(a1, b1, b2)) return true;
+  if (d4 === 0 && onSegment(a2, b1, b2)) return true;
 
   return false;
 }
@@ -113,30 +115,75 @@ export function doSegmentsIntersect(
  * Checks if a ring has any self-intersections (bow-tie, overlapping non-adjacent edges).
  */
 export function hasRingSelfIntersection(ring: Position[]): boolean {
-  if (ring.length < 4) return false;
-  const numEdges = ring.length - 1;
+  return findRingSelfIntersection(ring) !== null;
+}
+
+export interface RingSelfIntersection {
+  /** Indices of the two crossing edges within the ring as given (edge n runs ring[n] → ring[n+1]). */
+  edgeA: number;
+  edgeB: number;
+  /** Start of the first offending edge, for locating the defect in the source data. */
+  at: Position;
+}
+
+/** Consecutive identical vertices add no shape; they only make neighbouring edges look like they touch. */
+function withoutRepeatedVertices(ring: Position[]): { points: Position[]; original: number[] } {
+  const points: Position[] = [];
+  const original: number[] = [];
+  for (let i = 0; i < ring.length; i++) {
+    const p = ring[i]!;
+    const prev = points[points.length - 1];
+    if (prev !== undefined && Math.abs(prev[0] - p[0]) < 1e-12 && Math.abs(prev[1] - p[1]) < 1e-12) {
+      continue;
+    }
+    points.push(p);
+    original.push(i);
+  }
+  return { points, original };
+}
+
+/** First pair of edges that cross or touch, or null for a simple ring. */
+export function findRingSelfIntersection(ring: Position[]): RingSelfIntersection | null {
+  const { points, original } = withoutRepeatedVertices(ring);
+  if (points.length < 4) return null;
+  const numEdges = points.length - 1;
+  const EPS = 1e-9;
 
   for (let i = 0; i < numEdges; i++) {
-    const a1 = ring[i]!;
-    const a2 = ring[i + 1]!;
+    const a1 = points[i]!;
+    const a2 = points[i + 1]!;
+    const aMinX = Math.min(a1[0], a2[0]) - EPS;
+    const aMaxX = Math.max(a1[0], a2[0]) + EPS;
+    const aMinY = Math.min(a1[1], a2[1]) - EPS;
+    const aMaxY = Math.max(a1[1], a2[1]) + EPS;
 
     for (let j = i + 1; j < numEdges; j++) {
-      const b1 = ring[j]!;
-      const b2 = ring[j + 1]!;
+      const b1 = points[j]!;
+      const b2 = points[j + 1]!;
+
+      // Cheap reject: edges whose bounding boxes are apart cannot intersect. Keeps large state
+      // borders (tens of thousands of vertices) from costing billions of full segment tests.
+      if (
+        Math.max(b1[0], b2[0]) < aMinX ||
+        Math.min(b1[0], b2[0]) > aMaxX ||
+        Math.max(b1[1], b2[1]) < aMinY ||
+        Math.min(b1[1], b2[1]) > aMaxY
+      ) {
+        continue;
+      }
 
       // Adjacent edges share an endpoint:
-      // - i and i+1 share ring[i+1]
-      // - first edge (0) and last edge (numEdges-1) share ring[0] == ring[numEdges]
-      const isAdjacent =
-        j === i + 1 || (i === 0 && j === numEdges - 1);
+      // - i and i+1 share points[i+1]
+      // - first edge (0) and last edge (numEdges-1) share points[0] == points[numEdges]
+      const isAdjacent = j === i + 1 || (i === 0 && j === numEdges - 1);
 
       if (doSegmentsIntersect(a1, a2, b1, b2, isAdjacent)) {
-        return true;
+        return { edgeA: original[i]!, edgeB: original[j]!, at: a1 };
       }
     }
   }
 
-  return false;
+  return null;
 }
 
 /**
@@ -348,19 +395,33 @@ function validateRing(ring: unknown, ringIndex: number, violations: ZoneViolatio
   }
 
   // Z-005: Self-intersection
-  if (hasRingSelfIntersection(positions)) {
+  const crossing = findRingSelfIntersection(positions);
+  if (crossing !== null) {
     violations.push({
       code: Z_CODES.Z005_SELF_INTERSECTION,
       severity: 'ERROR',
-      message: `Ring ${ringIndex} has self-intersecting edges (bow-tie or crossing boundary).`,
+      message: `Ring ${ringIndex} has self-intersecting edges (bow-tie or crossing boundary): edges ${crossing.edgeA} and ${crossing.edgeB}, near [${crossing.at[0]}, ${crossing.at[1]}].`,
     });
   }
+}
+
+export interface ValidateGeometryOptions {
+  /**
+   * Apply the operational-zone size limits (Z-MIN-AREA / Z-MAX-AREA). Defaults to true. Reference
+   * geography such as state borders is not an operational zone, so it opts out: West Bengal alone
+   * is over the 100,000 km² ceiling. Structural checks (Z-001 to Z-006) always apply.
+   */
+  enforceOperationalArea?: boolean;
 }
 
 /**
  * Validates a GeoJSON Polygon or MultiPolygon geometry against Z-001 through Z-006.
  */
-export function validateGeometry(geometry: unknown): ZoneValidationResult {
+export function validateGeometry(
+  geometry: unknown,
+  options: ValidateGeometryOptions = {},
+): ZoneValidationResult {
+  const { enforceOperationalArea = true } = options;
   const violations: ZoneViolation[] = [];
 
   if (!geometry || typeof geometry !== 'object') {
@@ -428,7 +489,7 @@ export function validateGeometry(geometry: unknown): ZoneValidationResult {
   }
 
   // Z-MIN-AREA and Z-MAX-AREA checks
-  if (violations.length === 0) {
+  if (enforceOperationalArea && violations.length === 0) {
     try {
       const areaM2 = computeGeometryAreaM2(geom as unknown as GeoJsonGeometry);
       if (areaM2 < MIN_ZONE_AREA_M2) {

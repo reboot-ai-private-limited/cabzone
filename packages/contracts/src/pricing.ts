@@ -60,6 +60,13 @@ export interface QuoteDto {
   suggestedFarePaise: number;
   pricingConfigId: string;
   pricingConfigVersion: number;
+  routeScope?: 'INTRA_STATE' | 'INTERSTATE' | null | undefined;
+  destinationStateCode?: string | null | undefined;
+  stateBoundaryVersion?: number | null | undefined;
+  stateConfigVersion?: number | null | undefined;
+  routeProvider?: string | undefined;
+  stateSegments?: Array<{ stateCode: string; distanceM: number; ratePerKmPaise: number }> | undefined;
+  statePricingVersions?: Record<string, number> | undefined;
   negotiation: {
     floorPaise: number;
     ceilingPaise: number;

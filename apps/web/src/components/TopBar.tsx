@@ -11,12 +11,9 @@ export function TopBar() {
           <div className="size-7 rounded-sm bg-accent text-accent-ink flex items-center justify-center font-bold text-sm tracking-tight">
             C
           </div>
-          <span className="font-semibold text-text text-md tracking-tight">Cabzonee</span>
+          <span className="font-semibold text-text text-md tracking-tight">Cabzone</span>
         </Link>
-        <span className="text-border">/</span>
-        <span className="text-xs font-medium text-text-subtle bg-surface-sunken px-2 py-0.5 rounded-sm border border-border">
-          Siliguri Operations
-        </span>
+       
       </div>
 
       <div className="flex items-center gap-4 text-xs text-text-subtle">

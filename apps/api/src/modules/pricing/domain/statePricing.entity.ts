@@ -10,6 +10,7 @@ export interface StatePricingEntity {
   status: StatePricingStatus;
   effectiveFrom: Date;
   effectiveTo: Date | null;
+  createdByAdminId?: string | null | undefined;
   createdAt: Date;
 }
 

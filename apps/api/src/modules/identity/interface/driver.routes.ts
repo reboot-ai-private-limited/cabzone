@@ -29,6 +29,8 @@ export interface AdminDriverRouterDeps {
   authenticate: RequestHandler;
   requireAdminRole: RequestHandler;
   reviewApplication: RequestHandler;
+  listApplications: RequestHandler;
+  getApplication: RequestHandler;
 }
 
 export function buildAdminDriverRouter(deps: AdminDriverRouterDeps): Router {
@@ -37,6 +39,8 @@ export function buildAdminDriverRouter(deps: AdminDriverRouterDeps): Router {
   router.use(deps.authenticate);
   router.use(deps.requireAdminRole);
 
+  router.get('/driver-applications', deps.listApplications);
+  router.get('/driver-applications/:id', deps.getApplication);
   router.post('/driver-applications/:id/review', deps.reviewApplication);
 
   return router;

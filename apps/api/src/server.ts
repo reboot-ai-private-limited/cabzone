@@ -4,15 +4,33 @@ import { connectMongo, disconnectMongo } from '@/shared/db/mongo.js';
 import { disconnectRedis } from '@/shared/queue/redis.js';
 import { closeQueues } from '@/shared/queue/queues.js';
 import { logger } from '@/shared/logging/logger.js';
+import { getRealtimeHub } from '@/shared/realtime/index.js';
+import type { AppContainers } from './container.js';
+
+const OFFER_SWEEP_MS = 15_000;
 
 async function main(): Promise<void> {
   loadEnv();
 
   await connectMongo();
 
-  const server = createApp().listen(env.PORT, () => {
+  const app = createApp();
+  const containers = app.locals.containers as AppContainers;
+  const server = app.listen(env.PORT, () => {
     logger.info({ port: env.PORT, env: env.NODE_ENV }, 'api listening');
   });
+
+  const hub = getRealtimeHub();
+  const verifyToken = containers.identity.verifyToken;
+  if (verifyToken) hub.attach(server, verifyToken);
+
+  // Expire unclaimed offers. Runs in-process (not the worker) so expiry events reach this process's sockets.
+  const sweep = setInterval(() => {
+    containers.rides.expireOffersUseCase
+      .execute()
+      .catch((err: unknown) => logger.warn({ err: String(err) }, 'offer expiry sweep failed'));
+  }, OFFER_SWEEP_MS);
+  sweep.unref();
 
   const shutdown = (signal: string) => {
     logger.info({ signal }, 'signal received, draining');
@@ -22,6 +40,8 @@ async function main(): Promise<void> {
     }, 15_000);
     force.unref();
 
+    clearInterval(sweep);
+    hub.close();
     server.close(() => {
       void (async () => {
         await closeQueues();

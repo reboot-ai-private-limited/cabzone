@@ -15,6 +15,9 @@ export function createApp(containerOverrides?: Partial<AppContainers>): Express 
   const app = express();
   const containers = buildContainers(containerOverrides);
 
+  // Lets server.ts reach the composed modules (WebSocket auth, background sweeps).
+  app.locals.containers = containers;
+
   app.disable('x-powered-by');
   app.set('trust proxy', 1);
 

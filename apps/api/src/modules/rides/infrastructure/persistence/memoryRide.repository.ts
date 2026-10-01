@@ -1,4 +1,4 @@
-import type { RideEntity, RideRepositoryPort } from '../../domain/index.js';
+import type { RideEntity, RideListFilter, RideRepositoryPort } from '../../domain/index.js';
 
 export class MemoryRideRepository implements RideRepositoryPort {
   private readonly rides = new Map<string, RideEntity>();
@@ -11,6 +11,32 @@ export class MemoryRideRepository implements RideRepositoryPort {
   async findById(id: string): Promise<RideEntity | null> {
     const ride = this.rides.get(id);
     return ride ? { ...ride } : null;
+  }
+
+  async list(filter: RideListFilter): Promise<RideEntity[]> {
+    return [...this.rides.values()]
+      .filter(
+        (r) =>
+          (filter.riderId === undefined ||
+            r.bookerRiderId === filter.riderId ||
+            r.passenger.riderId === filter.riderId) &&
+          (filter.driverId === undefined || r.driverId === filter.driverId) &&
+          (filter.statuses === undefined || filter.statuses.includes(r.status)) &&
+          (filter.vehicleCategory === undefined || r.vehicleCategory === filter.vehicleCategory) &&
+          (filter.offeringExpiresAfter === undefined ||
+            (r.offeringExpiresAt !== null && r.offeringExpiresAt > filter.offeringExpiresAfter)),
+      )
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .slice(filter.offset, filter.offset + filter.limit)
+      .map((r) => ({ ...r }));
+  }
+
+  async findExpiredOfferings(now: Date, limit: number): Promise<RideEntity[]> {
+    return [...this.rides.values()]
+      .filter((r) => r.status === 'OFFERING' && r.offeringExpiresAt !== null && r.offeringExpiresAt < now)
+      .sort((a, b) => a.offeringExpiresAt!.getTime() - b.offeringExpiresAt!.getTime())
+      .slice(0, limit)
+      .map((r) => ({ ...r }));
   }
 
   async atomicClaimRide(opts: {

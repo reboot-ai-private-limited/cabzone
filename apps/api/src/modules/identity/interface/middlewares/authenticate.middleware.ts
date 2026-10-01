@@ -6,6 +6,7 @@ import {
   type SessionRepositoryPort,
   type TokenVerifierPort,
 } from '../../domain/index.js';
+import type { AuthContext } from './auth.types.js';
 import './auth.types.js';
 
 export interface AuthenticateDeps {
@@ -13,14 +14,9 @@ export interface AuthenticateDeps {
   sessionRepo: SessionRepositoryPort;
 }
 
-export function makeAuthenticate(deps: AuthenticateDeps): RequestHandler {
-  return asyncHandler(async (req, _res, next) => {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      throw AppError.unauthenticated('Missing or invalid authorization header.');
-    }
-
-    const token = authHeader.slice(7).trim();
+/** Verifies a bearer token and its live session; throws AppError.unauthenticated otherwise. */
+export function makeTokenVerifier(deps: AuthenticateDeps): (token: string) => Promise<AuthContext> {
+  return async (token) => {
     if (!token) {
       throw AppError.unauthenticated('Missing authorization token.');
     }
@@ -37,12 +33,19 @@ export function makeAuthenticate(deps: AuthenticateDeps): RequestHandler {
       throw AppError.unauthenticated('Session is revoked or expired.');
     }
 
-    req.auth = {
-      userId: payload.sub,
-      sessionId: payload.sessionId,
-      role: payload.role,
-    };
+    return { userId: payload.sub, sessionId: payload.sessionId, role: payload.role };
+  };
+}
 
+export function makeAuthenticate(deps: AuthenticateDeps): RequestHandler {
+  const verify = makeTokenVerifier(deps);
+  return asyncHandler(async (req, _res, next) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      throw AppError.unauthenticated('Missing or invalid authorization header.');
+    }
+
+    req.auth = await verify(authHeader.slice(7).trim());
     next();
   });
 }

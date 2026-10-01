@@ -38,10 +38,10 @@ async function setup() {
 }
 
 describe('state boundaries & serviceability', () => {
-  it('imports only launch states and skips the rest', async () => {
+  it('imports every state, disabling new non-launch states', async () => {
     const { result, repo } = await setup();
-    expect(result.imported.sort()).toEqual(['BR', 'WB']);
-    expect(result.skippedNotServiceable).toEqual(['UP']);
+    expect(result.imported.sort()).toEqual(['BR', 'UP', 'WB']);
+    expect(result.disabledOnImport).toEqual(['UP']);
     expect(result.missing.sort()).toEqual(['AS', 'SK']);
     expect((await repo.listActive()).map((b) => b.stateCode).sort()).toEqual(['BR', 'WB']);
   });
@@ -59,6 +59,59 @@ describe('state boundaries & serviceability', () => {
     });
     expect(result.imported).toEqual(['BR']);
     expect(result.rejected.map((r) => r.stateCode).sort()).toEqual(['BR', 'WB']);
+  });
+
+  it('imports a state larger than the operational zone ceiling', async () => {
+    const repo = new MemoryStateBoundaryRepository();
+    // ~10 x 10 degrees is far above 100,000 km2, like a real large state.
+    const result = await new ImportStateBoundariesUseCase(repo).execute({
+      source: 'TEST',
+      sourceVersion: null,
+      features: [{ properties: { stateCode: 'WB' }, geometry: square(80, 20, 10) }],
+    });
+    expect(result.imported).toEqual(['WB']);
+    expect(result.rejected).toEqual([]);
+  });
+
+  it('repairs a self-crossing border instead of rejecting the state', async () => {
+    const repo = new MemoryStateBoundaryRepository();
+    const bowTie = {
+      type: 'Polygon' as const,
+      coordinates: [
+        [
+          [87, 25],
+          [88, 26],
+          [88, 25],
+          [87, 26],
+          [87, 25],
+        ],
+      ],
+    };
+    const result = await new ImportStateBoundariesUseCase(repo).execute({
+      source: 'TEST',
+      sourceVersion: null,
+      features: [{ properties: { stateCode: 'WB' }, geometry: bowTie }],
+    });
+    expect(result.imported).toEqual(['WB']);
+    expect(result.repaired).toEqual(['WB']);
+    expect(result.rejected).toEqual([]);
+  });
+
+  it('still rejects an unclosed ring (not repairable)', async () => {
+    const repo = new MemoryStateBoundaryRepository();
+    const result = await new ImportStateBoundariesUseCase(repo).execute({
+      source: 'TEST',
+      sourceVersion: null,
+      features: [
+        {
+          properties: { stateCode: 'WB' },
+          geometry: { type: 'Polygon', coordinates: [[[87, 25], [88, 25], [88, 26], [87, 26]]] },
+        },
+      ],
+    });
+    expect(result.imported).toEqual([]);
+    expect(result.repaired).toEqual([]);
+    expect(result.rejected).toHaveLength(1);
   });
 
   it('re-importing bumps the boundary version', async () => {
@@ -101,5 +154,82 @@ describe('state boundaries & serviceability', () => {
     await expect(
       classify.execute({ pickup: { lat: 25.5, lng: 80.5 }, drop: { lat: 25.5, lng: 87.5 } }),
     ).rejects.toThrow(/NOT_SERVICEABLE/);
+  });
+
+  describe('route scope and state serviceability', () => {
+    const WB = { lat: 25.5, lng: 87.5 };
+    const WB2 = { lat: 25.9, lng: 87.9 };
+    const BR = { lat: 25.5, lng: 85.5 };
+    const farBoundary = {
+      type: 'Polygon',
+      coordinates: [[[10, 10], [11, 10], [11, 11], [10, 11], [10, 10]]],
+    };
+    const outstationZones = {
+      city: { id: 'z1', name: 'Siliguri', boundary: farBoundary },
+      destinationCity: null,
+      isWithinBuffer: false,
+    };
+    const classifier = async (
+      tweak?: (repo: MemoryStateBoundaryRepository) => Promise<void>,
+      zones: unknown = outstationZones,
+    ) => {
+      const { repo, guard } = await setup();
+      await tweak?.(repo);
+      return new ServiceClassificationUseCase({
+        serviceabilityGuard: guard,
+        resolveZonesUseCase: { execute: async () => zones } as never,
+      });
+    };
+    const disable = (code: string, flag: 'intrastateEnabled' | 'interstateDropOffEnabled') =>
+      async (repo: MemoryStateBoundaryRepository) => {
+        const s = await repo.getByCode(code);
+        await repo.upsertByCode({ ...s!, [flag]: false });
+      };
+
+    it('classifies a different-state drop as OUTSTATION + INTERSTATE and records the state versions', async () => {
+      const c = await (await classifier()).execute({ pickup: WB, drop: BR });
+      expect(c).toMatchObject({
+        serviceType: 'OUTSTATION',
+        routeScope: 'INTERSTATE',
+        originStateCode: 'WB',
+        destinationStateCode: 'BR',
+        stateBoundaryVersion: 1,
+        stateConfigVersion: 1,
+      });
+    });
+
+    it('classifies a same-state drop as OUTSTATION + INTRA_STATE', async () => {
+      const c = await (await classifier()).execute({ pickup: WB, drop: WB2, requestedService: 'OUTSTATION' });
+      expect(c).toMatchObject({ serviceType: 'OUTSTATION', routeScope: 'INTRA_STATE' });
+    });
+
+    it('rejects interstate drop-off when the destination state has it disabled', async () => {
+      const c = await classifier(disable('BR', 'interstateDropOffEnabled'));
+      await expect(c.execute({ pickup: WB, drop: BR })).rejects.toThrow(/INTERSTATE_SERVICE_DISABLED/);
+    });
+
+    it('rejects intrastate outstation when the state has it disabled', async () => {
+      const c = await classifier(disable('WB', 'intrastateEnabled'));
+      await expect(
+        c.execute({ pickup: WB, drop: WB2, requestedService: 'OUTSTATION' }),
+      ).rejects.toThrow(/INTRASTATE_SERVICE_DISABLED/);
+    });
+
+    it('does not apply state flags to a city trip', async () => {
+      const c = await classifier(disable('WB', 'intrastateEnabled'), {
+        city: {
+          id: 'z1',
+          name: 'Siliguri',
+          boundary: {
+            type: 'Polygon',
+            coordinates: [[[87, 25], [88, 25], [88, 26], [87, 26], [87, 25]]],
+          },
+        },
+        destinationCity: null,
+        isWithinBuffer: false,
+      });
+      const res = await c.execute({ pickup: WB, drop: WB2 });
+      expect(res).toMatchObject({ serviceType: 'CITY', routeScope: null });
+    });
   });
 });

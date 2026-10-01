@@ -1,5 +1,7 @@
-import { Router, type RequestHandler } from 'express';
+import type { RequestHandler, Router } from 'express';
 import type { ServiceClassificationUseCase } from '../zone/zone.public.js';
+import type { RouteStateSegmentDto } from '@cabzone/contracts';
+import type { RouteRequest, RouteResult } from '../routing/routing.public.js';
 import {
   ActivatePricingConfigUseCase,
   CreatePricingConfigUseCase,
@@ -35,6 +37,10 @@ export interface PricingContainerDeps {
   serviceClassificationUseCase: ServiceClassificationUseCase;
   tokenSecret: string;
   quoteTtlSeconds?: number | undefined;
+  routingUseCase?: { execute(req: RouteRequest): Promise<RouteResult> } | undefined;
+  resolveRouteStatesUseCase?: {
+    execute(polyline: string | null | undefined): Promise<RouteStateSegmentDto[]>;
+  } | undefined;
 }
 
 export interface PricingContainer {
@@ -66,6 +72,9 @@ export function buildPricingContainer(deps: PricingContainerDeps): PricingContai
   const createQuoteUseCase = new CreateQuoteUseCase({
     serviceClassificationUseCase: deps.serviceClassificationUseCase,
     pricingConfigRepo: deps.pricingConfigRepo,
+    statePricingRepo: deps.statePricingRepo,
+    routingUseCase: deps.routingUseCase,
+    resolveRouteStatesUseCase: deps.resolveRouteStatesUseCase,
     tokenSecret: deps.tokenSecret,
     quoteTtlSeconds: deps.quoteTtlSeconds,
   });

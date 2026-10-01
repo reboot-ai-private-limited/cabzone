@@ -20,10 +20,26 @@ export const keys = {
   },
   states: {
     all: () => ['states'] as const,
+    admin: () => ['states', 'admin'] as const,
+    history: (code: string) => ['states', 'history', code] as const,
   },
   packages: {
     all: () => ['packages'] as const,
     incityList: (query?: unknown) => ['packages', 'incity', query] as const,
+  },
+  rides: {
+    all: () => ['rides'] as const,
+    list: (filter?: unknown) => ['rides', 'list', filter] as const,
+    events: (id: string) => ['rides', 'events', id] as const,
+  },
+  drivers: {
+    all: () => ['drivers'] as const,
+    applications: (filter?: unknown) => ['drivers', 'applications', filter] as const,
+    application: (id: string) => ['drivers', 'application', id] as const,
+  },
+  wallets: {
+    all: () => ['wallets'] as const,
+    detail: (driverId: string) => ['wallets', 'detail', driverId] as const,
   },
   pricing: {
     all: () => ['pricing'] as const,

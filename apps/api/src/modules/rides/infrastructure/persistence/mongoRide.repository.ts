@@ -1,4 +1,4 @@
-import type { RideEntity, RideRepositoryPort } from '../../domain/index.js';
+import type { RideEntity, RideListFilter, RideRepositoryPort } from '../../domain/index.js';
 import { RideModel, type RideDocument } from './ride.model.js';
 
 export class MongoRideRepository implements RideRepositoryPort {
@@ -17,6 +17,36 @@ export class MongoRideRepository implements RideRepositoryPort {
   async findById(id: string): Promise<RideEntity | null> {
     const doc = await RideModel.findById(id).lean<RideDocument | null>().exec();
     return doc ? this.toEntity(doc) : null;
+  }
+
+  async list(filter: RideListFilter): Promise<RideEntity[]> {
+    const query: Record<string, unknown> = {};
+    if (filter.riderId !== undefined) {
+      query['$or'] = [{ booker_rider_id: filter.riderId }, { 'passenger.rider_id': filter.riderId }];
+    }
+    if (filter.driverId !== undefined) query.driver_id = filter.driverId;
+    if (filter.statuses !== undefined) query.status = { '$in': filter.statuses };
+    if (filter.vehicleCategory !== undefined) query.vehicle_category = filter.vehicleCategory;
+    if (filter.offeringExpiresAfter !== undefined) {
+      query.offering_expires_at = { '$gt': filter.offeringExpiresAfter };
+    }
+
+    const docs = await RideModel.find(query)
+      .sort({ created_at: -1 })
+      .skip(filter.offset)
+      .limit(filter.limit)
+      .lean<RideDocument[]>()
+      .exec();
+    return docs.map((d) => this.toEntity(d));
+  }
+
+  async findExpiredOfferings(now: Date, limit: number): Promise<RideEntity[]> {
+    const docs = await RideModel.find({ status: 'OFFERING', offering_expires_at: { '$lt': now } })
+      .sort({ offering_expires_at: 1 })
+      .limit(limit)
+      .lean<RideDocument[]>()
+      .exec();
+    return docs.map((d) => this.toEntity(d));
   }
 
   async atomicClaimRide(opts: {

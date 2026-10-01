@@ -43,4 +43,48 @@ export class MemoryStatePricingRepository implements StatePricingRepositoryPort 
     }
     return max;
   }
+
+  async createNewVersionAtomically(next: StatePricingEntity): Promise<StatePricingEntity> {
+    const code = next.stateCode.toUpperCase();
+    let currentActive: StatePricingEntity | null = null;
+    let maxVersion = 0;
+
+    for (const sp of this.statePricing.values()) {
+      if (sp.stateCode === code) {
+        if (sp.version > maxVersion) maxVersion = sp.version;
+        if (sp.status === 'ACTIVE') currentActive = sp;
+      }
+    }
+
+    if (currentActive) {
+      currentActive.status = 'RETIRED';
+      currentActive.effectiveTo = next.effectiveFrom;
+      this.statePricing.set(currentActive.id, { ...currentActive });
+    }
+
+    const version = maxVersion + 1;
+    const toSave: StatePricingEntity = {
+      ...next,
+      stateCode: code,
+      version,
+      status: 'ACTIVE',
+    };
+    this.statePricing.set(toSave.id, { ...toSave });
+    return { ...toSave };
+  }
+
+  async retire(id: string, expectedVersion: number): Promise<StatePricingEntity | null> {
+    const existing = this.statePricing.get(id);
+    if (!existing || existing.version !== expectedVersion) {
+      return null;
+    }
+    const updated: StatePricingEntity = {
+      ...existing,
+      status: 'RETIRED',
+      effectiveTo: new Date(),
+    };
+    this.statePricing.set(id, updated);
+    return { ...updated };
+  }
 }
+

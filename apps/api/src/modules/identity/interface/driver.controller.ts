@@ -7,12 +7,15 @@ import type {
   CreateDriverProfileUseCase,
   GetDriverProfileUseCase,
   RegisterDriverVehicleUseCase,
+  GetDriverApplicationDetailUseCase,
+  ListDriverApplicationsUseCase,
   ReviewDriverApplicationUseCase,
   SubmitDriverApplicationUseCase,
   UploadDriverDocumentUseCase,
 } from '../application/useCases/index.js';
 import {
   registerVehicleRequestSchema,
+  listDriverApplicationsQuerySchema,
   reviewApplicationRequestSchema,
   uploadDriverDocumentRequestSchema,
 } from './kyc.validation.js';
@@ -86,5 +89,20 @@ export function makeReviewDriverApplicationController(useCase: ReviewDriverAppli
       ...parsed,
     });
     sendSuccess(req, res, result, 'Driver application reviewed', 200);
+  });
+}
+
+export function makeListDriverApplicationsController(useCase: ListDriverApplicationsUseCase): RequestHandler {
+  return asyncHandler(async (req: Request, res: Response) => {
+    const query = listDriverApplicationsQuerySchema.parse(req.query);
+    sendSuccess(req, res, await useCase.execute(query), 'Driver applications retrieved', 200);
+  });
+}
+
+export function makeGetDriverApplicationController(useCase: GetDriverApplicationDetailUseCase): RequestHandler {
+  return asyncHandler(async (req: Request, res: Response) => {
+    const applicationId = req.params.id;
+    if (!applicationId) throw AppError.badRequest('Application ID is required');
+    sendSuccess(req, res, await useCase.execute(applicationId), 'Driver application retrieved', 200);
   });
 }

@@ -7,8 +7,9 @@ import type { ImportStatesResult } from '@/lib/api/endpoints/states';
 import { useImportStateBoundaries } from '../hooks/useStateBoundaries';
 
 /**
- * Super-admin import of state/UT borders. Only the launch states (WB, BR, SK, AS) are kept from
- * the file; everything else is skipped and stays NOT_SERVICEABLE.
+ * Super-admin import of state/UT borders. Code, name and dataset version are read from the file.
+ * States outside the launch set (WB, BR, SK, AS) are created disabled and stay NOT_SERVICEABLE
+ * until enabled on the States page.
  */
 export function StateImportDialog({
   open,
@@ -74,7 +75,7 @@ export function StateImportDialog({
       open={open}
       onOpenChange={close}
       title="Import state borders"
-      description="Upload a GeoJSON file of Indian state boundaries. Only West Bengal, Bihar, Sikkim and Assam are imported; other states remain not serviceable."
+      description="Upload a GeoJSON file of Indian state boundaries. Every state in the file is imported with its code, name and version taken from the file. West Bengal, Bihar, Sikkim and Assam start serviceable; any other new state starts disabled until you enable it."
       footer={
         result ? (
           <Button variant="primary" onClick={() => close(false)}>
@@ -102,35 +103,60 @@ export function StateImportDialog({
           {result.imported.length > 0 && (
             <p className="flex items-start gap-2 text-text">
               <CheckCircle2 aria-hidden className="size-4 mt-0.5 shrink-0 text-success" />
-              Imported: <strong>{result.imported.join(', ')}</strong>
+              <span>
+                Imported {result.imported.length} state(s):{' '}
+                <strong>{result.imported.join(', ')}</strong>
+              </span>
+            </p>
+          )}
+          {result.disabledOnImport.length > 0 && (
+            <p className="flex items-start gap-2 text-text">
+              <TriangleAlert aria-hidden className="size-4 mt-0.5 shrink-0 text-warning" />
+              <span>
+                Created disabled (not serviceable until you enable them on the States page):{' '}
+                <strong>{result.disabledOnImport.join(', ')}</strong>
+              </span>
+            </p>
+          )}
+          {result.repaired.length > 0 && (
+            <p className="flex items-start gap-2 text-text">
+              <Info aria-hidden className="size-4 mt-0.5 shrink-0 text-text-subtle" />
+              <span>
+                Borders with self-crossing edges were repaired automatically:{' '}
+                <strong>{result.repaired.join(', ')}</strong>. Check the shape on the map.
+              </span>
             </p>
           )}
           {result.missing.length > 0 && (
             <p className="flex items-start gap-2 text-text">
               <TriangleAlert aria-hidden className="size-4 mt-0.5 shrink-0 text-warning" />
-              Not found in file (still not serviceable): <strong>{result.missing.join(', ')}</strong>
+              <span>
+                Launch states not found in file (still not serviceable):{' '}
+                <strong>{result.missing.join(', ')}</strong>
+              </span>
             </p>
           )}
-          {result.rejected.map((r) => (
-            <p key={r.stateCode} className="flex items-start gap-2 text-danger">
+          {result.rejected.map((r, i) => (
+            // Rejections are not unique (several features can share a code or have none).
+            // eslint-disable-next-line react/no-array-index-key
+            <p key={`${r.stateCode}-${i}`} className="flex items-start gap-2 text-danger">
               <TriangleAlert aria-hidden className="size-4 mt-0.5 shrink-0" />
-              {r.stateCode}: {r.reason}
+              <span>
+                {r.stateCode}: {r.reason}
+              </span>
             </p>
           ))}
-          {result.skippedNotServiceable.length > 0 && (
-            <p className="text-xs text-text-subtle">
-              Skipped {result.skippedNotServiceable.length} other state(s) — not serviceable yet.
-            </p>
-          )}
         </div>
       ) : (
         <div className="flex flex-col gap-3">
           <p className="flex items-start gap-1.5 text-xs text-text-subtle">
             <Info aria-hidden className="size-3.5 shrink-0 mt-px" />
-            Use an official or properly licensed dataset. Features are matched by a{' '}
-            <code>stateCode</code> property or by state name (<code>ST_NM</code>,{' '}
-            <code>NAME_1</code>, <code>STATE</code>, <code>stateName</code>). Re-importing replaces
-            a state&apos;s border.
+            <span>
+              Use an official or properly licensed dataset. The state code is read from a{' '}
+              <code>stateCode</code> or ISO property, or worked out from the state name (
+              <code>ST_NM</code>, <code>NAME_1</code>, <code>STATE</code>, <code>stateName</code>
+              ). Re-importing replaces a state&apos;s border; the old one is kept in its history.
+            </span>
           </p>
 
           <input
@@ -168,7 +194,7 @@ export function StateImportDialog({
             <input
               value={version}
               onChange={(e) => setVersion(e.target.value)}
-              placeholder="e.g. 2026-01"
+              placeholder="Leave blank to use the version stated in the file"
               className="h-10 w-full rounded-md border border-border-strong bg-surface px-2 text-sm text-text"
             />
           </label>
