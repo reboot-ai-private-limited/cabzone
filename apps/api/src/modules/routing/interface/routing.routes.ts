@@ -22,3 +22,13 @@ export function buildAdminRoutingRouter(deps: AdminRoutingRouterDeps): Router {
 
   return router;
 }
+
+export interface RoutingRouterDeps {
+  reverseGeocode: RequestHandler;
+}
+
+export function buildRoutingRouter(deps: RoutingRouterDeps): Router {
+  const router = Router();
+  router.get('/reverse-geocode', deps.reverseGeocode);
+  return router;
+}

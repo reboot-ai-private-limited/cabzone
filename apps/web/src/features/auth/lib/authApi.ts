@@ -5,6 +5,19 @@ export interface VerifyOtpResponse {
   refreshToken: string;
 }
 
+export interface AdminLoginResponse {
+  accessToken: string;
+  refreshToken: string;
+  tokenType: string;
+  expiresIn: number;
+  user: {
+    id: string;
+    phoneE164: string;
+    name?: string | null | undefined;
+    role: string;
+  };
+}
+
 export async function requestOtp(phoneE164: string): Promise<void> {
   await request<{ message?: string }>('/v1/auth/otp/request', {
     method: 'POST',
@@ -22,6 +35,29 @@ export async function verifyOtp(
     body: {
       phoneE164,
       otp,
+      deviceId,
+    },
+  });
+
+  if (typeof window !== 'undefined' && data.accessToken) {
+    localStorage.setItem('Cabzonee_access_token', data.accessToken);
+    localStorage.setItem('Cabzonee_refresh_token', data.refreshToken);
+    localStorage.setItem('Cabzonee_admin_phone', phoneE164);
+  }
+
+  return data;
+}
+
+export async function adminLogin(
+  phoneE164: string,
+  password: string,
+  deviceId: string = 'admin-web-console',
+): Promise<AdminLoginResponse> {
+  const data = await request<AdminLoginResponse>('/v1/auth/admin/login', {
+    method: 'POST',
+    body: {
+      phoneE164,
+      password,
       deviceId,
     },
   });

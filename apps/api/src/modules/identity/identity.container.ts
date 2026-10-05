@@ -1,9 +1,13 @@
 import type { Router } from 'express';
 import { env } from '@/config/env.js';
 import {
+  AdminLoginUseCase,
+  CreateAdminUserUseCase,
   CreateDriverApplicationUseCase,
   CreateDriverProfileUseCase,
+  GetAdminUserDetailUseCase,
   GetDriverProfileUseCase,
+  ListAdminUsersUseCase,
   LogoutUseCase,
   RefreshTokenUseCase,
   RegisterDriverVehicleUseCase,
@@ -12,8 +16,16 @@ import {
   ListDriverApplicationsUseCase,
   ReviewDriverApplicationUseCase,
   SubmitDriverApplicationUseCase,
+  UpdateAdminUserStatusUseCase,
+  UpdateAdminUserUseCase,
   UploadDriverDocumentUseCase,
   VerifyOtpUseCase,
+  GetRiderDetailUseCase,
+  GetRiderProfileUseCase,
+  ListRidersUseCase,
+  UpdateRiderProfileUseCase,
+  UpdateRiderStatusUseCase,
+  UpdateSelfRiderProfileUseCase,
 } from './application/useCases/index.js';
 import {
   ConsoleSmsGatewayAdapter,
@@ -29,6 +41,7 @@ import {
   MongoVehicleRepository,
 } from './infrastructure/index.js';
 import {
+  makeAdminLoginController,
   makeLogoutController,
   makeRefreshTokenController,
   makeRequestOtpController,
@@ -48,17 +61,40 @@ import {
 } from './interface/driver.controller.js';
 import { buildAdminDriverRouter, buildDriverRouter } from './interface/driver.routes.js';
 import {
+  makeAdminUpdateRiderProfileController,
+  makeGetRiderDetailController,
+  makeGetRiderProfileController,
+  makeListRidersController,
+  makeUpdateRiderStatusController,
+  makeUpdateSelfRiderProfileController,
+} from './interface/rider.controller.js';
+import { buildAdminRiderRouter, buildRiderRouter } from './interface/rider.routes.js';
+import {
+  makeCreateAdminUserController,
+  makeGetAdminRolePermissionsController,
+  makeGetAdminUserDetailController,
+  makeListAdminUsersController,
+  makeUpdateAdminUserController,
+  makeUpdateAdminUserStatusController,
+} from './interface/adminUser.controller.js';
+import { buildAdminUserRouter } from './interface/adminUser.routes.js';
+import {
   makeAuthenticate,
   makeTokenVerifier,
   makeRequireZoneAccess,
   requireRole,
 } from './interface/middlewares/index.js';
 import { registerIdentitySwaggerPaths } from './interface/identity.swagger.js';
+import type { RideRepositoryPort } from '../rides/rides.public.js';
+import type { ZoneRepositoryPort } from '../zone/zone.public.js';
 
 export interface IdentityContainer {
   buildAuthRouter: () => Router;
   buildDriverRouter: () => Router;
   buildAdminDriverRouter: () => Router;
+  buildRiderRouter?: () => Router;
+  buildAdminRiderRouter?: () => Router;
+  buildAdminUserRouter?: () => Router;
   authenticate: ReturnType<typeof makeAuthenticate>;
   /** Token check for non-HTTP transports (WebSocket upgrade). */
   verifyToken?: ReturnType<typeof makeTokenVerifier>;
@@ -75,6 +111,8 @@ export interface IdentityContainerDeps {
   applicationRepo?: MongoDriverApplicationRepository;
   documentRepo?: MongoDriverDocumentRepository;
   vehicleRepo?: MongoVehicleRepository;
+  rideRepo?: RideRepositoryPort;
+  zoneRepo?: ZoneRepositoryPort;
   tokenAdapter?: JoseTokenAdapter;
   otpStore?: MemoryOtpStoreAdapter;
   smsGateway?: ConsoleSmsGatewayAdapter;
@@ -168,6 +206,22 @@ export function buildIdentityContainer(deps?: IdentityContainerDeps): IdentityCo
 
   const adminApplicationDeps = { applicationRepo, driverRepo, userRepo, vehicleRepo, documentRepo };
 
+  const adminRiderDeps = {
+    riderRepo,
+    userRepo,
+    sessionRepo,
+    rideRepo: deps?.rideRepo,
+  };
+
+  const listRidersUseCase = new ListRidersUseCase(adminRiderDeps);
+  const getRiderDetailUseCase = new GetRiderDetailUseCase(adminRiderDeps);
+  const updateRiderStatusUseCase = new UpdateRiderStatusUseCase(adminRiderDeps);
+  const updateRiderProfileUseCase = new UpdateRiderProfileUseCase(adminRiderDeps);
+
+  const riderProfileDeps = { riderRepo, userRepo };
+  const getRiderProfileUseCase = new GetRiderProfileUseCase(riderProfileDeps);
+  const updateSelfRiderProfileUseCase = new UpdateSelfRiderProfileUseCase(riderProfileDeps);
+
   const authenticate = makeAuthenticate({
     tokenVerifier: tokenAdapter,
     sessionRepo,
@@ -177,6 +231,26 @@ export function buildIdentityContainer(deps?: IdentityContainerDeps): IdentityCo
     adminRepo,
   });
 
+  const adminUserDeps = {
+    adminUserRepo: adminRepo,
+    userRepo,
+    sessionRepo,
+    zoneRepo: deps?.zoneRepo,
+  };
+
+  const listAdminUsersUseCase = new ListAdminUsersUseCase(adminUserDeps);
+  const getAdminUserDetailUseCase = new GetAdminUserDetailUseCase(adminUserDeps);
+  const createAdminUserUseCase = new CreateAdminUserUseCase(adminUserDeps);
+  const updateAdminUserUseCase = new UpdateAdminUserUseCase(adminUserDeps);
+  const updateAdminUserStatusUseCase = new UpdateAdminUserStatusUseCase(adminUserDeps);
+
+  const adminLoginUseCase = new AdminLoginUseCase({
+    userRepo,
+    adminRepo,
+    sessionRepo,
+    tokenSigner: tokenAdapter,
+  });
+
   return {
     buildAuthRouter: () =>
       buildAuthRouter({
@@ -184,6 +258,7 @@ export function buildIdentityContainer(deps?: IdentityContainerDeps): IdentityCo
         verifyOtp: makeVerifyOtpController(verifyOtpUseCase),
         refreshToken: makeRefreshTokenController(refreshTokenUseCase),
         logout: makeLogoutController(logoutUseCase),
+        adminLogin: makeAdminLoginController(adminLoginUseCase),
         authenticate,
       }),
     buildDriverRouter: () =>
@@ -207,6 +282,34 @@ export function buildIdentityContainer(deps?: IdentityContainerDeps): IdentityCo
         getApplication: makeGetDriverApplicationController(
           new GetDriverApplicationDetailUseCase(adminApplicationDeps),
         ),
+      }),
+    buildRiderRouter: () =>
+      buildRiderRouter({
+        authenticate,
+        requireRider: requireRole('RIDER'),
+        getProfile: makeGetRiderProfileController(getRiderProfileUseCase),
+        updateProfile: makeUpdateSelfRiderProfileController(updateSelfRiderProfileUseCase),
+      }),
+    buildAdminRiderRouter: () =>
+      buildAdminRiderRouter({
+        authenticate,
+        requireAdminRole: requireRole('SUPER_ADMIN', 'CITY_ADMIN', 'SUPPORT_ADMIN'),
+        listRiders: makeListRidersController(listRidersUseCase),
+        getRider: makeGetRiderDetailController(getRiderDetailUseCase),
+        updateStatus: makeUpdateRiderStatusController(updateRiderStatusUseCase),
+        updateProfile: makeAdminUpdateRiderProfileController(updateRiderProfileUseCase),
+      }),
+    buildAdminUserRouter: () =>
+      buildAdminUserRouter({
+        authenticate,
+        requireAdminRole: requireRole('SUPER_ADMIN', 'CITY_ADMIN', 'SUPPORT_ADMIN', 'FINANCE_ADMIN'),
+        requireSuperAdminRole: requireRole('SUPER_ADMIN'),
+        listAdminUsers: makeListAdminUsersController(listAdminUsersUseCase),
+        getAdminUser: makeGetAdminUserDetailController(getAdminUserDetailUseCase),
+        createAdminUser: makeCreateAdminUserController(createAdminUserUseCase),
+        updateAdminUser: makeUpdateAdminUserController(updateAdminUserUseCase),
+        updateAdminUserStatus: makeUpdateAdminUserStatusController(updateAdminUserStatusUseCase),
+        getRolePermissions: makeGetAdminRolePermissionsController(),
       }),
     authenticate,
     verifyToken: makeTokenVerifier({ tokenVerifier: tokenAdapter, sessionRepo }),

@@ -10,3 +10,5 @@ export * from './zones.js';
 export * from './service-classification.js';
 export * from './wallets.js';
 export * from './payments.js';
+export * from './routing.js';
+export * from './dispatch.js';

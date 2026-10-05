@@ -2,7 +2,7 @@
  * Shared Google Maps loader and utilities
  */
 
-export const DEFAULT_CENTER = { lat: 26.7271, lng: 88.3953 };
+export const DEFAULT_CENTER = { lat: 26.7141, lng: 88.4334 };
 
 export const hasApiKey = Boolean(process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY);
 

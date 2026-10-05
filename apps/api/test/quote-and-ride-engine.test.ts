@@ -4,6 +4,7 @@ import {
   type WalletEntity,
 } from '../src/modules/ledger/index.js';
 import {
+  calculateBaseFareEstimate,
   CreateQuoteUseCase,
   MemoryPricingConfigRepository,
   type PricingConfigEntity,
@@ -52,13 +53,17 @@ describe('Quote Lifecycle & First-to-Accept Ride Engine', () => {
 
   const cabPricingConfig: PricingConfigEntity = {
     id: '018f0a00-0000-7000-8000-000000000010',
+    level: 'CITY',
     cityZoneId: siliguriCityZone.id,
+    stateCode: null,
     version: 1,
     vehicleType: 'CAB',
     baseFarePaise: 5000, // Rs. 50
     ratePerKmPaise: 1500, // Rs. 15 / km
     minimumFarePaise: 8000, // Rs. 80 min
-    includedDistanceM: 2000,
+    outstationBaseFarePaise: 7500, // Rs. 75
+    outstationRatePerKmPaise: 2200, // Rs. 22 / km
+    outstationMinimumFarePaise: 15000, // Rs. 150 min
     bufferSurchargePaise: 2000,
     negotiationFloorPercent: 80,
     negotiationCeilingPercent: 150,
@@ -477,6 +482,166 @@ describe('Quote Lifecycle & First-to-Accept Ride Engine', () => {
 
     expect(startedRide.status).toBe('TRIP_STARTED');
     expect(startedRide.startedAt).toBeInstanceOf(Date);
+  });
+
+  describe('IN_CITY boundary logic in pickup-drop-pricing', () => {
+    it('prices a pickup+drop both inside the city zone as CITY, no buffer surcharge', async () => {
+      const { quoteUseCase } = setupEngine();
+
+      const quote = await quoteUseCase.execute({
+        pickup: { lat: 26.72, lng: 88.42 },
+        drop: { lat: 26.75, lng: 88.45 }, // both inside the Siliguri polygon [88.4-88.5, 26.7-26.8]
+        vehicleCategory: 'CAB',
+      });
+
+      // QuoteDto.serviceType carries classification.type (IN_CITY/OUTSTATION/INTERSTATE),
+      // not the collapsed CITY/OUTSTATION ClassifiedServiceType.
+      expect(quote.serviceType).toBe('IN_CITY');
+      expect(quote.bufferApplied).toBe(false);
+      expect(quote.routeScope).toBeNull();
+      expect(quote.destinationStateCode).toBeNull();
+      expect(quote.cityName).toBe('Siliguri City');
+
+      // Pricing formula invariant: the fare returned must match calculateBaseFareEstimate
+      // applied to the config and distance the classifier/router actually resolved.
+      const expectedFare = calculateBaseFareEstimate({
+        config: cabPricingConfig,
+        distanceM: quote.distanceM,
+        serviceType: 'CITY',
+        isBufferFallback: false,
+      });
+      expect(quote.suggestedFarePaise).toBe(expectedFare);
+    });
+
+    it('prices a drop just outside the city boundary but within the buffer as CITY, with buffer surcharge applied', async () => {
+      const { quoteUseCase } = setupEngine();
+
+      const quote = await quoteUseCase.execute({
+        // Pickup inside the zone; drop ~4km past the north edge (26.80) -> outside the polygon
+        // but well within the 25km buffer configured on the zone.
+        pickup: { lat: 26.75, lng: 88.45 },
+        drop: { lat: 26.84, lng: 88.45 },
+        vehicleCategory: 'CAB',
+      });
+
+      expect(quote.serviceType).toBe('IN_CITY');
+      expect(quote.bufferApplied).toBe(true);
+      expect(quote.routeScope).toBeNull();
+
+      const expectedFare = calculateBaseFareEstimate({
+        config: cabPricingConfig,
+        distanceM: quote.distanceM,
+        serviceType: 'CITY',
+        isBufferFallback: true,
+      });
+      expect(quote.suggestedFarePaise).toBe(expectedFare);
+      // The buffer surcharge must actually land in the fare vs. the no-buffer formula.
+      const noBufferFare = calculateBaseFareEstimate({
+        config: cabPricingConfig,
+        distanceM: quote.distanceM,
+        serviceType: 'CITY',
+        isBufferFallback: false,
+      });
+      expect(expectedFare).toBe(noBufferFare + cabPricingConfig.bufferSurchargePaise);
+    });
+
+    it('classifies a drop beyond the buffer as OUTSTATION, not CITY', async () => {
+      const { quoteUseCase } = setupEngine();
+
+      const quote = await quoteUseCase.execute({
+        pickup: { lat: 26.75, lng: 88.45 },
+        drop: { lat: 27.5, lng: 88.45 }, // ~100km away, well outside the 25km buffer
+        vehicleCategory: 'CAB',
+      });
+
+      expect(quote.serviceType).toBe('OUTSTATION');
+      expect(quote.bufferApplied).toBe(false);
+
+      // Priced using the outstation tier of the active config
+      const expectedFare = calculateBaseFareEstimate({
+        config: cabPricingConfig,
+        distanceM: quote.distanceM,
+        serviceType: 'OUTSTATION',
+        isBufferFallback: false,
+      });
+      expect(quote.suggestedFarePaise).toBe(expectedFare);
+
+      // Confirm it genuinely used the outstation tier, not the city tier
+      const cityFareSameDistance = calculateBaseFareEstimate({
+        config: cabPricingConfig,
+        distanceM: quote.distanceM,
+        serviceType: 'CITY',
+        isBufferFallback: false,
+      });
+      expect(expectedFare).not.toBe(cityFareSameDistance);
+    });
+
+    it('serves suburban pickup outside city polygon but within buffer as IN_CITY with buffer surcharge', async () => {
+      const { quoteUseCase } = setupEngine();
+
+      const quote = await quoteUseCase.execute({
+        pickup: { lat: 26.82, lng: 88.45 }, // ~2.2km outside Siliguri city polygon, within 20km buffer
+        drop: { lat: 26.75, lng: 88.45 }, // Inside Siliguri city
+        vehicleCategory: 'CAB',
+      });
+
+      expect(quote.serviceType).toBe('IN_CITY');
+      expect(quote.cityZoneId).toBe(siliguriCityZone.id);
+      expect(quote.cityName).toBe(siliguriCityZone.name);
+      expect(quote.bufferApplied).toBe(true);
+
+      const expectedFare = calculateBaseFareEstimate({
+        config: cabPricingConfig,
+        distanceM: quote.distanceM,
+        serviceType: 'CITY',
+        isBufferFallback: true,
+      });
+      expect(quote.suggestedFarePaise).toBe(expectedFare);
+    });
+
+    it('serves pickup far outside every active zone by falling back to nearest zone as OUTSTATION', async () => {
+      const { quoteUseCase } = setupEngine();
+
+      const quote = await quoteUseCase.execute({
+        pickup: { lat: 20.0, lng: 78.0 }, // far from any registered zone or its buffer, inside India
+        drop: { lat: 20.1, lng: 78.1 },
+        vehicleCategory: 'CAB',
+      });
+
+      expect(quote.serviceType).toBe('OUTSTATION');
+      expect(quote.cityZoneId).toBe(siliguriCityZone.id);
+      expect(quote.cityName).toBe(siliguriCityZone.name);
+      expect(quote.bufferApplied).toBe(false);
+
+      const expectedFare = calculateBaseFareEstimate({
+        config: cabPricingConfig,
+        distanceM: quote.distanceM,
+        serviceType: 'OUTSTATION',
+        isBufferFallback: false,
+      });
+      expect(quote.suggestedFarePaise).toBe(expectedFare);
+    });
+
+    it('rejects quote creation with NO_ACTIVE_ZONE only when zero active city zones exist system-wide', async () => {
+      const emptyZoneRepo = new MemoryZoneRepository();
+      const resolveZonesUseCase = new ResolveZonesUseCase({ zoneRepo: emptyZoneRepo });
+      const serviceClassificationUseCase = new ServiceClassificationUseCase({ resolveZonesUseCase });
+      const pricingConfigRepo = new MemoryPricingConfigRepository();
+
+      const quoteUseCase = new CreateQuoteUseCase({
+        serviceClassificationUseCase,
+        pricingConfigRepo,
+        tokenSecret: TEST_SECRET,
+      });
+
+      await expect(
+        quoteUseCase.execute({
+          pickup: { lat: 26.72, lng: 88.42 },
+          drop: { lat: 26.75, lng: 88.45 },
+          vehicleCategory: 'CAB',
+        }),
+      ).rejects.toThrow('NO_ACTIVE_ZONE');
+    });
   });
 
   it('locks out OTP verification after maximum attempts (3)', async () => {

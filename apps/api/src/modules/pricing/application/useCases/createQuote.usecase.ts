@@ -2,8 +2,8 @@ import { createHmac } from 'node:crypto';
 import type {
   GeoPoint,
   QuoteDto,
-  RouteStateSegmentDto,
   ServiceClassificationType,
+  StateDistanceBreakdown,
   VehicleCategory,
 } from '@cabzone/contracts';
 import { calculateNegotiationBounds } from '@cabzone/contracts';
@@ -13,14 +13,13 @@ import {
   haversineDistanceM,
   type ServiceClassificationUseCase,
 } from '../../../zone/zone.public.js';
+import { calculateBaseFareEstimate, type PricingConfigRepositoryPort } from '../../domain/index.js';
+import { isPointInIndia } from '@cabzone/geo';
 import {
-  calculateFare,
-  type AppliedSegment,
-  type PricingConfigRepositoryPort,
-  type StatePricingEntity,
-  type StatePricingRepositoryPort,
-} from '../../domain/index.js';
-import type { RouteRequest, RouteResult } from '../../../routing/routing.public.js';
+  calculateStateDistanceBreakdown,
+  type RouteRequest,
+  type RouteResult,
+} from '../../../routing/routing.public.js';
 
 export interface CreateQuoteInput {
   pickup: GeoPoint;
@@ -37,12 +36,14 @@ export interface QuoteTokenPayload {
   serviceType: ServiceClassificationType;
   cityZoneId: string | null;
   routeScope?: 'INTRA_STATE' | 'INTERSTATE' | null | undefined;
+  originStateCode?: string | null | undefined;
   destinationStateCode?: string | null | undefined;
-  stateBoundaryVersion?: number | null | undefined;
-  stateConfigVersion?: number | null | undefined;
+  originCountryCode?: string | null | undefined;
+  destinationCountryCode?: string | null | undefined;
+  originCityName?: string | null | undefined;
+  destinationCityName?: string | null | undefined;
+  stateBreakdown?: StateDistanceBreakdown[] | undefined;
   routeProvider?: string | undefined;
-  stateSegments?: AppliedSegment[] | undefined;
-  statePricingVersions?: Record<string, number> | undefined;
   pricingConfigId: string;
   pricingConfigVersion: number;
   distanceM: number;
@@ -56,26 +57,9 @@ export interface QuoteTokenPayload {
 export interface CreateQuoteDeps {
   serviceClassificationUseCase: ServiceClassificationUseCase;
   pricingConfigRepo: PricingConfigRepositoryPort;
-  statePricingRepo?: StatePricingRepositoryPort | undefined;
   routingUseCase?: { execute(req: RouteRequest): Promise<RouteResult> } | undefined;
-  resolveRouteStatesUseCase?: {
-    execute(polyline: string | null | undefined): Promise<RouteStateSegmentDto[]>;
-  } | undefined;
   tokenSecret: string;
   quoteTtlSeconds?: number | undefined; // default 300 (5 minutes)
-}
-
-function capSegments(segments: AppliedSegment[], max = 8): AppliedSegment[] {
-  if (segments.length <= max) return segments;
-  const head = segments.slice(0, max - 1);
-  const tail = segments.slice(max - 1);
-  const tailDistanceM = tail.reduce((sum, s) => sum + s.distanceM, 0);
-  const last = {
-    stateCode: tail[tail.length - 1]!.stateCode,
-    distanceM: tailDistanceM,
-    ratePerKmPaise: tail[tail.length - 1]!.ratePerKmPaise,
-  };
-  return [...head, last];
 }
 
 export class CreateQuoteUseCase {
@@ -86,20 +70,28 @@ export class CreateQuoteUseCase {
   }
 
   async execute(input: CreateQuoteInput): Promise<QuoteDto> {
-    // 1. Initial serviceability classification without route segments.
-    // Guard against unserviceable origin/destination states before calling external routing.
-    let classification = await this.deps.serviceClassificationUseCase.execute({
+    // 0. Sovereign Domestic Boundary Restriction: strictly within India
+    const pickupCheck = isPointInIndia(input.pickup);
+    if (!pickupCheck.inside) {
+      throw AppError.badRequest(
+        `OUTSIDE_INDIA: Pickup location must be within India. ${pickupCheck.reason ?? 'Cabzone operates strictly within Indian sovereign territory.'}`,
+      );
+    }
+    const dropCheck = isPointInIndia(input.drop);
+    if (!dropCheck.inside) {
+      throw AppError.badRequest(
+        `OUTSIDE_INDIA: Drop location must be within India. ${dropCheck.reason ?? 'Cross-border trips are strictly prohibited.'}`,
+      );
+    }
+
+    // 1. Classify the trip and resolve origin/destination state (display-only). Every
+    // destination state is serviceable — the only gate left is "pickup in an active zone".
+    const classification = await this.deps.serviceClassificationUseCase.execute({
       pickup: input.pickup,
       drop: input.drop,
       vehicleCategory: input.vehicleCategory,
       requestedService: input.requestedService,
     });
-
-    if (!classification.cityZoneId) {
-      throw AppError.badRequest(
-        'NO_ACTIVE_ZONE: Service is not available for this route or location.',
-      );
-    }
 
     // 2. Compute route via routing provider
     let routeResult: RouteResult;
@@ -119,93 +111,67 @@ export class CreateQuoteUseCase {
       };
     }
 
-    // 3. Resolve traversed states along the polyline path
-    let routeSegments: RouteStateSegmentDto[] = [];
-    if (this.deps.resolveRouteStatesUseCase && routeResult.polyline) {
-      routeSegments = await this.deps.resolveRouteStatesUseCase.execute(routeResult.polyline);
-    } else if (classification.destinationStateCode) {
-      routeSegments = [
-        {
-          stateCode: classification.destinationStateCode,
-          distanceM: routeResult.distanceM,
-        },
-      ];
-    }
-
-    // 4. If segments cover more than one state but classification is not INTERSTATE,
-    // re-run classification with routeStateSegments
-    const distinctStates = new Set(
-      routeSegments.map((s) => s.stateCode).filter((c) => c !== 'UNKNOWN'),
-    );
-    if (distinctStates.size > 1 && classification.routeScope !== 'INTERSTATE') {
-      classification = await this.deps.serviceClassificationUseCase.execute({
-        pickup: input.pickup,
-        drop: input.drop,
-        vehicleCategory: input.vehicleCategory,
-        requestedService: input.requestedService,
-        routeStateSegments: routeSegments,
-      });
-    }
-
-    // 5. Load city pricing config
-    if (!classification.cityZoneId) {
-      throw AppError.badRequest(
-        'NO_ACTIVE_ZONE: Service is not available for this route or location.',
-      );
-    }
-
+    // 3. Load effective pricing config via 3-tier hierarchy:
+    // Tier 1: City Zone (if inside operational city or nearest city)
+    // Tier 2: State Pricing (pickup state, manual add like WB, SK)
+    // Tier 3: Global Pricing (default fallback)
     const config = await this.deps.pricingConfigRepo.findEffectiveConfig(
-      classification.cityZoneId,
+      {
+        cityZoneId: classification.cityZoneId,
+        stateCode: classification.originStateCode,
+      },
       input.vehicleCategory,
     );
 
     if (!config) {
+      if (!classification.cityZoneId) {
+        throw AppError.badRequest('NO_ACTIVE_ZONE: Service is not available for this route or location.');
+      }
       throw AppError.notFound(
-        `PRICING_UNAVAILABLE: No active pricing configuration found for ${input.vehicleCategory} in this zone.`,
+        `PRICING_UNAVAILABLE: No active pricing configuration found for ${input.vehicleCategory} in this location or zone.`,
       );
     }
 
-    // 6. Load state rates for every traversed state
-    const stateRates: Record<string, StatePricingEntity | null> = {};
-    const statePricingVersions: Record<string, number> = {};
+    // 4. Compute state distance breakdown for outstation routes
+    const stateBreakdown = calculateStateDistanceBreakdown({
+      origin: input.pickup,
+      destination: input.drop,
+      totalDistanceM: routeResult.distanceM,
+      polyline: routeResult.polyline,
+    });
 
-    if (this.deps.statePricingRepo) {
-      const stateCodesToFetch = new Set<string>();
-      if (classification.destinationStateCode) {
-        stateCodesToFetch.add(classification.destinationStateCode);
-      }
-      for (const seg of routeSegments) {
-        if (seg.stateCode && seg.stateCode !== 'UNKNOWN') {
-          stateCodesToFetch.add(seg.stateCode);
-        }
-      }
-
-      for (const code of stateCodesToFetch) {
-        const sp = await this.deps.statePricingRepo.findByStateCode(code);
-        stateRates[code] = sp;
-        if (sp) {
-          statePricingVersions[code] = sp.version;
+    // 5. If route crosses multiple states in an outstation trip, resolve per-state rates
+    const stateRateCache = new Map<string, number>();
+    if (classification.serviceType === 'OUTSTATION' && stateBreakdown.length > 0) {
+      for (const seg of stateBreakdown) {
+        const stateCfg = await this.deps.pricingConfigRepo.findEffectiveConfigByState(
+          seg.stateCode,
+          input.vehicleCategory,
+        );
+        if (stateCfg) {
+          stateRateCache.set(seg.stateCode, stateCfg.outstationRatePerKmPaise);
         }
       }
     }
 
-    // 7. Calculate fare using pure calculateFare function (Assumptions A-D)
-    const fareCalculation = calculateFare({
+    // 6. Calculate fare
+    const suggestedFarePaise = calculateBaseFareEstimate({
       config,
       distanceM: routeResult.distanceM,
-      routeScope: classification.routeScope,
-      segments: routeSegments,
-      destinationStateCode: classification.destinationStateCode,
-      stateRates,
+      serviceType: classification.serviceType,
       isBufferFallback: classification.bufferApplied,
+      stateBreakdown,
+      stateRateResolver: (sc) => stateRateCache.get(sc) ?? null,
     });
 
-    const suggestedFarePaise = fareCalculation.farePaise;
-    const cappedAppliedSegments = capSegments(fareCalculation.appliedSegments);
+    const effectiveMinimumFarePaise =
+      classification.serviceType === 'OUTSTATION'
+        ? config.outstationMinimumFarePaise
+        : config.minimumFarePaise;
 
     const bounds = calculateNegotiationBounds({
       suggestedFarePaise,
-      minimumFarePaise: config.minimumFarePaise,
+      minimumFarePaise: effectiveMinimumFarePaise,
       floorPercent: config.negotiationFloorPercent,
       ceilingPercent: config.negotiationCeilingPercent,
     });
@@ -222,13 +188,14 @@ export class CreateQuoteUseCase {
       serviceType: classification.type,
       cityZoneId: classification.cityZoneId,
       routeScope: classification.routeScope ?? null,
+      originStateCode: classification.originStateCode ?? null,
       destinationStateCode: classification.destinationStateCode ?? null,
-      stateBoundaryVersion: classification.stateBoundaryVersion ?? null,
-      stateConfigVersion: classification.stateConfigVersion ?? null,
+      originCountryCode: classification.originCountryCode ?? null,
+      destinationCountryCode: classification.destinationCountryCode ?? null,
+      originCityName: classification.originCityName ?? null,
+      destinationCityName: classification.destinationCityName ?? null,
+      stateBreakdown,
       routeProvider: routeResult.provider,
-      stateSegments: cappedAppliedSegments,
-      statePricingVersions:
-        Object.keys(statePricingVersions).length > 0 ? statePricingVersions : undefined,
       pricingConfigId: config.id,
       pricingConfigVersion: config.version,
       distanceM: routeResult.distanceM,
@@ -256,13 +223,14 @@ export class CreateQuoteUseCase {
       pricingConfigId: config.id,
       pricingConfigVersion: config.version,
       routeScope: classification.routeScope ?? null,
+      originStateCode: classification.originStateCode ?? null,
       destinationStateCode: classification.destinationStateCode ?? null,
-      stateBoundaryVersion: classification.stateBoundaryVersion ?? null,
-      stateConfigVersion: classification.stateConfigVersion ?? null,
+      originCountryCode: classification.originCountryCode ?? null,
+      destinationCountryCode: classification.destinationCountryCode ?? null,
+      originCityName: classification.originCityName ?? null,
+      destinationCityName: classification.destinationCityName ?? null,
+      stateBreakdown,
       routeProvider: routeResult.provider,
-      stateSegments: cappedAppliedSegments,
-      statePricingVersions:
-        Object.keys(statePricingVersions).length > 0 ? statePricingVersions : undefined,
       negotiation: {
         floorPaise: bounds.floorPaise,
         ceilingPaise: bounds.ceilingPaise,

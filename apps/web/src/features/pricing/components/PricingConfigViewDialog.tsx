@@ -9,24 +9,34 @@ export function PricingConfigViewDialog({
   zoneName,
   onOpenChange,
   onActivate,
+  onEdit,
 }: {
   config: PricingConfigDto | null;
   zoneName: string;
   onOpenChange: (open: boolean) => void;
   onActivate: (config: PricingConfigDto) => void;
+  onEdit?: (config: PricingConfigDto) => void;
 }) {
+  const territoryLabel =
+    config?.level === 'GLOBAL'
+      ? '🌍 Global Baseline (All India)'
+      : config?.level === 'STATE'
+        ? `🏛️ ${config.stateName ?? config.stateCode ?? 'State Level'}`
+        : `🏙️ ${zoneName || 'City Zone'}`;
+
   const rows: [string, string][] =
     config === null
       ? []
       : [
-          ['City zone', zoneName],
-          ['Vehicle type', config.vehicleType],
-          [
-            'Base fare',
-            `${formatPaise(config.baseFarePaise)} (includes ${config.includedDistanceM / 1000} km)`,
-          ],
-          ['Rate per km', `${formatPaise(config.ratePerKmPaise)}/km`],
-          ['Minimum fare', formatPaise(config.minimumFarePaise)],
+          ['Pricing Scope', config.level],
+          ['Territory / Target', territoryLabel],
+          ['Vehicle category', config.vehicleType],
+          ['City base fare', formatPaise(config.baseFarePaise)],
+          ['City rate per km', `${formatPaise(config.ratePerKmPaise)}/km`],
+          ['City minimum fare', formatPaise(config.minimumFarePaise)],
+          ['Outstation base fare', formatPaise(config.outstationBaseFarePaise)],
+          ['Outstation rate per km', `${formatPaise(config.outstationRatePerKmPaise)}/km`],
+          ['Outstation minimum fare', formatPaise(config.outstationMinimumFarePaise)],
           [
             'Buffer surcharge',
             config.bufferSurchargePaise > 0 ? formatPaise(config.bufferSurchargePaise) : 'None',
@@ -47,6 +57,17 @@ export function PricingConfigViewDialog({
       title="Pricing Rule Details"
       footer={
         <>
+          {config !== null && onEdit && (
+            <Button
+              variant="secondary"
+              onClick={() => {
+                onOpenChange(false);
+                onEdit(config);
+              }}
+            >
+              Edit Rule
+            </Button>
+          )}
           {config !== null && config.status !== 'ACTIVE' && (
             <Button variant="primary" onClick={() => onActivate(config)}>
               Activate

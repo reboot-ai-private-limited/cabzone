@@ -396,27 +396,39 @@ Key rules:
 
 **Status:** `DECIDED`  
 **Priority:** 🟢 RESOLVED (formerly 🔴 BLOCKING)  
-**Decision Reference:** [`decision-log.md`](../decision-log.md#d-035--interstate-route-segmentation-pricing-model) (D-035)
+**Decision Reference:** [`decision-log.md`](../decision-log.md#d-037--supersede-d-035-remove-state-boundarystatepricing-system-adopt-global-outstation-pricing) (D-037, supersedes D-035)
 
 ### Approved Decision
 
-Route polyline state boundary segmentation approved:
+**Superseded 2026-10-01 (D-037):** the state-boundary/route-segmentation model below was replaced with uniform outstation pricing. Kept here for history.
+
+~~Route polyline state boundary segmentation approved:~~
 
 ```text
-Route Polyline
-      ↓
-Spatial intersection with state boundary polygons
-      ↓
-Sequential state segments: [(State_1, dist_1), (State_2, dist_2), ...]
-      ↓
-segment_fare = segment_distance × state_rate (from state_pricing)
-      ↓
-Total interstate fare = SUM(segment_fares) + base_fare + tolls/permits
+~~Route Polyline~~
+      ~~↓~~
+~~Spatial intersection with state boundary polygons~~
+      ~~↓~~
+~~Sequential state segments: [(State_1, dist_1), (State_2, dist_2), ...]~~
+      ~~↓~~
+~~segment_fare = segment_distance × state_rate (from state_pricing)~~
+      ~~↓~~
+~~Total interstate fare = SUM(segment_fares) + base_fare + tolls/permits~~
 ```
 
-Key rules:
+~~Key rules:~~
 
-- The state segment breakdown is recorded in the ride snapshot and displayed transparently to both parties.
+- ~~The state segment breakdown is recorded in the ride snapshot and displayed transparently to both parties.~~
+
+### Current Decision (D-037, 2026-10-01)
+
+No per-state rate table, no stored state boundaries. Every trip — city, intrastate outstation, or interstate outstation — is priced from the same `PricingConfig` for `(cityZoneId, vehicleCategory)`; there is no per-state or per-segment fare override.
+
+```text
+Total outstation fare = base_fare(config) + distance_fare(config, total_distance) + tolls/permits
+```
+
+`routeScope` (`INTRA_STATE` / `INTERSTATE`) is still computed and shown to both parties, but is now a display-only label — it does not affect the fare. It's derived by comparing the pickup's and drop's state codes (from city-zone data, with a Google Geocoding fallback for drops outside every known city zone), not by intersecting route geometry against stored polygons. Every destination state is serviceable; there is no state-level enable/disable.
 
 ---
 
@@ -1059,7 +1071,7 @@ Minimum gate:
 [x] OQ-008 Cancellation (Decided: State-based fee schedule & 5m no-show wait, D-032)
 [x] OQ-009 Cash payment (Decided: Driver marks received + rider dispute flow, D-033)
 [x] OQ-010 Pricing versioning (Decided: Immutable ride pricing snapshot at creation, D-034)
-[x] OQ-011 Interstate pricing (Decided: Route polyline state boundary segmentation, D-035)
+[x] OQ-011 Interstate pricing (Decided: Uniform pricing per city zone/vehicle category, routeScope display-only, D-037 supersedes D-035)
 [x] OQ-012 Driver eligibility (Decided: 10-point simultaneous eligibility check, D-036)
 ```
 

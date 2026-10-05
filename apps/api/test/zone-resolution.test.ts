@@ -272,11 +272,14 @@ describe('ServiceClassificationUseCase Tests', () => {
     updatedAt: new Date(),
   };
 
-  function setupServiceClassifier() {
+  function setupServiceClassifier(destinationStateResolver?: { execute: (p: unknown) => Promise<string | null> }) {
     const repo = new MemoryZoneRepository();
     repo.save(siliguriCityZone);
     const resolveZonesUseCase = new ResolveZonesUseCase({ zoneRepo: repo });
-    const serviceClassifier = new ServiceClassificationUseCase({ resolveZonesUseCase });
+    const serviceClassifier = new ServiceClassificationUseCase({
+      resolveZonesUseCase,
+      destinationStateResolver,
+    });
     return { serviceClassifier };
   }
 
@@ -318,16 +321,57 @@ describe('ServiceClassificationUseCase Tests', () => {
   });
 
   it('classifies trip crossing state borders as INTERSTATE', async () => {
-    const { serviceClassifier } = setupServiceClassifier();
+    // Drop (Gangtok, Sikkim) isn't inside any known city zone, so the destination state comes
+    // from the (Google-backed in production) destinationStateResolver.
+    const { serviceClassifier } = setupServiceClassifier({ execute: async () => 'SK' });
     const result = await serviceClassifier.execute({
       pickup: { lat: 26.75, lng: 88.45 },
       drop: { lat: 27.3, lng: 88.6 }, // Gangtok, Sikkim
-      routeStateSegments: [
-        { stateCode: 'WB', distanceM: 40_000 },
-        { stateCode: 'SK', distanceM: 60_000 },
-      ],
     });
 
     expect(result.type).toBe('INTERSTATE');
+    expect(result.routeScope).toBe('INTERSTATE');
+    expect(result.originStateCode).toBe('WB');
+    expect(result.destinationStateCode).toBe('SK');
+  });
+
+  it('every destination state is serviceable — no gating on state support', async () => {
+    const { serviceClassifier } = setupServiceClassifier({ execute: async () => 'XX' });
+    const result = await serviceClassifier.execute({
+      pickup: { lat: 26.75, lng: 88.45 },
+      drop: { lat: 27.3, lng: 88.6 },
+    });
+
+    expect(result.type).toBe('INTERSTATE');
+    expect(result.destinationStateCode).toBe('XX');
+  });
+
+  it('classifies pickup outside city polygon but within buffer as IN_CITY with bufferApplied true', async () => {
+    const { serviceClassifier } = setupServiceClassifier();
+    const result = await serviceClassifier.execute({
+      pickup: { lat: 26.83, lng: 88.45 }, // ~3.3km outside Siliguri City polygon, well within 25km buffer
+      drop: { lat: 26.75, lng: 88.45 }, // Inside Siliguri City
+    });
+
+    expect(result.type).toBe('IN_CITY');
+    expect(result.serviceType).toBe('CITY');
+    expect(result.cityZoneId).toBe(siliguriCityZone.id);
+    expect(result.cityName).toBe('Siliguri City');
+    expect(result.bufferApplied).toBe(true);
+  });
+
+  it('classifies pickup far outside every zone (> buffer) as OUTSTATION and falls back to nearest city zone id', async () => {
+    const { serviceClassifier } = setupServiceClassifier();
+    const result = await serviceClassifier.execute({
+      pickup: { lat: 27.20, lng: 88.45 }, // ~44km outside Siliguri City polygon (> 25km buffer)
+      drop: { lat: 26.75, lng: 88.45 },
+    });
+
+    expect(result.type).toBe('OUTSTATION');
+    expect(result.serviceType).toBe('OUTSTATION');
+    expect(result.cityZoneId).toBe(siliguriCityZone.id);
+    expect(result.cityName).toBe('Siliguri City');
+    expect(result.originStateCode).toBe('WB');
+    expect(result.bufferApplied).toBe(false);
   });
 });

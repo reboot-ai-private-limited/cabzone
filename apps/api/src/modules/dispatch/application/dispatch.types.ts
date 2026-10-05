@@ -14,6 +14,9 @@ export interface DispatchLookups {
   getDriverProfileByUserId: (userId: string) => Promise<DriverDispatchProfile | null>;
   getUserIdForRider: (riderId: string) => Promise<string | null>;
   getUserIdForDriver: (driverId: string) => Promise<string | null>;
+  getDriverInfo?: (
+    driverId: string,
+  ) => Promise<{ name: string; phoneE164: string; registrationNumber?: string | undefined } | null>;
 }
 
 export interface DispatchConfig {

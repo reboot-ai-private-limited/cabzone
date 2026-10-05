@@ -18,12 +18,15 @@ export class ActivatePricingConfigUseCase {
 
     const now = new Date();
     const activeExisting = await this.pricingConfigRepo.findEffectiveConfig(
-      config.cityZoneId,
+      {
+        cityZoneId: config.cityZoneId,
+        stateCode: config.stateCode,
+      },
       config.vehicleType,
       now,
     );
 
-    if (activeExisting && activeExisting.id !== config.id) {
+    if (activeExisting && activeExisting.id !== config.id && activeExisting.level === config.level) {
       activeExisting.status = 'RETIRED';
       activeExisting.effectiveTo = now;
       await this.pricingConfigRepo.save(activeExisting);

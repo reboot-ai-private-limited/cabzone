@@ -8,15 +8,11 @@ import {
   CityZoneModel,
   createCityZoneSchema,
   createPricingConfigSchema,
-  createStatePricingSchema,
   getEffectiveBufferDistance,
   isPricingConfigEffective,
-  isStatePricingEffective,
   PricingConfigModel,
-  StatePricingModel,
   type CityZoneEntity,
   type PricingConfigEntity,
-  type StatePricingEntity,
 } from '../src/modules/pricing/index.js';
 
 describe('CityZone Domain Invariants', () => {
@@ -63,7 +59,9 @@ describe('PricingConfig Domain Invariants & Fare Estimation', () => {
     baseFarePaise: 5000, // Rs. 50
     ratePerKmPaise: 1500, // Rs. 15 / km
     minimumFarePaise: 8000, // Rs. 80 minimum
-    includedDistanceM: 2000, // First 2 km included in base fare
+    outstationBaseFarePaise: 7500, // Rs. 75
+    outstationRatePerKmPaise: 2200, // Rs. 22 / km (distinct from city 1500)
+    outstationMinimumFarePaise: 15000, // Rs. 150 minimum (distinct from city 8000)
     bufferSurchargePaise: 2000, // Rs. 20 buffer surcharge (D-027)
     negotiationFloorPercent: 80,
     negotiationCeilingPercent: 150,
@@ -96,61 +94,72 @@ describe('PricingConfig Domain Invariants & Fare Estimation', () => {
   });
 
   it('computes fare estimate with minimum fare enforcement', () => {
-    // 1 km: within included 2km distance -> base fare 5000, but minimum is 8000
+    // 1 km: 5000 + 1 * 1500 = 6500 paise, but minimum is 8000
     const fare = calculateBaseFareEstimate({
       config: baseConfig,
       distanceM: 1000,
+      serviceType: 'CITY',
     });
     expect(fare).toBe(8000);
   });
 
-  it('computes fare estimate for distance exceeding included distance', () => {
-    // 5 km: included 2km, billable 3km -> 5000 + 3 * 1500 = 9500 paise
+  it('computes fare estimate for distance exceeding minimum fare threshold', () => {
+    // 5 km: 5000 + 5 * 1500 = 12500 paise
     const fare = calculateBaseFareEstimate({
       config: baseConfig,
       distanceM: 5000,
+      serviceType: 'CITY',
     });
-    expect(fare).toBe(9500);
+    expect(fare).toBe(12500);
   });
 
   it('adds buffer surcharge when buffer fallback classification is triggered (D-027)', () => {
-    // 5 km with buffer surcharge: 9500 + 2000 = 11500 paise
+    // 5 km with buffer surcharge: 12500 + 2000 = 14500 paise
     const fare = calculateBaseFareEstimate({
       config: baseConfig,
       distanceM: 5000,
+      serviceType: 'CITY',
       isBufferFallback: true,
     });
-    expect(fare).toBe(11500);
-  });
-});
-
-describe('StatePricing Domain Invariants', () => {
-  const baseStatePricing: StatePricingEntity = {
-    id: '018f0a00-0000-7000-8000-000000000020',
-    stateCode: 'WB',
-    ratePerKmPaise: 1800,
-    baseFarePaise: 6000,
-    minimumFarePaise: 9000,
-    version: 1,
-    status: 'ACTIVE',
-    effectiveFrom: new Date('2026-01-01'),
-    effectiveTo: null,
-    createdAt: new Date(),
-  };
-
-  it('checks active state pricing effectivity', () => {
-    expect(isStatePricingEffective(baseStatePricing)).toBe(true);
-    expect(isStatePricingEffective({ ...baseStatePricing, status: 'RETIRED' })).toBe(false);
+    expect(fare).toBe(14500);
   });
 
-  it('rejects future-dated state pricing where effectiveFrom is in the future', () => {
-    const future = { ...baseStatePricing, effectiveFrom: new Date(Date.now() + 86400_000) };
-    expect(isStatePricingEffective(future)).toBe(false);
+  it('computes outstation fare estimate with distinct outstation rate per km and minimum fare', () => {
+    // 5 km: 7500 + 5 * 2200 = 18500 paise (> 15000 min).
+    const fareMin = calculateBaseFareEstimate({
+      config: baseConfig,
+      distanceM: 5000,
+      serviceType: 'OUTSTATION',
+    });
+    expect(fareMin).toBe(18500);
+
+    // 10 km: 7500 + 10 * 2200 = 29500 paise.
+    const fareDist = calculateBaseFareEstimate({
+      config: baseConfig,
+      distanceM: 10000,
+      serviceType: 'OUTSTATION',
+    });
+    expect(fareDist).toBe(29500);
+
+    // City fare for 10 km: 5000 + 10 * 1500 = 20000 paise.
+    const cityFare = calculateBaseFareEstimate({
+      config: baseConfig,
+      distanceM: 10000,
+      serviceType: 'CITY',
+    });
+    expect(cityFare).toBe(20000);
+    expect(fareDist).not.toBe(cityFare);
   });
 
-  it('rejects expired state pricing where effectiveTo is in the past', () => {
-    const expired = { ...baseStatePricing, effectiveTo: new Date(Date.now() - 1000) };
-    expect(isStatePricingEffective(expired)).toBe(false);
+  it('never applies buffer surcharge to OUTSTATION serviceType', () => {
+    // Buffer surcharge only applies when serviceType === 'CITY'
+    const outstationWithBufferFlag = calculateBaseFareEstimate({
+      config: baseConfig,
+      distanceM: 10000,
+      serviceType: 'OUTSTATION',
+      isBufferFallback: true,
+    });
+    expect(outstationWithBufferFlag).toBe(29500);
   });
 });
 
@@ -220,7 +229,6 @@ describe('Pricing & Zone Boundary Validations (Zod Schemas)', () => {
       baseFarePaise: 5000,
       ratePerKmPaise: 1500,
       minimumFarePaise: 8000,
-      includedDistanceM: 2000,
       bufferSurchargePaise: 2000,
       negotiationFloorPercent: 80,
       negotiationCeilingPercent: 150,
@@ -247,24 +255,32 @@ describe('Pricing & Zone Boundary Validations (Zod Schemas)', () => {
         minimumFarePaise: 5000,
       }).success,
     ).toBe(false);
+
+    // Valid with outstation tier
+    expect(
+      createPricingConfigSchema.safeParse({
+        ...valid,
+        outstationBaseFarePaise: 7500,
+        outstationRatePerKmPaise: 2000,
+        outstationMinimumFarePaise: 15000,
+      }).success,
+    ).toBe(true);
+
+    // Outstation Minimum fare < Outstation Base fare
+    expect(
+      createPricingConfigSchema.safeParse({
+        ...valid,
+        outstationBaseFarePaise: 8000,
+        outstationMinimumFarePaise: 6000,
+      }).success,
+    ).toBe(false);
   });
 
-  it('validates createStatePricing payload', () => {
-    const valid = {
-      stateCode: 'BR',
-      ratePerKmPaise: 1400,
-      baseFarePaise: 4000,
-      minimumFarePaise: 6000,
-      effectiveFrom: new Date().toISOString(),
-    };
-    expect(createStatePricingSchema.safeParse(valid).success).toBe(true);
-  });
 });
 
 describe('Mongoose Persistence Models', () => {
   it('registers geographic and pricing models with correct collection names', () => {
     expect(CityZoneModel.collection.name).toBe('city_zones');
     expect(PricingConfigModel.collection.name).toBe('pricing_configs');
-    expect(StatePricingModel.collection.name).toBe('state_pricing');
   });
 });

@@ -82,6 +82,39 @@ export class RedisPresenceRepository implements DriverPresencePort {
     return result;
   }
 
+  async listAll(options?: {
+    vehicleCategory?: VehicleCategory;
+    maxAgeMs?: number;
+  }): Promise<DriverPresence[]> {
+    const cutoff = options?.maxAgeMs ? Date.now() - options.maxAgeMs : 0;
+    const categories: readonly VehicleCategory[] = options?.vehicleCategory
+      ? [options.vehicleCategory]
+      : VEHICLE_CATEGORIES;
+
+    const driverIds = new Set<string>();
+    for (const cat of categories) {
+      const ids = (await this.redis.zrange(geoKey(cat), 0, -1)) as string[];
+      for (const id of ids) {
+        driverIds.add(id);
+      }
+    }
+
+    const result: DriverPresence[] = [];
+    for (const driverId of driverIds) {
+      const presence = await this.get(driverId);
+      if (!presence) {
+        for (const cat of VEHICLE_CATEGORIES) {
+          await this.redis.zrem(geoKey(cat), driverId);
+        }
+        continue;
+      }
+      if (presence.locationUpdatedAt.getTime() >= cutoff) {
+        result.push(presence);
+      }
+    }
+    return result;
+  }
+
   private parse(driverId: string, h: Record<string, string>): DriverPresence | null {
     if (!h['userId'] || !h['vehicleCategory']) return null;
     return {

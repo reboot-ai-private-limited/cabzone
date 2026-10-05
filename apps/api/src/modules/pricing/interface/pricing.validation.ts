@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import {
+  PRICING_CONFIG_LEVELS,
   PRICING_CONFIG_STATUSES,
-  STATE_PRICING_STATUSES,
   VEHICLE_CATEGORIES,
   ZONE_STATUSES,
 } from '@cabzone/contracts';
@@ -32,12 +32,28 @@ export const updateCityZoneSchema = z.object({
 
 export const createPricingConfigSchema = z
   .object({
-    cityZoneId: z.string().min(1, 'cityZoneId is required'),
+    level: z.enum(PRICING_CONFIG_LEVELS).optional(),
+    cityZoneId: z.string().nullable().optional(),
+    stateCode: z.string().trim().toUpperCase().length(2).nullable().optional(),
     vehicleType: z.enum(VEHICLE_CATEGORIES),
     baseFarePaise: z.number().int().min(0, 'baseFarePaise must be non-negative'),
     ratePerKmPaise: z.number().int().positive('ratePerKmPaise must be positive'),
     minimumFarePaise: z.number().int().positive('minimumFarePaise must be positive'),
-    includedDistanceM: z.number().int().min(0).default(0),
+    outstationBaseFarePaise: z
+      .number()
+      .int()
+      .min(0, 'outstationBaseFarePaise must be non-negative')
+      .optional(),
+    outstationRatePerKmPaise: z
+      .number()
+      .int()
+      .positive('outstationRatePerKmPaise must be positive')
+      .optional(),
+    outstationMinimumFarePaise: z
+      .number()
+      .int()
+      .positive('outstationMinimumFarePaise must be positive')
+      .optional(),
     bufferSurchargePaise: z.number().int().min(0).default(0),
     negotiationFloorPercent: z.number().int().min(10).max(100).default(80),
     negotiationCeilingPercent: z.number().int().min(100).max(300).default(150),
@@ -48,6 +64,18 @@ export const createPricingConfigSchema = z
     effectiveTo: z.string().nullable().optional(),
     createdByAdminId: z.string().optional(),
   })
+  .refine(
+    (data) => {
+      const level = data.level ?? (data.stateCode ? 'STATE' : data.cityZoneId ? 'CITY' : 'GLOBAL');
+      if (level === 'CITY') return Boolean(data.cityZoneId && data.cityZoneId.trim().length > 0);
+      if (level === 'STATE') return Boolean(data.stateCode && data.stateCode.trim().length === 2);
+      return true;
+    },
+    {
+      message: 'cityZoneId is required for CITY level, stateCode is required for STATE level',
+      path: ['cityZoneId'],
+    },
+  )
   .refine(
     (data) => data.negotiationCeilingPercent >= data.negotiationFloorPercent,
     {
@@ -61,20 +89,47 @@ export const createPricingConfigSchema = z
       message: 'minimumFarePaise must be greater than or equal to baseFarePaise',
       path: ['minimumFarePaise'],
     },
+  )
+  .refine(
+    (data) => {
+      const base = data.outstationBaseFarePaise ?? data.baseFarePaise;
+      const min = data.outstationMinimumFarePaise ?? data.minimumFarePaise;
+      return min >= base;
+    },
+    {
+      message: 'outstationMinimumFarePaise must be greater than or equal to outstationBaseFarePaise',
+      path: ['outstationMinimumFarePaise'],
+    },
   );
 
 export const updatePricingConfigSchema = z
   .object({
+    stateCode: z.string().trim().toUpperCase().length(2).nullable().optional(),
     baseFarePaise: z.number().int().min(0, 'baseFarePaise must be non-negative').optional(),
     ratePerKmPaise: z.number().int().positive('ratePerKmPaise must be positive').optional(),
     minimumFarePaise: z.number().int().positive('minimumFarePaise must be positive').optional(),
-    includedDistanceM: z.number().int().min(0).optional(),
+    outstationBaseFarePaise: z
+      .number()
+      .int()
+      .min(0, 'outstationBaseFarePaise must be non-negative')
+      .optional(),
+    outstationRatePerKmPaise: z
+      .number()
+      .int()
+      .positive('outstationRatePerKmPaise must be positive')
+      .optional(),
+    outstationMinimumFarePaise: z
+      .number()
+      .int()
+      .positive('outstationMinimumFarePaise must be positive')
+      .optional(),
     bufferSurchargePaise: z.number().int().min(0).optional(),
     negotiationFloorPercent: z.number().int().min(10).max(100).optional(),
     negotiationCeilingPercent: z.number().int().min(100).max(300).optional(),
     negotiationWindowSeconds: z.number().int().min(15).max(300).optional(),
     commissionPercent: z.number().min(0).max(100).optional(),
     effectiveFrom: z.string().optional(),
+    status: z.enum(PRICING_CONFIG_STATUSES).optional(),
   })
   .refine(
     (data) =>
@@ -95,24 +150,23 @@ export const updatePricingConfigSchema = z
       message: 'minimumFarePaise must be greater than or equal to baseFarePaise',
       path: ['minimumFarePaise'],
     },
+  )
+  .refine(
+    (data) =>
+      data.outstationMinimumFarePaise === undefined ||
+      data.outstationBaseFarePaise === undefined ||
+      data.outstationMinimumFarePaise >= data.outstationBaseFarePaise,
+    {
+      message: 'outstationMinimumFarePaise must be greater than or equal to outstationBaseFarePaise',
+      path: ['outstationMinimumFarePaise'],
+    },
   );
 
 export const listPricingConfigsSchema = z.object({
+  level: z.enum(PRICING_CONFIG_LEVELS).optional(),
   cityZoneId: z.string().optional(),
+  stateCode: z.string().optional(),
   vehicleType: z.enum(VEHICLE_CATEGORIES).optional(),
   status: z.enum(PRICING_CONFIG_STATUSES).optional(),
 });
 
-export const createStatePricingSchema = z.object({
-  stateCode: z.string().trim().toUpperCase().length(2, 'State code must be 2 letters'),
-  ratePerKmPaise: z.number().int().positive('ratePerKmPaise must be positive'),
-  baseFarePaise: z.number().int().min(0, 'baseFarePaise must be non-negative'),
-  minimumFarePaise: z.number().int().positive('minimumFarePaise must be positive'),
-  effectiveFrom: z.string().optional(),
-  effectiveTo: z.string().nullable().optional(),
-  status: z.enum(STATE_PRICING_STATUSES).default('ACTIVE'),
-});
-
-export const listStatePricingSchema = z.object({
-  status: z.enum(STATE_PRICING_STATUSES).optional(),
-});

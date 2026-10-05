@@ -12,7 +12,7 @@ import {
   X,
 } from 'lucide-react';
 import { Badge, Button, Input } from '@cabzone/design-system';
-import { requestOtp, verifyOtp } from '../lib/authApi.js';
+import { adminLogin, requestOtp, verifyOtp } from '../lib/authApi.js';
 
 interface AdminLoginDialogProps {
   isOpen: boolean;
@@ -21,7 +21,9 @@ interface AdminLoginDialogProps {
 }
 
 export function AdminLoginDialog({ isOpen, onClose, onSuccess }: AdminLoginDialogProps) {
+  const [authMode, setAuthMode] = useState<'password' | 'otp'>('password');
   const [phone, setPhone] = useState('+919000000001');
+  const [password, setPassword] = useState('admin123');
   const [otp, setOtp] = useState('000000');
   const [otpSent, setOtpSent] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -34,11 +36,31 @@ export function AdminLoginDialog({ isOpen, onClose, onSuccess }: AdminLoginDialo
     setIsLoading(true);
     setErrorMessage(null);
     try {
-      await requestOtp('+919000000001');
-      await verifyOtp('+919000000001', '000000');
+      await adminLogin('+919000000001', 'admin123');
+      onSuccess();
+    } catch {
+      // Fallback to OTP flow if password login is not yet configured in legacy DB
+      try {
+        await requestOtp('+919000000001');
+        await verifyOtp('+919000000001', '000000');
+        onSuccess();
+      } catch (err: unknown) {
+        setErrorMessage((err as Error).message || 'Failed to authenticate as Super Admin.');
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handlePasswordLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setErrorMessage(null);
+    try {
+      await adminLogin(phone.trim(), password);
       onSuccess();
     } catch (err: unknown) {
-      setErrorMessage((err as Error).message || 'Failed to authenticate as Super Admin.');
+      setErrorMessage((err as Error).message || 'Invalid mobile number or password.');
     } finally {
       setIsLoading(false);
     }
@@ -73,12 +95,12 @@ export function AdminLoginDialog({ isOpen, onClose, onSuccess }: AdminLoginDialo
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-text/40 backdrop-blur-xs p-4">
-      <div className="bg-surface rounded-md max-w-md w-full flex flex-col overflow-hidden border border-border-strong animate-in fade-in duration-150">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
+      <div className="bg-surface rounded-xl max-w-md w-full flex flex-col overflow-hidden border border-border-strong shadow-2xl animate-in fade-in duration-150 my-auto">
         {/* Header */}
-        <div className="p-4 border-b border-border bg-surface-sunken flex items-start justify-between">
+        <div className="p-4 border-b border-border bg-surface flex items-start justify-between">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-surface border border-border rounded-sm text-interactive">
+            <div className="p-2 bg-surface-muted border border-border-strong rounded-md text-interactive">
               <ShieldCheck className="size-5" />
             </div>
             <div>
@@ -92,7 +114,7 @@ export function AdminLoginDialog({ isOpen, onClose, onSuccess }: AdminLoginDialo
             <button
               type="button"
               onClick={onClose}
-              className="text-text-subtle hover:text-text p-1 rounded-sm transition-colors"
+              className="text-text-subtle hover:text-text p-1.5 rounded-md transition-colors hover:bg-surface-muted"
               aria-label="Close"
             >
               <X className="size-4" />
@@ -101,9 +123,9 @@ export function AdminLoginDialog({ isOpen, onClose, onSuccess }: AdminLoginDialo
         </div>
 
         {/* Content */}
-        <div className="p-5 flex flex-col gap-4">
+        <div className="p-5 flex flex-col gap-4 bg-surface">
           {/* Quick Super Admin Button */}
-          <div className="p-3.5 rounded-sm border border-border bg-surface-sunken flex flex-col gap-2">
+          <div className="p-3.5 rounded-lg border border-border bg-surface-sunken flex flex-col gap-2">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-text">Development Super Admin</span>
               <Badge tone="accent">DEV BYPASS</Badge>
@@ -132,6 +154,38 @@ export function AdminLoginDialog({ isOpen, onClose, onSuccess }: AdminLoginDialo
             </span>
           </div>
 
+          {/* Login Tabs */}
+          <div className="grid grid-cols-2 p-1 bg-surface-muted rounded-md border border-border text-xs font-medium">
+            <button
+              type="button"
+              onClick={() => {
+                setAuthMode('password');
+                setErrorMessage(null);
+              }}
+              className={`py-1.5 px-3 rounded-sm transition-colors cursor-pointer ${
+                authMode === 'password'
+                  ? 'bg-surface text-text shadow-xs font-semibold'
+                  : 'text-text-subtle hover:text-text'
+              }`}
+            >
+              Password
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setAuthMode('otp');
+                setErrorMessage(null);
+              }}
+              className={`py-1.5 px-3 rounded-sm transition-colors cursor-pointer ${
+                authMode === 'otp'
+                  ? 'bg-surface text-text shadow-xs font-semibold'
+                  : 'text-text-subtle hover:text-text'
+              }`}
+            >
+              Mobile OTP
+            </button>
+          </div>
+
           {errorMessage && (
             <div className="p-3 bg-surface border border-danger rounded-sm flex items-start gap-2 text-xs text-danger">
               <AlertCircle className="size-4 shrink-0 mt-0.5" />
@@ -139,19 +193,65 @@ export function AdminLoginDialog({ isOpen, onClose, onSuccess }: AdminLoginDialo
             </div>
           )}
 
-          {!otpSent ? (
-            <form onSubmit={handleRequestOtp} className="flex flex-col gap-3">
+          {authMode === 'password' ? (
+            <form onSubmit={handlePasswordLogin} className="flex flex-col gap-3">
               <div className="flex flex-col gap-1.5">
-                <label
-                  htmlFor="admin-phone-input"
-                  className="text-xs font-medium text-text"
-                >
-                  Admin Phone Number (E.164)
+                <label htmlFor="admin-phone-input" className="text-xs font-medium text-text">
+                  Mobile Number (E.164)
                 </label>
                 <div className="relative">
                   <Phone className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-text-subtle" />
                   <Input
                     id="admin-phone-input"
+                    type="text"
+                    required
+                    placeholder="+919000000001"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    className="pl-9 font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="admin-password-input" className="text-xs font-medium text-text">
+                  Password
+                </label>
+                <div className="relative">
+                  <Lock className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-text-subtle" />
+                  <Input
+                    id="admin-password-input"
+                    type="password"
+                    required
+                    placeholder="Enter password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
+              </div>
+
+              <Button
+                type="submit"
+                variant="primary"
+                size="md"
+                loading={isLoading}
+                icon={<ArrowRight className="size-3.5" />}
+                className="w-full justify-center mt-1"
+              >
+                Sign In to Console
+              </Button>
+            </form>
+          ) : !otpSent ? (
+            <form onSubmit={handleRequestOtp} className="flex flex-col gap-3">
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="admin-phone-otp-input" className="text-xs font-medium text-text">
+                  Admin Phone Number (E.164)
+                </label>
+                <div className="relative">
+                  <Phone className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-text-subtle" />
+                  <Input
+                    id="admin-phone-otp-input"
                     type="text"
                     required
                     placeholder="+919000000001"
@@ -189,10 +289,7 @@ export function AdminLoginDialog({ isOpen, onClose, onSuccess }: AdminLoginDialo
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <label
-                  htmlFor="admin-otp-input"
-                  className="text-xs font-medium text-text"
-                >
+                <label htmlFor="admin-otp-input" className="text-xs font-medium text-text">
                   Enter 6-Digit OTP (Dev Default: 000000)
                 </label>
                 <div className="relative">

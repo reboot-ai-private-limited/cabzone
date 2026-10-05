@@ -105,6 +105,112 @@ export class MongoRideRepository implements RideRepositoryPort {
     }).exec();
   }
 
+  async getRiderStats(riderId: string): Promise<{
+    totalRides: number;
+    completedRides: number;
+    cancelledRides: number;
+    totalSpentPaise: number;
+  }> {
+    const results = await RideModel.aggregate([
+      {
+        $match: {
+          $or: [{ booker_rider_id: riderId }, { 'passenger.rider_id': riderId }],
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          totalRides: { $sum: 1 },
+          completedRides: {
+            $sum: {
+              $cond: [
+                {
+                  $in: [
+                    '$status',
+                    ['TRIP_COMPLETED', 'SETTLED', 'PAYMENT_CONFIRMED'],
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
+          },
+          cancelledRides: {
+            $sum: { $cond: [{ $eq: ['$status', 'CANCELLED'] }, 1, 0] },
+          },
+          totalSpentPaise: {
+            $sum: {
+              $cond: [
+                {
+                  $in: [
+                    '$status',
+                    ['TRIP_COMPLETED', 'SETTLED', 'PAYMENT_CONFIRMED'],
+                  ],
+                },
+                { $ifNull: ['$agreed_fare_paise', '$suggested_fare_paise'] },
+                0,
+              ],
+            },
+          },
+        },
+      },
+    ]).exec();
+
+    if (!results || results.length === 0) {
+      return { totalRides: 0, completedRides: 0, cancelledRides: 0, totalSpentPaise: 0 };
+    }
+    const r = results[0];
+    return {
+      totalRides: r.totalRides ?? 0,
+      completedRides: r.completedRides ?? 0,
+      cancelledRides: r.cancelledRides ?? 0,
+      totalSpentPaise: r.totalSpentPaise ?? 0,
+    };
+  }
+
+  async getRiderTripCountsBatch(
+    riderIds: string[],
+  ): Promise<Map<string, { totalRides: number; completedRides: number }>> {
+    const map = new Map<string, { totalRides: number; completedRides: number }>();
+    if (riderIds.length === 0) return map;
+
+    const results = await RideModel.aggregate([
+      {
+        $match: {
+          $or: [{ booker_rider_id: { $in: riderIds } }, { 'passenger.rider_id': { $in: riderIds } }],
+        },
+      },
+      {
+        $group: {
+          _id: '$booker_rider_id',
+          totalRides: { $sum: 1 },
+          completedRides: {
+            $sum: {
+              $cond: [
+                {
+                  $in: [
+                    '$status',
+                    ['TRIP_COMPLETED', 'SETTLED', 'PAYMENT_CONFIRMED'],
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
+          },
+        },
+      },
+    ]).exec();
+
+    for (const r of results) {
+      map.set(r._id, {
+        totalRides: r.totalRides ?? 0,
+        completedRides: r.completedRides ?? 0,
+      });
+    }
+    return map;
+  }
+
   private toPersistence(ride: RideEntity): Record<string, unknown> {
     return {
       _id: ride.id,

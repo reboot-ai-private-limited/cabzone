@@ -5,6 +5,7 @@ export interface AuthRouterDeps {
   verifyOtp: RequestHandler;
   refreshToken: RequestHandler;
   logout: RequestHandler;
+  adminLogin: RequestHandler;
   authenticate: RequestHandler;
 }
 
@@ -15,6 +16,7 @@ export function buildAuthRouter(deps: AuthRouterDeps): Router {
   router.post('/otp/verify', deps.verifyOtp);
   router.post('/refresh', deps.refreshToken);
   router.post('/logout', deps.authenticate, deps.logout);
+  router.post('/admin/login', deps.adminLogin);
 
   return router;
 }

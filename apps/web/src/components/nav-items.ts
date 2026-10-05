@@ -4,7 +4,6 @@ import {
   FileCode2,
   FileText,
   HeartPulse,
-  Landmark,
   LayoutDashboard,
   MapPin,
   Receipt,
@@ -45,28 +44,27 @@ export const navSections: NavSection[] = [
     title: 'Operations',
     items: [
       { label: 'Live Rides', href: '/rides', icon: Car, activePattern: /^\/rides/ },
-      { label: 'Drivers & KYC', href: '/drivers', icon: Users, activePattern: /^\/drivers/ },
-      { label: 'Riders', href: '/riders', icon: UserCircle, comingSoon: true },
+      { label: 'Drivers', href: '/drivers', icon: Users, activePattern: /^\/drivers/ },
+      { label: 'Customers', href: '/riders', icon: UserCircle, activePattern: /^\/riders/ },
     ],
   },
   {
     title: 'Geography',
     items: [
       { label: 'Zones', href: '/zones', icon: MapPin, activePattern: /^\/zones/ },
-      { label: 'States', href: '/states', icon: Landmark, activePattern: /^\/states/ },
     ],
   },
   {
     title: 'Pricing',
     items: [
-      { label: 'Pricing Matrix', href: '/pricing', icon: Tag, activePattern: /^\/pricing/ },
-      { label: 'Quotes & Fare Rules', href: '/quotes', icon: Receipt, comingSoon: true },
+      { label: 'Pricing', href: '/pricing', icon: Tag, activePattern: /^\/pricing/ },
+      { label: 'Trip Simulator', href: '/quotes', icon: Receipt, activePattern: /^\/quotes/ },
     ],
   },
   {
     title: 'Finance',
     items: [
-      { label: 'Wallets & Ledger', href: '/finance', icon: CreditCard, activePattern: /^\/finance/ },
+      { label: 'Finance', href: '/finance', icon: CreditCard, activePattern: /^\/finance/ },
       { label: 'Payouts', href: '/payouts', icon: Wallet, comingSoon: true },
       { label: 'Refunds', href: '/refunds', icon: RotateCcw, comingSoon: true },
     ],
@@ -74,7 +72,7 @@ export const navSections: NavSection[] = [
   {
     title: 'System',
     items: [
-      { label: 'Admin Users & Roles', href: '/admins', icon: ShieldCheck, comingSoon: true },
+      { label: 'Admin Users', href: '/admins', icon: ShieldCheck, activePattern: /^\/admins/ },
       { label: 'Audit Log', href: '/audit', icon: FileText, comingSoon: true },
       { label: 'Settings', href: '/settings', icon: Settings, comingSoon: true },
     ],
