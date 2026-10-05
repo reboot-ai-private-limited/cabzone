@@ -1,10 +1,18 @@
 import mongoose, { type Document, Schema } from 'mongoose';
-import { WALLET_STATUSES, type WalletStatus } from '@cabzone/contracts';
+import {
+  WALLET_OWNER_TYPES,
+  WALLET_STATUSES,
+  type WalletOwnerType,
+  type WalletStatus,
+} from '@cabzone/contracts';
 
 export interface WalletDocument extends Document<string> {
   _id: string;
-  driver_id: string;
+  owner_type: WalletOwnerType;
+  driver_id: string | null;
+  rider_id: string | null;
   balance_paise: number;
+  owed_paise: number;
   status: WalletStatus;
   version: number;
   created_at: Date;
@@ -14,8 +22,16 @@ export interface WalletDocument extends Document<string> {
 const walletSchema = new Schema<WalletDocument>(
   {
     _id: { type: String, required: true },
-    driver_id: { type: String, required: true, unique: true },
+    owner_type: {
+      type: String,
+      enum: WALLET_OWNER_TYPES,
+      default: 'DRIVER',
+      index: true,
+    },
+    driver_id: { type: String, default: null, sparse: true, index: true },
+    rider_id: { type: String, default: null, sparse: true, index: true },
     balance_paise: { type: Number, default: 0 },
+    owed_paise: { type: Number, default: 0 },
     status: {
       type: String,
       enum: WALLET_STATUSES,
@@ -35,3 +51,4 @@ const walletSchema = new Schema<WalletDocument>(
 export const WalletModel: mongoose.Model<WalletDocument> =
   (mongoose.models.Wallet as mongoose.Model<WalletDocument>) ||
   mongoose.model<WalletDocument>('Wallet', walletSchema);
+

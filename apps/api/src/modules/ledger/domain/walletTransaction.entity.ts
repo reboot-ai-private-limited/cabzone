@@ -1,12 +1,16 @@
 import type {
   TransactionReferenceType,
+  WalletOwnerType,
   WalletTransactionType,
 } from '@cabzone/contracts';
 
 export interface WalletTransactionEntity {
   id: string;
   walletId: string;
-  driverId: string;
+  ownerType?: WalletOwnerType | undefined;
+  ownerId?: string | undefined;
+  driverId?: string | null | undefined;
+  riderId?: string | null | undefined;
   type: WalletTransactionType;
   amountPaise: number;
   referenceType: TransactionReferenceType;
@@ -16,6 +20,7 @@ export interface WalletTransactionEntity {
   balanceAfterPaise: number;
   createdBy: string | null;
   /** Free-text justification, required for admin adjustments. */
-  note?: string | null;
+  note?: string | null | undefined;
   createdAt: Date;
 }
+

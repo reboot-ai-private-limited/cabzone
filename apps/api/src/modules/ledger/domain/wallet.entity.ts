@@ -1,14 +1,18 @@
-import type { WalletStatus, WalletTransactionType } from '@cabzone/contracts';
+import type { WalletOwnerType, WalletStatus, WalletTransactionType } from '@cabzone/contracts';
 
 export interface WalletEntity {
   id: string;
+  ownerType?: WalletOwnerType | undefined;
   driverId: string;
+  riderId?: string | null | undefined;
   balancePaise: number;
+  owedPaise?: number | undefined;
   status: WalletStatus;
   version: number;
   createdAt: Date;
   updatedAt: Date;
 }
+
 
 export function isWalletActive(wallet: WalletEntity): boolean {
   return wallet.status === 'ACTIVE';

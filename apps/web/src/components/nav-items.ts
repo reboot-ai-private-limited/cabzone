@@ -3,6 +3,7 @@ import {
   CreditCard,
   FileCode2,
   FileText,
+  FlaskConical,
   HeartPulse,
   LayoutDashboard,
   MapPin,
@@ -58,13 +59,12 @@ export const navSections: NavSection[] = [
     title: 'Pricing',
     items: [
       { label: 'Pricing', href: '/pricing', icon: Tag, activePattern: /^\/pricing/ },
-      { label: 'Trip Simulator', href: '/quotes', icon: Receipt, activePattern: /^\/quotes/ },
     ],
   },
   {
     title: 'Finance',
     items: [
-      { label: 'Finance', href: '/finance', icon: CreditCard, activePattern: /^\/finance/ },
+      { label: 'Transactions', href: '/finance', icon: Receipt, activePattern: /^\/finance/ },
       { label: 'Payouts', href: '/payouts', icon: Wallet, comingSoon: true },
       { label: 'Refunds', href: '/refunds', icon: RotateCcw, comingSoon: true },
     ],
@@ -78,8 +78,14 @@ export const navSections: NavSection[] = [
     ],
   },
   {
-    title: 'Developer',
+    title: 'Developers',
     items: [
+      {
+        label: 'Simulators',
+        href: '/simulators',
+        icon: FlaskConical,
+        activePattern: /^\/(simulators|quotes)/,
+      },
       {
         label: 'Swagger API Docs',
         href: `${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000'}/api/docs`,

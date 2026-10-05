@@ -18,16 +18,25 @@ export default function ZonesPage() {
 /** The screen's real geometry — rail plus map — so the layout does not jump when it mounts. */
 function ZonesFallback() {
   return (
-    <div className="flex flex-col gap-4">
-      <Skeleton className="h-6 w-32" />
-      <div className="flex gap-0 border border-border rounded-md overflow-hidden">
-        <div className="w-80 shrink-0 border-r border-border p-4 flex flex-col gap-3">
-          {Array.from({ length: 5 }, (_, index) => (
+    <div className="flex flex-col gap-6">
+      <Skeleton className="h-8 w-40" />
+
+      {/* Stat Tiles Skeleton */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {Array.from({ length: 4 }).map((_, index) => (
+          // eslint-disable-next-line react/no-array-index-key
+          <Skeleton key={index} className="h-24 rounded-xl" />
+        ))}
+      </div>
+
+      <div className="flex gap-0 border border-border-strong rounded-xl overflow-hidden min-h-[720px] bg-surface">
+        <div className="w-96 shrink-0 border-r border-border p-5 flex flex-col gap-3">
+          {Array.from({ length: 3 }, (_, index) => (
             // eslint-disable-next-line react/no-array-index-key
-            <Skeleton key={index} className="h-16 rounded-md" />
+            <Skeleton key={index} className="h-28 rounded-xl" />
           ))}
         </div>
-        <Skeleton className="flex-1 h-144 rounded-none" />
+        <Skeleton className="flex-1 min-h-[720px] rounded-none" />
       </div>
     </div>
   );

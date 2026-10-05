@@ -25,7 +25,11 @@ const TripPointMap = dynamic(
 const DEFAULT_SILIGURI_PICKUP: GeoPoint = { lat: 26.7141, lng: 88.4334 };
 const DEFAULT_SILIGURI_DROP: GeoPoint = { lat: 26.728, lng: 88.425 };
 
-export function TripSimulatorScreen() {
+export interface TripSimulatorScreenProps {
+  showHeader?: boolean;
+}
+
+export function TripSimulatorScreen({ showHeader = true }: TripSimulatorScreenProps = {}) {
   const [pickup, setPickup] = useState<GeoPoint | null>(DEFAULT_SILIGURI_PICKUP);
   const [drop, setDrop] = useState<GeoPoint | null>(DEFAULT_SILIGURI_DROP);
   const [vehicleCategory, setVehicleCategory] = useState<VehicleCategory>('CAB');
@@ -119,21 +123,23 @@ export function TripSimulatorScreen() {
   ).length;
   const errorRuns = scenarios.filter((s) => s.status === 'ERROR').length;
 
-  return (
-    <div className="flex flex-col gap-6 p-6 max-w-7xl mx-auto w-full">
-      <div className="flex flex-col gap-1">
-        <PageHeader
-          title="Trip Simulator"
-          breadcrumbs={[
-            { label: 'Admin', href: '/' },
-            { label: 'Pricing', href: '/pricing' },
-            { label: 'Trip Simulator' },
-          ]}
-        />
-        <p className="text-xs text-text-subtle">
-          Virtually test pickup, drop, and pricing logic across zone and buffer boundaries with real backend classification.
-        </p>
-      </div>
+  const content = (
+    <div className="flex flex-col gap-6">
+      {showHeader && (
+        <div className="flex flex-col gap-1">
+          <PageHeader
+            title="Trip Simulator"
+            breadcrumbs={[
+              { label: 'Admin', href: '/' },
+              { label: 'Developers', href: '/simulators' },
+              { label: 'Trip Simulator' },
+            ]}
+          />
+          <p className="text-xs text-text-subtle">
+            Virtually test pickup, drop, and pricing logic across zone and buffer boundaries with real backend classification.
+          </p>
+        </div>
+      )}
 
       {/* Summary Stat Tiles */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -191,4 +197,14 @@ export function TripSimulatorScreen() {
       </div>
     </div>
   );
+
+  if (showHeader) {
+    return (
+      <div className="flex flex-col gap-6 p-6 max-w-7xl mx-auto w-full">
+        {content}
+      </div>
+    );
+  }
+
+  return content;
 }

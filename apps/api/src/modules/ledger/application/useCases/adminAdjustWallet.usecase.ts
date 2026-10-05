@@ -1,4 +1,4 @@
-import type { WalletTransactionType } from '@cabzone/contracts';
+import type { WalletOwnerType, WalletTransactionType } from '@cabzone/contracts';
 import { AppError } from '../../../../shared/errors/AppError.js';
 import { newUuid } from '../../../../shared/ids.js';
 import {
@@ -9,7 +9,10 @@ import {
 } from '../../domain/index.js';
 
 export interface AdminAdjustWalletInput {
-  driverId: string;
+  driverId?: string | undefined;
+  riderId?: string | undefined;
+  walletId?: string | undefined;
+  ownerType?: WalletOwnerType | undefined;
   amountPaise: number;
   type: Extract<WalletTransactionType, 'CREDIT' | 'DEBIT'>;
   reason: string;
@@ -22,25 +25,62 @@ export interface AdminAdjustWalletResult {
   transaction: WalletTransactionEntity;
 }
 
-/** Manual credit/debit by finance staff. Creates the driver's wallet on first use. */
+/** Manual credit/debit by finance staff. Creates the driver or rider wallet on first use. */
 export class AdminAdjustWalletUseCase {
   constructor(private readonly walletRepo: WalletRepositoryPort) {}
 
   async execute(input: AdminAdjustWalletInput): Promise<AdminAdjustWalletResult> {
     const now = new Date();
-    const wallet: WalletEntity = (await this.walletRepo.findByDriverId(input.driverId)) ?? {
-      id: newUuid(),
-      driverId: input.driverId,
-      balancePaise: 0,
-      status: 'ACTIVE',
-      version: 0,
-      createdAt: now,
-      updatedAt: now,
-    };
+    let wallet: WalletEntity | null = null;
+
+    if (input.walletId) {
+      wallet = (await this.walletRepo.findById(input.walletId)) ?? null;
+    }
+
+    if (!wallet && input.riderId) {
+      wallet = (await this.walletRepo.findByRiderId(input.riderId)) ?? null;
+      if (!wallet) {
+        wallet = {
+          id: newUuid(),
+          ownerType: 'RIDER',
+          driverId: '',
+          riderId: input.riderId,
+          balancePaise: 0,
+          owedPaise: 0,
+          status: 'ACTIVE',
+          version: 0,
+          createdAt: now,
+          updatedAt: now,
+        };
+      }
+    }
+
+    if (!wallet && input.driverId) {
+      wallet = (await this.walletRepo.findByDriverId(input.driverId)) ?? null;
+      if (!wallet) {
+        wallet = {
+          id: newUuid(),
+          ownerType: 'DRIVER',
+          driverId: input.driverId,
+          riderId: null,
+          balancePaise: 0,
+          owedPaise: 0,
+          status: 'ACTIVE',
+          version: 0,
+          createdAt: now,
+          updatedAt: now,
+        };
+      }
+    }
+
+    if (!wallet) {
+      throw AppError.badRequest('Must provide a valid driverId, riderId, or walletId.');
+    }
 
     if (wallet.status !== 'ACTIVE') {
       throw AppError.conflict(`WALLET_NOT_ACTIVE: Wallet is ${wallet.status}.`);
     }
+
     if (input.type === 'DEBIT' && wallet.balancePaise < input.amountPaise) {
       throw AppError.badRequest('INSUFFICIENT_BALANCE: Debit would take the wallet below zero.');
     }
@@ -49,7 +89,9 @@ export class AdminAdjustWalletUseCase {
     const transaction = await this.walletRepo.recordTransaction({
       id: newUuid(),
       walletId: wallet.id,
-      driverId: wallet.driverId,
+      ownerType: wallet.ownerType,
+      driverId: wallet.driverId || null,
+      riderId: wallet.riderId || null,
       type: input.type,
       amountPaise: input.amountPaise,
       referenceType: 'ADMIN_ADJUSTMENT',
@@ -68,6 +110,7 @@ export class AdminAdjustWalletUseCase {
       version: wallet.version + 1,
       updatedAt: now,
     });
+
     return { wallet: saved, transaction };
   }
 }

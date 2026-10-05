@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { AlertTriangle, UserCheck } from 'lucide-react';
-import { Button, Dialog, FormField, Input } from '@cabzone/design-system';
+import { Button, Dialog } from '@cabzone/design-system';
 import type { AdminUserDetailDto, AdminUserSummaryDto } from '@cabzone/contracts';
 import { useUpdateAdminStatus } from '../hooks/useAdmins';
 
@@ -49,15 +49,16 @@ export function AdminStatusDialog({
         if (!v) setReason('');
         onOpenChange(v);
       }}
-      title={isSuspending ? 'Suspend Administrator Account' : 'Reactivate Administrator Account'}
-      className="max-w-md"
+      title={isSuspending ? 'Suspend Admin' : 'Reactivate Admin'}
+      className="max-w-md rounded-2xl border border-border-strong bg-surface shadow-2xl"
       footer={
-        <div className="flex w-full justify-between items-center">
+        <div className="flex w-full justify-between items-center pt-2">
           <Button
             type="button"
             variant="secondary"
             onClick={() => onOpenChange(false)}
             disabled={statusMutation.isPending}
+            className="rounded-xl px-4 py-2 text-sm font-medium border border-border bg-surface text-text hover:bg-surface-muted"
           >
             Cancel
           </Button>
@@ -66,41 +67,44 @@ export function AdminStatusDialog({
             variant={isSuspending ? 'danger' : 'primary'}
             onClick={handleConfirm}
             disabled={statusMutation.isPending}
+            className={`rounded-xl px-5 py-2 text-sm font-semibold text-white shadow-xs ${
+              isSuspending ? 'bg-danger hover:bg-danger/90' : 'bg-interactive hover:bg-interactive-hover'
+            }`}
           >
             {statusMutation.isPending
               ? isSuspending
                 ? 'Suspending...'
                 : 'Reactivating...'
               : isSuspending
-                ? 'Confirm Suspension'
-                : 'Confirm Reactivation'}
+                ? 'Suspend'
+                : 'Reactivate'}
           </Button>
         </div>
       }
     >
       <div className="space-y-4 pt-1">
         <div
-          className={`p-4 rounded-xl border flex items-start gap-3 ${
+          className={`p-3.5 rounded-xl border flex items-start gap-3 ${
             isSuspending
-              ? 'bg-rose-50/50 border-rose-200 text-rose-900 dark:bg-rose-950/20 dark:border-rose-900 dark:text-rose-200'
-              : 'bg-emerald-50/50 border-emerald-200 text-emerald-900 dark:bg-emerald-950/20 dark:border-emerald-900 dark:text-emerald-200'
+              ? 'bg-danger/10 border-danger/30 text-danger'
+              : 'bg-interactive/10 border-interactive/30 text-text'
           }`}
         >
           {isSuspending ? (
-            <AlertTriangle className="size-5 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
+            <AlertTriangle className="size-5 text-danger shrink-0 mt-0.5" />
           ) : (
-            <UserCheck className="size-5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+            <UserCheck className="size-5 text-interactive shrink-0 mt-0.5" />
           )}
           <div className="space-y-1">
-            <h4 className="text-xs font-semibold">
+            <h4 className="text-sm font-semibold text-text">
               {isSuspending
-                ? `Suspend access for ${admin.name ?? admin.phoneE164}?`
-                : `Restore access for ${admin.name ?? admin.phoneE164}?`}
+                ? `Suspend ${admin.name ?? admin.phoneE164}?`
+                : `Reactivate ${admin.name ?? admin.phoneE164}?`}
             </h4>
-            <p className="text-[11px] leading-relaxed opacity-90">
+            <p className="text-xs text-text-subtle leading-relaxed">
               {isSuspending
-                ? 'Suspending this operator will immediately revoke all active browser sessions, invalidate tokens, and terminate their access to the administrative control plane.'
-                : 'Reactivating this staff member will allow them to log in via mobile OTP and resume operations according to their assigned role.'}
+                ? 'This will immediately revoke active sessions and disable console login.'
+                : 'This will restore full console sign-in and permissions.'}
             </p>
           </div>
         </div>
@@ -111,22 +115,22 @@ export function AdminStatusDialog({
           </div>
         )}
 
-        <FormField label="Audit Reason" hint="Optional, recorded in the administrative security audit log">
-          {({ id, invalid, describedBy }) => (
-            <Input
-              id={id}
-              invalid={invalid}
-              aria-describedby={describedBy}
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              placeholder={
-                isSuspending
-                  ? 'e.g. Protocol audit / Role reassignment'
-                  : 'e.g. Audit cleared / Reinstatement approved'
-              }
-            />
-          )}
-        </FormField>
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="status-reason-input" className="text-sm font-semibold text-text">
+            Reason (optional)
+          </label>
+          <input
+            id="status-reason-input"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder={
+              isSuspending
+                ? 'Reason for suspension'
+                : 'Reason for reactivation'
+            }
+            className="h-11 w-full px-3.5 rounded-xl text-sm bg-surface text-text font-normal border border-border-strong hover:border-interactive focus:border-interactive focus:ring-2 focus:ring-interactive/20 outline-none transition-colors"
+          />
+        </div>
       </div>
     </Dialog>
   );

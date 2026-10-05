@@ -34,7 +34,10 @@ export const keys = {
   },
   wallets: {
     all: () => ['wallets'] as const,
-    detail: (driverId: string) => ['wallets', 'detail', driverId] as const,
+    stats: () => ['wallets', 'stats'] as const,
+    list: (query?: unknown) => ['wallets', 'list', query] as const,
+    transactions: (query?: unknown) => ['wallets', 'transactions', query] as const,
+    detail: (id: string) => ['wallets', 'detail', id] as const,
   },
   pricing: {
     all: () => ['pricing'] as const,

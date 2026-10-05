@@ -14,7 +14,17 @@ export interface DialogProps {
   children?: ReactNode;
   footer?: ReactNode;
   className?: string;
+  bodyClassName?: string;
+  size?: 'sm' | 'md' | 'lg' | 'xl' | 'full';
 }
+
+const sizeClasses: Record<NonNullable<DialogProps['size']>, string> = {
+  sm: 'max-w-sm',
+  md: 'max-w-md',
+  lg: 'max-w-lg',
+  xl: 'max-w-xl',
+  full: 'max-w-4xl',
+};
 
 /**
  * A modal. Radix owns the focus trap, the escape key, the scroll lock and the ARIA wiring —
@@ -31,6 +41,8 @@ export function Dialog({
   children,
   footer,
   className,
+  bodyClassName,
+  size,
 }: DialogProps) {
   return (
     <Radix.Root open={open} onOpenChange={onOpenChange}>
@@ -52,7 +64,8 @@ export function Dialog({
         <Radix.Content
           style={{ width: '100%', maxHeight: 'calc(100dvh - 2rem)' }}
           className={cn(
-            'relative flex flex-col max-w-lg',
+            'relative flex flex-col',
+            sizeClasses[size ?? 'lg'],
             'bg-surface border border-border-strong rounded-lg shadow-2xl overflow-hidden outline-none',
             className,
           )}
@@ -78,7 +91,12 @@ export function Dialog({
           </header>
 
           {children !== undefined && (
-            <div className="flex-1 overflow-y-auto min-h-0 px-5 py-4">
+            <div
+              className={cn(
+                'flex-1 min-h-0 px-5 py-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none]',
+                bodyClassName ?? 'overflow-y-auto',
+              )}
+            >
               {children}
             </div>
           )}

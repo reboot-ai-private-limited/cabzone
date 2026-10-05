@@ -2,15 +2,18 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { List, LogIn, LogOut, Map as MapIcon } from 'lucide-react';
+import { ArrowLeft, List, LogIn, LogOut, Map as MapIcon, Upload } from 'lucide-react';
 import type { ZoneDto, ZoneType } from '@cabzone/contracts';
-import type { Polygon } from '@cabzone/geo';
+import { zoneStats, type Polygon } from '@cabzone/geo';
 import {
+  Badge,
   Button,
   ErrorState,
   PageHeader,
   SegmentedControl,
   Skeleton,
+  StatTile,
+  StatusPill,
   TopProgressBar,
   cn,
 } from '@cabzone/design-system';
@@ -140,11 +143,7 @@ export function ZonesScreen() {
     void packagesQuery.refetch();
   };
 
-  const handleLogout = () => {
-    logout();
-    setAdminPhone(null);
-    setIsAuthOpen(true);
-  };
+ 
 
   const zones = useMemo(() => zonesQuery.data?.zones ?? [], [zonesQuery.data]);
   const selected = zones.find((zone) => zone.id === selectedId) ?? null;
@@ -182,13 +181,51 @@ export function ZonesScreen() {
     setFitToken((token) => token + 1);
   });
 
+  const activeZones = useMemo(
+    () => zones.filter((z) => z.status === 'ACTIVE' || z.is_active === true),
+    [zones],
+  );
+
+  const totalAreaKm2 = useMemo(() => {
+    return activeZones.reduce((acc, curr) => {
+      try {
+        if (curr.geometry?.type === 'Polygon') {
+          return acc + zoneStats(curr.geometry).areaKm2;
+        }
+      } catch {
+        // ignore invalid geometry
+      }
+      return acc;
+    }, 0);
+  }, [activeZones]);
+
+  const activeCityZone = useMemo(
+    () => activeZones.find((z) => z.type === 'CITY') ?? activeZones[0],
+    [activeZones],
+  );
+
+  const destinationBufferDisplay =
+    activeCityZone?.bufferDistanceM != null
+      ? `${activeCityZone.bufferDistanceM} m (${(activeCityZone.bufferDistanceM / 1000).toFixed(1)} km)`
+      : '5,000 m (5.0 km)';
+
   useEffect(() => {
     if (zones.length > 0 && selectedId === null && fitToken === 0) {
+      const defaultZone =
+        zones.find((z) => z.status === 'ACTIVE' || z.is_active === true) ?? zones[0];
+      if (defaultZone) {
+        select(defaultZone.id);
+      }
       setFitToken(1);
     }
-  }, [zones.length, selectedId, fitToken]);
+  }, [zones, selectedId, fitToken, select]);
 
   const saving = create.isPending || updateGeometry.isPending || updateMetadata.isPending;
+  const blocked =
+    draft === null ||
+    validation.errors.length > 0 ||
+    form.name.trim() === '' ||
+    form.code.trim() === '';
 
   /**
    * A new zone starts EMPTY, and the admin places the first corner.
@@ -332,29 +369,11 @@ export function ZonesScreen() {
                 { value: 'list', label: 'List', icon: <List aria-hidden className="size-3.5" /> },
               ]}
             />
-            {adminPhone ? (
-              <Button
-                size="sm"
-                variant="ghost"
-                icon={<LogOut aria-hidden className="size-3.5" />}
-                onClick={handleLogout}
-                title={`Logged in as ${adminPhone}. Click to log out.`}
-              >
-                Logout ({adminPhone.slice(-4)})
-              </Button>
-            ) : (
-              <Button
-                size="sm"
-                variant="secondary"
-                icon={<LogIn aria-hidden className="size-3.5" />}
-                onClick={() => setIsAuthOpen(true)}
-              >
-                Admin Login
-              </Button>
-            )}
+        
           </div>
         }
       />
+
 
       {view === 'list' ? (
         <ZonesTable
@@ -367,18 +386,127 @@ export function ZonesScreen() {
             params.set({ view: undefined });
           }}
         />
+      ) : editing ? (
+        <div className="fixed inset-0 z-50 bg-surface flex flex-col h-screen w-screen overflow-hidden">
+          {/* Top Boundary Editor Studio Header */}
+          <header className="h-14 px-4 border-b border-border bg-surface flex items-center justify-between shrink-0 z-20">
+            <div className="flex items-center gap-3 min-w-0">
+              <Button
+                size="sm"
+                variant="ghost"
+                icon={<ArrowLeft aria-hidden className="size-4" />}
+                onClick={cancel}
+              >
+                Exit Editor
+              </Button>
+              <div className="h-4 w-px bg-border shrink-0" />
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="text-sm font-bold text-text truncate">
+                  {session?.zoneId === null
+                    ? 'New City Boundary'
+                    : `Editing ${form.name || selected?.name || 'Boundary'}`}
+                </span>
+                <Badge tone="accent">Boundary Editor</Badge>
+                {session && <StatusPill status={session.type} />}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-text-subtle hidden md:inline mr-2">
+                Press <kbd className="px-1.5 py-0.5 rounded border border-border bg-surface-muted text-[11px] font-mono">Esc</kbd> to exit
+              </span>
+              <Button
+                size="sm"
+                variant="secondary"
+                icon={<Upload aria-hidden className="size-3.5" />}
+                onClick={() => setImportOpen(true)}
+              >
+                Import GeoJSON
+              </Button>
+              <Button size="sm" variant="ghost" onClick={cancel} disabled={saving}>
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                variant="primary"
+                onClick={save}
+                disabled={blocked}
+                loading={saving}
+              >
+                {session?.zoneId === null ? 'Create zone' : 'Save changes'}
+              </Button>
+            </div>
+          </header>
+
+          {/* Studio Workspace: Left Editor Sidebar + Right Map */}
+          <div className="flex flex-1 min-h-0 overflow-hidden relative">
+            <aside className="w-96 lg:w-[420px] shrink-0 border-r border-border bg-surface flex flex-col h-full overflow-hidden z-10 shadow-sm">
+              <div className="flex-1 overflow-y-auto p-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                <ZoneInspector
+                  mode="edit"
+                  zone={session?.zoneId == null ? null : selected}
+                  type={session?.type ?? selected?.type ?? 'CITY'}
+                  form={form}
+                  onFormChange={setForm}
+                  draft={draft}
+                  validation={validation}
+                  saving={saving}
+                  onEditGeometry={() => selected !== null && startEdit(selected)}
+                  onImport={() => setImportOpen(true)}
+                  onExport={exportSelected}
+                  onDeactivate={() => setDeactivating(selected)}
+                  onDelete={() => setDeleting(selected)}
+                  onShowOnMap={(geometry) => {
+                    setViolationFocus(geometry);
+                    setFitToken((token) => token + 1);
+                  }}
+                  onCancel={cancel}
+                  onSave={save}
+                />
+              </div>
+            </aside>
+
+            <main className="flex-1 h-full relative overflow-hidden bg-surface-muted">
+              {!hasApiKey ? (
+                <MissingKeyNotice />
+              ) : (
+                <>
+                  <ZoneMap
+                    zones={zones}
+                    selectedId={selectedId}
+                    onSelect={select}
+                    editing={true}
+                    draft={draft}
+                    onDraftChange={setDraft}
+                    violationGeometry={violationFocus}
+                    mapType={mapType}
+                    fitToken={fitToken}
+                    onMapReady={setMapInstance}
+                  />
+
+                  <div className="absolute top-3 left-3 flex items-center gap-2 z-10">
+                    <SegmentedControl
+                      label="Map type"
+                      value={mapType}
+                      onValueChange={setMapType}
+                      segments={[
+                        { value: 'roadmap', label: 'Map' },
+                        { value: 'hybrid', label: 'Satellite' },
+                        { value: 'terrain', label: 'Terrain' },
+                      ]}
+                    />
+                    <PlaceSearch map={mapInstance} />
+                  </div>
+                </>
+              )}
+            </main>
+          </div>
+        </div>
       ) : (
         <section
           className={cn(
-            'bg-surface border border-border rounded-md overflow-hidden',
-            // FULL SCREEN WHILE EDITING. Tracing a boundary against a ~380px map card is the
-            // complaint every admin has had — the corner being aimed at sits off the visible
-            // edge as often as not. In an edit session the map leaves the panel and takes the
-            // whole viewport; the rail (inert during editing anyway) is dropped, and the
-            // inspector docks to the bottom with its own scroll. Escape or Cancel leaves.
-            // z-50 clears the app rail (z-40); the GeoJSON dialog and toasts still land on top,
-            // being portalled later in the DOM.
-            editing && 'fixed inset-0 z-50 rounded-none border-0',
+            'bg-surface border border-border-strong rounded-xl shadow-xs overflow-hidden flex flex-col',
+            'min-h-[720px] lg:min-h-[780px] xl:min-h-[840px]',
           )}
         >
           {/* A background refetch dims nothing and blanks nothing — the polygon an admin is
@@ -386,32 +514,22 @@ export function ZonesScreen() {
           <TopProgressBar active={zonesQuery.isFetching && !zonesQuery.isLoading} />
 
           {zonesQuery.isLoading ? (
-            <div className="flex">
-              <div className="w-80 shrink-0 border-r border-border p-4 flex flex-col gap-3">
-                {Array.from({ length: 5 }, (_, index) => (
-                  // eslint-disable-next-line react/no-array-index-key
-                  <Skeleton key={index} className="h-16 rounded-md" />
+            <div className="flex flex-1">
+              <div className="w-96 shrink-0 border-r border-border p-4 flex flex-col gap-3">
+                {Array.from({ length: 4 }, (_, index) => (
+                  <Skeleton key={index} className="h-20 rounded-xl" />
                 ))}
               </div>
-              <Skeleton className="flex-1 h-[32rem] rounded-none" />
+              <Skeleton className="flex-1 min-h-[640px] rounded-none" />
             </div>
           ) : errorState !== undefined ? (
             <div className="p-6">
               <ErrorState {...errorState} />
             </div>
           ) : (
-            <div className={cn('flex', editing ? 'h-full' : 'min-h-[36rem]')}>
-              {/* The rail is the accessible path through this screen: every zone by name, with
-                  the same selection state the map has. The map itself has no text alternative
-                  worth writing. */}
-              <div
-                className={cn(
-                  'w-80 shrink-0 border-r border-border',
-                  // Hidden, not dimmed: editing is full screen now, and a greyed-out rail
-                  // taking 320px of it is 320px the map is not using.
-                  editing && 'hidden',
-                )}
-              >
+            <div className="flex flex-1 min-h-0 min-h-[640px] lg:min-h-[700px] xl:min-h-[760px]">
+              {/* The rail is the accessible path through this screen: every zone by name */}
+              <div className="w-96 shrink-0 border-r border-border bg-surface flex flex-col">
                 <ZoneRail
                   zones={zones}
                   packages={packagesQuery.data}
@@ -424,7 +542,7 @@ export function ZonesScreen() {
               </div>
 
               <div className="flex-1 flex flex-col min-w-0">
-                <div className="relative flex-1 min-h-[24rem]">
+                <div className="relative flex-1 min-h-[480px] lg:min-h-[560px] xl:min-h-[620px]">
                   {!hasApiKey ? (
                     <MissingKeyNotice />
                   ) : (
@@ -433,8 +551,8 @@ export function ZonesScreen() {
                         zones={zones}
                         selectedId={selectedId}
                         onSelect={select}
-                        editing={editing}
-                        draft={draft}
+                        editing={false}
+                        draft={null}
                         onDraftChange={setDraft}
                         violationGeometry={violationFocus}
                         mapType={mapType}
@@ -442,16 +560,6 @@ export function ZonesScreen() {
                         onMapReady={setMapInstance}
                       />
 
-                      {/*
-                    Map type, and the three are not interchangeable.
-                    HYBRID is imagery WITH road labels, and it is the one that answers the
-                    question a pickup boundary actually asks — where the built-up area ends, and
-                    what road that is. Neither layer alone answers it.
-                    TERRAIN carries shaded relief, for hill zones: their edges are price
-                    boundaries that must cover the approach corridor, and relief is what shows
-                    where the corridor runs.
-                    ROADMAP is the default because it is the least visually noisy to select on.
-                  */}
                       <div className="absolute top-2 left-2 flex items-center gap-2">
                         <SegmentedControl
                           label="Map type"
@@ -463,21 +571,20 @@ export function ZonesScreen() {
                             { value: 'terrain', label: 'Terrain' },
                           ]}
                         />
-                        {/* Search moves the viewport only — never the draft. */}
                         <PlaceSearch map={mapInstance} />
                       </div>
                     </>
                   )}
                 </div>
 
-                <div className={cn('border-t border-border', editing && 'max-h-[42vh] overflow-y-auto')}>
+                <div className="border-t border-border">
                   <ZoneInspector
-                    mode={editing ? 'edit' : 'view'}
-                    zone={session?.zoneId == null ? (editing ? null : selected) : selected}
-                    type={session?.type ?? selected?.type ?? 'CITY'}
+                    mode="view"
+                    zone={selected}
+                    type={selected?.type ?? 'CITY'}
                     form={form}
                     onFormChange={setForm}
-                    draft={editing ? draft : (selected?.geometry?.type === 'Polygon' ? selected.geometry : null)}
+                    draft={selected?.geometry?.type === 'Polygon' ? selected.geometry : null}
                     validation={validation}
                     saving={saving}
                     onEditGeometry={() => selected !== null && startEdit(selected)}

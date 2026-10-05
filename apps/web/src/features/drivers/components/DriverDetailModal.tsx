@@ -18,6 +18,7 @@ import {
 } from '@cabzone/design-system';
 import type { DriverApplicationSummaryDto } from '@/lib/api/endpoints/drivers';
 import { DriverStatusBadge, OperationalStatusBadge, VehicleStatusBadge } from './StatusBadge';
+import { TrustScoreBadge } from '../../identity/components/TrustScoreBadge';
 
 export interface DriverDetailModalProps {
   driverSummary: DriverApplicationSummaryDto | null;
@@ -56,14 +57,17 @@ export function DriverDetailModal({
             <OperationalStatusBadge status="ONLINE" />
           </div>
 
-          <div className="flex items-center gap-1.5 text-xs font-medium text-amber-500">
-            <Star className="size-4 fill-amber-500 text-amber-500" />
-            <span className="text-text font-semibold">
-              {driver?.ratingAverage ? driver.ratingAverage.toFixed(2) : '5.0'}
-            </span>
-            <span className="text-text-subtle">
-              ({driver?.ratingCount ?? 0} {driver?.ratingCount === 1 ? 'ride' : 'rides'})
-            </span>
+          <div className="flex items-center gap-3">
+            <TrustScoreBadge score={driver?.trustScore} size="sm" />
+            <div className="flex items-center gap-1.5 text-xs font-medium text-amber-500">
+              <Star className="size-4 fill-amber-500 text-amber-500" />
+              <span className="text-text font-semibold">
+                {driver?.ratingAverage ? driver.ratingAverage.toFixed(2) : '5.0'}
+              </span>
+              <span className="text-text-subtle">
+                ({driver?.ratingCount ?? 0} {driver?.ratingCount === 1 ? 'ride' : 'rides'})
+              </span>
+            </div>
           </div>
         </div>
 
@@ -129,9 +133,9 @@ export function DriverDetailModal({
         {/* Operational Shortcuts */}
         <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-border">
           <div className="flex items-center gap-2">
-            <Link href={`/finance?driverId=${application.driverId}`}>
+            <Link href={`/drivers/${application.id}?tab=financials`}>
               <Button size="sm" icon={<CreditCard className="size-3.5" />}>
-                Wallet & Ledger
+                Balance & Financials
               </Button>
             </Link>
             <Link href={`/rides?driverId=${application.driverId}`}>

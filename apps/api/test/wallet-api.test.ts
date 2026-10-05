@@ -166,4 +166,68 @@ describe('Wallet API', () => {
       ).status,
     ).toBe(403);
   });
+
+  it('lists driver wallets, transactions, and computes finance KPI stats', async () => {
+    const s = await setup();
+    // 1. Credit driver wallet
+    await adjust(s, s.finance, {
+      driverId: DRIVER_ID,
+      amountPaise: 25_000,
+      type: 'CREDIT',
+      reason: 'Driver initial deposit',
+    });
+
+    // 2. Debit driver wallet
+    const debitAdj = await adjust(s, s.finance, {
+      driverId: DRIVER_ID,
+      amountPaise: 5_000,
+      type: 'DEBIT',
+      reason: 'Driver equipment fee adjustment',
+    });
+    expect(debitAdj.status).toBe(201);
+    expect(debitAdj.body.data.wallet.balancePaise).toBe(20_000);
+
+    // 3. Stats endpoint
+    const statsRes = await request(s.app)
+      .get('/api/v1/admin/wallets/stats')
+      .set('Authorization', s.finance);
+    expect(statsRes.status).toBe(200);
+    expect(statsRes.body.data.driver.totalBalancePaise).toBe(20_000);
+    expect(statsRes.body.data.driver.payableToDriversPaise).toBe(20_000);
+    expect(statsRes.body.data.driver.payableDriversCount).toBe(1);
+    expect(statsRes.body.data.driver.owedToCompanyPaise).toBe(0);
+    expect(statsRes.body.data.driver.owedDriversCount).toBe(0);
+    expect(statsRes.body.data.driver.suspendedCount).toBe(0);
+    expect(statsRes.body.data.driver.driversWithActivityCount).toBe(1);
+    expect(statsRes.body.data.transactions.totalTransactionsCount).toBe(2);
+
+    // 4. List driver wallets
+    const driverWalletsRes = await request(s.app)
+      .get('/api/v1/admin/wallets?type=DRIVER&balanceFilter=PAYABLE&sortBy=HIGHEST_BALANCE')
+      .set('Authorization', s.finance);
+    expect(driverWalletsRes.status).toBe(200);
+    expect(driverWalletsRes.body.data.items.length).toBeGreaterThanOrEqual(1);
+    const item = driverWalletsRes.body.data.items[0];
+    expect(item.balancePaise).toBe(20_000);
+    expect(item.payableToDriverPaise).toBe(20_000);
+    expect(item.owedToCompanyPaise).toBe(0);
+    expect(item.lifetimeEarningsPaise).toBe(25_000); // 25,000 credit
+    expect(item.entriesCount).toBe(2);
+    expect(item.lastEntryDate).toBeTruthy();
+
+    // 5. Test balanceFilter=OWING yields empty because balance is positive
+    const owingRes = await request(s.app)
+      .get('/api/v1/admin/wallets?type=DRIVER&balanceFilter=OWING')
+      .set('Authorization', s.finance);
+    expect(owingRes.status).toBe(200);
+    expect(owingRes.body.data.items).toHaveLength(0);
+
+    // 6. List transactions
+    const txRes = await request(s.app)
+      .get('/api/v1/admin/wallets/transactions')
+      .set('Authorization', s.finance);
+    expect(txRes.status).toBe(200);
+    expect(txRes.body.data.items).toHaveLength(2);
+  });
 });
+

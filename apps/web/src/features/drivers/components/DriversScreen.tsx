@@ -24,6 +24,7 @@ import {
   ErrorState,
   FilterBar,
   FilterField,
+  IconButton,
   PageHeader,
   Pagination,
   SearchInput,
@@ -46,6 +47,7 @@ import {
   REVIEWABLE,
   StatusBadge,
 } from './StatusBadge';
+import { TrustScoreBadge } from '../../identity/components/TrustScoreBadge';
 
 const PAGE_SIZE = 15;
 
@@ -88,7 +90,7 @@ export function DriversScreen() {
   const router = useRouter();
   const [viewMode, setViewMode] = useState<ViewMode>('kyc');
   const [searchQuery, setSearchQuery] = useState('');
-  const [kycFilter, setKycFilter] = useState<KycFilter>('PENDING');
+  const [kycFilter, setKycFilter] = useState<KycFilter>('ALL');
   const [fleetFilter, setFleetFilter] = useState<FleetFilter>('ALL');
   const [vehicleFilter, setVehicleFilter] = useState<string>('ALL');
   const [page, setPage] = useState(1);
@@ -312,9 +314,13 @@ export function DriversScreen() {
             <User className="size-4" />
           </div>
           <div className="flex flex-col">
-            <span className="font-mono text-sm font-semibold text-text">
+            <Link
+              href={`/drivers/${r.application.id}`}
+              className="font-mono text-sm font-semibold text-text hover:text-interactive hover:underline"
+              onClick={(e) => e.stopPropagation()}
+            >
               {r.phoneE164 ?? '—'}
-            </span>
+            </Link>
             <span className="font-mono text-[11px] text-text-subtle truncate max-w-[120px]" title={r.application.driverId}>
               {r.application.driverId.slice(0, 8)}…
             </span>
@@ -365,32 +371,44 @@ export function DriversScreen() {
       ),
     },
     {
+      key: 'trustScore',
+      header: 'Trust Score',
+      render: (r) => <TrustScoreBadge score={r.driver?.trustScore} size="sm" />,
+    },
+    {
       key: 'actions',
       header: 'Actions',
       align: 'right',
       render: (r) => (
         <div className="flex items-center justify-end gap-1.5">
-          <Button
-            size="sm"
-            variant="secondary"
-            onClick={(e) => {
-              e.stopPropagation();
-              setSelectedFleetDriver(r);
-            }}
-          >
-            Profile
-          </Button>
-          <Link
-            href={`/finance?driverId=${r.application.driverId}`}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <Button size="sm" icon={<CreditCard className="size-3.5" />} aria-label="Wallet" title="Driver Wallet" />
+          <Link href={`/drivers/${r.application.id}`} onClick={(e) => e.stopPropagation()}>
+            <Button size="sm" variant="secondary">
+              Details
+            </Button>
           </Link>
           <Link
-            href={`/rides?driverId=${r.application.driverId}`}
+            href={`/drivers/${r.application.id}?tab=financials`}
             onClick={(e) => e.stopPropagation()}
           >
-            <Button size="sm" icon={<Car className="size-3.5" />} aria-label="Rides" title="Driver Rides" />
+            <IconButton
+              size="sm"
+              variant="secondary"
+              icon={<CreditCard className="size-3.5" />}
+              label="Driver Financials"
+              title="Driver Financials"
+            />
+          </Link>
+          <Link
+            href={`/drivers/${r.application.id}?tab=duty`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <IconButton
+              size="sm"
+              variant="secondary"
+              icon={<Car className="size-3.5" />}
+              label="Driver Duty History"
+              title="Driver Duty History"
+            />
           </Link>
         </div>
       ),

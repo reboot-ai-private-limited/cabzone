@@ -50,6 +50,23 @@ export interface RiderRideStatsDto {
   totalSpentPaise: number;
 }
 
+export type TrustTier = 'EXCELLENT' | 'GOOD' | 'FAIR' | 'POOR' | 'UNRATED';
+
+export interface TrustScoreBreakdownDto {
+  score: number | null;
+  tier: TrustTier;
+  isPreliminary: boolean;
+  factors: {
+    completedRides: number;
+    cancelledRides: number;
+    completionRate: number;
+    ratingAverage: number | null;
+    ratingCount: number;
+    disputesCount: number;
+  };
+  summary: string;
+}
+
 export interface AdminRiderSummaryDto {
   id: string;
   userId: string;
@@ -61,6 +78,8 @@ export interface AdminRiderSummaryDto {
   emergencyContact: EmergencyContactDto | null;
   ratingAverage: number | null;
   ratingCount: number;
+  trustScore?: number | null | undefined;
+  trustScoreBreakdown?: TrustScoreBreakdownDto | undefined;
   totalRides: number;
   completedRides: number;
   createdAt: string;
@@ -117,6 +136,7 @@ export interface DriverDto {
   ratingAverage: number | null;
   ratingCount: number;
   trustScore: number | null;
+  trustScoreBreakdown?: TrustScoreBreakdownDto | undefined;
   createdAt: string;
   updatedAt: string;
 }

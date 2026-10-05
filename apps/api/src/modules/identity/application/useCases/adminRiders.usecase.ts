@@ -11,6 +11,7 @@ import type {
   SessionRepositoryPort,
   UserRepositoryPort,
 } from '../../domain/index.js';
+import { calculateTrustScore } from '../../domain/trustScore.calculator.js';
 import type { RideRepositoryPort } from '../../../rides/rides.public.js';
 
 export interface AdminRiderDeps {
@@ -46,6 +47,14 @@ export class ListRidersUseCase {
 
     const riders: AdminRiderSummaryDto[] = items.map((item) => {
       const counts = tripCounts.get(item.rider.id) ?? { totalRides: 0, completedRides: 0 };
+      const cancelledRides = Math.max(0, counts.totalRides - counts.completedRides);
+      const trust = calculateTrustScore({
+        completedRides: counts.completedRides,
+        cancelledRides,
+        ratingAverage: item.rider.ratingAverage,
+        ratingCount: item.rider.ratingCount,
+      });
+
       return {
         id: item.rider.id,
         userId: item.rider.userId,
@@ -62,6 +71,8 @@ export class ListRidersUseCase {
           : null,
         ratingAverage: item.rider.ratingAverage,
         ratingCount: item.rider.ratingCount,
+        trustScore: trust.score,
+        trustScoreBreakdown: trust,
         totalRides: counts.totalRides,
         completedRides: counts.completedRides,
         createdAt: item.rider.createdAt.toISOString(),
@@ -101,6 +112,13 @@ export class GetRiderDetailUseCase {
       }
     }
 
+    const trust = calculateTrustScore({
+      completedRides: stats.completedRides,
+      cancelledRides: stats.cancelledRides,
+      ratingAverage: rider.ratingAverage,
+      ratingCount: rider.ratingCount,
+    });
+
     return {
       id: rider.id,
       userId: rider.userId,
@@ -117,6 +135,8 @@ export class GetRiderDetailUseCase {
         : null,
       ratingAverage: rider.ratingAverage,
       ratingCount: rider.ratingCount,
+      trustScore: trust.score,
+      trustScoreBreakdown: trust,
       totalRides: stats.totalRides,
       completedRides: stats.completedRides,
       cancelledRides: stats.cancelledRides,
