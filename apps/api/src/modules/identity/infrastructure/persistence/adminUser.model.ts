@@ -9,6 +9,9 @@ import {
 export interface AdminUserDocument extends Document<string> {
   _id: string;
   user_id: string;
+  name: string | null;
+  email: string | null;
+  password_hash: string | null;
   role: AdminRole;
   city_zone_ids: string[];
   status: AdminStatus;
@@ -20,6 +23,9 @@ const adminUserSchema = new Schema<AdminUserDocument>(
   {
     _id: { type: String, required: true },
     user_id: { type: String, required: true, unique: true },
+    name: { type: String, default: null },
+    email: { type: String, default: null },
+    password_hash: { type: String, default: null },
     role: {
       type: String,
       enum: ADMIN_ROLES,

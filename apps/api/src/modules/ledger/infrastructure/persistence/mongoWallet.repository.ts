@@ -21,6 +21,7 @@ export class MongoWalletRepository implements WalletRepositoryPort {
     const doc = await WalletModel.findByIdAndUpdate(
       wallet.id,
       {
+        _id: wallet.id,
         driver_id: wallet.driverId,
         balance_paise: wallet.balancePaise,
         status: wallet.status,

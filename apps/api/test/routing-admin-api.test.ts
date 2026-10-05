@@ -113,4 +113,23 @@ describe('Admin Routing HTTP API', () => {
     expect(res.body.data.failures).toBeDefined();
     expect(res.body.data.cacheHits).toBeDefined();
   });
+
+  it('reverse geocodes point location via public GET /api/v1/routing/reverse-geocode', async () => {
+    const app = createTestApp();
+    const res = await request(app).get('/api/v1/routing/reverse-geocode?lat=26.7141&lng=88.4334');
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.point.lat).toBe(26.7141);
+    expect(res.body.data.point.lng).toBe(88.4334);
+    expect(res.body.data.countryCode).toBe('IN');
+  });
+
+  it('rejects reverse geocode with invalid coordinates', async () => {
+    const app = createTestApp();
+    const res = await request(app).get('/api/v1/routing/reverse-geocode?lat=999&lng=88.4334');
+
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
+  });
 });

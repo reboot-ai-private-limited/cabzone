@@ -13,6 +13,7 @@ export function FareSimulatorSection() {
 
   const { data: configs } = usePricingConfigs({ status: 'ACTIVE' });
   const [selectedConfigId, setSelectedConfigId] = useState<string>('');
+  const [serviceType, setServiceType] = useState<'CITY' | 'OUTSTATION'>('CITY');
   const [simulatedDistanceKm, setSimulatedDistanceKm] = useState<number>(8.5);
   const [isBufferFallback, setIsBufferFallback] = useState<boolean>(false);
   const [riderCounterOfferRupees, setRiderCounterOfferRupees] = useState<number>(180);
@@ -30,20 +31,27 @@ export function FareSimulatorSection() {
     label: `${c.vehicleType} – Zone: ${c.cityZoneId} (v${c.version})`,
   }));
 
-  // Calculations based on activeConfig
-  const distanceM = Math.round(simulatedDistanceKm * 1000);
-  const billableDistanceM = activeConfig
-    ? Math.max(0, distanceM - activeConfig.includedDistanceM)
+  // Calculations based on activeConfig and serviceType
+  const isOutstation = serviceType === 'OUTSTATION';
+  const effectiveBaseFarePaise = activeConfig
+    ? (isOutstation ? activeConfig.outstationBaseFarePaise : activeConfig.baseFarePaise)
     : 0;
+  const effectiveRatePerKmPaise = activeConfig
+    ? (isOutstation ? activeConfig.outstationRatePerKmPaise : activeConfig.ratePerKmPaise)
+    : 0;
+  const effectiveMinimumFarePaise = activeConfig
+    ? (isOutstation ? activeConfig.outstationMinimumFarePaise : activeConfig.minimumFarePaise)
+    : 0;
+
+  const distanceM = Math.round(simulatedDistanceKm * 1000);
   const distanceFarePaise = activeConfig
-    ? Math.round((billableDistanceM / 1000) * activeConfig.ratePerKmPaise)
+    ? Math.round((distanceM / 1000) * effectiveRatePerKmPaise)
     : 0;
   const bufferFarePaise =
-    isBufferFallback && activeConfig ? activeConfig.bufferSurchargePaise : 0;
-  const baseFarePaise = activeConfig ? activeConfig.baseFarePaise : 0;
-  const calculatedSubtotalPaise = baseFarePaise + distanceFarePaise + bufferFarePaise;
+    !isOutstation && isBufferFallback && activeConfig ? activeConfig.bufferSurchargePaise : 0;
+  const calculatedSubtotalPaise = effectiveBaseFarePaise + distanceFarePaise + bufferFarePaise;
   const suggestedFarePaise = activeConfig
-    ? Math.max(activeConfig.minimumFarePaise, calculatedSubtotalPaise)
+    ? Math.max(effectiveMinimumFarePaise, calculatedSubtotalPaise)
     : 0;
 
   const floorPercent = activeConfig?.negotiationFloorPercent ?? 80;
@@ -52,7 +60,7 @@ export function FareSimulatorSection() {
 
   const floorPaise = activeConfig
     ? Math.max(
-        activeConfig.minimumFarePaise,
+        effectiveMinimumFarePaise,
         Math.round((suggestedFarePaise * floorPercent) / 100),
       )
     : 0;
@@ -70,38 +78,70 @@ export function FareSimulatorSection() {
     <div className="flex flex-col gap-6">
       {/* Simulation Controls Header */}
       <div className="p-4 rounded-md bg-surface border border-border flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full md:w-auto">
-          <span className="text-xs font-semibold text-text whitespace-nowrap">Pricing Model:</span>
-          <div className="w-full sm:w-80">
-            {configOptions.length > 0 ? (
-              <Select
-                id={configSelectId}
-                value={activeConfig?.id ?? ''}
-                onValueChange={setSelectedConfigId}
-                options={configOptions}
-                placeholder="Choose active category rule"
-              />
-            ) : (
-              <span className="text-xs text-text-subtle">No active pricing rules yet.</span>
-            )}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 w-full md:w-auto">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold text-text whitespace-nowrap">Pricing Model:</span>
+            <div className="w-full sm:w-72">
+              {configOptions.length > 0 ? (
+                <Select
+                  id={configSelectId}
+                  value={activeConfig?.id ?? ''}
+                  onValueChange={setSelectedConfigId}
+                  options={configOptions}
+                  placeholder="Choose active category rule"
+                />
+              ) : (
+                <span className="text-xs text-text-subtle">No active pricing rules yet.</span>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold text-text whitespace-nowrap">Trip Scope:</span>
+            <div className="flex items-center gap-1 bg-surface-muted p-0.5 rounded-md border border-border">
+              <button
+                type="button"
+                onClick={() => setServiceType('CITY')}
+                className={`px-2.5 py-1 text-xs font-semibold rounded transition-colors ${
+                  !isOutstation
+                    ? 'bg-surface text-text shadow-sm'
+                    : 'text-text-subtle hover:text-text'
+                }`}
+              >
+                City
+              </button>
+              <button
+                type="button"
+                onClick={() => setServiceType('OUTSTATION')}
+                className={`px-2.5 py-1 text-xs font-semibold rounded transition-colors ${
+                  isOutstation
+                    ? 'bg-surface text-text shadow-sm'
+                    : 'text-text-subtle hover:text-text'
+                }`}
+              >
+                Outstation
+              </button>
+            </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <label className="flex items-center gap-2 cursor-pointer text-xs font-medium text-text select-none">
-            <input
-              type="checkbox"
-              checked={isBufferFallback}
-              onChange={(e) => setIsBufferFallback(e.target.checked)}
-              className="rounded border-border text-interactive focus:ring-interactive size-4"
-              aria-label="Include Buffer Zone Surcharge"
-            />
-            <span>Include Buffer Zone Surcharge</span>
-          </label>
-          {isBufferFallback && (
-            <Badge tone="warning">Buffer Applied</Badge>
-          )}
-        </div>
+        {!isOutstation ? (
+          <div className="flex items-center gap-2">
+            <label className="flex items-center gap-2 cursor-pointer text-xs font-medium text-text select-none">
+              <input
+                type="checkbox"
+                checked={isBufferFallback}
+                onChange={(e) => setIsBufferFallback(e.target.checked)}
+                className="rounded border-border text-interactive focus:ring-interactive size-4"
+                aria-label="Include Buffer Zone Surcharge"
+              />
+              <span>Include Buffer Zone Surcharge</span>
+            </label>
+            {isBufferFallback && <Badge tone="warning">Buffer Applied</Badge>}
+          </div>
+        ) : (
+          <Badge tone="accent">Outstation Tier Applied</Badge>
+        )}
       </div>
 
       {activeConfig ? (
@@ -110,7 +150,12 @@ export function FareSimulatorSection() {
           <div className="p-5 rounded-md bg-surface border border-border flex flex-col gap-5 lg:col-span-1">
             <div className="flex items-center justify-between border-b border-border pb-2">
               <span className="text-sm font-semibold text-text">Trip Parameters</span>
-              <Badge tone="accent">{activeConfig.vehicleType}</Badge>
+              <div className="flex items-center gap-2">
+                <Badge tone={isOutstation ? 'accent' : 'neutral'}>
+                  {isOutstation ? 'OUTSTATION' : 'CITY'}
+                </Badge>
+                <Badge tone="accent">{activeConfig.vehicleType}</Badge>
+              </div>
             </div>
 
             <div className="flex flex-col gap-2">
@@ -137,22 +182,14 @@ export function FareSimulatorSection() {
 
             <div className="flex flex-col gap-2 pt-2 border-t border-border text-xs">
               <div className="flex justify-between text-text-subtle">
-                <span>Base Fare:</span>
-                <span className="font-mono text-text">{formatPaise(baseFarePaise)}</span>
+                <span>{isOutstation ? 'Outstation Base Fare:' : 'Base Fare:'}</span>
+                <span className="font-mono text-text">{formatPaise(effectiveBaseFarePaise)}</span>
               </div>
               <div className="flex justify-between text-text-subtle">
-                <span>Free Included:</span>
-                <span className="font-mono text-text">{activeConfig.includedDistanceM / 1000} km</span>
-              </div>
-              <div className="flex justify-between text-text-subtle">
-                <span>Billable Distance:</span>
-                <span className="font-mono text-text">{(billableDistanceM / 1000).toFixed(1)} km</span>
-              </div>
-              <div className="flex justify-between text-text-subtle">
-                <span>Distance Fare:</span>
+                <span>Distance Fare ({formatPaise(effectiveRatePerKmPaise)}/km):</span>
                 <span className="font-mono text-text">{formatPaise(distanceFarePaise)}</span>
               </div>
-              {isBufferFallback && (
+              {!isOutstation && isBufferFallback && (
                 <div className="flex justify-between text-warning">
                   <span>Buffer Surcharge:</span>
                   <span className="font-mono">+{formatPaise(bufferFarePaise)}</span>
@@ -160,7 +197,7 @@ export function FareSimulatorSection() {
               )}
               <div className="flex justify-between text-text-subtle">
                 <span>Minimum Guard:</span>
-                <span className="font-mono text-text">{formatPaise(activeConfig.minimumFarePaise)}</span>
+                <span className="font-mono text-text">{formatPaise(effectiveMinimumFarePaise)}</span>
               </div>
             </div>
           </div>

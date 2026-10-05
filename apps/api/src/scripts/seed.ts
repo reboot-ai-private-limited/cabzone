@@ -11,6 +11,7 @@ import {
 import { WalletModel } from '../modules/ledger/infrastructure/persistence/wallet.model.js';
 import { PricingConfigModel } from '../modules/pricing/infrastructure/persistence/pricingConfig.model.js';
 import { ZoneModel } from '../modules/zone/infrastructure/persistence/zone.model.js';
+import { hashPassword } from '../shared/auth/password.util.js';
 import { connectMongo, disconnectMongo } from '../shared/db/mongo.js';
 import { newUuid } from '../shared/ids.js';
 import { logger } from '../shared/logging/logger.js';
@@ -64,6 +65,9 @@ async function seed() {
       $setOnInsert: { _id: newUuid() },
       $set: {
         user_id: adminId,
+        name: 'Super Admin',
+        email: 'admin@cabzone.internal',
+        password_hash: hashPassword('admin123'),
         role: 'SUPER_ADMIN',
         city_zone_ids: [],
         status: 'ACTIVE',
@@ -162,52 +166,132 @@ async function seed() {
     { upsert: true, new: true },
   );
 
-  // 1c. Complete Customer (+919000000003)
-  const completeRiderUserId = '01900000-0000-7000-8000-000000000003';
-  await UserModel.findOneAndUpdate(
-    { phone_e164: '+919000000003' },
+  // 1c. Seed Diverse Realistic Customer Profiles
+  logger.info('Seeding customer accounts...');
+  const customersToSeed = [
     {
-      $setOnInsert: { _id: completeRiderUserId },
-      $set: {
-        phone_e164: '+919000000003',
-        phone_verified_at: now,
-        status: 'ACTIVE',
-        version: 1,
-      },
+      userId: '01900000-0000-7000-8000-000000000003',
+      phone: '+919000000003',
+      name: 'Priya Mukherjee',
+      email: 'priya.mukherjee@example.com',
+      preferredLanguage: 'Bengali',
+      emergencyContact: { name: 'Amit Mukherjee', phone_e164: '+919830987654' },
+      ratingAverage: 4.9,
+      ratingCount: 28,
+      status: 'ACTIVE' as const,
     },
-    { upsert: true, new: true },
-  );
+    {
+      userId: '01900000-0000-7000-8000-000000000004',
+      phone: '+919000000004',
+      name: 'Rahul Sharma',
+      email: 'rahul.sharma@example.com',
+      preferredLanguage: 'Hindi',
+      emergencyContact: { name: 'Neha Sharma', phone_e164: '+919874561231' },
+      ratingAverage: 4.8,
+      ratingCount: 19,
+      status: 'ACTIVE' as const,
+    },
+    {
+      userId: '01900000-0000-7000-8000-000000000005',
+      phone: '+919000000005',
+      name: 'Ananya Sen',
+      email: 'ananya.sen@example.com',
+      preferredLanguage: 'English',
+      emergencyContact: { name: 'Subhash Sen', phone_e164: '+919800112234' },
+      ratingAverage: 5.0,
+      ratingCount: 14,
+      status: 'ACTIVE' as const,
+    },
+    {
+      userId: '01900000-0000-7000-8000-000000000006',
+      phone: '+919000000006',
+      name: 'Vikram Roy',
+      email: 'vikram.roy@example.com',
+      preferredLanguage: 'English',
+      emergencyContact: { name: 'Rupa Roy', phone_e164: '+919434055668' },
+      ratingAverage: 4.3,
+      ratingCount: 42,
+      status: 'ACTIVE' as const,
+    },
+    {
+      userId: '01900000-0000-7000-8000-000000000007',
+      phone: '+919000000007',
+      name: 'Sneha Patel',
+      email: 'sneha.patel@example.com',
+      preferredLanguage: 'Hindi',
+      emergencyContact: { name: 'Rajesh Patel', phone_e164: '+919733099882' },
+      ratingAverage: 4.7,
+      ratingCount: 9,
+      status: 'ACTIVE' as const,
+    },
+    {
+      userId: '01900000-0000-7000-8000-000000000008',
+      phone: '+919000000008',
+      name: 'Amit Das',
+      email: 'amit.das@example.com',
+      preferredLanguage: 'Bengali',
+      emergencyContact: { name: 'Priya Das', phone_e164: '+919832044557' },
+      ratingAverage: 3.6,
+      ratingCount: 22,
+      status: 'SUSPENDED' as const,
+    },
+    {
+      userId: '01900000-0000-7000-8000-000000000009',
+      phone: '+919000000009',
+      name: 'Neha Agarwal',
+      email: 'neha.agarwal@example.com',
+      preferredLanguage: 'English',
+      emergencyContact: { name: 'Vivek Agarwal', phone_e164: '+919641077890' },
+      ratingAverage: 4.9,
+      ratingCount: 31,
+      status: 'ACTIVE' as const,
+    },
+    {
+      userId: '01900000-0000-7000-8000-000000000010',
+      phone: '+919000000010',
+      name: 'Debashis Paul',
+      email: 'debashis.paul@example.com',
+      preferredLanguage: 'Bengali',
+      emergencyContact: null,
+      ratingAverage: null,
+      ratingCount: 0,
+      status: 'ACTIVE' as const,
+    },
+  ];
 
-  await RiderModel.findOneAndUpdate(
-    { user_id: completeRiderUserId },
-    {
-      $setOnInsert: { _id: newUuid() },
-      $set: {
-        user_id: completeRiderUserId,
-        name: 'Priya Mukherjee',
-        rating_average: 4.9,
-        rating_count: 12,
-        version: 1,
+  for (const c of customersToSeed) {
+    await UserModel.findOneAndUpdate(
+      { phone_e164: c.phone },
+      {
+        $setOnInsert: { _id: c.userId },
+        $set: {
+          phone_e164: c.phone,
+          phone_verified_at: now,
+          status: c.status,
+          version: 1,
+        },
       },
-    },
-    { upsert: true, new: true },
-  );
+      { upsert: true, new: true },
+    );
 
-  // 1d. Empty Customer (+919000000004 - phone only)
-  const emptyRiderUserId = '01900000-0000-7000-8000-000000000004';
-  await UserModel.findOneAndUpdate(
-    { phone_e164: '+919000000004' },
-    {
-      $setOnInsert: { _id: emptyRiderUserId },
-      $set: {
-        phone_e164: '+919000000004',
-        phone_verified_at: now,
-        status: 'ACTIVE',
-        version: 1,
+    await RiderModel.findOneAndUpdate(
+      { user_id: c.userId },
+      {
+        $setOnInsert: { _id: newUuid() },
+        $set: {
+          user_id: c.userId,
+          name: c.name,
+          email: c.email,
+          preferred_language: c.preferredLanguage,
+          emergency_contact: c.emergencyContact,
+          rating_average: c.ratingAverage,
+          rating_count: c.ratingCount,
+          version: 1,
+        },
       },
-    },
-    { upsert: true, new: true },
-  );
+      { upsert: true, new: true },
+    );
+  }
 
   // 2. Seed Geographic Zones
   logger.info('Validating and seeding geographic zones...');
@@ -292,20 +376,123 @@ async function seed() {
 
   const siliguriCityId = cityMap.get('SILIGURI')!;
 
-  // 3. Seed Pricing Configuration for Siliguri City
-  logger.info('Seeding default city pricing config...');
+  // 3. Seed Pricing Configurations (Global, State-level WB & SK, and City-level Siliguri)
+  logger.info('Seeding Global, State, and City pricing configs...');
+
+  // 3a. Global Default Pricing
+  await PricingConfigModel.findOneAndUpdate(
+    { level: 'GLOBAL', vehicle_type: 'CAB' },
+    {
+      $setOnInsert: { _id: newUuid() },
+      $set: {
+        level: 'GLOBAL',
+        city_zone_id: null,
+        state_code: null,
+        state_name: null,
+        version: 1,
+        vehicle_type: 'CAB',
+        base_fare_paise: 4000, // ₹40
+        rate_per_km_paise: 1400, // ₹14 / km
+        minimum_fare_paise: 6000, // ₹60 min
+        outstation_base_fare_paise: 6000, // ₹60
+        outstation_rate_per_km_paise: 1800, // ₹18 / km
+        outstation_minimum_fare_paise: 12000, // ₹120 min
+        buffer_surcharge_paise: 2000,
+        negotiation_floor_percent: 80,
+        negotiation_ceiling_percent: 150,
+        negotiation_window_seconds: 90,
+        commission_percent: 8,
+        status: 'ACTIVE',
+        effective_from: new Date('2026-01-01'),
+        effective_to: null,
+        created_by_admin_id: adminId,
+      },
+    },
+    { upsert: true, new: true },
+  );
+
+  // 3b. State-level Pricing: West Bengal (WB)
+  await PricingConfigModel.findOneAndUpdate(
+    { level: 'STATE', state_code: 'WB', vehicle_type: 'CAB' },
+    {
+      $setOnInsert: { _id: newUuid() },
+      $set: {
+        level: 'STATE',
+        city_zone_id: null,
+        state_code: 'WB',
+        state_name: 'West Bengal',
+        version: 1,
+        vehicle_type: 'CAB',
+        base_fare_paise: 4500, // ₹45
+        rate_per_km_paise: 1500, // ₹15 / km
+        minimum_fare_paise: 7000, // ₹70 min
+        outstation_base_fare_paise: 7000, // ₹70
+        outstation_rate_per_km_paise: 1900, // ₹19 / km
+        outstation_minimum_fare_paise: 14000, // ₹140 min
+        buffer_surcharge_paise: 2000,
+        negotiation_floor_percent: 80,
+        negotiation_ceiling_percent: 150,
+        negotiation_window_seconds: 90,
+        commission_percent: 8,
+        status: 'ACTIVE',
+        effective_from: new Date('2026-01-01'),
+        effective_to: null,
+        created_by_admin_id: adminId,
+      },
+    },
+    { upsert: true, new: true },
+  );
+
+  // 3c. State-level Pricing: Sikkim (SK) - Mountain Terrain Rates
+  await PricingConfigModel.findOneAndUpdate(
+    { level: 'STATE', state_code: 'SK', vehicle_type: 'CAB' },
+    {
+      $setOnInsert: { _id: newUuid() },
+      $set: {
+        level: 'STATE',
+        city_zone_id: null,
+        state_code: 'SK',
+        state_name: 'Sikkim',
+        version: 1,
+        vehicle_type: 'CAB',
+        base_fare_paise: 8000, // ₹80
+        rate_per_km_paise: 2500, // ₹25 / km
+        minimum_fare_paise: 12000, // ₹120 min
+        outstation_base_fare_paise: 10000, // ₹100
+        outstation_rate_per_km_paise: 2800, // ₹28 / km
+        outstation_minimum_fare_paise: 20000, // ₹200 min
+        buffer_surcharge_paise: 3000,
+        negotiation_floor_percent: 80,
+        negotiation_ceiling_percent: 150,
+        negotiation_window_seconds: 90,
+        commission_percent: 8,
+        status: 'ACTIVE',
+        effective_from: new Date('2026-01-01'),
+        effective_to: null,
+        created_by_admin_id: adminId,
+      },
+    },
+    { upsert: true, new: true },
+  );
+
+  // 3d. City-level Pricing: Siliguri City Zone
   await PricingConfigModel.findOneAndUpdate(
     { city_zone_id: siliguriCityId, vehicle_type: 'CAB' },
     {
       $setOnInsert: { _id: newUuid() },
       $set: {
+        level: 'CITY',
         city_zone_id: siliguriCityId,
+        state_code: 'WB',
+        state_name: 'West Bengal',
         version: 1,
         vehicle_type: 'CAB',
         base_fare_paise: 5000, // ₹50
         rate_per_km_paise: 1500, // ₹15 / km
         minimum_fare_paise: 8000, // ₹80 min
-        included_distance_m: 2000, // 2 km included
+        outstation_base_fare_paise: 7500, // ₹75
+        outstation_rate_per_km_paise: 2000, // ₹20 / km
+        outstation_minimum_fare_paise: 15000, // ₹150 min
         buffer_surcharge_paise: 2000, // ₹20 buffer surcharge
         negotiation_floor_percent: 80,
         negotiation_ceiling_percent: 150,

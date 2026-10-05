@@ -2,6 +2,7 @@ import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { createApp } from '../src/app.js';
 import {
+  AdminLoginUseCase,
   LogoutUseCase,
   RefreshTokenUseCase,
   RequestOtpUseCase,
@@ -21,11 +22,13 @@ import type {
 } from '../src/modules/identity/domain/index.js';
 import {
   buildAuthRouter,
+  makeAdminLoginController,
   makeLogoutController,
   makeRefreshTokenController,
   makeRequestOtpController,
   makeVerifyOtpController,
 } from '../src/modules/identity/index.js';
+import { hashPassword } from '../src/shared/auth/password.util.js';
 import {
   ConsoleSmsGatewayAdapter,
   JoseTokenAdapter,
@@ -65,6 +68,10 @@ class MemoryUserRepository implements UserRepositoryPort {
 class MemoryRiderRepository implements RiderRepositoryPort {
   private readonly riders = new Map<string, RiderEntity>();
 
+  async findById(riderId: string): Promise<RiderEntity | null> {
+    return this.riders.get(riderId) ?? null;
+  }
+
   async findByUserId(userId: string): Promise<RiderEntity | null> {
     for (const r of this.riders.values()) {
       if (r.userId === userId) return { ...r };
@@ -75,6 +82,15 @@ class MemoryRiderRepository implements RiderRepositoryPort {
   async create(rider: RiderEntity): Promise<RiderEntity> {
     this.riders.set(rider.id, { ...rider });
     return { ...rider };
+  }
+
+  async update(rider: RiderEntity): Promise<RiderEntity> {
+    this.riders.set(rider.id, { ...rider });
+    return { ...rider };
+  }
+
+  async list(): Promise<{ items: any[]; total: number }> {
+    return { items: [], total: 0 };
   }
 }
 
@@ -104,7 +120,11 @@ class MemoryDriverRepository implements DriverRepositoryPort {
 }
 
 class MemoryAdminUserRepository implements AdminUserRepositoryPort {
-  private readonly admins = new Map<string, AdminUserEntity>();
+  readonly admins = new Map<string, AdminUserEntity>();
+
+  async findById(id: string): Promise<AdminUserEntity | null> {
+    return this.admins.get(id) ?? null;
+  }
 
   async findByUserId(userId: string): Promise<AdminUserEntity | null> {
     for (const a of this.admins.values()) {
@@ -116,6 +136,25 @@ class MemoryAdminUserRepository implements AdminUserRepositoryPort {
   async create(admin: AdminUserEntity): Promise<AdminUserEntity> {
     this.admins.set(admin.id, { ...admin });
     return { ...admin };
+  }
+
+  async save(admin: AdminUserEntity): Promise<AdminUserEntity> {
+    return this.create(admin);
+  }
+
+  async update(
+    id: string,
+    updates: Partial<Pick<AdminUserEntity, 'name' | 'email' | 'role' | 'cityZoneIds' | 'status' | 'passwordHash'>>
+  ): Promise<AdminUserEntity | null> {
+    const existing = this.admins.get(id);
+    if (!existing) return null;
+    const updated = { ...existing, ...updates, updatedAt: new Date() };
+    this.admins.set(id, updated);
+    return { ...updated };
+  }
+
+  async list(): Promise<{ admins: any[]; total: number }> {
+    return { admins: [], total: 0 };
   }
 }
 
@@ -554,6 +593,15 @@ describe('Auth HTTP Endpoints (Supertest)', () => {
       sessionRepo,
     });
 
+    const adminRepo = new MemoryAdminUserRepository();
+
+    const adminLoginUseCase = new AdminLoginUseCase({
+      userRepo,
+      adminRepo,
+      sessionRepo,
+      tokenSigner: tokenAdapter,
+    });
+
     const identityContainer = {
       buildAuthRouter: () =>
         buildAuthRouter({
@@ -561,6 +609,7 @@ describe('Auth HTTP Endpoints (Supertest)', () => {
           verifyOtp: makeVerifyOtpController(verifyOtpUseCase),
           refreshToken: makeRefreshTokenController(refreshTokenUseCase),
           logout: makeLogoutController(logoutUseCase),
+          adminLogin: makeAdminLoginController(adminLoginUseCase),
           authenticate,
         }),
       buildDriverRouter: () => {
@@ -583,6 +632,8 @@ describe('Auth HTTP Endpoints (Supertest)', () => {
     return {
       app: createApp({ identity: identityContainer }),
       smsGateway,
+      userRepo,
+      adminRepo,
     };
   }
 
@@ -711,4 +762,128 @@ describe('Auth HTTP Endpoints (Supertest)', () => {
       .send({ phoneE164: '+919876543210', otp: '123', deviceId: '' })
       .expect(400);
   });
+
+  describe('POST /api/v1/auth/admin/login', () => {
+    it('authenticates admin staff with phone and password', async () => {
+      const { app, userRepo, adminRepo } = createTestApp();
+      const now = new Date();
+
+      const user = await userRepo.create({
+        id: 'admin-user-01',
+        phoneE164: '+919000000001',
+        phoneVerifiedAt: now,
+        status: 'ACTIVE',
+        version: 1,
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      await adminRepo.create({
+        id: 'admin-record-01',
+        userId: user.id,
+        name: 'Super Admin',
+        email: 'super@cabzone.internal',
+        passwordHash: hashPassword('admin123'),
+        role: 'SUPER_ADMIN',
+        cityZoneIds: [],
+        status: 'ACTIVE',
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      const res = await request(app)
+        .post('/api/v1/auth/admin/login')
+        .send({
+          phoneE164: '+919000000001',
+          password: 'admin123',
+        })
+        .expect(200);
+
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.accessToken).toBeDefined();
+      expect(res.body.data.refreshToken).toBeDefined();
+      expect(res.body.data.user.role).toBe('SUPER_ADMIN');
+      expect(res.body.data.user.phoneE164).toBe('+919000000001');
+      expect(res.body.data.user.name).toBe('Super Admin');
+    });
+
+    it('rejects incorrect password with 401', async () => {
+      const { app, userRepo, adminRepo } = createTestApp();
+      const now = new Date();
+
+      const user = await userRepo.create({
+        id: 'admin-user-02',
+        phoneE164: '+919000000002',
+        phoneVerifiedAt: now,
+        status: 'ACTIVE',
+        version: 1,
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      await adminRepo.create({
+        id: 'admin-record-02',
+        userId: user.id,
+        name: 'City Admin',
+        email: 'city@cabzone.internal',
+        passwordHash: hashPassword('correctPass1'),
+        role: 'CITY_ADMIN',
+        cityZoneIds: [],
+        status: 'ACTIVE',
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      const res = await request(app)
+        .post('/api/v1/auth/admin/login')
+        .send({
+          phoneE164: '+919000000002',
+          password: 'wrongPassword',
+        })
+        .expect(401);
+
+      expect(res.body.success).toBe(false);
+      expect(res.body.message).toContain('Invalid mobile number or password');
+    });
+
+    it('rejects login when password is not set for admin', async () => {
+      const { app, userRepo, adminRepo } = createTestApp();
+      const now = new Date();
+
+      const user = await userRepo.create({
+        id: 'admin-user-03',
+        phoneE164: '+919000000003',
+        phoneVerifiedAt: now,
+        status: 'ACTIVE',
+        version: 1,
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      await adminRepo.create({
+        id: 'admin-record-03',
+        userId: user.id,
+        name: 'Support Admin',
+        email: 'support@cabzone.internal',
+        passwordHash: null,
+        role: 'SUPPORT_ADMIN',
+        cityZoneIds: [],
+        status: 'ACTIVE',
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      const res = await request(app)
+        .post('/api/v1/auth/admin/login')
+        .send({
+          phoneE164: '+919000000003',
+          password: 'anyPassword',
+        })
+        .expect(401);
+
+      expect(res.body.success).toBe(false);
+      expect(res.body.message).toContain('Password login is not configured');
+    });
+  });
 });
+

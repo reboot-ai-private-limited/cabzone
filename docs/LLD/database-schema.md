@@ -32,7 +32,6 @@ driver_documents
 vehicles
 city_zones
 pricing_configs
-state_pricing
 rides
 ride_events
 fare_negotiations
@@ -299,29 +298,7 @@ effective_from
 
 Vehicle category-specific pricing is **DECIDED** ([`decision-log.md`](../decision-log.md#d-025--vehicle-category-pricing--initial-fleet-types), D-025). Each city zone maintains independent active pricing configs per vehicle type (`CAB` active, `E_RICKSHAW` staged as coming soon). A configuration version must never be edited after being used by a Ride.
 
-### 5.3 state_pricing
-
-```ts
-interface StatePricing {
-  _id: UUID;
-  state_code: string;
-  rate_per_km_paise: number;
-  base_fare_paise: number;
-  minimum_fare_paise: number;
-  version: number;
-  status: 'ACTIVE' | 'RETIRED';
-  effective_from: Date;
-  effective_to: Date | null;
-  created_at: Date;
-}
-```
-
-Indexes:
-
-```text
-state_code + status
-state_code + version
-```
+There is no `state_pricing` collection ([`decision-log.md`](../decision-log.md#d-037--supersede-d-035-remove-state-boundarystatepricing-system-adopt-global-outstation-pricing), D-037, supersedes D-035): every trip, regardless of `route_scope`, is priced from the same `pricing_configs` entry for its `(city_zone_id, vehicle_type)`.
 
 ## 6. Ride Collections
 
@@ -367,11 +344,9 @@ interface Ride {
   zone_snapshot: {
     classification: 'IN_CITY' | 'OUTSTATION' | 'INTERSTATE';
     city_zone_id: UUID | null;
-    state_segments: Array<{
-      state_code: string;
-      distance_m: number;
-      rate_per_km_paise: number;
-    }>;
+    // Display-only — does not affect pricing_snapshot below (D-037).
+    route_scope: 'INTRA_STATE' | 'INTERSTATE' | null;
+    destination_state_code: string | null;
   };
 
   pricing_snapshot: {

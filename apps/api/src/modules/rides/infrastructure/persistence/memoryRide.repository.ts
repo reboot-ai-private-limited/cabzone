@@ -96,4 +96,59 @@ export class MemoryRideRepository implements RideRepositoryPort {
     }
     return count;
   }
+
+  async getRiderStats(riderId: string): Promise<{
+    totalRides: number;
+    completedRides: number;
+    cancelledRides: number;
+    totalSpentPaise: number;
+  }> {
+    let totalRides = 0;
+    let completedRides = 0;
+    let cancelledRides = 0;
+    let totalSpentPaise = 0;
+
+    const isCompleted = (status: string) =>
+      status === 'TRIP_COMPLETED' || status === 'SETTLED' || status === 'PAYMENT_CONFIRMED';
+
+    for (const r of this.rides.values()) {
+      if (r.bookerRiderId === riderId || r.passenger.riderId === riderId) {
+        totalRides++;
+        if (isCompleted(r.status)) {
+          completedRides++;
+          totalSpentPaise += r.agreedFarePaise ?? r.suggestedFarePaise;
+        } else if (r.status === 'CANCELLED') {
+          cancelledRides++;
+        }
+      }
+    }
+
+    return { totalRides, completedRides, cancelledRides, totalSpentPaise };
+  }
+
+  async getRiderTripCountsBatch(
+    riderIds: string[],
+  ): Promise<Map<string, { totalRides: number; completedRides: number }>> {
+    const map = new Map<string, { totalRides: number; completedRides: number }>();
+    const idSet = new Set(riderIds);
+    const isCompleted = (status: string) =>
+      status === 'TRIP_COMPLETED' || status === 'SETTLED' || status === 'PAYMENT_CONFIRMED';
+
+    for (const r of this.rides.values()) {
+      const id = idSet.has(r.bookerRiderId)
+        ? r.bookerRiderId
+        : r.passenger.riderId && idSet.has(r.passenger.riderId)
+          ? r.passenger.riderId
+          : null;
+      if (!id) continue;
+
+      const current = map.get(id) ?? { totalRides: 0, completedRides: 0 };
+      current.totalRides++;
+      if (isCompleted(r.status)) current.completedRides++;
+      map.set(id, current);
+    }
+
+    return map;
+  }
 }
+

@@ -6,37 +6,30 @@ import { Button } from '@cabzone/design-system';
 import { PageHeader } from '@cabzone/design-system';
 import { SegmentedControl } from '@cabzone/design-system';
 import { StatTile } from '@cabzone/design-system';
-import {
-  usePricingConfigs,
-  useStatesPricing,
-} from '../hooks/usePricing.js';
+import { usePricingConfigs } from '../hooks/usePricing.js';
 import { FareSimulatorSection } from './FareSimulatorSection.js';
 import { PricingConfigDialog } from './PricingConfigDialog.js';
 import { PricingConfigsTable } from './PricingConfigsTable.js';
-import { StatePricingDialog } from './StatePricingDialog.js';
-import { StatePricingTable } from './StatePricingTable.js';
 
-type PricingTab = 'city' | 'state' | 'simulator';
+type PricingTab = 'city' | 'simulator';
 
 export function PricingScreen() {
   const [activeTab, setActiveTab] = useState<PricingTab>('city');
   const [isCreateConfigOpen, setIsCreateConfigOpen] = useState(false);
-  const [isCreateStateOpen, setIsCreateStateOpen] = useState(false);
 
   const { data: configs, isLoading: isConfigsLoading } = usePricingConfigs();
-  const { data: states, isLoading: isStatesLoading } = useStatesPricing();
 
   const activeConfigsCount = useMemo(() => {
     return (configs ?? []).filter((c) => c.status === 'ACTIVE').length;
   }, [configs]);
 
-  const activeStatesCount = useMemo(() => {
-    return (states ?? []).filter((s) => s.status === 'ACTIVE').length;
-  }, [states]);
+  const stateAndGlobalCount = useMemo(() => {
+    return (configs ?? []).filter((c) => c.status === 'ACTIVE' && (c.level === 'GLOBAL' || c.level === 'STATE')).length;
+  }, [configs]);
 
   const avgCommission = useMemo(() => {
     const active = (configs ?? []).filter((c) => c.status === 'ACTIVE');
-    if (active.length === 0) return '10%';
+    if (active.length === 0) return '8%';
     const sum = active.reduce((acc, curr) => acc + curr.commissionPercent, 0);
     return `${(sum / active.length).toFixed(1)}%`;
   }, [configs]);
@@ -45,28 +38,20 @@ export function PricingScreen() {
     <div className="flex flex-col gap-7 p-8 max-w-[1600px] mx-auto w-full">
       {/* Page Header */}
       <PageHeader
-        title="Pricing & Rate"
+        title="Pricing Engine"
         breadcrumbs={[
           { label: 'Admin', href: '/' },
-          { label: 'Pricing Engine' },
+          { label: 'Pricing Control Plane' },
         ]}
         actions={
           <div className="flex items-center gap-2">
-            <Button
-              variant="secondary"
-              size="md"
-              onClick={() => setIsCreateStateOpen(true)}
-            >
-              <Plus className="size-4" />
-              <span>New State Rate</span>
-            </Button>
             <Button
               variant="primary"
               size="md"
               onClick={() => setIsCreateConfigOpen(true)}
             >
               <Plus className="size-4" />
-              <span>New City Rate</span>
+              <span>New Pricing Rule</span>
             </Button>
           </div>
         }
@@ -75,17 +60,17 @@ export function PricingScreen() {
       {/* Top Stat Tiles */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <StatTile
-          label="Active City Rules"
+          label="Active Rules"
           value={activeConfigsCount}
-          hint="Across all operating zones"
+          hint="Global, State & City zones"
           loading={isConfigsLoading}
           tone="success"
         />
         <StatTile
-          label="Interstate State Rules"
-          value={activeStatesCount}
-          hint="Active boundary rates"
-          loading={isStatesLoading}
+          label="State & Global Tiers"
+          value={stateAndGlobalCount}
+          hint="Broad territorial fallbacks"
+          loading={isConfigsLoading}
           tone="default"
         />
         <StatTile
@@ -110,8 +95,7 @@ export function PricingScreen() {
           value={activeTab}
           onValueChange={setActiveTab}
           segments={[
-            { value: 'city', label: 'City Zone Rates' },
-            { value: 'state', label: 'Interstate State Rates' },
+            { value: 'city', label: 'Pricing Rules & Tiers' },
             { value: 'simulator', label: 'Live Fare Simulator' },
           ]}
         />
@@ -120,7 +104,6 @@ export function PricingScreen() {
       {/* View Content */}
       <div className="w-full">
         {activeTab === 'city' && <PricingConfigsTable />}
-        {activeTab === 'state' && <StatePricingTable />}
         {activeTab === 'simulator' && <FareSimulatorSection />}
       </div>
 
@@ -128,11 +111,6 @@ export function PricingScreen() {
       <PricingConfigDialog
         open={isCreateConfigOpen}
         onOpenChange={setIsCreateConfigOpen}
-      />
-
-      <StatePricingDialog
-        open={isCreateStateOpen}
-        onOpenChange={setIsCreateStateOpen}
       />
     </div>
   );

@@ -1,4 +1,5 @@
 import type { GeoPoint, ResolvedZones } from '@cabzone/contracts';
+import { isPointInIndia } from '@cabzone/geo';
 import { AppError } from '../../../../shared/errors/AppError.js';
 import type {
   CoverageRequestRepositoryPort,
@@ -62,6 +63,27 @@ export class ResolveZonesUseCase {
         );
         isWithinBuffer = distM <= effectiveBufferM;
       }
+    } else if (nearestCityEntity) {
+      // Pickup is outside all operational cities -> check distance to nearest city boundary
+      if (dropCityEntity && dropCityEntity.id !== nearestCityEntity.id) {
+        // Drop is inside another operational city boundary -> OUTSTATION
+        isWithinBuffer = false;
+        distanceToCityBoundaryM = null;
+      } else {
+        const pickupDistM = distanceToPolygonM(input.pickup, nearestCityEntity.boundary);
+        const dropInsideNearestCity = isPointInPolygon(input.drop, nearestCityEntity.boundary);
+        const dropDistM = dropInsideNearestCity
+          ? 0
+          : distanceToPolygonM(input.drop, nearestCityEntity.boundary);
+
+        const effectiveBufferM = getEffectiveBufferDistance(
+          nearestCityEntity,
+          this.deps.globalDefaultBufferM ?? 20_000,
+        );
+
+        isWithinBuffer = pickupDistM <= effectiveBufferM && dropDistM <= effectiveBufferM;
+        distanceToCityBoundaryM = Math.max(pickupDistM, dropDistM);
+      }
     }
 
     return {
@@ -89,6 +111,14 @@ export class ResolveZonesUseCase {
     ) {
       throw AppError.badRequest(`${label} location has invalid geographic coordinates.`);
     }
+
+    const indiaCheck = isPointInIndia(point);
+    if (!indiaCheck.inside) {
+      throw AppError.badRequest(
+        `OUTSIDE_INDIA: ${label} location must be within India. ${indiaCheck.reason ?? 'Cabzone services operate strictly within Indian territory.'}`,
+      );
+    }
   }
 }
+
 

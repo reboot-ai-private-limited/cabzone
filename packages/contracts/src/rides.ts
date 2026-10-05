@@ -59,7 +59,6 @@ export interface RidePricingSnapshot {
   baseFarePaise: number;
   ratePerKmPaise: number;
   minimumFarePaise: number;
-  includedDistanceM: number;
   bufferSurchargePaise: number;
   negotiationFloorPercent: number;
   negotiationCeilingPercent: number;

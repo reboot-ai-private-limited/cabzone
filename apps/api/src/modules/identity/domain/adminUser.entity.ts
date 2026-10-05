@@ -4,6 +4,9 @@ export type AdminStatus = 'ACTIVE' | 'SUSPENDED';
 export interface AdminUserEntity {
   id: string;
   userId: string;
+  name: string | null;
+  email: string | null;
+  passwordHash?: string | null;
   role: AdminRole;
   cityZoneIds: string[];
   status: AdminStatus;

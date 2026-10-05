@@ -3,10 +3,8 @@
 import { useQuery } from '@tanstack/react-query';
 import type {
   CreatePricingConfigRequest,
-  CreateStatePricingRequest,
   ListPricingConfigsQuery,
   PricingConfigDto,
-  StatePricingDto,
   UpdatePricingConfigRequest,
 } from '@cabzone/contracts';
 import { pricingApi } from '@/lib/api/endpoints/pricing.js';
@@ -19,17 +17,6 @@ export function usePricingConfigs(query?: ListPricingConfigsQuery) {
     authedQueryOptions({
       queryKey: keys.pricing.configs(query),
       fetch: (token) => pricingApi.listConfigs(query, token),
-      staleTime: staleTime.configuration,
-      refetchOnWindowFocus: true,
-    }),
-  );
-}
-
-export function useStatesPricing(status?: string) {
-  return useQuery(
-    authedQueryOptions({
-      queryKey: keys.pricing.states(status),
-      fetch: (token) => pricingApi.listStatePricing(status, token),
       staleTime: staleTime.configuration,
       refetchOnWindowFocus: true,
     }),
@@ -72,11 +59,3 @@ export function useActivatePricingConfig(onSuccess?: (config: PricingConfigDto) 
   });
 }
 
-export function useCreateStatePricing(onSuccess?: (sp: StatePricingDto) => void) {
-  return useApiMutation<CreateStatePricingRequest, StatePricingDto>({
-    call: (token, body) => pricingApi.createStatePricing(body, token),
-    invalidates: [keys.pricing.all()],
-    successMessage: 'Interstate rate created.',
-    ...(onSuccess ? { onSuccess } : {}),
-  });
-}

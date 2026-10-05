@@ -15,7 +15,44 @@ export const routingMetricsSchema = z.object({
   averageLatencyMs: z.number().int(),
 });
 
+export const resolvedLocationSchema = z.object({
+  point: z.object({
+    lat: z.number(),
+    lng: z.number(),
+  }),
+  country: z.string().nullable(),
+  countryCode: z.string().nullable(),
+  state: z.string().nullable(),
+  stateCode: z.string().nullable(),
+  city: z.string().nullable(),
+  district: z.string().optional().nullable(),
+  postalCode: z.string().optional().nullable(),
+  formattedAddress: z.string().optional().nullable(),
+});
+
 export function registerRoutingSwaggerPaths(): void {
+  registry.registerPath({
+    method: 'get',
+    path: '/v1/routing/reverse-geocode',
+    tags: ['Routing & Geo'],
+    summary: 'Reverse geocode a point coordinate to country, state, and city',
+    request: {
+      query: z.object({
+        lat: z.coerce.number().min(-90).max(90),
+        lng: z.coerce.number().min(-180).max(180),
+      }),
+    },
+    responses: {
+      200: {
+        description: 'Resolved location details',
+        content: { 'application/json': { schema: successResponse(resolvedLocationSchema) } },
+      },
+      400: {
+        description: 'Invalid coordinates',
+        content: { 'application/json': { schema: errorResponse } },
+      },
+    },
+  });
   registry.registerPath({
     method: 'get',
     path: '/v1/admin/routing/health',

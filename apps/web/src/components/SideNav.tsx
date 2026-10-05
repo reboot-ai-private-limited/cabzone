@@ -3,11 +3,15 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ExternalLink, LogOut, Shield } from 'lucide-react';
+import { ExternalLink, LogIn, LogOut, Shield } from 'lucide-react';
 import { navSections } from './nav-items';
 import { getStoredPhone, logout } from '../features/auth/lib/authApi';
 
-export function SideNav() {
+interface SideNavProps {
+  onOpenLogin?: () => void;
+}
+
+export function SideNav({ onOpenLogin }: SideNavProps = {}) {
   const pathname = usePathname();
   const [adminPhone, setAdminPhone] = useState<string | null>(null);
 
@@ -122,15 +126,25 @@ export function SideNav() {
           </div>
         </div>
 
-        {adminPhone && (
+        {adminPhone ? (
           <button
             type="button"
             onClick={handleLogout}
             title="Log out of session"
-            className="p-1.5 text-text-subtle hover:text-danger rounded-sm transition-colors hover:bg-surface-sunken"
+            className="p-1.5 text-text-subtle hover:text-danger rounded-sm transition-colors hover:bg-surface-sunken cursor-pointer"
             aria-label="Logout"
           >
             <LogOut className="size-3.5" />
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={onOpenLogin}
+            title="Sign in to session"
+            className="px-2 py-1 text-xs font-semibold bg-interactive hover:bg-interactive-hover text-white rounded-sm transition-colors cursor-pointer flex items-center gap-1 shrink-0"
+          >
+            <LogIn className="size-3" />
+            <span>Sign In</span>
           </button>
         )}
       </div>

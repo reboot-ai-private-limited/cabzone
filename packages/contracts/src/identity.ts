@@ -43,6 +43,60 @@ export interface RiderDto {
   updatedAt: string;
 }
 
+export interface RiderRideStatsDto {
+  totalRides: number;
+  completedRides: number;
+  cancelledRides: number;
+  totalSpentPaise: number;
+}
+
+export interface AdminRiderSummaryDto {
+  id: string;
+  userId: string;
+  phoneE164: string;
+  status: UserStatus;
+  name: string | null;
+  email: string | null;
+  preferredLanguage: string | null;
+  emergencyContact: EmergencyContactDto | null;
+  ratingAverage: number | null;
+  ratingCount: number;
+  totalRides: number;
+  completedRides: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdminRiderDetailDto extends AdminRiderSummaryDto {
+  cancelledRides: number;
+  totalSpentPaise: number;
+}
+
+export interface ListRidersQueryDto {
+  search?: string | undefined;
+  status?: UserStatus | undefined;
+  limit?: number | undefined;
+  offset?: number | undefined;
+}
+
+export interface ListRidersResponseDto {
+  riders: AdminRiderSummaryDto[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface UpdateRiderStatusDto {
+  status: 'ACTIVE' | 'SUSPENDED';
+}
+
+export interface UpdateRiderProfileDto {
+  name?: string | null | undefined;
+  email?: string | null | undefined;
+  preferredLanguage?: string | null | undefined;
+  emergencyContact?: EmergencyContactDto | null | undefined;
+}
+
 export const DRIVER_STATUSES = ['PENDING', 'ACTIVE', 'SUSPENDED', 'REJECTED'] as const;
 export type DriverStatus = (typeof DRIVER_STATUSES)[number];
 
@@ -91,11 +145,106 @@ export type AdminStatus = (typeof ADMIN_STATUSES)[number];
 export interface AdminUserDto {
   id: string;
   userId: string;
+  phoneE164?: string | undefined;
+  name: string | null;
+  email: string | null;
   role: AdminRole;
   cityZoneIds: string[];
   status: AdminStatus;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface AdminUserSummaryDto {
+  id: string;
+  userId: string;
+  phoneE164: string;
+  name: string | null;
+  email: string | null;
+  role: AdminRole;
+  cityZoneIds: string[];
+  status: AdminStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdminUserCityZoneDto {
+  id: string;
+  name: string;
+  code?: string | undefined;
+}
+
+export interface AdminUserDetailDto extends AdminUserSummaryDto {
+  cityZones?: AdminUserCityZoneDto[] | undefined;
+}
+
+export interface ListAdminUsersQueryDto {
+  search?: string | undefined;
+  role?: AdminRole | undefined;
+  status?: AdminStatus | undefined;
+  zoneId?: string | undefined;
+  limit?: number | undefined;
+  offset?: number | undefined;
+}
+
+export interface ListAdminUsersResponseDto {
+  admins: AdminUserSummaryDto[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface CreateAdminUserDto {
+  phoneE164: string;
+  name: string;
+  email?: string | null | undefined;
+  password?: string | undefined;
+  role: AdminRole;
+  cityZoneIds?: string[] | undefined;
+}
+
+export interface UpdateAdminUserDto {
+  name?: string | null | undefined;
+  email?: string | null | undefined;
+  password?: string | undefined;
+  role?: AdminRole | undefined;
+  cityZoneIds?: string[] | undefined;
+}
+
+export interface UpdateAdminUserStatusDto {
+  status: AdminStatus;
+  reason?: string | null | undefined;
+}
+
+export interface AdminLoginRequestDto {
+  phoneE164: string;
+  password: string;
+  deviceId?: string | undefined;
+}
+
+export interface AdminLoginResponseDto {
+  accessToken: string;
+  refreshToken: string;
+  tokenType: string;
+  expiresIn: number;
+  user: {
+    id: string;
+    phoneE164: string;
+    name?: string | null | undefined;
+    role: AdminRole;
+  };
+}
+
+export interface AdminRolePermissionDto {
+  role: AdminRole;
+  title: string;
+  description: string;
+  tier: 'SYSTEM' | 'REGIONAL' | 'OPERATIONS' | 'FINANCE';
+  permissions: Array<{
+    module: string;
+    action: string;
+    description: string;
+  }>;
 }
 
 export interface RequestOtpRequestDto {

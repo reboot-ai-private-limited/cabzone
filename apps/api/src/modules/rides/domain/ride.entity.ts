@@ -33,16 +33,9 @@ export interface RouteSnapshot {
 export interface ZoneSnapshot {
   classification: ZoneClassificationType;
   cityZoneId: string | null;
-  /** Geography the quote was priced against; absent on rides created before these existed. */
+  /** Display-only labels; pricing does not vary by route scope or state. */
   routeScope?: 'INTRA_STATE' | 'INTERSTATE' | null;
   destinationStateCode?: string | null;
-  stateBoundaryVersion?: number | null;
-  stateConfigVersion?: number | null;
-  stateSegments: Array<{
-    stateCode: string;
-    distanceM: number;
-    ratePerKmPaise: number;
-  }>;
 }
 
 export interface RideEntity {

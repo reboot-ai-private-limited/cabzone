@@ -54,10 +54,12 @@ export const createRideRequestSchema = z.object({
   vehicleCategory: z.enum(VEHICLE_CATEGORIES),
   pickup: locationPointSchema.pick({ lat: true, lng: true }),
   drop: locationPointSchema.pick({ lat: true, lng: true }),
+  riderId: z.string().uuid().optional(),
 });
 
 export const startRideRequestSchema = z.object({
   otp: z.string().trim().regex(/^\d{4}$/, 'OTP must be 4 digits'),
+  driverId: z.string().uuid().optional(),
 });
 
 export const rideIdParamSchema = z.object({ id: z.string().uuid() });

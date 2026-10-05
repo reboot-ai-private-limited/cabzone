@@ -5,17 +5,13 @@ import type {
   ActivatePricingConfigUseCase,
   CreatePricingConfigUseCase,
   CreateQuoteUseCase,
-  CreateStatePricingUseCase,
   DeletePricingConfigUseCase,
   ListPricingConfigsUseCase,
-  ListStatePricingUseCase,
   UpdatePricingConfigUseCase,
 } from '../application/useCases/index.js';
 import {
   createPricingConfigSchema,
-  createStatePricingSchema,
   listPricingConfigsSchema,
-  listStatePricingSchema,
   updatePricingConfigSchema,
 } from './pricing.validation.js';
 
@@ -68,26 +64,6 @@ export function makeActivatePricingConfigController(
     const id = req.params.id as string;
     const result = await useCase.execute(id);
     sendSuccess(req, res, result, 'Pricing config activated successfully', 200);
-  });
-}
-
-export function makeCreateStatePricingController(
-  useCase: CreateStatePricingUseCase,
-): RequestHandler {
-  return asyncHandler(async (req: Request, res: Response) => {
-    const parsed = createStatePricingSchema.parse(req.body);
-    const result = await useCase.execute(parsed);
-    sendSuccess(req, res, result, 'State pricing created successfully', 201);
-  });
-}
-
-export function makeListStatePricingController(
-  useCase: ListStatePricingUseCase,
-): RequestHandler {
-  return asyncHandler(async (req: Request, res: Response) => {
-    const query = listStatePricingSchema.parse(req.query);
-    const result = await useCase.execute(query.status);
-    sendSuccess(req, res, result, 'State pricing retrieved successfully', 200);
   });
 }
 

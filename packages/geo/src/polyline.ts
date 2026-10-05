@@ -83,4 +83,3 @@ function encodeSignedNumber(num: number): string {
   encodeString += String.fromCharCode(sgnNum + 63);
   return encodeString;
 }
-

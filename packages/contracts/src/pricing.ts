@@ -14,7 +14,9 @@ export interface VehiclePricingConfig {
   baseFarePaise: number;
   ratePerKmPaise: number;
   minimumFarePaise: number;
-  includedDistanceM: number;
+  outstationBaseFarePaise?: number;
+  outstationRatePerKmPaise?: number;
+  outstationMinimumFarePaise?: number;
   bufferSurchargePaise: number;
   negotiationFloorPercent: number; // default: 80
   negotiationCeilingPercent: number; // default: 150
@@ -46,6 +48,16 @@ export interface VehicleQuoteOption {
   };
 }
 
+export interface StateDistanceBreakdown {
+  stateCode: string;
+  stateName: string;
+  distanceM: number;
+  distanceKm: number;
+  percentage: number;
+  ratePerKmPaise?: number | undefined;
+  distanceFarePaise?: number | undefined;
+}
+
 export interface QuoteDto {
   quoteId: string;
   pickup: { lat: number; lng: number };
@@ -60,13 +72,16 @@ export interface QuoteDto {
   suggestedFarePaise: number;
   pricingConfigId: string;
   pricingConfigVersion: number;
+  /** Display-only label — pricing is uniform regardless of states crossed. */
   routeScope?: 'INTRA_STATE' | 'INTERSTATE' | null | undefined;
+  originStateCode?: string | null | undefined;
   destinationStateCode?: string | null | undefined;
-  stateBoundaryVersion?: number | null | undefined;
-  stateConfigVersion?: number | null | undefined;
+  originCountryCode?: string | null | undefined;
+  destinationCountryCode?: string | null | undefined;
+  originCityName?: string | null | undefined;
+  destinationCityName?: string | null | undefined;
+  stateBreakdown?: StateDistanceBreakdown[] | undefined;
   routeProvider?: string | undefined;
-  stateSegments?: Array<{ stateCode: string; distanceM: number; ratePerKmPaise: number }> | undefined;
-  statePricingVersions?: Record<string, number> | undefined;
   negotiation: {
     floorPaise: number;
     ceilingPaise: number;
@@ -74,6 +89,7 @@ export interface QuoteDto {
   expiresAt: string;
   quoteToken: string;
 }
+
 
 export interface CreateQuoteResponseDto {
   quotes: QuoteDto[];
@@ -115,18 +131,26 @@ export function calculateNegotiationBounds(opts: {
   return { floorPaise, ceilingPaise };
 }
 
+export const PRICING_CONFIG_LEVELS = ['GLOBAL', 'STATE', 'CITY'] as const;
+export type PricingConfigLevel = (typeof PRICING_CONFIG_LEVELS)[number];
+
 export const PRICING_CONFIG_STATUSES = ['DRAFT', 'ACTIVE', 'RETIRED'] as const;
 export type PricingConfigStatus = (typeof PRICING_CONFIG_STATUSES)[number];
 
 export interface PricingConfigDto {
   id: string;
-  cityZoneId: string;
+  level: PricingConfigLevel;
+  cityZoneId: string | null;
+  stateCode: string | null;
+  stateName?: string | null | undefined;
   version: number;
   vehicleType: VehicleCategory;
   baseFarePaise: number;
   ratePerKmPaise: number;
   minimumFarePaise: number;
-  includedDistanceM: number;
+  outstationBaseFarePaise: number;
+  outstationRatePerKmPaise: number;
+  outstationMinimumFarePaise: number;
   bufferSurchargePaise: number;
   negotiationFloorPercent: number;
   negotiationCeilingPercent: number;
@@ -139,28 +163,17 @@ export interface PricingConfigDto {
   createdAt: string;
 }
 
-export const STATE_PRICING_STATUSES = ['ACTIVE', 'RETIRED'] as const;
-export type StatePricingStatus = (typeof STATE_PRICING_STATUSES)[number];
-
-export interface StatePricingDto {
-  id: string;
-  stateCode: string;
-  ratePerKmPaise: number;
-  baseFarePaise: number;
-  minimumFarePaise: number;
-  version: number;
-  status: StatePricingStatus;
-  effectiveFrom: string;
-  effectiveTo: string | null;
-  createdAt: string;
-}
 export interface CreatePricingConfigRequest {
-  cityZoneId: string;
+  level?: PricingConfigLevel | undefined;
+  cityZoneId?: string | null | undefined;
+  stateCode?: string | null | undefined;
   vehicleType: VehicleCategory;
   baseFarePaise: number;
   ratePerKmPaise: number;
   minimumFarePaise: number;
-  includedDistanceM?: number | undefined;
+  outstationBaseFarePaise?: number | undefined;
+  outstationRatePerKmPaise?: number | undefined;
+  outstationMinimumFarePaise?: number | undefined;
   bufferSurchargePaise?: number | undefined;
   negotiationFloorPercent?: number | undefined;
   negotiationCeilingPercent?: number | undefined;
@@ -172,29 +185,26 @@ export interface CreatePricingConfigRequest {
 
 /** Patch-style update, only permitted while the config is still DRAFT. */
 export interface UpdatePricingConfigRequest {
+  stateCode?: string | null | undefined;
   baseFarePaise?: number | undefined;
   ratePerKmPaise?: number | undefined;
   minimumFarePaise?: number | undefined;
-  includedDistanceM?: number | undefined;
+  outstationBaseFarePaise?: number | undefined;
+  outstationRatePerKmPaise?: number | undefined;
+  outstationMinimumFarePaise?: number | undefined;
   bufferSurchargePaise?: number | undefined;
   negotiationFloorPercent?: number | undefined;
   negotiationCeilingPercent?: number | undefined;
   negotiationWindowSeconds?: number | undefined;
   commissionPercent?: number | undefined;
   effectiveFrom?: string | undefined;
-}
-
-export interface CreateStatePricingRequest {
-  stateCode: string;
-  ratePerKmPaise: number;
-  baseFarePaise: number;
-  minimumFarePaise: number;
-  effectiveFrom?: string | undefined;
-  status?: 'ACTIVE' | 'RETIRED' | undefined;
+  status?: PricingConfigStatus | undefined;
 }
 
 export interface ListPricingConfigsQuery {
+  level?: PricingConfigLevel | undefined;
   cityZoneId?: string | undefined;
+  stateCode?: string | undefined;
   vehicleType?: VehicleCategory | undefined;
   status?: PricingConfigStatus | undefined;
 }

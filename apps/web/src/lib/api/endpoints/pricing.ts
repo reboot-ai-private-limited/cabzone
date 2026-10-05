@@ -1,9 +1,7 @@
 import type {
   CreatePricingConfigRequest,
-  CreateStatePricingRequest,
   ListPricingConfigsQuery,
   PricingConfigDto,
-  StatePricingDto,
   UpdatePricingConfigRequest,
 } from '@cabzone/contracts';
 import { request } from '../client.js';
@@ -39,20 +37,6 @@ export const pricingApi = {
   activateConfig: (id: string, token?: string) =>
     request<PricingConfigDto>(`/v1/admin/pricing/configs/${id}/activate`, {
       method: 'POST',
-      token,
-    }),
-
-  listStatePricing: (status?: string, token?: string) =>
-    request<StatePricingDto[]>('/v1/admin/pricing/states', {
-      method: 'GET',
-      query: status ? { status } : undefined,
-      token,
-    }),
-
-  createStatePricing: (body: CreateStatePricingRequest, token?: string) =>
-    request<StatePricingDto>('/v1/admin/pricing/states', {
-      method: 'POST',
-      body,
       token,
     }),
 };

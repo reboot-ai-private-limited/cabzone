@@ -2,6 +2,22 @@
 @import "@cabzone/design-system/theme.css";
 @source "../../../../packages/design-system/src";
 
+@theme {
+  --color-card: var(--color-surface, #ffffff);
+  --color-card-foreground: var(--color-text, #1c1b1f);
+  --color-popover: var(--color-surface, #ffffff);
+  --color-popover-foreground: var(--color-text, #1c1b1f);
+  --color-muted: var(--color-surface-muted, #edefea);
+  --color-muted-foreground: var(--color-text-subtle, #5c635a);
+  --color-primary: var(--color-interactive, #3f6212);
+  --color-primary-hover: var(--color-interactive-hover, #365314);
+  --color-primary-foreground: #ffffff;
+  --color-secondary: var(--color-surface-muted, #edefea);
+  --color-secondary-foreground: var(--color-text, #1c1b1f);
+  --color-background: var(--color-surface-sunken, #f7f8f5);
+  --color-foreground: var(--color-text, #1c1b1f);
+}
+
 /* System base layer defaults */
 :root {
   color-scheme: light;

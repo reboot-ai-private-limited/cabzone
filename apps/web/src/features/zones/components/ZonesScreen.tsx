@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { List, LogIn, LogOut, Map as MapIcon, Upload } from 'lucide-react';
+import { List, LogIn, LogOut, Map as MapIcon } from 'lucide-react';
 import type { ZoneDto, ZoneType } from '@cabzone/contracts';
 import type { Polygon } from '@cabzone/geo';
 import {
@@ -20,7 +20,6 @@ import { useFilterParams } from '@/lib/hooks/useFilterParams';
 import { AdminLoginDialog } from '../../auth/components/AdminLoginDialog';
 import { getStoredPhone, getStoredToken, logout } from '../../auth/lib/authApi';
 import { useZones } from '../hooks/useZones';
-import { useStateBoundaries } from '../hooks/useStateBoundaries';
 import { useIncityPackages } from '../hooks/useIncityPackages';
 import { useZoneValidation } from '../hooks/useZoneValidation';
 import {
@@ -33,7 +32,6 @@ import { hasApiKey, type MapTypeId } from '../lib/google-maps';
 import { DeactivateZoneDialog } from './DeactivateZoneDialog';
 import { DeleteZoneDialog } from './DeleteZoneDialog';
 import { PlaceSearch } from './PlaceSearch';
-import { StateImportDialog } from './StateImportDialog';
 import { GeoJsonImportDialog } from './GeoJsonImportDialog';
 import { ZoneInspector, type ZoneForm } from './ZoneInspector';
 import { ZoneRail } from './ZoneRail';
@@ -118,10 +116,6 @@ export function ZonesScreen() {
       setIsAuthOpen(true);
     }
   }, []);
-
-  const [showStateBorders, setShowStateBorders] = useState(true);
-  const [stateImportOpen, setStateImportOpen] = useState(false);
-  const stateBorders = useStateBoundaries().data;
 
   const zonesQuery = useZones();
   const packagesQuery = useIncityPackages();
@@ -446,8 +440,6 @@ export function ZonesScreen() {
                         mapType={mapType}
                         fitToken={fitToken}
                         onMapReady={setMapInstance}
-                        stateBorders={stateBorders}
-                        showStateBorders={showStateBorders}
                       />
 
                       {/*
@@ -473,35 +465,6 @@ export function ZonesScreen() {
                         />
                         {/* Search moves the viewport only — never the draft. */}
                         <PlaceSearch map={mapInstance} />
-                      </div>
-
-                      {/* State borders (reference data): yellow outline, toggle + import. */}
-                      <div className="absolute top-2 right-2 flex items-center gap-2">
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          aria-pressed={showStateBorders}
-                          icon={
-                            <span
-                              aria-hidden
-                              className={cn(
-                                'size-2.5 rounded-full border border-black/30',
-                                showStateBorders ? 'bg-yellow-400' : 'bg-transparent',
-                              )}
-                            />
-                          }
-                          onClick={() => setShowStateBorders((v) => !v)}
-                        >
-                          State borders
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          icon={<Upload aria-hidden className="size-3.5" />}
-                          onClick={() => setStateImportOpen(true)}
-                        >
-                          Import states
-                        </Button>
                       </div>
                     </>
                   )}
@@ -553,8 +516,6 @@ export function ZonesScreen() {
         onOpenChange={(open) => !open && setDeactivating(null)}
         onDeactivated={() => select(null)}
       />
-
-      <StateImportDialog open={stateImportOpen} onOpenChange={setStateImportOpen} />
 
       <DeleteZoneDialog
         zone={deleting}

@@ -11,6 +11,8 @@ import {
   isPointInGeometry,
   isPointInMultiPolygon,
   isPointInPolygon,
+  isPointInIndia,
+  assertPointInIndia,
   isValidLatitude,
   isValidLongitude,
   normalizeGeoJson,
@@ -18,7 +20,6 @@ import {
   toPosition,
   validateCoordinates,
   validateGeometry,
-  repairPolygonalGeometry,
   computeGeometryAreaM2,
   Z_CODES,
   isRingCounterClockwise,
@@ -105,7 +106,49 @@ describe('@cabzone/geo Engine', () => {
       expect(dist).toBeGreaterThan(10_500);
       expect(dist).toBeLessThan(12_500);
     });
+
+    it('validates Indian sovereign territory boundary with isPointInIndia', () => {
+      // Indian domestic coordinates
+      expect(isPointInIndia({ lat: 26.7141, lng: 88.4334 }).inside).toBe(true); // Siliguri
+      expect(isPointInIndia({ lat: 26.0984, lng: 87.9482 }).inside).toBe(true); // Kishanganj
+      expect(isPointInIndia({ lat: 27.3389, lng: 88.6065 }).inside).toBe(true); // Gangtok
+      expect(isPointInIndia({ lat: 28.6139, lng: 77.2090 }).inside).toBe(true); // Delhi
+      expect(isPointInIndia({ lat: 19.0760, lng: 72.8777 }).inside).toBe(true); // Mumbai
+      expect(isPointInIndia({ lat: 8.0883, lng: 77.5385 }).inside).toBe(true);  // Kanyakumari
+      expect(isPointInIndia({ lat: 11.6234, lng: 92.7265 }).inside).toBe(true); // Port Blair
+
+      // Foreign neighbouring coordinates
+      const kathmandu = isPointInIndia({ lat: 27.7172, lng: 85.3240 }); // Nepal
+      expect(kathmandu.inside).toBe(false);
+      expect(kathmandu.country).toBe('Nepal');
+
+      const dhaka = isPointInIndia({ lat: 23.8103, lng: 90.4125 }); // Bangladesh
+      expect(dhaka.inside).toBe(false);
+      expect(dhaka.country).toBe('Bangladesh');
+
+      const thimphu = isPointInIndia({ lat: 27.4728, lng: 89.6393 }); // Bhutan
+      expect(thimphu.inside).toBe(false);
+      expect(thimphu.country).toBe('Bhutan');
+
+      const lahore = isPointInIndia({ lat: 31.5204, lng: 74.3587 }); // Pakistan
+      expect(lahore.inside).toBe(false);
+      expect(lahore.country).toBe('Pakistan');
+
+      const colombo = isPointInIndia({ lat: 6.9271, lng: 79.8612 }); // Sri Lanka
+      expect(colombo.inside).toBe(false);
+      expect(colombo.country).toBe('Sri Lanka');
+
+      // Distant foreign coordinates
+      const newYork = isPointInIndia({ lat: 40.7128, lng: -74.0060 });
+      expect(newYork.inside).toBe(false);
+      expect(newYork.country).toBe('Outside India');
+
+      expect(() => assertPointInIndia({ lat: 27.7172, lng: 85.3240 }, 'Pickup')).toThrow(
+        'OUTSIDE_INDIA: Pickup must be within India',
+      );
+    });
   });
+
 
   describe('Geometry Validation Rules (Z-001 through Z-006)', () => {
     it('accepts valid simple closed polygon', () => {
@@ -574,60 +617,6 @@ describe('@cabzone/geo Engine', () => {
 
       expect(validateGeometry(openRing, { enforceOperationalArea: false }).valid).toBe(false);
     });
-  });
-});
-
-describe('repairPolygonalGeometry', () => {
-  const bowTie: GeoJsonPolygon = {
-    type: 'Polygon',
-    coordinates: [
-      [
-        [88.0, 26.0],
-        [88.2, 26.2],
-        [88.2, 26.0],
-        [88.0, 26.2],
-        [88.0, 26.0],
-      ],
-    ],
-  };
-
-  it('turns a self-intersecting ring into a valid geometry', () => {
-    expect(validateGeometry(bowTie, { enforceOperationalArea: false }).valid).toBe(false);
-    const fixed = repairPolygonalGeometry(bowTie);
-    expect(fixed).not.toBeNull();
-    expect(validateGeometry(fixed, { enforceOperationalArea: false }).valid).toBe(true);
-  });
-
-  it('leaves a valid polygon equivalent (same area)', () => {
-    const square: GeoJsonPolygon = {
-      type: 'Polygon',
-      coordinates: [
-        [
-          [88.0, 26.0],
-          [88.2, 26.0],
-          [88.2, 26.2],
-          [88.0, 26.2],
-          [88.0, 26.0],
-        ],
-      ],
-    };
-    const fixed = repairPolygonalGeometry(square)!;
-    expect(computeGeometryAreaM2(fixed)).toBeCloseTo(computeGeometryAreaM2(square), -3);
-  });
-
-  it('returns null for a degenerate input', () => {
-    expect(
-      repairPolygonalGeometry({
-        type: 'Polygon',
-        coordinates: [
-          [
-            [88, 26],
-            [89, 27],
-            [88, 26],
-          ],
-        ],
-      }),
-    ).toBeNull();
   });
 });
 

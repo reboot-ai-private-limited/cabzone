@@ -246,7 +246,8 @@ describe('Identity Boundary Validations (Zod Schemas)', () => {
 
   it('validates admin user creation', () => {
     const valid = {
-      userId: '018f0a00-0000-7000-8000-000000000001',
+      phoneE164: '+919876543210',
+      name: 'City Admin',
       role: 'CITY_ADMIN',
       cityZoneIds: ['018f0a00-0000-7000-8000-000000000010'],
     };

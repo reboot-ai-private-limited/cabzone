@@ -1,3 +1,4 @@
+import type { VehicleCategory } from '@cabzone/contracts';
 import {
   haversineDistanceM,
   type DriverPresence,
@@ -34,4 +35,17 @@ export class MemoryPresenceRepository implements DriverPresencePort {
       .sort((a, b) => a.distanceM - b.distanceM)
       .slice(0, query.limit);
   }
+
+  async listAll(options?: {
+    vehicleCategory?: VehicleCategory;
+    maxAgeMs?: number;
+  }): Promise<DriverPresence[]> {
+    const cutoff = options?.maxAgeMs ? Date.now() - options.maxAgeMs : 0;
+    return [...this.byDriver.values()].filter(
+      (p) =>
+        (!options?.vehicleCategory || p.vehicleCategory === options.vehicleCategory) &&
+        p.locationUpdatedAt.getTime() >= cutoff,
+    );
+  }
 }
+

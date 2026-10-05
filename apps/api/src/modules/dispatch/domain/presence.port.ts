@@ -33,6 +33,8 @@ export interface DriverPresencePort {
   remove(driverId: string): Promise<void>;
   /** Closest first. */
   findNearby(query: FindNearbyQuery): Promise<NearbyDriver[]>;
+  /** Return all online drivers matching optional vehicleCategory and max age criteria. */
+  listAll(options?: { vehicleCategory?: VehicleCategory | undefined; maxAgeMs?: number | undefined }): Promise<DriverPresence[]>;
 }
 
 const EARTH_RADIUS_M = 6_371_000;

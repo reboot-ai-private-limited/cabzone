@@ -526,9 +526,9 @@ The exact relationship between `OUTSTATION` and `INTERSTATE` requires care:
 
 - `IN_CITY` is determined primarily from pickup location and the configured city rules.
 - `OUTSTATION` represents a ride outside the in-city classification.
-- `INTERSTATE` represents a ride whose route crosses state boundaries and therefore requires state-segment pricing.
+- `INTERSTATE` represents a ride whose origin and destination are in different states.
 
-The PRD explicitly requires state-based pricing when the destination/route crosses state boundaries.
+**2026-10-01 (D-037, supersedes D-035):** `INTERSTATE` is a display-only label — it no longer triggers state-segment pricing. Every outstation ride (`INTRA_STATE` or `INTERSTATE`) is priced identically from the same `PricingConfig`. See §4.12.
 
 ---
 
@@ -549,29 +549,18 @@ Route
 ├── distance
 ├── duration
 ├── polyline
-└── state segments
+└── estimated toll
 ```
 
 The PRD explicitly requires Route Distance to come from a routing engine and to be locked at ride-request time.
 
 ---
 
-# 4.12 State Pricing
+# 4.12 State Pricing — Removed (D-037, supersedes D-035)
 
-Represents pricing applicable to a route segment within a particular state.
+**Superseded 2026-10-01.** This section originally described per-state-segment pricing (route segmented by state boundary, each segment priced from a `StatePricing` rate). That system — including the `StatePricing` entity, state boundary storage, and route-polyline-vs-boundary segmentation — is removed. See [`decision-log.md`](../decision-log.md#d-037--supersede-d-035-remove-state-boundarystatepricing-system-adopt-global-outstation-pricing) (D-037).
 
-Conceptually:
-
-```text
-Route
- ├── State A segment → StatePricing A
- ├── State B segment → StatePricing B
- └── State C segment → StatePricing C
-```
-
-The final interstate fare is derived from the applicable state segments.
-
-The PRD requires the route to be segmented according to state boundaries and priced using state-specific rates.
+Current model: every outstation ride, regardless of how many states its route crosses, is priced from the same `PricingConfig` as a city ride in the same `(cityZoneId, vehicleCategory)` — see [`geo-reference-and-routing.md`](geo-reference-and-routing.md) §26. `INTERSTATE`/`INTRA_STATE` remain only as a display label (§4.10).
 
 ---
 
@@ -931,10 +920,9 @@ The Ride does **not** directly own global configuration such as:
 ```text
 CityZone
 PricingConfiguration
-StatePricing
 ```
 
-Those are external configuration domains.
+Those are external configuration domains. (There is no `StatePricing` — see §4.12.)
 
 When a Ride is created, relevant configuration is copied into an immutable snapshot.
 
@@ -1570,7 +1558,6 @@ Changes over time:
 ```text
 CityZone
 PricingConfiguration
-StatePricing
 NegotiationConfiguration
 CancellationConfiguration
 CommissionConfiguration

@@ -59,7 +59,16 @@ const schema = z.object({
   ROUTING_PROVIDER: z
     .enum(['google', 'haversine'])
     .default(process.env.NODE_ENV === 'production' ? 'google' : 'haversine'),
-  GOOGLE_ROUTES_API_KEY: z.string().optional(),
+  GOOGLE_ROUTES_API_KEY: z
+    .string()
+    .optional()
+    .default(
+      () =>
+        process.env.GOOGLE_ROUTES_API_KEY ||
+        process.env.GOOGLE_MAPS_API_KEY ||
+        process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ||
+        '',
+    ),
   ROUTING_TIMEOUT_MS: z.coerce.number().int().positive().default(4000),
   ROUTING_CACHE_TTL_S: z.coerce.number().int().positive().default(600),
   ROUTING_TRAFFIC_AWARE: z
