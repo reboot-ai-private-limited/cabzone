@@ -7,7 +7,9 @@ export class ListPricingConfigsUseCase {
 
   async execute(query?: ListPricingConfigsQuery): Promise<PricingConfigDto[]> {
     const filter = {
+      level: query?.level,
       cityZoneId: query?.cityZoneId,
+      stateCode: query?.stateCode,
       vehicleType: query?.vehicleType,
       status: query?.status,
     };

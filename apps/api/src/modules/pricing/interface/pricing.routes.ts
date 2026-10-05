@@ -8,8 +8,6 @@ export interface AdminPricingRouterDeps {
   updatePricingConfig: RequestHandler;
   deletePricingConfig: RequestHandler;
   activatePricingConfig: RequestHandler;
-  createStatePricing: RequestHandler;
-  listStatePricing: RequestHandler;
 }
 
 export function buildAdminPricingRouter(deps: AdminPricingRouterDeps): Router {
@@ -27,8 +25,6 @@ export function buildAdminPricingRouter(deps: AdminPricingRouterDeps): Router {
   router.patch('/configs/:id', deps.updatePricingConfig);
   router.delete('/configs/:id', deps.deletePricingConfig);
   router.post('/configs/:id/activate', deps.activatePricingConfig);
-  router.post('/states', deps.createStatePricing);
-  router.get('/states', deps.listStatePricing);
 
   return router;
 }

@@ -85,7 +85,9 @@ const pricingConfig: PricingConfigEntity = {
   baseFarePaise: 5000,
   ratePerKmPaise: 1500,
   minimumFarePaise: 8000,
-  includedDistanceM: 2000,
+  outstationBaseFarePaise: 7500,
+  outstationRatePerKmPaise: 2000,
+  outstationMinimumFarePaise: 15000,
   bufferSurchargePaise: 2000,
   negotiationFloorPercent: 80,
   negotiationCeilingPercent: 150,
@@ -172,6 +174,7 @@ async function setup() {
     walletRepo,
     pricingConfigRepo,
     tokenSecret: QUOTE_SECRET,
+    pickupOtpSecret: QUOTE_SECRET,
     resolveRiderId: async (u) => (u === RIDER_USER || u === OTHER_RIDER_USER ? profileIds[u]! : null),
     resolveDriverId: async (u) =>
       u === DRIVER_USER || u === OTHER_DRIVER_USER ? profileIds[u]! : null,
@@ -406,5 +409,78 @@ describe('Rides API', () => {
     ]);
     expect((await events(s.riderAuth)).status).toBe(200);
     expect((await events(s.otherRiderAuth)).status).toBe(404);
+  });
+
+  it('admin can create a ride from quote, simulate driver acceptance, inspect OTP, and drive lifecycle', async () => {
+    const s = await setup();
+    const quote = await s.requestRide().then((r) => r.quote);
+
+    // Admin creates ride
+    const createRes = await request(s.app)
+      .post('/api/v1/rides')
+      .set('Authorization', s.adminAuth)
+      .send({
+        quoteToken: quote.quoteToken,
+        proposedFarePaise: quote.suggestedFarePaise,
+        passenger: { name: 'Admin Test Rider', phoneE164: '+919876543210' },
+        vehicleCategory: 'CAB',
+        pickup,
+        drop,
+        riderId: RIDER_ID,
+      });
+
+    expect(createRes.status).toBe(201);
+    const rideId = createRes.body.data.id as string;
+    expect(createRes.body.data.status).toBe('OFFERING');
+
+    // Admin simulates driver acceptance
+    const acceptRes = await request(s.app)
+      .post(`/api/v1/rides/${rideId}/accept`)
+      .set('Authorization', s.adminAuth)
+      .send({ driverId: DRIVER_ID });
+
+    expect(acceptRes.status).toBe(200);
+    expect(acceptRes.body.data.status).toBe('DRIVER_ASSIGNED');
+    expect(acceptRes.body.data.pickupOtp).toBeDefined();
+    const otp = acceptRes.body.data.pickupOtp as string;
+    expect(otp).toMatch(/^\d{4}$/);
+
+    // Driver goes en route and arrives
+    const enRouteRes = await request(s.app)
+      .post(`/api/v1/rides/${rideId}/en-route`)
+      .set('Authorization', s.adminAuth)
+      .send({ driverId: DRIVER_ID });
+    expect(enRouteRes.status).toBe(200);
+    expect(enRouteRes.body.data.status).toBe('DRIVER_EN_ROUTE');
+
+    const arrivedRes = await request(s.app)
+      .post(`/api/v1/rides/${rideId}/arrived`)
+      .set('Authorization', s.adminAuth)
+      .send({ driverId: DRIVER_ID });
+    expect(arrivedRes.status).toBe(200);
+    expect(arrivedRes.body.data.status).toBe('DRIVER_ARRIVED');
+
+    // Admin fetches ride and inspects OTP
+    const getRes = await request(s.app)
+      .get(`/api/v1/rides/${rideId}`)
+      .set('Authorization', s.adminAuth);
+    expect(getRes.status).toBe(200);
+    expect(getRes.body.data.pickupOtp).toBe(otp);
+
+    // Start ride with valid OTP
+    const startRes = await request(s.app)
+      .post(`/api/v1/rides/${rideId}/start`)
+      .set('Authorization', s.adminAuth)
+      .send({ otp, driverId: DRIVER_ID });
+    expect(startRes.status).toBe(200);
+    expect(startRes.body.data.status).toBe('TRIP_STARTED');
+
+    // Complete ride
+    const completeRes = await request(s.app)
+      .post(`/api/v1/rides/${rideId}/complete`)
+      .set('Authorization', s.adminAuth)
+      .send({ driverId: DRIVER_ID });
+    expect(completeRes.status).toBe(200);
+    expect(completeRes.body.data.ride.status).toBe('SETTLED');
   });
 });

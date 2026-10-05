@@ -9,10 +9,16 @@ import {
 } from '@cabzone/contracts';
 import { registry, successResponse, errorResponse, bearerAuth } from '@/shared/http/swagger.util.js';
 import {
-  requestOtpSchema,
-  verifyOtpSchema,
-  refreshTokenSchema,
+  adminLoginSchema,
+  adminUserIdParamSchema,
+  createAdminUserSchema,
   createDriverProfileSchema,
+  listAdminUsersQuerySchema,
+  refreshTokenSchema,
+  requestOtpSchema,
+  updateAdminUserSchema,
+  updateAdminUserStatusSchema,
+  verifyOtpSchema,
 } from './identity.validation.js';
 import {
   createVehicleSchema,
@@ -144,6 +150,54 @@ export function registerIdentitySwaggerPaths(): void {
             schema: successResponse(z.object({ loggedOut: z.boolean() })),
           },
         },
+      },
+    },
+  });
+
+  // Admin Password Login
+  registry.registerPath({
+    method: 'post',
+    path: '/v1/auth/admin/login',
+    tags: ['Auth'],
+    summary: 'Administrative staff authentication via password',
+    request: {
+      body: {
+        content: {
+          'application/json': {
+            schema: adminLoginSchema,
+          },
+        },
+      },
+    },
+    responses: {
+      200: {
+        description: 'Admin authentication successful',
+        content: {
+          'application/json': {
+            schema: successResponse(
+              z.object({
+                accessToken: z.string(),
+                refreshToken: z.string(),
+                tokenType: z.string(),
+                expiresIn: z.number(),
+                user: z.object({
+                  id: z.string().uuid(),
+                  phoneE164: z.string(),
+                  name: z.string().nullable().optional(),
+                  role: z.string(),
+                }),
+              }),
+            ),
+          },
+        },
+      },
+      401: {
+        description: 'Invalid credentials or missing password',
+        content: { 'application/json': { schema: errorResponse } },
+      },
+      403: {
+        description: 'Account inactive or suspended',
+        content: { 'application/json': { schema: errorResponse } },
       },
     },
   });
@@ -310,6 +364,270 @@ export function registerIdentitySwaggerPaths(): void {
                 status: z.enum(DRIVER_APPLICATION_STATUSES),
               }),
             ),
+          },
+        },
+      },
+    },
+  });
+
+  // Rider Profile (Me)
+  registry.registerPath({
+    method: 'get',
+    path: '/v1/riders/me',
+    tags: ['Rider Profile'],
+    summary: 'Get current authenticated rider profile',
+    security: bearerAuth,
+    responses: {
+      200: {
+        description: 'Rider profile retrieved',
+        content: {
+          'application/json': {
+            schema: successResponse(
+              z.object({
+                id: z.string().uuid(),
+                userId: z.string().uuid(),
+                name: z.string().nullable(),
+                email: z.string().nullable(),
+                preferredLanguage: z.string().nullable(),
+                ratingAverage: z.number().nullable(),
+                ratingCount: z.number(),
+                createdAt: z.string(),
+                updatedAt: z.string(),
+              }),
+            ),
+          },
+        },
+      },
+    },
+  });
+
+  // Admin List Riders
+  registry.registerPath({
+    method: 'get',
+    path: '/v1/admin/riders',
+    tags: ['Admin Customers'],
+    summary: 'List customers / riders with filtering and pagination',
+    security: bearerAuth,
+    responses: {
+      200: {
+        description: 'List of customers',
+        content: {
+          'application/json': {
+            schema: successResponse(
+              z.object({
+                riders: z.array(z.any()),
+                total: z.number(),
+                limit: z.number(),
+                offset: z.number(),
+              }),
+            ),
+          },
+        },
+      },
+    },
+  });
+
+  // Admin Get Rider Detail
+  registry.registerPath({
+    method: 'get',
+    path: '/v1/admin/riders/{id}',
+    tags: ['Admin Customers'],
+    summary: 'Get full customer / rider dossier and stats',
+    security: bearerAuth,
+    request: {
+      params: z.object({ id: z.string().uuid() }),
+    },
+    responses: {
+      200: {
+        description: 'Customer detail dossier',
+        content: {
+          'application/json': {
+            schema: successResponse(z.any()),
+          },
+        },
+      },
+    },
+  });
+
+  // Admin Update Rider Status
+  registry.registerPath({
+    method: 'patch',
+    path: '/v1/admin/riders/{id}/status',
+    tags: ['Admin Customers'],
+    summary: 'Suspend or reactivate customer account',
+    security: bearerAuth,
+    request: {
+      params: z.object({ id: z.string().uuid() }),
+      body: {
+        content: {
+          'application/json': {
+            schema: z.object({ status: z.enum(['ACTIVE', 'SUSPENDED']) }),
+          },
+        },
+      },
+    },
+    responses: {
+      200: {
+        description: 'Customer status updated',
+        content: {
+          'application/json': {
+            schema: successResponse(z.any()),
+          },
+        },
+      },
+    },
+  });
+
+  // Admin Role Permissions Matrix
+  registry.registerPath({
+    method: 'get',
+    path: '/v1/admin/users/roles/permissions',
+    tags: ['Admin Users & Roles'],
+    summary: 'Get role permissions matrix for administrative staff',
+    security: bearerAuth,
+    responses: {
+      200: {
+        description: 'Role permissions matrix',
+        content: {
+          'application/json': {
+            schema: successResponse(z.array(z.any())),
+          },
+        },
+      },
+    },
+  });
+
+  // Admin List Users
+  registry.registerPath({
+    method: 'get',
+    path: '/v1/admin/users',
+    tags: ['Admin Users & Roles'],
+    summary: 'List administrative staff with search, role, status, and zone filters',
+    security: bearerAuth,
+    request: {
+      query: listAdminUsersQuerySchema,
+    },
+    responses: {
+      200: {
+        description: 'List of admin users',
+        content: {
+          'application/json': {
+            schema: successResponse(
+              z.object({
+                admins: z.array(z.any()),
+                total: z.number(),
+                limit: z.number(),
+                offset: z.number(),
+              }),
+            ),
+          },
+        },
+      },
+    },
+  });
+
+  // Admin Get User Detail
+  registry.registerPath({
+    method: 'get',
+    path: '/v1/admin/users/{id}',
+    tags: ['Admin Users & Roles'],
+    summary: 'Get full admin user profile dossier and assigned zones',
+    security: bearerAuth,
+    request: {
+      params: adminUserIdParamSchema,
+    },
+    responses: {
+      200: {
+        description: 'Admin user detail dossier',
+        content: {
+          'application/json': {
+            schema: successResponse(z.any()),
+          },
+        },
+      },
+    },
+  });
+
+  // Admin Create User
+  registry.registerPath({
+    method: 'post',
+    path: '/v1/admin/users',
+    tags: ['Admin Users & Roles'],
+    summary: 'Create and provision new administrative staff member',
+    security: bearerAuth,
+    request: {
+      body: {
+        content: {
+          'application/json': {
+            schema: createAdminUserSchema,
+          },
+        },
+      },
+    },
+    responses: {
+      201: {
+        description: 'Admin user provisioned successfully',
+        content: {
+          'application/json': {
+            schema: successResponse(z.any()),
+          },
+        },
+      },
+    },
+  });
+
+  // Admin Update User
+  registry.registerPath({
+    method: 'patch',
+    path: '/v1/admin/users/{id}',
+    tags: ['Admin Users & Roles'],
+    summary: 'Update administrative staff details, role, or assigned zones',
+    security: bearerAuth,
+    request: {
+      params: adminUserIdParamSchema,
+      body: {
+        content: {
+          'application/json': {
+            schema: updateAdminUserSchema,
+          },
+        },
+      },
+    },
+    responses: {
+      200: {
+        description: 'Admin user updated successfully',
+        content: {
+          'application/json': {
+            schema: successResponse(z.any()),
+          },
+        },
+      },
+    },
+  });
+
+  // Admin Update User Status
+  registry.registerPath({
+    method: 'patch',
+    path: '/v1/admin/users/{id}/status',
+    tags: ['Admin Users & Roles'],
+    summary: 'Suspend or reactivate administrative staff account and revoke active sessions',
+    security: bearerAuth,
+    request: {
+      params: adminUserIdParamSchema,
+      body: {
+        content: {
+          'application/json': {
+            schema: updateAdminUserStatusSchema,
+          },
+        },
+      },
+    },
+    responses: {
+      200: {
+        description: 'Admin user status updated successfully',
+        content: {
+          'application/json': {
+            schema: successResponse(z.any()),
           },
         },
       },

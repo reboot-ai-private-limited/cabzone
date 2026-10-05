@@ -3,12 +3,14 @@ import { sendSuccess } from '@/shared/http/response.util.js';
 import { asyncHandler } from '@/shared/http/asyncHandler.js';
 import { AppError } from '@/shared/errors/AppError.js';
 import type {
+  AdminLoginUseCase,
   LogoutUseCase,
   RefreshTokenUseCase,
   RequestOtpUseCase,
   VerifyOtpUseCase,
 } from '../application/useCases/index.js';
 import {
+  adminLoginSchema,
   refreshTokenSchema,
   requestOtpSchema,
   verifyOtpSchema,
@@ -47,3 +49,12 @@ export function makeLogoutController(useCase: LogoutUseCase): RequestHandler {
     sendSuccess(req, res, result, 'Logged out successfully', 200);
   });
 }
+
+export function makeAdminLoginController(useCase: AdminLoginUseCase): RequestHandler {
+  return asyncHandler(async (req: Request, res: Response) => {
+    const parsed = adminLoginSchema.parse(req.body);
+    const result = await useCase.execute(parsed);
+    sendSuccess(req, res, result, 'Admin authentication successful', 200);
+  });
+}
+

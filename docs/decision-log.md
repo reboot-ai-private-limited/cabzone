@@ -596,6 +596,56 @@ To receive a broadcast ride offer, a candidate driver must satisfy all 10 eligib
 
 ---
 
+## D-037 — Supersede D-035: Remove State-Boundary/StatePricing System, Adopt Global Outstation Pricing
+
+**Decision ID:** D-037  
+**Date:** 2026-10-01  
+**Question:** OQ-011 (Interstate pricing model) — supersedes D-035  
+**Status:** Decided
+
+**Decision:**
+The state-boundary GeoJSON system and the `StatePricing` per-state rate table are removed entirely, replacing D-035's route-polyline-segmentation pricing model with a simpler one:
+
+1. **No stored state geometry**: The admin States screen, GeoJSON boundary import/versioning/history, 2dsphere point-in-polygon state lookup, and polyline-vs-boundary route segmentation are deleted. A "state" is no longer a database entity.
+2. **Every destination is serviceable**: The "unsupported destination state" gate and the per-state intrastate/interstate enable/disable flags are removed. The only remaining serviceability gate is pickup being inside an active CITY zone (unchanged, unrelated to this decision).
+3. **Uniform outstation pricing**: `StatePricing` and its per-state-segment fare override are deleted. Every trip — CITY, intrastate outstation, or interstate outstation — is priced from the same `PricingConfig` keyed by `(cityZoneId, vehicleCategory)`. There is no separate per-state or per-outstation-tier rate.
+4. **`routeScope` becomes a display-only label**: `INTRA_STATE` / `INTERSTATE` is still computed and shown on the quote/ride, but affects neither pricing nor serviceability. It is derived by comparing the pickup's and drop's state codes — not by intersecting route geometry against stored polygons.
+5. **State codes come from city-zone data, with a Google fallback**: Origin state = the pickup's city zone's own `stateCode` (admin-entered, unchanged). Destination state = the drop's city zone's `stateCode` when the drop falls inside a known city zone; otherwise a new Google Geocoding reverse lookup resolves it (`DestinationStateResolverPort` / `GoogleGeocodingProvider` in the `routing` module), falling back to `null` ("unknown") on any failure — this never blocks a ride.
+
+**Reason:** Product decided to simplify geography/pricing: maintaining official state boundary polygons and a parallel per-state rate table was unnecessary operational and engineering overhead once every state is meant to be serviceable at one uniform outstation rate.
+
+**Affected Components:** Zone module (`serviceClassification.usecase.ts` — state resolution and `routeScope` now computed from city-zone data + Google fallback, no more serviceability gating), Pricing module (`StatePricing` entity/table and per-segment fare calculation removed; `createQuote.usecase.ts` prices every trip from the single `PricingConfig`), Rides module (quote-state-still-serviceable recheck removed — nothing left to recheck), Routing module (new Google Geocoding integration), Admin Web (States screen and StatePricing admin endpoints removed).  
+**Migration/reversal strategy:** No data migration — this was pre-launch/dev data; `states`/`state_pricing` MongoDB collections can be dropped manually. Reversal would mean re-implementing the D-035 system from scratch; no rollback flag was kept.  
+**Approved by:** Product & Engineering (via OQ-011)
+
+---
+
+## D-038 — Outstation Pricing Tier & Unlimited-Pickup Fallback Serviceability
+
+**Decision ID:** D-038  
+**Date:** 2026-10-01  
+**Question:** Outstation rate differentiation and pickup-outside-zone serviceability  
+**Status:** Decided
+
+**Decision:**
+1. **Outstation Rate Tier on `PricingConfigEntity`**:
+   Add three new fields to `PricingConfigEntity` (`outstationBaseFarePaise`, `outstationRatePerKmPaise`, `outstationMinimumFarePaise`). Fares for trips classified as `OUTSTATION` or `INTERSTATE` are calculated using this dedicated outstation rate tier rather than the city rate tier.
+2. **Buffer Surcharge Independence**:
+   `bufferSurchargePaise` applies strictly when `serviceType === 'CITY'` and `isBufferFallback === true` (pickup inside city zone, drop just past city boundary within buffer distance). It is never applied to `OUTSTATION` trips.
+3. **Unlimited-Pickup Fallback Serviceability**:
+   A pickup outside every active city zone is no longer rejected with `NO_ACTIVE_ZONE`. As long as at least one active city zone exists anywhere system-wide, the nearest active city zone (`resolved.nearestCity`) is resolved as the trip's `pricingCity`, classified as `OUTSTATION`, and priced using that nearest zone's outstation tier without distance limits. `NO_ACTIVE_ZONE` is only thrown if zero active city zones exist system-wide.
+4. **Negotiation Clamps Alignment**:
+   For outstation trips, rider negotiation floor cannot go below `outstationMinimumFarePaise`.
+5. **Ride Pricing Snapshot**:
+   Captures the effective tier values (`baseFarePaise`, `ratePerKmPaise`, `minimumFarePaise`) actually used to price the ride based on its service type classification.
+
+**Reason:** City vs outstation trips have fundamentally different operating economics (fuel, deadhead returns, vehicle wear). Additionally, riders requesting cabs in rural, suburban, or unmapped peripheral areas can still be served and priced against the nearest operational hub rather than arbitrarily rejected.
+
+**Affected Components:** `PricingConfigEntity`, `calculateBaseFareEstimate`, `ServiceClassificationUseCase`, `CreateQuoteUseCase`, `CreateRideUseCase`, `@cabzone/contracts` (pricing & ride snapshot), Admin Web (`PricingConfigDialog`, `PricingConfigsTable`, `PricingConfigViewDialog`, `FareSimulatorSection`).  
+**Approved by:** Product & Engineering
+
+---
+
 ## Explicitly Not Decided by This Log
 
 The PRD does not decide:

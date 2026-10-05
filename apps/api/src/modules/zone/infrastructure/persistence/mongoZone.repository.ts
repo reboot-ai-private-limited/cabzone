@@ -1,5 +1,5 @@
 import type { GeoJsonPolygon, GeoPoint } from '@cabzone/contracts';
-import type { ZoneEntity, ZoneFilter, ZoneRepositoryPort } from '../../domain/index.js';
+import { distanceToPolygonM, type ZoneEntity, type ZoneFilter, type ZoneRepositoryPort } from '../../domain/index.js';
 import { ZoneModel, type ZoneDocument } from './zone.model.js';
 
 export class MongoZoneRepository implements ZoneRepositoryPort {
@@ -85,20 +85,46 @@ export class MongoZoneRepository implements ZoneRepositoryPort {
 
       if (doc) return this.toEntity(doc);
     } catch {
-      // Fallback to boundary index if geometry index not yet built
-      const doc = await ZoneModel.findOne({
-        zone_type: 'CITY',
-        status: 'ACTIVE',
-        boundary: {
-          $near: {
-            $geometry: geoPoint,
+      try {
+        // Fallback to boundary index if geometry index not yet built
+        const doc = await ZoneModel.findOne({
+          zone_type: 'CITY',
+          status: 'ACTIVE',
+          boundary: {
+            $near: {
+              $geometry: geoPoint,
+            },
           },
-        },
-      })
-        .lean<ZoneDocument | null>()
-        .exec();
+        })
+          .lean<ZoneDocument | null>()
+          .exec();
 
-      if (doc) return this.toEntity(doc);
+        if (doc) return this.toEntity(doc);
+      } catch {
+        // Fallback to calculating distance over active cities in-memory
+        const activeCities = await ZoneModel.find({
+          zone_type: 'CITY',
+          status: 'ACTIVE',
+        })
+          .lean<ZoneDocument[]>()
+          .exec();
+
+        let nearest: ZoneDocument | null = null;
+        let minDistance = Infinity;
+
+        for (const doc of activeCities) {
+          const geom = doc.geometry ?? doc.boundary;
+          if (geom) {
+            const dist = distanceToPolygonM(point, geom);
+            if (dist < minDistance) {
+              minDistance = dist;
+              nearest = doc;
+            }
+          }
+        }
+
+        if (nearest) return this.toEntity(nearest);
+      }
     }
 
     return null;

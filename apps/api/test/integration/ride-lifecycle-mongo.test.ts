@@ -18,7 +18,9 @@ import {
   type RideEntity,
 } from '../../src/modules/rides/index.js';
 import {
-  MemoryWalletRepository,
+  MongoWalletRepository,
+  WalletModel,
+  WalletTransactionModel,
   type WalletEntity,
 } from '../../src/modules/ledger/index.js';
 import {
@@ -38,7 +40,7 @@ describe('MongoDB Atomic Claim & Lifecycle Integration Test (rs0 Replica Set)', 
   let replSet: MongoMemoryReplSet;
   let mongoRideRepo: MongoRideRepository;
   let mongoRideEventRepo: MongoRideEventRepository;
-  let walletRepo: MemoryWalletRepository;
+  let walletRepo: MongoWalletRepository;
   let pricingConfigRepo: MemoryPricingConfigRepository;
   let zoneRepo: MemoryZoneRepository;
   let resolveZonesUseCase: ResolveZonesUseCase;
@@ -91,7 +93,9 @@ describe('MongoDB Atomic Claim & Lifecycle Integration Test (rs0 Replica Set)', 
     baseFarePaise: 5000,
     ratePerKmPaise: 1500,
     minimumFarePaise: 8000,
-    includedDistanceM: 2000,
+    outstationBaseFarePaise: 7500,
+    outstationRatePerKmPaise: 2000,
+    outstationMinimumFarePaise: 15000,
     bufferSurchargePaise: 2000,
     negotiationFloorPercent: 80,
     negotiationCeilingPercent: 150,
@@ -155,10 +159,12 @@ describe('MongoDB Atomic Claim & Lifecycle Integration Test (rs0 Replica Set)', 
   beforeEach(async () => {
     await RideModel.deleteMany({});
     await RideEventModel.deleteMany({});
+    await WalletModel.deleteMany({});
+    await WalletTransactionModel.deleteMany({});
 
-    walletRepo = new MemoryWalletRepository();
-    walletRepo.save(driver1Wallet);
-    walletRepo.save(driver2Wallet);
+    walletRepo = new MongoWalletRepository();
+    await walletRepo.save(driver1Wallet);
+    await walletRepo.save(driver2Wallet);
 
     zoneRepo = new MemoryZoneRepository();
     zoneRepo.save(siliguriCityZone);
@@ -335,12 +341,35 @@ describe('MongoDB Atomic Claim & Lifecycle Integration Test (rs0 Replica Set)', 
       expect(completeResult.ride.version).toBe(6);
 
       // 8% commission on 11000 paise (suggested fare for 6km) = Math.round(11000 * 0.08) = 880 paise
-      expect(completeResult.commissionPaise).toBe(
-        Math.round((completeResult.farePaise * 8) / 100),
-      );
+      const expectedCommission = Math.round((completeResult.farePaise * 8) / 100);
+      expect(completeResult.commissionPaise).toBe(expectedCommission);
       expect(completeResult.driverWallet.balancePaise).toBe(
-        driver1Wallet.balancePaise - completeResult.commissionPaise,
+        driver1Wallet.balancePaise - expectedCommission,
       );
+
+      // Verify MongoDB wallets collection document
+      const mongoWalletDoc = await WalletModel.findById(driver1Wallet.id).lean();
+      expect(mongoWalletDoc).not.toBeNull();
+      expect(mongoWalletDoc?.balance_paise).toBe(driver1Wallet.balancePaise - expectedCommission);
+      expect(mongoWalletDoc?.version).toBe(driver1Wallet.version + 1);
+
+      // Verify MongoDB wallet_transactions ledger document
+      const mongoTxDoc = await WalletTransactionModel.findOne({ reference_id: createdRide.id }).lean();
+      expect(mongoTxDoc).not.toBeNull();
+      expect(mongoTxDoc?.wallet_id).toBe(driver1Wallet.id);
+      expect(mongoTxDoc?.driver_id).toBe(DRIVER_ID_1);
+      expect(mongoTxDoc?.type).toBe('DEBIT');
+      expect(mongoTxDoc?.reference_type).toBe('RIDE_COMMISSION');
+      expect(mongoTxDoc?.amount_paise).toBe(expectedCommission);
+      expect(mongoTxDoc?.balance_before_paise).toBe(driver1Wallet.balancePaise);
+      expect(mongoTxDoc?.balance_after_paise).toBe(driver1Wallet.balancePaise - expectedCommission);
+      expect(mongoTxDoc?.idempotency_key).toBe(`commission_debit_${createdRide.id}`);
+
+      // Verify findTransactionsByWalletId query on MongoWalletRepository
+      const driverTransactions = await walletRepo.findTransactionsByWalletId(driver1Wallet.id);
+      expect(driverTransactions.length).toBe(1);
+      expect(driverTransactions[0]?.amountPaise).toBe(expectedCommission);
+      expect(driverTransactions[0]?.referenceType).toBe('RIDE_COMMISSION');
 
       // 7. Verify Final MongoDB State & Audit Trail
       const finalMongoDoc = await RideModel.findById(createdRide.id).lean();
@@ -547,14 +576,82 @@ describe('MongoDB Atomic Claim & Lifecycle Integration Test (rs0 Replica Set)', 
       expect(mongoDoc?.cancellation_reason).toBe('RIDER_CHANGED_MIND');
       expect(mongoDoc?.cancelled_at).toEqual(threeMinLater);
 
-      // Verify RIDE_CANCELLED event in MongoDB
-      const cancelEvent = await RideEventModel.findOne({
-        ride_id: createdRide.id,
-        event_type: 'RIDE_CANCELLED',
+      // Verify driver compensation credited to wallet in MongoDB
+      const mongoDriverWallet = await WalletModel.findById(driver1Wallet.id).lean();
+      expect(mongoDriverWallet?.balance_paise).toBe(driver1Wallet.balancePaise + 3500);
+
+      const cancelCompTx = await WalletTransactionModel.findOne({
+        reference_id: createdRide.id,
+        reference_type: 'CANCELLATION_COMPENSATION',
       }).lean();
-      expect(cancelEvent).not.toBeNull();
-      expect(cancelEvent?.actor_type).toBe('RIDER');
-      expect(cancelEvent?.actor_id).toBe(RIDER_ID);
+      expect(cancelCompTx).not.toBeNull();
+      expect(cancelCompTx?.type).toBe('CREDIT');
+      expect(cancelCompTx?.amount_paise).toBe(3500);
+      expect(cancelCompTx?.balance_after_paise).toBe(driver1Wallet.balancePaise + 3500);
+    });
+  });
+
+  describe('Wallet Zero Invariant & Commission Settlement in MongoDB', () => {
+    it('settles ride normally even if commission drives balance negative, but blocks subsequent ride acceptance', async () => {
+      // 1. Set driver wallet to low initial balance (500 paise = ₹5.00)
+      const lowBalanceWallet: WalletEntity = {
+        ...driver1Wallet,
+        balancePaise: 500,
+        version: 1,
+      };
+      await walletRepo.save(lowBalanceWallet);
+
+      // 2. Create and claim ride
+      const createdRide = await createInitialRide();
+      const claimResult = await acceptRideUseCase.execute({
+        rideId: createdRide.id,
+        driverId: DRIVER_ID_1,
+      });
+      expect(claimResult.ride.status).toBe('DRIVER_ASSIGNED');
+
+      // 3. Progress ride: En-route -> Arrived -> Start
+      await driverEnRouteUseCase.execute({ rideId: createdRide.id, driverId: DRIVER_ID_1 });
+      await driverArrivedUseCase.execute({ rideId: createdRide.id, driverId: DRIVER_ID_1 });
+      await startRideUseCase.execute({
+        rideId: createdRide.id,
+        driverId: DRIVER_ID_1,
+        otp: claimResult._riderPickupOtp!,
+      });
+
+      // 4. Complete ride: 8% commission on calculated fare (billed from km 0)
+      const completeResult = await completeRideUseCase.execute({
+        rideId: createdRide.id,
+        driverId: DRIVER_ID_1,
+      });
+
+      const expectedCommission = Math.round((completeResult.farePaise * 8) / 100);
+      const expectedBalanceAfter = 500 - expectedCommission;
+
+      expect(completeResult.ride.status).toBe('SETTLED');
+      expect(completeResult.commissionPaise).toBe(expectedCommission);
+      expect(completeResult.driverWallet.balancePaise).toBe(expectedBalanceAfter);
+
+      // Verify MongoDB documents
+      const mongoWallet = await WalletModel.findById(driver1Wallet.id).lean();
+      expect(mongoWallet?.balance_paise).toBe(expectedBalanceAfter);
+
+      const mongoTx = await WalletTransactionModel.findOne({
+        reference_id: createdRide.id,
+        reference_type: 'RIDE_COMMISSION',
+      }).lean();
+      expect(mongoTx).not.toBeNull();
+      expect(mongoTx?.amount_paise).toBe(expectedCommission);
+      expect(mongoTx?.balance_before_paise).toBe(500);
+      expect(mongoTx?.balance_after_paise).toBe(expectedBalanceAfter);
+
+      // 5. Subsequent ride acceptance attempt MUST be blocked by Wallet Zero Invariant
+      const secondRide = await createInitialRide();
+      await expect(
+        acceptRideUseCase.execute({
+          rideId: secondRide.id,
+          driverId: DRIVER_ID_1,
+        }),
+      ).rejects.toThrow('DRIVER_WALLET_ZERO_BALANCE');
     });
   });
 });

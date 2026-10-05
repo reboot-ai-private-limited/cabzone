@@ -4,7 +4,6 @@ import { buildIdentityContainer, type IdentityContainer } from '@/modules/identi
 import {
   buildPricingContainer,
   MongoPricingConfigRepository,
-  MongoStatePricingRepository,
   type PricingContainer,
 } from '@/modules/pricing/index.js';
 import {
@@ -12,6 +11,7 @@ import {
   isVehicleApproved,
   MongoDriverRepository,
   MongoRiderRepository,
+  MongoUserRepository,
   MongoVehicleRepository,
 } from '@/modules/identity/index.js';
 import { buildDispatchContainer, type DispatchContainer } from '@/modules/dispatch/dispatch.container.js';
@@ -22,14 +22,12 @@ import { MongoRideEventRepository, MongoRideRepository } from '@/modules/rides/i
 import { buildRidesContainer, type RidesContainer } from '@/modules/rides/rides.container.js';
 import { getRedis } from '@/shared/queue/redis.js';
 import { getRealtimeHub } from '@/shared/realtime/index.js';
-import { buildStateBoundaryContainer, type StateBoundaryContainer } from '@/modules/stateBoundary/index.js';
 import { buildZoneContainer, type ZoneContainer } from '@/modules/zone/zone.container.js';
 import { buildRoutingContainer, type RoutingContainer } from '@/modules/routing/index.js';
 
 export interface AppContainers {
   health: ReturnType<typeof buildHealthContainer>;
   identity: IdentityContainer;
-  stateBoundary: StateBoundaryContainer;
   zone: ZoneContainer;
   routing: RoutingContainer;
   pricing: PricingContainer;
@@ -37,39 +35,43 @@ export interface AppContainers {
   ledger: LedgerContainer;
   dispatch: DispatchContainer;
 }
-
 export function buildContainers(overrides?: Partial<AppContainers>): AppContainers {
+  const riderRepo = new MongoRiderRepository();
+  const userRepo = new MongoUserRepository();
+  const driverRepo = new MongoDriverRepository();
+  const vehicleRepo = new MongoVehicleRepository();
+  const rideRepo = new MongoRideRepository();
+
   const health = overrides?.health ?? buildHealthContainer();
-  const identity = overrides?.identity ?? buildIdentityContainer();
-  const stateBoundary = overrides?.stateBoundary ?? buildStateBoundaryContainer();
   const routing = overrides?.routing ?? buildRoutingContainer();
   const zone =
     overrides?.zone ??
     buildZoneContainer({
-      serviceabilityGuard: stateBoundary.assertServiceableUseCase,
-      stateLocator: stateBoundary.stateBoundaryRepo,
+      destinationStateResolver: routing.resolveDestinationStateUseCase,
+    });
+  const identity =
+    overrides?.identity ??
+    buildIdentityContainer({
+      riderRepo,
+      driverRepo,
+      vehicleRepo,
+      rideRepo,
+      zoneRepo: zone.zoneRepo,
     });
   const pricing =
     overrides?.pricing ??
     buildPricingContainer({
       pricingConfigRepo: new MongoPricingConfigRepository(),
-      statePricingRepo: new MongoStatePricingRepository(),
       serviceClassificationUseCase: zone.serviceClassificationUseCase,
       tokenSecret: env.JWT_ACCESS_SECRET,
       routingUseCase: routing.getRouteUseCase,
-      resolveRouteStatesUseCase: stateBoundary.resolveRouteStatesUseCase,
     });
 
-  const riderRepo = new MongoRiderRepository();
-  const driverRepo = new MongoDriverRepository();
-  const vehicleRepo = new MongoVehicleRepository();
   const resolveDriverId = async (userId: string) =>
     (await driverRepo.findByUserId(userId))?.id ?? null;
   const ledger =
     overrides?.ledger ??
     buildLedgerContainer({ walletRepo: new MongoWalletRepository(), resolveDriverId });
-
-  const rideRepo = new MongoRideRepository();
   const dispatch =
     overrides?.dispatch ??
     buildDispatchContainer({
@@ -95,6 +97,19 @@ export function buildContainers(overrides?: Partial<AppContainers>): AppContaine
         },
         getUserIdForRider: async (riderId) => (await riderRepo.findById(riderId))?.userId ?? null,
         getUserIdForDriver: async (driverId) => (await driverRepo.findById(driverId))?.userId ?? null,
+        getDriverInfo: async (driverId) => {
+          const driver = await driverRepo.findById(driverId);
+          if (!driver) return null;
+          const user = await userRepo.findById(driver.userId);
+          const vehicle = driver.currentVehicleId
+            ? await vehicleRepo.findById(driver.currentVehicleId)
+            : null;
+          return {
+            name: user ? `Driver (${user.phoneE164.slice(-4)})` : 'Driver',
+            phoneE164: user?.phoneE164 ?? '',
+            registrationNumber: vehicle?.registrationNumber ?? undefined,
+          };
+        },
       },
     });
 
@@ -105,9 +120,7 @@ export function buildContainers(overrides?: Partial<AppContainers>): AppContaine
       rideEventRepo: new MongoRideEventRepository(),
       walletRepo: ledger.walletRepo,
       pricingConfigRepo: pricing.pricingConfigRepo,
-      statePricingRepo: pricing.statePricingRepo,
       tokenSecret: env.JWT_ACCESS_SECRET,
-      quoteStateVerifier: stateBoundary.verifyQuoteStateUseCase,
       resolveRiderId: async (userId) => (await riderRepo.findByUserId(userId))?.id ?? null,
       resolveDriverId,
       notifier: dispatch.notifier,
@@ -117,7 +130,6 @@ export function buildContainers(overrides?: Partial<AppContainers>): AppContaine
   return {
     health,
     identity,
-    stateBoundary,
     zone,
     routing,
     pricing,

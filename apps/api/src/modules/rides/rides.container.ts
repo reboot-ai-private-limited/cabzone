@@ -5,10 +5,7 @@ import type { PricingConfigRepositoryPort } from '../pricing/pricing.public.js';
 import { AcceptRideUseCase } from './application/useCases/acceptRide.usecase.js';
 import { CancelRideUseCase } from './application/useCases/cancelRide.usecase.js';
 import { CompleteRideUseCase } from './application/useCases/completeRide.usecase.js';
-import {
-  CreateRideUseCase,
-  type QuoteStateVerifier,
-} from './application/useCases/createRide.usecase.js';
+import { CreateRideUseCase } from './application/useCases/createRide.usecase.js';
 import { DriverArrivedUseCase } from './application/useCases/driverArrived.usecase.js';
 import { DriverEnRouteUseCase } from './application/useCases/driverEnRoute.usecase.js';
 import { StartRideUseCase } from './application/useCases/startRide.usecase.js';
@@ -27,6 +24,7 @@ import {
   makeDriverEnRouteController,
   makeGetRideController,
   makeListRidesController,
+  makeRideEventsController,
   makeStartRideController,
   type RideHttpContext,
 } from './interface/rides.controller.js';
@@ -38,7 +36,6 @@ export interface RidesContainerDeps extends RideHttpContext {
   walletRepo: WalletRepositoryPort;
   pricingConfigRepo: PricingConfigRepositoryPort;
   tokenSecret: string;
-  quoteStateVerifier?: QuoteStateVerifier | undefined;
   notifier?: RideNotifierPort | undefined;
   /** Secret used to derive rider-visible pickup OTPs. */
   pickupOtpSecret?: string | undefined;
@@ -71,7 +68,6 @@ export function buildRidesContainer(deps: RidesContainerDeps): RidesContainer {
     rideRepo,
     pricingConfigRepo: deps.pricingConfigRepo,
     tokenSecret: deps.tokenSecret,
-    quoteStateVerifier: deps.quoteStateVerifier,
   });
   const acceptRideUseCase = new AcceptRideUseCase({ rideRepo, walletRepo, otpSecret: deps.pickupOtpSecret });
   const driverEnRouteUseCase = new DriverEnRouteUseCase({ rideRepo, rideEventRepo });
@@ -106,13 +102,14 @@ export function buildRidesContainer(deps: RidesContainerDeps): RidesContainer {
     buildRidesRouter: (auth) =>
       buildRidesRouter({
         authenticate: auth.authenticate,
-        requireRider: auth.requireRole('RIDER'),
-        requireDriver: auth.requireRole('DRIVER'),
+        requireRider: auth.requireRole('RIDER', ...ADMIN_ROLES),
+        requireDriver: auth.requireRole('DRIVER', ...ADMIN_ROLES),
         requireCanRead: auth.requireRole('RIDER', 'DRIVER', ...ADMIN_ROLES),
         requireCanCancel: auth.requireRole('RIDER', 'DRIVER', ...ADMIN_ROLES),
         createRide: makeCreateRideController(createRideUseCase, actors),
         listRides: makeListRidesController(rideRepo, actors),
         getRide: makeGetRideController(rideRepo, actors),
+        getRideEvents: makeRideEventsController(rideRepo, rideEventRepo, actors),
         acceptRide: makeAcceptRideController(acceptRideUseCase, actors),
         driverEnRoute: makeDriverEnRouteController(driverEnRouteUseCase, actors),
         driverArrived: makeDriverArrivedController(driverArrivedUseCase, actors),

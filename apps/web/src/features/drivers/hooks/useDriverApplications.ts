@@ -1,17 +1,17 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import type { DriverApplicationStatus } from '@cabzone/contracts';
 import {
   driversApi,
   type DriverApplicationSummaryDto,
+  type ListDriverApplicationsQuery,
   type ReviewApplicationBody,
 } from '@/lib/api/endpoints/drivers';
 import { authedQueryOptions } from '@/lib/query/factory';
 import { keys, staleTime } from '@/lib/query/keys';
 import { useApiMutation } from '@/lib/query/mutation';
 
-export function useDriverApplications(filter: { status?: DriverApplicationStatus; limit: number }) {
+export function useDriverApplications(filter: ListDriverApplicationsQuery = {}) {
   return useQuery(
     authedQueryOptions<DriverApplicationSummaryDto[]>({
       queryKey: keys.drivers.applications(filter),

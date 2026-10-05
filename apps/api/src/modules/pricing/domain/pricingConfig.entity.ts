@@ -1,17 +1,24 @@
 import type {
+  PricingConfigLevel,
   PricingConfigStatus,
+  StateDistanceBreakdown,
   VehicleCategory,
 } from '@cabzone/contracts';
 
 export interface PricingConfigEntity {
   id: string;
-  cityZoneId: string;
+  level: PricingConfigLevel;
+  cityZoneId: string | null;
+  stateCode: string | null;
+  stateName?: string | null;
   version: number;
   vehicleType: VehicleCategory;
   baseFarePaise: number;
   ratePerKmPaise: number;
   minimumFarePaise: number;
-  includedDistanceM: number;
+  outstationBaseFarePaise: number;
+  outstationRatePerKmPaise: number;
+  outstationMinimumFarePaise: number;
   bufferSurchargePaise: number;
   negotiationFloorPercent: number;
   negotiationCeilingPercent: number;
@@ -38,12 +45,41 @@ export function isPricingConfigEffective(
 export function calculateBaseFareEstimate(opts: {
   config: PricingConfigEntity;
   distanceM: number;
+  serviceType: 'CITY' | 'OUTSTATION';
   isBufferFallback?: boolean;
+  stateBreakdown?: StateDistanceBreakdown[];
+  stateRateResolver?: (stateCode: string) => number | null;
 }): number {
-  const { config, distanceM, isBufferFallback = false } = opts;
-  const billableDistanceM = Math.max(0, distanceM - config.includedDistanceM);
-  const distanceFarePaise = Math.round((billableDistanceM / 1000) * config.ratePerKmPaise);
-  const bufferSurcharge = isBufferFallback ? config.bufferSurchargePaise : 0;
-  const subtotal = config.baseFarePaise + distanceFarePaise + bufferSurcharge;
-  return Math.max(config.minimumFarePaise, subtotal);
+  const { config, distanceM, serviceType, isBufferFallback = false, stateBreakdown, stateRateResolver } = opts;
+
+  const baseFarePaise =
+    serviceType === 'OUTSTATION' ? config.outstationBaseFarePaise : config.baseFarePaise;
+  const defaultRatePerKmPaise =
+    serviceType === 'OUTSTATION' ? config.outstationRatePerKmPaise : config.ratePerKmPaise;
+  const minimumFarePaise =
+    serviceType === 'OUTSTATION' ? config.outstationMinimumFarePaise : config.minimumFarePaise;
+
+  let distanceFarePaise = 0;
+
+  if (
+    serviceType === 'OUTSTATION' &&
+    stateBreakdown &&
+    stateBreakdown.length > 0 &&
+    typeof stateRateResolver === 'function'
+  ) {
+    for (const segment of stateBreakdown) {
+      const stateRate = stateRateResolver(segment.stateCode) ?? defaultRatePerKmPaise;
+      const segFare = Math.round((segment.distanceM / 1000) * stateRate);
+      segment.ratePerKmPaise = stateRate;
+      segment.distanceFarePaise = segFare;
+      distanceFarePaise += segFare;
+    }
+  } else {
+    distanceFarePaise = Math.round((distanceM / 1000) * defaultRatePerKmPaise);
+  }
+
+  const bufferSurcharge = isBufferFallback && serviceType === 'CITY' ? config.bufferSurchargePaise : 0;
+  const subtotal = baseFarePaise + distanceFarePaise + bufferSurcharge;
+  return Math.max(minimumFarePaise, subtotal);
 }
+

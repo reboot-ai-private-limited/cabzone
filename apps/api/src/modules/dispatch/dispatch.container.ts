@@ -15,12 +15,19 @@ import { ListDriverOffersUseCase } from './application/useCases/listDriverOffers
 import { SetDriverStatusUseCase } from './application/useCases/setDriverStatus.usecase.js';
 import { UpdateDriverLocationUseCase } from './application/useCases/updateDriverLocation.usecase.js';
 import type { DriverPresencePort } from './domain/presence.port.js';
+import { ListFleetDriversUseCase } from './application/useCases/listFleetDrivers.usecase.js';
+import { SimulateFleetUseCase } from './application/useCases/simulateFleet.usecase.js';
 import {
   makeListOffersController,
   makeSetStatusController,
   makeUpdateLocationController,
 } from './interface/dispatch.controller.js';
+import {
+  makeListFleetController,
+  makeSimulateFleetController,
+} from './interface/adminDispatch.controller.js';
 import { buildDispatchRouter } from './interface/dispatch.routes.js';
+import { buildAdminDispatchRouter } from './interface/adminDispatch.routes.js';
 
 export interface DispatchContainerDeps {
   presence: DriverPresencePort;
@@ -36,7 +43,13 @@ export interface DispatchContainer {
   /** Plug into the rides container so ride state changes reach clients in realtime. */
   notifier: RideRealtimeNotifier;
   listDriverOffersUseCase: ListDriverOffersUseCase;
+  listFleetDriversUseCase: ListFleetDriversUseCase;
+  simulateFleetUseCase: SimulateFleetUseCase;
   buildDispatchRouter: (auth: {
+    authenticate: RequestHandler;
+    requireRole: (...roles: AuthRole[]) => RequestHandler;
+  }) => Router;
+  buildAdminDispatchRouter: (auth: {
     authenticate: RequestHandler;
     requireRole: (...roles: AuthRole[]) => RequestHandler;
   }) => Router;
@@ -63,10 +76,19 @@ export function buildDispatchContainer(deps: DispatchContainerDeps): DispatchCon
     config,
   );
 
+  const listFleetDriversUseCase = new ListFleetDriversUseCase(
+    deps.presence,
+    deps.rideRepo,
+    deps.lookups,
+  );
+  const simulateFleetUseCase = new SimulateFleetUseCase(deps.presence);
+
   return {
     presence: deps.presence,
     notifier,
     listDriverOffersUseCase,
+    listFleetDriversUseCase,
+    simulateFleetUseCase,
     buildDispatchRouter: (auth) =>
       buildDispatchRouter({
         authenticate: auth.authenticate,
@@ -74,6 +96,13 @@ export function buildDispatchContainer(deps: DispatchContainerDeps): DispatchCon
         setStatus: makeSetStatusController(setStatus),
         updateLocation: makeUpdateLocationController(updateLocation),
         listOffers: makeListOffersController(listDriverOffersUseCase),
+      }),
+    buildAdminDispatchRouter: (auth) =>
+      buildAdminDispatchRouter({
+        authenticate: auth.authenticate,
+        requireAdminRole: auth.requireRole('SUPER_ADMIN', 'CITY_ADMIN', 'SUPPORT_ADMIN'),
+        listFleet: makeListFleetController(listFleetDriversUseCase),
+        simulateFleet: makeSimulateFleetController(simulateFleetUseCase),
       }),
   };
 }

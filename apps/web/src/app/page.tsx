@@ -1,17 +1,5 @@
+import { redirect } from 'next/navigation';
+
 export default function HomePage() {
-  return (
-    <main className="flex min-h-screen flex-col items-center justify-center p-8">
-      <div className="max-w-md w-full rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900">Cabzonee Admin Console</h1>
-        <p className="mt-2 text-sm text-slate-600">
-          Clean Architecture Monorepo initialized successfully.
-        </p>
-        <div className="mt-6 flex flex-col gap-2">
-          <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-3 text-sm text-emerald-800">
-            System status: <span className="font-semibold">Ready</span>
-          </div>
-        </div>
-      </div>
-    </main>
-  );
+  redirect('/admins');
 }

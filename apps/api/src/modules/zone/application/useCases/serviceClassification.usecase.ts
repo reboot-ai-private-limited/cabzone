@@ -1,38 +1,30 @@
 import type {
   GeoPoint,
-  RouteStateSegmentDto,
+  ResolvedLocationDetails,
   ServiceClassificationDto,
   ServiceClassificationType,
   VehicleCategory,
 } from '@cabzone/contracts';
 import { AppError } from '../../../../shared/errors/AppError.js';
 import { isPointInPolygon } from '../../domain/index.js';
+import { isPointInIndia } from '@cabzone/geo';
 import type { ResolveZonesUseCase } from './resolveZones.usecase.js';
 
 export interface ClassifyServiceInput {
   pickup: GeoPoint;
   drop: GeoPoint;
-  routeStateSegments?: RouteStateSegmentDto[] | undefined;
   requestedService?: ServiceClassificationType | undefined;
   vehicleCategory?: VehicleCategory | undefined;
 }
 
-/** A state as resolved from a point; structurally what the state boundary module returns. */
-export interface GuardedState {
-  stateCode: string;
-  boundaryVersion: number;
-  configVersion: number;
-  intrastateEnabled: boolean;
-  interstateDropOffEnabled: boolean;
-}
-
-/** Rejects trips whose pickup or drop is outside the serviceable area (throws NOT_SERVICEABLE). */
-export interface ServiceabilityGuard {
-  execute(pickup: GeoPoint, drop: GeoPoint): Promise<{ pickup: GuardedState; drop: GuardedState }>;
+/** Resolves geographic and state details for points. Display and classification only. */
+export interface DestinationStateResolver {
+  execute(point: GeoPoint): Promise<string | null>;
+  resolveLocation?(point: GeoPoint): Promise<ResolvedLocationDetails>;
 }
 
 export interface ServiceClassificationDeps {
-  serviceabilityGuard?: ServiceabilityGuard | undefined;
+  destinationStateResolver?: DestinationStateResolver | undefined;
   resolveZonesUseCase: ResolveZonesUseCase;
   globalDefaultBufferM?: number | undefined;
 }
@@ -41,54 +33,120 @@ export class ServiceClassificationUseCase {
   constructor(private readonly deps: ServiceClassificationDeps) {}
 
   async execute(input: ClassifyServiceInput): Promise<ServiceClassificationDto> {
-    const states = await this.deps.serviceabilityGuard?.execute(input.pickup, input.drop);
+    // 0. Sovereign Domestic Boundary Restriction: strictly within India
+    const pickupCheck = isPointInIndia(input.pickup);
+    if (!pickupCheck.inside) {
+      throw AppError.badRequest(
+        `OUTSIDE_INDIA: Pickup location must be within India. ${pickupCheck.reason ?? 'Cabzone operates strictly within Indian sovereign territory.'}`,
+      );
+    }
+    const dropCheck = isPointInIndia(input.drop);
+    if (!dropCheck.inside) {
+      throw AppError.badRequest(
+        `OUTSIDE_INDIA: Drop location must be within India. ${dropCheck.reason ?? 'Cross-border trips are strictly prohibited.'}`,
+      );
+    }
 
-    const segments = input.routeStateSegments ?? [];
-
-    // 1. Check Interstate via route state segments
-    const distinctStates = new Set(
-      segments.map((s) => s.stateCode.trim().toUpperCase()).filter(Boolean),
-    );
-
-    // 2. Resolve geographic zones
+    // 1. Resolve geographic zones
     const resolved = await this.deps.resolveZonesUseCase.execute({
       pickup: input.pickup,
       drop: input.drop,
     });
 
     const originCity = resolved.city;
+    const pricingCity = resolved.city ?? resolved.nearestCity;
 
-    let geoRecommendedType: ServiceClassificationType;
+    // 2. CITY vs OUTSTATION, before any state resolution.
+    let isCity: boolean;
     let bufferApplied = false;
 
-    // The route's states are authoritative when known; otherwise fall back to the endpoints' states.
-    const crossesStates =
-      distinctStates.size > 1 ||
-      (states !== undefined && states.pickup.stateCode !== states.drop.stateCode);
-
-    if (crossesStates) {
-      geoRecommendedType = 'INTERSTATE';
-    } else if (!originCity) {
-      geoRecommendedType = 'OUTSTATION';
+    if (!originCity) {
+      if (resolved.isWithinBuffer && pricingCity) {
+        // Pickup is outside city polygon, but within nearest city's buffer distance,
+        // and drop is inside or within buffer of the same city -> IN_CITY with buffer surcharge
+        isCity = true;
+        bufferApplied = true;
+      } else {
+        isCity = false;
+      }
     } else {
       const dropInsideOriginCity = isPointInPolygon(input.drop, originCity.boundary);
       if (dropInsideOriginCity) {
-        geoRecommendedType = 'IN_CITY';
-        bufferApplied = false;
+        isCity = true;
       } else if (resolved.destinationCity && resolved.destinationCity.id !== originCity.id) {
         // Drop is inside another operational city boundary -> OUTSTATION
-        geoRecommendedType = 'OUTSTATION';
-        bufferApplied = false;
+        isCity = false;
       } else if (resolved.isWithinBuffer) {
-        geoRecommendedType = 'IN_CITY';
+        isCity = true;
         bufferApplied = true;
       } else {
-        geoRecommendedType = 'OUTSTATION';
-        bufferApplied = false;
+        isCity = false;
       }
     }
 
-    // 3. Enforce vehicle category constraints (E-Rickshaw = City only)
+    // 3. Resolve origin/destination state & country codes for outstation trips — display-only, never
+    // gates serviceability or pricing.
+    let originStateCode: string | null = null;
+    let destinationStateCode: string | null = null;
+    let originCountryCode: string | null = null;
+    let destinationCountryCode: string | null = null;
+    let originCityName: string | null = pricingCity?.name ?? null;
+    let destinationCityName: string | null = resolved.destinationCity?.name ?? null;
+
+    if (!isCity) {
+      if (this.deps.destinationStateResolver?.resolveLocation) {
+        const originLoc = await this.deps.destinationStateResolver.resolveLocation(input.pickup);
+        originStateCode = originLoc.stateCode ?? pricingCity?.stateCode ?? null;
+        originCountryCode = originLoc.countryCode ?? 'IN';
+        if (originLoc.city) originCityName = originLoc.city;
+      } else {
+        originStateCode = pricingCity?.stateCode ?? null;
+        originCountryCode = 'IN';
+      }
+
+      if (resolved.destinationCity) {
+        destinationStateCode = resolved.destinationCity.stateCode;
+        destinationCountryCode = 'IN';
+        destinationCityName = resolved.destinationCity.name;
+      } else if (this.deps.destinationStateResolver?.resolveLocation) {
+        const dropLoc = await this.deps.destinationStateResolver.resolveLocation(input.drop);
+        destinationStateCode = dropLoc.stateCode;
+        destinationCountryCode = dropLoc.countryCode ?? 'IN';
+        if (dropLoc.city) destinationCityName = dropLoc.city;
+      } else {
+        destinationStateCode =
+          (await this.deps.destinationStateResolver?.execute(input.drop)) ?? null;
+        destinationCountryCode = 'IN';
+      }
+    } else {
+      originStateCode = pricingCity?.stateCode ?? null;
+      destinationStateCode = null;
+      originCountryCode = 'IN';
+      destinationCountryCode = 'IN';
+    }
+
+    if (originCountryCode && originCountryCode !== 'IN') {
+      throw AppError.badRequest(
+        'OUTSIDE_INDIA: Pickup location must be within India. Cabzone operates strictly within Indian sovereign territory.',
+      );
+    }
+    if (destinationCountryCode && destinationCountryCode !== 'IN') {
+      throw AppError.badRequest(
+        'OUTSIDE_INDIA: Drop location must be within India. Cross-border trips are strictly prohibited.',
+      );
+    }
+
+    const crossesStates = Boolean(
+      originStateCode && destinationStateCode && originStateCode !== destinationStateCode,
+    );
+
+    const geoRecommendedType: ServiceClassificationType = isCity
+      ? 'IN_CITY'
+      : crossesStates
+        ? 'INTERSTATE'
+        : 'OUTSTATION';
+
+    // 4. Enforce vehicle category constraints (E-Rickshaw = City only)
     if (input.vehicleCategory === 'E_RICKSHAW') {
       if (input.requestedService && input.requestedService !== 'IN_CITY') {
         throw AppError.badRequest(
@@ -102,38 +160,33 @@ export class ServiceClassificationUseCase {
       }
     }
 
-    // 4. Rider product selection authority (no silent auto-switch)
+    // 5. Rider product selection authority (no silent auto-switch)
     const finalType = input.requestedService ?? geoRecommendedType;
     const hasDiscrepancy = Boolean(
       input.requestedService && input.requestedService !== geoRecommendedType,
     );
 
-    // 5. Route scope and state serviceability. City trips need no state configuration.
     const serviceType = finalType === 'IN_CITY' ? 'CITY' : 'OUTSTATION';
-    const routeScope = serviceType === 'CITY' ? null : crossesStates ? 'INTERSTATE' : 'INTRA_STATE';
-    if (states !== undefined && routeScope === 'INTRA_STATE' && !states.drop.intrastateEnabled) {
-      throw AppError.badRequest(
-        'INTRASTATE_SERVICE_DISABLED: Outstation trips within this state are not available right now.',
-      );
-    }
-    if (states !== undefined && routeScope === 'INTERSTATE' && !states.drop.interstateDropOffEnabled) {
-      throw AppError.badRequest(
-        'INTERSTATE_SERVICE_DISABLED: Drop-offs in the destination state are not available right now.',
-      );
-    }
+    const routeScope =
+      serviceType === 'CITY' || !originStateCode || !destinationStateCode
+        ? null
+        : originStateCode === destinationStateCode
+          ? 'INTRA_STATE'
+          : 'INTERSTATE';
 
     return {
       serviceType,
       routeScope,
-      originStateCode: states?.pickup.stateCode ?? null,
-      destinationStateCode: states?.drop.stateCode ?? null,
-      stateBoundaryVersion: states?.drop.boundaryVersion ?? null,
-      stateConfigVersion: states?.drop.configVersion ?? null,
+      originStateCode,
+      destinationStateCode,
+      originCountryCode,
+      destinationCountryCode,
+      originCityName,
+      destinationCityName,
       type: finalType,
-      cityZoneId: originCity?.id ?? null,
-      cityName: originCity?.name ?? null,
+      cityZoneId: pricingCity?.id ?? null,
+      cityName: pricingCity?.name ?? null,
       bufferApplied,
-      stateSegments: segments,
       requestedService: input.requestedService ?? null,
       recommendedService: hasDiscrepancy ? geoRecommendedType : null,
       discrepancyNotice: hasDiscrepancy

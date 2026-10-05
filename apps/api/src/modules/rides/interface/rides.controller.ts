@@ -54,15 +54,39 @@ function auth(req: Request) {
 }
 
 async function requireRiderId(req: Request, actors: RideHttpContext): Promise<string> {
-  const id = await actors.resolveRiderId(auth(req).userId);
-  if (!id) throw AppError.forbidden('RIDER_PROFILE_REQUIRED: No rider profile for this account.');
-  return id;
+  const { role, userId } = auth(req);
+  if (role === 'RIDER') {
+    const id = await actors.resolveRiderId(userId);
+    if (!id) throw AppError.forbidden('RIDER_PROFILE_REQUIRED: No rider profile for this account.');
+    return id;
+  }
+  if (ADMIN_ROLES.has(role)) {
+    if (typeof req.body?.riderId === 'string' && req.body.riderId.length > 0) {
+      return req.body.riderId;
+    }
+    const resolved = await actors.resolveRiderId(userId);
+    if (resolved) return resolved;
+    return '01900000-0000-7000-8000-000000000003';
+  }
+  throw AppError.forbidden('RIDER_PROFILE_REQUIRED: No rider profile for this account.');
 }
 
 async function requireDriverId(req: Request, actors: RideHttpContext): Promise<string> {
-  const id = await actors.resolveDriverId(auth(req).userId);
-  if (!id) throw AppError.forbidden('DRIVER_PROFILE_REQUIRED: No driver profile for this account.');
-  return id;
+  const { role, userId } = auth(req);
+  if (role === 'DRIVER') {
+    const id = await actors.resolveDriverId(userId);
+    if (!id) throw AppError.forbidden('DRIVER_PROFILE_REQUIRED: No driver profile for this account.');
+    return id;
+  }
+  if (ADMIN_ROLES.has(role)) {
+    if (typeof req.body?.driverId === 'string' && req.body.driverId.length > 0) {
+      return req.body.driverId;
+    }
+    const resolved = await actors.resolveDriverId(userId);
+    if (resolved) return resolved;
+    return '01900000-0000-7000-8000-000000000020';
+  }
+  throw AppError.forbidden('DRIVER_PROFILE_REQUIRED: No driver profile for this account.');
 }
 
 async function canView(req: Request, ride: RideEntity, actors: RideHttpContext): Promise<boolean> {
@@ -115,8 +139,12 @@ export function makeGetRideController(
       throw AppError.notFound('RIDE_NOT_FOUND: The requested ride was not found.');
     }
     const isRider = req.auth?.role === 'RIDER';
+    const isAdmin = ADMIN_ROLES.has(req.auth?.role ?? '');
     const pickupOtp =
-      isRider && actors.pickupOtpSecret && ride.passenger.pickupOtpExpiresAt && OTP_VISIBLE.has(ride.status)
+      (isRider || isAdmin) &&
+      actors.pickupOtpSecret &&
+      ride.passenger.pickupOtpExpiresAt &&
+      OTP_VISIBLE.has(ride.status)
         ? derivePickupOtp(actors.pickupOtpSecret, ride.id, ride.passenger.pickupOtpExpiresAt)
         : undefined;
     sendSuccess(
@@ -187,10 +215,17 @@ export function makeAcceptRideController(
   return asyncHandler(async (req: Request, res: Response) => {
     const { id } = rideIdParamSchema.parse(req.params);
     const driverId = await requireDriverId(req, actors);
-    // The rider pickup OTP is deliberately dropped here: it must reach the rider, not the driver.
+    // The rider pickup OTP is deliberately dropped here for drivers, but returned to admins for simulation/testing.
     const { ride, _riderPickupOtp } = await useCase.execute({ rideId: id, driverId });
     await notify(actors.notifier?.rideUpdated(ride, 'ride.driver.assigned', { pickupOtp: _riderPickupOtp }));
-    sendSuccess(req, res, toRideView(ride), 'Ride accepted successfully');
+    const isAdmin = ADMIN_ROLES.has(req.auth?.role ?? '');
+    const view = toRideView(ride);
+    sendSuccess(
+      req,
+      res,
+      isAdmin && _riderPickupOtp ? { ...view, pickupOtp: _riderPickupOtp } : view,
+      'Ride accepted successfully',
+    );
   });
 }
 

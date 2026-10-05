@@ -56,15 +56,21 @@ export interface ReviewApplicationBody {
   rejectionReason?: string | null;
 }
 
+export interface ListDriverApplicationsQuery {
+  status?: DriverApplicationStatus | undefined;
+  limit?: number | undefined;
+  offset?: number | undefined;
+}
+
 export const driversApi = {
   listApplications: (
-    query: { status?: DriverApplicationStatus; limit: number },
+    query: ListDriverApplicationsQuery,
     token?: string,
     signal?: AbortSignal,
   ) =>
     request<DriverApplicationSummaryDto[]>('/v1/admin/driver-applications', {
       method: 'GET',
-      query: { status: query.status, limit: query.limit },
+      query: { status: query.status, limit: query.limit, offset: query.offset },
       token,
       signal,
     }),

@@ -4,13 +4,13 @@ import {
   CreateZoneUseCase,
   DeactivateZoneUseCase,
   DeleteZoneUseCase,
+  type DestinationStateResolver,
   GetZoneDependentsUseCase,
   GetZoneHistoryUseCase,
   GetZoneUseCase,
   ListZonesUseCase,
   ResolveZonesUseCase,
   ServiceClassificationUseCase,
-  type ServiceabilityGuard,
   UpdateZoneGeometryUseCase,
   UpdateZoneMetadataUseCase,
   UpdateZoneUseCase,
@@ -73,7 +73,7 @@ export interface ZoneContainerDeps {
   auditRepo?: ZoneAuditRepositoryPort | undefined;
   coverageRepo?: CoverageRequestRepositoryPort | undefined;
   globalDefaultBufferM?: number | undefined;
-  serviceabilityGuard?: ServiceabilityGuard | undefined;
+  destinationStateResolver?: DestinationStateResolver | undefined;
 }
 
 export function buildZoneContainer(deps?: ZoneContainerDeps): ZoneContainer {
@@ -114,7 +114,7 @@ export function buildZoneContainer(deps?: ZoneContainerDeps): ZoneContainer {
   const serviceClassificationUseCase = new ServiceClassificationUseCase({
     resolveZonesUseCase,
     globalDefaultBufferM: deps?.globalDefaultBufferM,
-    serviceabilityGuard: deps?.serviceabilityGuard,
+    destinationStateResolver: deps?.destinationStateResolver,
   });
 
   const createZone = makeCreateZoneController(createZoneUseCase);

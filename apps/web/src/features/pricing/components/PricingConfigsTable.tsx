@@ -4,6 +4,7 @@ import { useId, useState } from 'react';
 import { Eye, Pencil, Trash2 } from 'lucide-react';
 import type {
   PricingConfigDto,
+  PricingConfigLevel,
   PricingConfigStatus,
   VehicleCategory,
   ZoneDto,
@@ -32,10 +33,12 @@ const STATUS_TONES: Record<PricingConfigStatus, BadgeTone> = {
 };
 
 export function PricingConfigsTable() {
+  const levelFilterId = useId();
   const cityZoneFilterId = useId();
   const vehicleFilterId = useId();
   const statusFilterId = useId();
 
+  const [selectedLevel, setSelectedLevel] = useState<string>('ALL');
   const [selectedCityZoneId, setSelectedCityZoneId] = useState<string>('ALL');
   const [selectedVehicleType, setSelectedVehicleType] = useState<string>('ALL');
   const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
@@ -49,6 +52,7 @@ export function PricingConfigsTable() {
   const cityZones: ZoneDto[] = (zonesData?.zones ?? []).filter((z: ZoneDto) => z.type === 'CITY');
 
   const { data: configs, isLoading, isFetching } = usePricingConfigs({
+    level: selectedLevel === 'ALL' ? undefined : (selectedLevel as PricingConfigLevel),
     cityZoneId: selectedCityZoneId === 'ALL' ? undefined : selectedCityZoneId,
     vehicleType: selectedVehicleType === 'ALL' ? undefined : (selectedVehicleType as VehicleCategory),
     status: selectedStatus === 'ALL' ? undefined : (selectedStatus as PricingConfigStatus),
@@ -61,18 +65,42 @@ export function PricingConfigsTable() {
     setDeletingConfig(null);
   });
 
-  const getCityZoneName = (zoneId: string) => {
+  const getCityZoneName = (zoneId: string | null) => {
+    if (!zoneId) return '—';
     const found = cityZones.find((z: ZoneDto) => z.id === zoneId);
     return found ? `${found.name} (${found.code})` : zoneId;
   };
 
   const columns: Column<PricingConfigDto>[] = [
     {
-      key: 'cityZone',
-      header: 'City Zone',
-      render: (row) => (
-        <span className="font-semibold text-text text-sm">{getCityZoneName(row.cityZoneId)}</span>
-      ),
+      key: 'scope',
+      header: 'Scope / Territory',
+      render: (row) => {
+        if (row.level === 'GLOBAL' || (!row.cityZoneId && !row.stateCode)) {
+          return (
+            <div className="flex items-center gap-1.5">
+              <Badge tone="neutral">GLOBAL</Badge>
+              <span className="text-xs text-text-subtle font-medium">Pan-India Default</span>
+            </div>
+          );
+        }
+        if (row.level === 'STATE' || row.stateCode) {
+          return (
+            <div className="flex items-center gap-1.5">
+              <Badge tone="info">STATE</Badge>
+              <span className="text-sm font-semibold text-text">
+                {row.stateName ? `${row.stateName} (${row.stateCode})` : row.stateCode}
+              </span>
+            </div>
+          );
+        }
+        return (
+          <div className="flex items-center gap-1.5">
+            <Badge tone="warning">CITY</Badge>
+            <span className="font-semibold text-text text-sm">{getCityZoneName(row.cityZoneId)}</span>
+          </div>
+        );
+      },
     },
     {
       key: 'status',
@@ -96,11 +124,21 @@ export function PricingConfigsTable() {
     },
     {
       key: 'ratePerKm',
-      header: 'Rate / km',
+      header: 'City Rate',
       numeric: true,
       render: (row) => (
         <span className="font-mono text-sm text-text font-medium whitespace-nowrap">
           {formatPaise(row.ratePerKmPaise)}/km
+        </span>
+      ),
+    },
+    {
+      key: 'outstationRatePerKm',
+      header: 'Outstation Rate',
+      numeric: true,
+      render: (row) => (
+        <span className="font-mono text-sm text-text font-medium whitespace-nowrap">
+          {formatPaise(row.outstationRatePerKmPaise)}/km
         </span>
       ),
     },
@@ -164,6 +202,13 @@ export function PricingConfigsTable() {
     },
   ];
 
+  const levelFilterOptions = [
+    { value: 'ALL', label: 'All Scopes' },
+    { value: 'GLOBAL', label: '🌍 Global Default' },
+    { value: 'STATE', label: '🏛️ State Level' },
+    { value: 'CITY', label: '🏙️ City Zone' },
+  ];
+
   const cityZoneFilterOptions = [
     { value: 'ALL', label: 'All City Zones' },
     ...cityZones.map((z: ZoneDto) => ({ value: z.id, label: `${z.name} (${z.code})` })),
@@ -185,6 +230,18 @@ export function PricingConfigsTable() {
     <div className="flex flex-col gap-4">
       {/* Filters Bar */}
       <div className="flex flex-wrap items-center gap-5 p-4 rounded-md bg-surface border border-border">
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-text-subtle">Scope:</span>
+          <div className="w-48">
+            <Select
+              id={levelFilterId}
+              value={selectedLevel}
+              onValueChange={setSelectedLevel}
+              options={levelFilterOptions}
+            />
+          </div>
+        </div>
+
         <div className="flex items-center gap-2">
           <span className="text-sm text-text-subtle">Zone:</span>
           <div className="w-52">
@@ -263,6 +320,10 @@ export function PricingConfigsTable() {
         onActivate={(c) => {
           setViewingConfig(null);
           setActivatingConfig(c);
+        }}
+        onEdit={(c) => {
+          setViewingConfig(null);
+          setEditingConfig(c);
         }}
       />
 

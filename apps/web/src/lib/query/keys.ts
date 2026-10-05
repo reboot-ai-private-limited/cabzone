@@ -18,11 +18,6 @@ export const keys = {
     validate: (fingerprint: string) => ['zones', 'validate', fingerprint] as const,
     history: (id: string) => ['zones', 'history', id] as const,
   },
-  states: {
-    all: () => ['states'] as const,
-    admin: () => ['states', 'admin'] as const,
-    history: (code: string) => ['states', 'history', code] as const,
-  },
   packages: {
     all: () => ['packages'] as const,
     incityList: (query?: unknown) => ['packages', 'incity', query] as const,
@@ -44,6 +39,21 @@ export const keys = {
   pricing: {
     all: () => ['pricing'] as const,
     configs: (query?: unknown) => ['pricing', 'configs', query] as const,
-    states: (status?: string) => ['pricing', 'states', status] as const,
+  },
+  riders: {
+    all: () => ['riders'] as const,
+    list: (query?: unknown) => ['riders', 'list', query] as const,
+    detail: (id: string) => ['riders', 'detail', id] as const,
+    rides: (riderId: string) => ['riders', 'rides', riderId] as const,
+  },
+  admins: {
+    all: () => ['admins'] as const,
+    list: (query?: unknown) => ['admins', 'list', query] as const,
+    detail: (id: string) => ['admins', 'detail', id] as const,
+    permissions: () => ['admins', 'permissions'] as const,
+  },
+  dispatch: {
+    all: () => ['dispatch'] as const,
+    fleet: (query?: unknown) => ['dispatch', 'fleet', query] as const,
   },
 };

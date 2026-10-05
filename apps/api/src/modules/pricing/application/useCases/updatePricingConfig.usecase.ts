@@ -1,6 +1,7 @@
 import type { PricingConfigDto, UpdatePricingConfigRequest } from '@cabzone/contracts';
 import { AppError } from '../../../../shared/errors/AppError.js';
 import type { PricingConfigRepositoryPort } from '../../domain/index.js';
+import { getStateNameFromCode } from '@cabzone/geo';
 import { toPricingConfigDto } from './createPricingConfig.usecase.js';
 
 export class UpdatePricingConfigUseCase {
@@ -18,6 +19,15 @@ export class UpdatePricingConfigUseCase {
       throw AppError.badRequest('minimumFarePaise must be greater than or equal to baseFarePaise');
     }
 
+    const outstationBaseFarePaise = patch.outstationBaseFarePaise ?? config.outstationBaseFarePaise;
+    const outstationMinimumFarePaise =
+      patch.outstationMinimumFarePaise ?? config.outstationMinimumFarePaise;
+    if (outstationMinimumFarePaise < outstationBaseFarePaise) {
+      throw AppError.badRequest(
+        'outstationMinimumFarePaise must be greater than or equal to outstationBaseFarePaise',
+      );
+    }
+
     const negotiationFloorPercent = patch.negotiationFloorPercent ?? config.negotiationFloorPercent;
     const negotiationCeilingPercent =
       patch.negotiationCeilingPercent ?? config.negotiationCeilingPercent;
@@ -30,13 +40,42 @@ export class UpdatePricingConfigUseCase {
     config.baseFarePaise = baseFarePaise;
     config.ratePerKmPaise = patch.ratePerKmPaise ?? config.ratePerKmPaise;
     config.minimumFarePaise = minimumFarePaise;
-    config.includedDistanceM = patch.includedDistanceM ?? config.includedDistanceM;
+    config.outstationBaseFarePaise = outstationBaseFarePaise;
+    config.outstationRatePerKmPaise =
+      patch.outstationRatePerKmPaise ?? config.outstationRatePerKmPaise;
+    config.outstationMinimumFarePaise = outstationMinimumFarePaise;
     config.bufferSurchargePaise = patch.bufferSurchargePaise ?? config.bufferSurchargePaise;
     config.negotiationFloorPercent = negotiationFloorPercent;
     config.negotiationCeilingPercent = negotiationCeilingPercent;
     config.negotiationWindowSeconds = patch.negotiationWindowSeconds ?? config.negotiationWindowSeconds;
     config.commissionPercent = patch.commissionPercent ?? config.commissionPercent;
     config.effectiveFrom = patch.effectiveFrom ? new Date(patch.effectiveFrom) : config.effectiveFrom;
+
+    if (patch.stateCode !== undefined && config.level === 'STATE') {
+      config.stateCode = patch.stateCode ? patch.stateCode.toUpperCase() : null;
+      config.stateName = config.stateCode ? (getStateNameFromCode(config.stateCode) ?? config.stateCode) : null;
+    }
+    if (patch.status !== undefined) {
+      if (patch.status === 'ACTIVE' && config.status !== 'ACTIVE') {
+        const now = new Date();
+        const activeExisting = await this.pricingConfigRepo.findEffectiveConfig(
+          {
+            cityZoneId: config.cityZoneId,
+            stateCode: config.stateCode,
+          },
+          config.vehicleType,
+          now,
+        );
+        if (activeExisting && activeExisting.id !== config.id && activeExisting.level === config.level) {
+          activeExisting.status = 'RETIRED';
+          activeExisting.effectiveTo = now;
+          await this.pricingConfigRepo.save(activeExisting);
+        }
+        config.effectiveFrom = now;
+        config.effectiveTo = null;
+      }
+      config.status = patch.status;
+    }
 
     const saved = await this.pricingConfigRepo.save(config);
     return toPricingConfigDto(saved);

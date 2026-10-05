@@ -37,4 +37,13 @@ export interface RideRepositoryPort {
     riderId: string,
     sinceDate: Date,
   ): Promise<number>;
+  getRiderStats(riderId: string): Promise<{
+    totalRides: number;
+    completedRides: number;
+    cancelledRides: number;
+    totalSpentPaise: number;
+  }>;
+  getRiderTripCountsBatch(
+    riderIds: string[],
+  ): Promise<Map<string, { totalRides: number; completedRides: number }>>;
 }
