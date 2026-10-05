@@ -20,7 +20,6 @@ export function RiderEditDialog({
 }: RiderEditDialogProps) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [preferredLanguage, setPreferredLanguage] = useState('en');
   const [emergencyName, setEmergencyName] = useState('');
   const [emergencyPhone, setEmergencyPhone] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
@@ -29,7 +28,6 @@ export function RiderEditDialog({
     if (rider) {
       setName(rider.name ?? '');
       setEmail(rider.email ?? '');
-      setPreferredLanguage(rider.preferredLanguage ?? 'en');
       setEmergencyName(rider.emergencyContact?.name ?? '');
       setEmergencyPhone(rider.emergencyContact?.phoneE164 ?? '');
       setFormError(null);
@@ -68,7 +66,6 @@ export function RiderEditDialog({
       body: {
         name: name.trim() || null,
         email: email.trim() || null,
-        preferredLanguage: preferredLanguage.trim() || null,
         emergencyContact,
       },
     });
@@ -142,17 +139,6 @@ export function RiderEditDialog({
             )}
           </FormField>
 
-          <FormField label="Preferred Language">
-            {({ id, invalid }) => (
-              <Input
-                id={id}
-                invalid={invalid}
-                value={preferredLanguage}
-                onChange={(e) => setPreferredLanguage(e.target.value)}
-                placeholder="e.g. en, hi, bn"
-              />
-            )}
-          </FormField>
         </div>
 
         <div className="mt-2 pt-3 border-t border-border flex flex-col gap-3">

@@ -3,6 +3,7 @@ import {
   PAYMENT_METHODS,
   PAYMENT_STATUSES,
   TRANSACTION_REFERENCE_TYPES,
+  WALLET_OWNER_TYPES,
   WALLET_STATUSES,
   WALLET_TRANSACTION_TYPES,
 } from '@cabzone/contracts';
@@ -17,11 +18,42 @@ export const rechargeWalletSchema = z.object({
   idempotencyKey: z.string().trim().min(8).max(128).optional(),
 });
 
-export const adminAdjustWalletSchema = z.object({
-  driverId: z.string().uuid('Invalid driverId UUID'),
-  amountPaise: z.number().int().positive('Amount must be positive'),
-  type: z.enum(['CREDIT', 'DEBIT'] as const),
-  reason: z.string().trim().min(5, 'Reason must be at least 5 characters').max(255),
+export const adminAdjustWalletSchema = z
+  .object({
+    driverId: z.string().uuid('Invalid driverId UUID').optional(),
+    riderId: z.string().uuid('Invalid riderId UUID').optional(),
+    walletId: z.string().optional(),
+    ownerType: z.enum(WALLET_OWNER_TYPES).optional(),
+    amountPaise: z.number().int().positive('Amount must be positive'),
+    type: z.enum(['CREDIT', 'DEBIT'] as const),
+    reason: z.string().trim().min(5, 'Reason must be at least 5 characters').max(255),
+  })
+  .refine((data) => data.driverId || data.riderId || data.walletId, {
+    message: 'Must provide driverId, riderId, or walletId',
+  });
+
+export const listWalletsQuerySchema = z.object({
+  type: z.enum(['DRIVER', 'RIDER']).optional(),
+  search: z.string().trim().optional(),
+  status: z.enum(['ALL', 'ACTIVE', 'BLOCKED', 'OWED', 'CREDIT']).optional(),
+  balanceFilter: z.enum(['ALL', 'OWING', 'PAYABLE', 'ZERO']).optional(),
+  suspendedFilter: z.enum(['ANY', 'SUSPENDED', 'NOT_SUSPENDED']).optional(),
+  sortBy: z.enum(['DEEPEST_DEBT', 'HIGHEST_BALANCE', 'LIFETIME_EARNINGS', 'RECENT_ENTRY']).optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+  offset: z.coerce.number().int().min(0).default(0),
+});
+
+export const listTransactionsQuerySchema = z.object({
+  walletId: z.string().optional(),
+  ownerId: z.string().optional(),
+  driverId: z.string().optional(),
+  riderId: z.string().optional(),
+  ownerType: z.enum(WALLET_OWNER_TYPES).optional(),
+  type: z.enum(WALLET_TRANSACTION_TYPES).optional(),
+  referenceType: z.enum(TRANSACTION_REFERENCE_TYPES).optional(),
+  search: z.string().trim().optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+  offset: z.coerce.number().int().min(0).default(0),
 });
 
 export const recordPaymentSchema = z.object({

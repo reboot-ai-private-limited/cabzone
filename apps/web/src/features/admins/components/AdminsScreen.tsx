@@ -6,12 +6,10 @@ import {
   Calendar,
   Check,
   CheckCircle2,
-  Clock,
   Copy,
   Edit2,
   Globe,
   Headphones,
-  KeyRound,
   Phone,
   RefreshCw,
   ShieldAlert,
@@ -22,7 +20,6 @@ import {
   Wallet,
 } from 'lucide-react';
 import {
-  Badge,
   Button,
   type Column,
   DataTable,
@@ -76,19 +73,6 @@ const formatDate = (iso: string | null): string => {
   } catch {
     return iso;
   }
-};
-
-const formatTimeAgo = (iso: string | null): string => {
-  if (!iso) return '—';
-  const diff = Date.now() - new Date(iso).getTime();
-  const mins = Math.floor(diff / (1000 * 60));
-  if (mins < 60) return `${mins}m ago`;
-  const hours = Math.floor(mins / (1000 * 60 * 60));
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  if (days < 30) return `${days}d ago`;
-  const months = Math.floor(days / 30);
-  return `${months}mo ago`;
 };
 
 const formatPhone = (phone: string | null): string => {
@@ -400,10 +384,10 @@ export function AdminsScreen() {
   const columns: Column<AdminUserSummaryDto>[] = [
     {
       key: 'name',
-      header: 'Staff Member',
+      header: 'Name',
       render: (a) => (
         <div className="flex items-center gap-3">
-          <div className="size-10 rounded-full bg-primary/10 text-primary border border-primary/20 flex items-center justify-center shrink-0 font-bold text-sm shadow-sm">
+          <div className="size-9 rounded-full bg-surface-muted text-text border border-border-strong flex items-center justify-center shrink-0 font-bold text-xs shadow-xs">
             {a.name
               ? a.name
                   .split(' ')
@@ -415,90 +399,86 @@ export function AdminsScreen() {
           </div>
           <div className="flex flex-col min-w-0">
             <span className="text-sm font-semibold text-text truncate">
-              {a.name || 'Unnamed Operator'}
+              {a.name || 'Unnamed Admin'}
             </span>
-            <span className="text-xs text-text-subtle truncate max-w-[220px]">
-              {a.email || 'No email registered'}
-            </span>
+            {a.email && (
+              <span className="text-xs text-text-subtle truncate max-w-[200px]">
+                {a.email}
+              </span>
+            )}
           </div>
         </div>
       ),
     },
     {
+      key: 'phone',
+      header: 'Phone',
+      render: (a) => (
+        <div className="flex items-center gap-1.5 font-mono text-sm font-medium text-text">
+          <Phone className="size-3.5 text-text-subtle shrink-0" />
+          <span>{formatPhone(a.phoneE164)}</span>
+          <CopyPhoneButton phone={a.phoneE164} />
+        </div>
+      ),
+    },
+    {
       key: 'role',
-      header: 'Assigned Role',
+      header: 'Role',
       render: (a) => <AdminRoleBadge role={a.role} />,
     },
     {
       key: 'jurisdiction',
-      header: 'Territory Jurisdiction',
+      header: 'Cities',
       render: (a) => {
         if (a.role === 'SUPER_ADMIN') {
           return (
-            <div className="flex items-center gap-1.5 text-xs text-purple-700 dark:text-purple-300 font-medium">
-              <Globe className="size-3.5 text-purple-600 shrink-0" />
-              <span>Global Master Access</span>
+            <div className="flex items-center gap-1.5 text-xs text-text font-medium">
+              <Globe className="size-3.5 text-text-subtle shrink-0" />
+              <span>Global Access</span>
             </div>
           );
         }
         if (a.role === 'CITY_ADMIN') {
           return (
-            <div className="flex items-center gap-1.5 text-xs text-blue-700 dark:text-blue-300 font-medium">
-              <Building2 className="size-3.5 text-blue-600 shrink-0" />
+            <div className="flex items-center gap-1.5 text-xs text-text font-medium">
+              <Building2 className="size-3.5 text-text-subtle shrink-0" />
               <span>
                 {a.cityZoneIds.length > 0
-                  ? `${a.cityZoneIds.length} Regional ${a.cityZoneIds.length === 1 ? 'Zone' : 'Zones'}`
-                  : 'No Zones Assigned'}
+                  ? `${a.cityZoneIds.length} ${a.cityZoneIds.length === 1 ? 'City' : 'Cities'}`
+                  : 'All Cities'}
               </span>
             </div>
           );
         }
         if (a.role === 'FINANCE_ADMIN') {
           return (
-            <div className="flex items-center gap-1.5 text-xs text-amber-700 dark:text-amber-300 font-medium">
-              <Wallet className="size-3.5 text-amber-600 shrink-0" />
-              <span>Ledger & Adjustments</span>
+            <div className="flex items-center gap-1.5 text-xs text-text font-medium">
+              <Wallet className="size-3.5 text-text-subtle shrink-0" />
+              <span>Finance</span>
             </div>
           );
         }
         return (
-          <div className="flex items-center gap-1.5 text-xs text-emerald-700 dark:text-emerald-300 font-medium">
-            <Headphones className="size-3.5 text-emerald-600 shrink-0" />
-            <span>Support Desk Access</span>
+          <div className="flex items-center gap-1.5 text-xs text-text font-medium">
+            <Headphones className="size-3.5 text-text-subtle shrink-0" />
+            <span>Support</span>
           </div>
         );
       },
     },
     {
-      key: 'phone',
-      header: 'Contact Phone',
-      render: (a) => (
-        <div className="flex items-center gap-1.5">
-          <Phone className="size-3.5 text-text-subtle shrink-0" />
-          <span className="text-sm font-mono text-text">{formatPhone(a.phoneE164)}</span>
-          <CopyPhoneButton phone={a.phoneE164} />
-        </div>
-      ),
-    },
-    {
       key: 'status',
-      header: 'Account Status',
+      header: 'Status',
       render: (a) => <AdminStatusBadge status={a.status} />,
     },
     {
       key: 'createdAt',
-      header: 'Provisioned',
+      header: 'Joined',
       render: (a) => (
-        <div className="flex flex-col gap-0.5">
-          <span className="text-sm font-medium text-text flex items-center gap-1.5">
-            <Calendar className="size-3.5 text-text-subtle" />
-            {formatDate(a.createdAt)}
-          </span>
-          <span className="text-xs text-text-subtle flex items-center gap-1 mt-0.5">
-            <Clock className="size-3" />
-            {formatTimeAgo(a.createdAt)}
-          </span>
-        </div>
+        <span className="text-sm font-medium text-text flex items-center gap-1.5">
+          <Calendar className="size-3.5 text-text-subtle" />
+          {formatDate(a.createdAt)}
+        </span>
       ),
     },
     {
@@ -507,40 +487,44 @@ export function AdminsScreen() {
       align: 'right',
       render: (a) => (
         <div className="flex items-center justify-end gap-1.5">
-          <Button
-            size="sm"
-            variant="secondary"
+          <button
+            type="button"
             onClick={(e) => {
               e.stopPropagation();
               handleOpenDetail(a);
             }}
+            className="h-8 px-2.5 rounded-lg border border-border-strong bg-surface text-text hover:bg-surface-muted text-xs font-semibold transition-colors cursor-pointer"
           >
             Profile
-          </Button>
+          </button>
 
-          <Button
-            size="sm"
-            variant="secondary"
+          <button
+            type="button"
             onClick={(e) => handleOpenEdit(a, e)}
-            icon={<Edit2 className="size-3.5 text-text-subtle" />}
-            aria-label="Edit Staff Details"
-            title="Edit Staff Member"
-          />
+            aria-label="Edit Admin"
+            title="Edit Admin"
+            className="h-8 w-8 rounded-lg border border-border-strong bg-surface text-text hover:bg-surface-muted flex items-center justify-center transition-colors cursor-pointer"
+          >
+            <Edit2 className="size-3.5" />
+          </button>
 
-          <Button
-            size="sm"
-            variant={a.status === 'SUSPENDED' ? 'secondary' : 'danger'}
+          <button
+            type="button"
             onClick={(e) => handleOpenStatus(a, e)}
-            icon={
-              a.status === 'SUSPENDED' ? (
-                <UserCheck className="size-3.5 text-success" />
-              ) : (
-                <UserX className="size-3.5 text-danger" />
-              )
-            }
-            aria-label={a.status === 'SUSPENDED' ? 'Reactivate Staff' : 'Suspend Staff'}
-            title={a.status === 'SUSPENDED' ? 'Reactivate Staff' : 'Suspend Staff'}
-          />
+            aria-label={a.status === 'SUSPENDED' ? 'Reactivate Admin' : 'Suspend Admin'}
+            title={a.status === 'SUSPENDED' ? 'Reactivate Admin' : 'Suspend Admin'}
+            className={`h-8 w-8 rounded-lg border flex items-center justify-center transition-colors cursor-pointer ${
+              a.status === 'SUSPENDED'
+                ? 'border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                : 'border-border-strong bg-surface text-text-subtle hover:text-danger hover:border-danger/50 hover:bg-danger/10'
+            }`}
+          >
+            {a.status === 'SUSPENDED' ? (
+              <UserCheck className="size-3.5" />
+            ) : (
+              <UserX className="size-3.5 text-danger" />
+            )}
+          </button>
         </div>
       ),
     },
@@ -550,33 +534,21 @@ export function AdminsScreen() {
     <div className="flex flex-col gap-6 p-8 max-w-[1600px] mx-auto w-full">
       {/* Page Header */}
       <PageHeader
-        title="Staff & Role Management"
-        breadcrumbs={[{ label: 'Admin', href: '/' }, { label: 'Staff & Roles' }]}
+        title="Admin Users & Roles"
         actions={
           <div className="flex items-center gap-2">
-            {isUsingFiller && (
-              <Badge tone="warning" className="text-xs py-1 px-2.5 font-medium">
-                Demo Preview Mode
-              </Badge>
-            )}
-
-            <Button
-              variant="secondary"
-              icon={<KeyRound className="size-4" />}
-              onClick={() => setIsMatrixOpen(true)}
-            >
-              Role Matrix
-            </Button>
+           
 
             <Button
               variant="primary"
               icon={<UserPlus className="size-4" />}
               onClick={() => setIsCreateOpen(true)}
             >
-              Add Admin User
+              Add Admin
             </Button>
 
             <Button
+              variant="secondary"
               icon={<RefreshCw className={`size-4 ${query.isFetching ? 'animate-spin' : ''}`} />}
               loading={query.isFetching}
               onClick={() => {
@@ -593,34 +565,30 @@ export function AdminsScreen() {
       {/* Operational KPI Stat Tiles */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         <StatTile
-          label="Total Admin Staff"
+          label="Total Admins"
           value={kpis.total}
           icon={<Users className="size-4 text-interactive" />}
-          hint="Provisioned operator accounts"
           tone="default"
           loading={query.isLoading && !isUsingFiller}
         />
         <StatTile
-          label="Super Administrators"
+          label="Super Admins"
           value={kpis.superAdmins}
           icon={<ShieldAlert className="size-4 text-purple-600" />}
-          hint="Master system control plane"
           tone="default"
           loading={query.isLoading && !isUsingFiller}
         />
         <StatTile
-          label="City Administrators"
+          label="City Admins"
           value={kpis.cityAdmins}
           icon={<Building2 className="size-4 text-blue-600" />}
-          hint="Territory & driver oversight"
           tone="default"
           loading={query.isLoading && !isUsingFiller}
         />
         <StatTile
-          label="Support Specialists"
+          label="Support Staff"
           value={kpis.supportStaff}
           icon={<Headphones className="size-4 text-emerald-600" />}
-          hint="Desk dispute & rider support"
           tone="success"
           loading={query.isLoading && !isUsingFiller}
         />
@@ -628,7 +596,6 @@ export function AdminsScreen() {
           label="Active Accounts"
           value={kpis.activeStaff}
           icon={<CheckCircle2 className="size-4 text-success" />}
-          hint={`${kpis.suspendedStaff} suspended accounts`}
           tone="success"
           loading={query.isLoading && !isUsingFiller}
         />
@@ -637,14 +604,14 @@ export function AdminsScreen() {
       {/* Segmented View Switcher */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <SegmentedControl<SegmentView>
-          label="Staff Filter"
+          label="Filter"
           value={segmentView}
           onValueChange={(val: SegmentView) => {
             setSegmentView(val);
             setPage(1);
           }}
           segments={[
-            { value: 'ALL', label: `All Staff (${kpis.total})` },
+            { value: 'ALL', label: `All (${kpis.total})` },
             { value: 'SUPER_ADMIN', label: `Super Admin (${kpis.superAdmins})` },
             { value: 'CITY_ADMIN', label: `City Admin (${kpis.cityAdmins})` },
             { value: 'SUPPORT_ADMIN', label: `Support (${kpis.supportStaff})` },

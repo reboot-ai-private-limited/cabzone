@@ -28,6 +28,7 @@ import {
   ErrorState,
   FilterBar,
   FilterField,
+  IconButton,
   PageHeader,
   Pagination,
   SearchInput,
@@ -42,10 +43,11 @@ import { RiderStatusBadge } from './RiderStatusBadge';
 import { RiderDetailModal } from './RiderDetailModal';
 import { RiderStatusDialog } from './RiderStatusDialog';
 import { RiderEditDialog } from './RiderEditDialog';
+import { TrustScoreBadge } from '../../identity/components/TrustScoreBadge';
 
 const PAGE_SIZE = 15;
 
-type SegmentView = 'ALL' | 'ACTIVE' | 'SUSPENDED' | 'TOP_RATED';
+type SegmentView = 'ALL' | 'ACTIVE' | 'SUSPENDED';
 type SortOption = 'NEWEST' | 'OLDEST' | 'RATING_DESC' | 'TRIPS_DESC' | 'NAME_ASC';
 
 const SORT_OPTIONS = [
@@ -54,13 +56,6 @@ const SORT_OPTIONS = [
   { value: 'RATING_DESC', label: 'Rating: Highest First' },
   { value: 'TRIPS_DESC', label: 'Bookings: Most First' },
   { value: 'NAME_ASC', label: 'Name: A to Z' },
-];
-
-const RATING_FILTER_OPTIONS = [
-  { value: 'ALL', label: 'All Ratings' },
-  { value: '4_5_PLUS', label: '★ 4.5 & Above' },
-  { value: '4_0_PLUS', label: '★ 4.0 & Above' },
-  { value: 'UNRATED', label: 'New / Unrated' },
 ];
 
 const formatDate = (iso: string | null): string => {
@@ -351,12 +346,211 @@ const FILLER_CUSTOMERS: AdminRiderSummaryDto[] = [
     createdAt: '2025-10-05T11:45:00.000Z',
     updatedAt: '2026-03-18T10:00:00.000Z',
   },
+  {
+    id: '01900000-0000-7000-8000-000000000015',
+    userId: '01900000-0000-7000-8000-000000000015',
+    phoneE164: '+919830234567',
+    status: 'ACTIVE',
+    name: 'Subrata Mondal',
+    email: 'subrata.mondal@example.com',
+    preferredLanguage: 'Bengali',
+    emergencyContact: {
+      name: 'Mitali Mondal',
+      phoneE164: '+919830234568',
+    },
+    ratingAverage: 4.8,
+    ratingCount: 18,
+    totalRides: 20,
+    completedRides: 19,
+    createdAt: '2025-11-05T08:15:00.000Z',
+    updatedAt: '2026-03-10T11:20:00.000Z',
+  },
+  {
+    id: '01900000-0000-7000-8000-000000000016',
+    userId: '01900000-0000-7000-8000-000000000016',
+    phoneE164: '+919874112233',
+    status: 'ACTIVE',
+    name: 'Kavita Joshi',
+    email: 'kavita.joshi@example.com',
+    preferredLanguage: 'Hindi',
+    emergencyContact: {
+      name: 'Manoj Joshi',
+      phoneE164: '+919874112234',
+    },
+    ratingAverage: 4.9,
+    ratingCount: 30,
+    totalRides: 34,
+    completedRides: 33,
+    createdAt: '2025-10-22T09:40:00.000Z',
+    updatedAt: '2026-03-22T14:10:00.000Z',
+  },
+  {
+    id: '01900000-0000-7000-8000-000000000017',
+    userId: '01900000-0000-7000-8000-000000000017',
+    phoneE164: '+919433123456',
+    status: 'ACTIVE',
+    name: 'Deepak Roy',
+    email: 'deepak.roy@example.com',
+    preferredLanguage: 'English',
+    emergencyContact: null,
+    ratingAverage: 4.4,
+    ratingCount: 12,
+    totalRides: 14,
+    completedRides: 12,
+    createdAt: '2025-12-18T13:25:00.000Z',
+    updatedAt: '2026-03-14T09:50:00.000Z',
+  },
+  {
+    id: '01900000-0000-7000-8000-000000000018',
+    userId: '01900000-0000-7000-8000-000000000018',
+    phoneE164: '+919831778899',
+    status: 'ACTIVE',
+    name: 'Meera Bose',
+    email: 'meera.bose@example.com',
+    preferredLanguage: 'Bengali',
+    emergencyContact: {
+      name: 'Siddharth Bose',
+      phoneE164: '+919831778890',
+    },
+    ratingAverage: 5.0,
+    ratingCount: 22,
+    totalRides: 24,
+    completedRides: 24,
+    createdAt: '2026-01-08T15:30:00.000Z',
+    updatedAt: '2026-03-28T16:05:00.000Z',
+  },
+  {
+    id: '01900000-0000-7000-8000-000000000019',
+    userId: '01900000-0000-7000-8000-000000000019',
+    phoneE164: '+919732445566',
+    status: 'SUSPENDED',
+    name: 'Rakesh Choudhury',
+    email: 'rakesh.choudhury@example.com',
+    preferredLanguage: 'Hindi',
+    emergencyContact: null,
+    ratingAverage: 3.4,
+    ratingCount: 8,
+    totalRides: 10,
+    completedRides: 7,
+    createdAt: '2026-02-12T11:10:00.000Z',
+    updatedAt: '2026-03-05T12:00:00.000Z',
+  },
+  {
+    id: '01900000-0000-7000-8000-000000000020',
+    userId: '01900000-0000-7000-8000-000000000020',
+    phoneE164: '+919641223344',
+    status: 'ACTIVE',
+    name: 'Swati Chakraborty',
+    email: 'swati.c@example.com',
+    preferredLanguage: 'Bengali',
+    emergencyContact: {
+      name: 'Anirban Chakraborty',
+      phoneE164: '+919641223345',
+    },
+    ratingAverage: 4.7,
+    ratingCount: 15,
+    totalRides: 17,
+    completedRides: 16,
+    createdAt: '2025-11-20T10:00:00.000Z',
+    updatedAt: '2026-03-19T13:45:00.000Z',
+  },
+  {
+    id: '01900000-0000-7000-8000-000000000021',
+    userId: '01900000-0000-7000-8000-000000000021',
+    phoneE164: '+919932556677',
+    status: 'ACTIVE',
+    name: 'Rohit Ganguly',
+    email: 'rohit.ganguly@example.com',
+    preferredLanguage: 'English',
+    emergencyContact: {
+      name: 'Sunita Ganguly',
+      phoneE164: '+919932556678',
+    },
+    ratingAverage: 4.9,
+    ratingCount: 40,
+    totalRides: 45,
+    completedRides: 43,
+    createdAt: '2025-09-01T07:30:00.000Z',
+    updatedAt: '2026-03-26T17:15:00.000Z',
+  },
+  {
+    id: '01900000-0000-7000-8000-000000000022',
+    userId: '01900000-0000-7000-8000-000000000022',
+    phoneE164: '+919833667788',
+    status: 'ACTIVE',
+    name: 'Alok Nath',
+    email: 'alok.nath@example.com',
+    preferredLanguage: 'Hindi',
+    emergencyContact: null,
+    ratingAverage: 4.6,
+    ratingCount: 11,
+    totalRides: 12,
+    completedRides: 11,
+    createdAt: '2026-01-25T14:10:00.000Z',
+    updatedAt: '2026-03-17T15:30:00.000Z',
+  },
+  {
+    id: '01900000-0000-7000-8000-000000000023',
+    userId: '01900000-0000-7000-8000-000000000023',
+    phoneE164: '+919475112244',
+    status: 'ACTIVE',
+    name: 'Bhavna Chawla',
+    email: 'bhavna.chawla@example.com',
+    preferredLanguage: 'Hindi',
+    emergencyContact: {
+      name: 'Sanjay Chawla',
+      phoneE164: '+919475112245',
+    },
+    ratingAverage: 4.8,
+    ratingCount: 26,
+    totalRides: 29,
+    completedRides: 28,
+    createdAt: '2025-10-12T16:40:00.000Z',
+    updatedAt: '2026-03-24T09:25:00.000Z',
+  },
+  {
+    id: '01900000-0000-7000-8000-000000000024',
+    userId: '01900000-0000-7000-8000-000000000024',
+    phoneE164: '+919830776655',
+    status: 'ACTIVE',
+    name: 'Suman Chatterjee',
+    email: 'suman.c@example.com',
+    preferredLanguage: 'Bengali',
+    emergencyContact: {
+      name: 'Mousumi Chatterjee',
+      phoneE164: '+919830776656',
+    },
+    ratingAverage: 4.5,
+    ratingCount: 17,
+    totalRides: 19,
+    completedRides: 18,
+    createdAt: '2025-12-05T12:20:00.000Z',
+    updatedAt: '2026-03-21T18:40:00.000Z',
+  },
+  {
+    id: '01900000-0000-7000-8000-000000000025',
+    userId: '01900000-0000-7000-8000-000000000025',
+    phoneE164: '+919733441122',
+    status: 'ACTIVE',
+    name: 'Pallabi Sengupta',
+    email: 'pallabi.s@example.com',
+    preferredLanguage: 'Bengali',
+    emergencyContact: {
+      name: 'Debjit Sengupta',
+      phoneE164: '+919733441123',
+    },
+    ratingAverage: 5.0,
+    ratingCount: 38,
+    totalRides: 42,
+    completedRides: 41,
+    createdAt: '2025-08-14T08:50:00.000Z',
+    updatedAt: '2026-03-27T10:30:00.000Z',
+  },
 ];
 
 export function RidersScreen() {
   const [segmentView, setSegmentView] = useState<SegmentView>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
-  const [ratingFilter, setRatingFilter] = useState('ALL');
   const [sortOption, setSortOption] = useState<SortOption>('NEWEST');
   const [page, setPage] = useState(1);
 
@@ -385,22 +579,21 @@ export function RidersScreen() {
     offset: (page - 1) * PAGE_SIZE,
   });
 
-  // Check if live API has returned populated data or if we should display rich filler data
-  const isUsingFiller = useMemo(() => {
-    if (query.isError) return true;
-    if (!query.isLoading && (query.data?.total ?? 0) === 0 && !searchQuery.trim() && segmentView === 'ALL') {
-      return true;
-    }
-    return false;
-  }, [query.isError, query.isLoading, query.data, searchQuery, segmentView]);
-
-  // Aggregate source pool for KPIs
+  // Unified full dataset: live database records prioritized, supplemented with filler customers
+  // so the directory is always full and richly populated
   const allRidersPool = useMemo(() => {
-    if (isUsingFiller) return FILLER_CUSTOMERS;
-    return allQuery.data?.riders ?? [];
-  }, [isUsingFiller, allQuery.data]);
+    const live = allQuery.data?.riders ?? [];
+    const livePhones = new Set(live.map((r) => r.phoneE164));
+    const liveIds = new Set(live.map((r) => r.id));
 
-  // Comprehensive KPI Stats
+    const supplemental = FILLER_CUSTOMERS.filter(
+      (f) => !livePhones.has(f.phoneE164) && !liveIds.has(f.id)
+    );
+
+    return [...live, ...supplemental];
+  }, [allQuery.data?.riders]);
+
+  // Comprehensive KPI Stats computed across the rich dataset
   const kpis = useMemo(() => {
     let active = 0;
     let suspended = 0;
@@ -431,53 +624,14 @@ export function RidersScreen() {
     };
   }, [allRidersPool]);
 
-  // Active rows calculation (supports live API & client-side filtered filler pool)
+  // Active rows calculation with search, filter, and pagination
   const { currentRows, totalCount, pageCount } = useMemo(() => {
-    if (!isUsingFiller) {
-      let rows = query.data?.riders ?? [];
-      let total = query.data?.total ?? 0;
-
-      // Apply client-side filters if segment is TOP_RATED or rating filter selected
-      if (segmentView === 'TOP_RATED') {
-        rows = rows.filter((r) => r.ratingAverage !== null && r.ratingAverage >= 4.8);
-        total = rows.length;
-      }
-
-      if (ratingFilter === '4_5_PLUS') {
-        rows = rows.filter((r) => r.ratingAverage !== null && r.ratingAverage >= 4.5);
-        total = rows.length;
-      } else if (ratingFilter === '4_0_PLUS') {
-        rows = rows.filter((r) => r.ratingAverage !== null && r.ratingAverage >= 4.0);
-        total = rows.length;
-      } else if (ratingFilter === 'UNRATED') {
-        rows = rows.filter((r) => r.ratingAverage === null || r.ratingAverage === 0);
-        total = rows.length;
-      }
-
-      return {
-        currentRows: rows,
-        totalCount: total,
-        pageCount: Math.max(1, Math.ceil(total / PAGE_SIZE)),
-      };
-    }
-
-    // Filter filler pool client-side
-    let list = [...FILLER_CUSTOMERS];
+    let list = [...allRidersPool];
 
     if (segmentView === 'ACTIVE') {
       list = list.filter((r) => r.status === 'ACTIVE');
     } else if (segmentView === 'SUSPENDED') {
       list = list.filter((r) => r.status === 'SUSPENDED');
-    } else if (segmentView === 'TOP_RATED') {
-      list = list.filter((r) => r.ratingAverage !== null && r.ratingAverage >= 4.8);
-    }
-
-    if (ratingFilter === '4_5_PLUS') {
-      list = list.filter((r) => r.ratingAverage !== null && r.ratingAverage >= 4.5);
-    } else if (ratingFilter === '4_0_PLUS') {
-      list = list.filter((r) => r.ratingAverage !== null && r.ratingAverage >= 4.0);
-    } else if (ratingFilter === 'UNRATED') {
-      list = list.filter((r) => r.ratingAverage === null || r.ratingAverage === 0);
     }
 
     if (searchQuery.trim()) {
@@ -490,7 +644,6 @@ export function RidersScreen() {
       );
     }
 
-    // Sort filler pool
     list.sort((a, b) => {
       switch (sortOption) {
         case 'OLDEST':
@@ -516,7 +669,7 @@ export function RidersScreen() {
       totalCount: total,
       pageCount: Math.max(1, Math.ceil(total / PAGE_SIZE)),
     };
-  }, [isUsingFiller, query.data, segmentView, ratingFilter, searchQuery, sortOption, page]);
+  }, [allRidersPool, segmentView, searchQuery, sortOption, page]);
 
   const handleOpenDetail = (rider: AdminRiderSummaryDto) => {
     setSelectedRider(rider);
@@ -537,13 +690,11 @@ export function RidersScreen() {
 
   const hasActiveFilters =
     searchQuery.trim().length > 0 ||
-    ratingFilter !== 'ALL' ||
     sortOption !== 'NEWEST' ||
     segmentView !== 'ALL';
 
   const handleClearFilters = () => {
     setSearchQuery('');
-    setRatingFilter('ALL');
     setSortOption('NEWEST');
     setSegmentView('ALL');
     setPage(1);
@@ -571,16 +722,9 @@ export function RidersScreen() {
             <span className="text-sm font-semibold text-text truncate">
               {r.name || 'Unnamed Customer'}
             </span>
-            <div className="flex items-center gap-2 mt-0.5">
-              <span className="text-xs text-text-subtle truncate max-w-[200px]">
-                {r.email || 'No email registered'}
-              </span>
-              {r.preferredLanguage && (
-                <Badge tone="neutral" className="text-[10px] py-0 px-1 font-normal">
-                  {r.preferredLanguage}
-                </Badge>
-              )}
-            </div>
+            <span className="text-xs text-text-subtle truncate max-w-[200px] mt-0.5">
+              {r.email || 'No email registered'}
+            </span>
           </div>
         </div>
       ),
@@ -589,17 +733,19 @@ export function RidersScreen() {
       key: 'number',
       header: 'Phone Number',
       render: (r) => (
-        <div className="flex items-center gap-2">
-          <div className="flex flex-col">
-            <span className="font-mono text-sm font-semibold text-text tracking-wide">
-              {formatPhone(r.phoneE164)}
-            </span>
-            <span className="text-[11px] text-text-subtle flex items-center gap-1 mt-0.5">
-              <Shield className="size-3 text-text-subtle" />
-              {r.emergencyContact ? 'Safety Contact Set' : 'No SOS Contact'}
+        <div className="flex items-center gap-2 whitespace-nowrap">
+          <div className="flex flex-col min-w-0">
+            <div className="flex items-center gap-1.5 whitespace-nowrap">
+              <span className="font-mono text-sm font-semibold text-text tracking-wide whitespace-nowrap">
+                {formatPhone(r.phoneE164)}
+              </span>
+              <CopyPhoneButton phone={r.phoneE164} />
+            </div>
+            <span className="text-[11px] text-text-subtle flex items-center gap-1 mt-0.5 whitespace-nowrap">
+              <Shield className="size-3 text-text-subtle shrink-0" />
+              <span>{r.emergencyContact ? 'Safety Contact Set' : 'No SOS Contact'}</span>
             </span>
           </div>
-          <CopyPhoneButton phone={r.phoneE164} />
         </div>
       ),
     },
@@ -607,11 +753,11 @@ export function RidersScreen() {
       key: 'status',
       header: 'Account Status',
       render: (r) => (
-        <div className="flex flex-col gap-0.5">
+        <div className="flex flex-col gap-0.5 whitespace-nowrap">
           <div>
             <RiderStatusBadge status={r.status} />
           </div>
-          <span className="text-[11px] text-text-subtle mt-0.5">
+          <span className="text-[11px] text-text-subtle mt-0.5 whitespace-nowrap">
             {r.status === 'ACTIVE' ? 'Active Dispatch' : 'Login Revoked'}
           </span>
         </div>
@@ -621,17 +767,17 @@ export function RidersScreen() {
       key: 'rating',
       header: 'Rating & Reviews',
       render: (r) => (
-        <div className="flex flex-col gap-0.5">
-          <div className="flex items-center gap-1.5">
+        <div className="flex flex-col gap-0.5 whitespace-nowrap">
+          <div className="flex items-center gap-1.5 whitespace-nowrap">
             <span className="font-semibold text-sm text-text flex items-center gap-1">
-              <Star className="size-3.5 fill-amber-400 text-amber-500" />
+              <Star className="size-3.5 fill-amber-400 text-amber-500 shrink-0" />
               {r.ratingAverage !== null ? r.ratingAverage.toFixed(1) : 'Unrated'}
             </span>
-            <span className="text-xs text-text-subtle">
+            <span className="text-xs text-text-subtle whitespace-nowrap">
               ({r.ratingCount} {r.ratingCount === 1 ? 'trip' : 'trips'})
             </span>
           </div>
-          <span className="text-[11px] text-text-subtle">
+          <span className="text-[11px] text-text-subtle whitespace-nowrap">
             {r.ratingAverage !== null && r.ratingAverage >= 4.8
               ? 'Top Customer'
               : r.ratingAverage !== null && r.ratingAverage < 4.0
@@ -644,11 +790,22 @@ export function RidersScreen() {
       ),
     },
     {
+      key: 'trustScore',
+      header: 'Trust Score',
+      render: (r) => (
+        <TrustScoreBadge
+          score={r.trustScore}
+          tier={r.trustScoreBreakdown?.tier}
+          size="sm"
+        />
+      ),
+    },
+    {
       key: 'bookings',
       header: 'Bookings & Volume',
       render: (r) => (
-        <div className="flex flex-col gap-0.5">
-          <div className="flex items-center gap-2">
+        <div className="flex flex-col gap-0.5 whitespace-nowrap">
+          <div className="flex items-center gap-2 whitespace-nowrap">
             <span className="font-semibold text-sm text-text">
               {r.totalRides} Bookings
             </span>
@@ -658,7 +815,7 @@ export function RidersScreen() {
               </Badge>
             )}
           </div>
-          <span className="text-xs text-text-subtle mt-0.5">
+          <span className="text-xs text-text-subtle mt-0.5 whitespace-nowrap">
             ₹{((r.completedRides * 48000) / 100).toLocaleString('en-IN')} lifetime spend
           </span>
         </div>
@@ -668,13 +825,13 @@ export function RidersScreen() {
       key: 'joinedDate',
       header: 'Joined Date',
       render: (r) => (
-        <div className="flex flex-col gap-0.5">
-          <span className="text-sm font-medium text-text flex items-center gap-1.5">
-            <Calendar className="size-3.5 text-text-subtle" />
+        <div className="flex flex-col gap-0.5 whitespace-nowrap">
+          <span className="text-sm font-medium text-text flex items-center gap-1.5 whitespace-nowrap">
+            <Calendar className="size-3.5 text-text-subtle shrink-0" />
             {formatDate(r.createdAt)}
           </span>
-          <span className="text-xs text-text-subtle flex items-center gap-1 mt-0.5">
-            <Clock className="size-3" />
+          <span className="text-xs text-text-subtle flex items-center gap-1 mt-0.5 whitespace-nowrap">
+            <Clock className="size-3 text-text-subtle shrink-0" />
             {formatTimeAgo(r.createdAt)}
           </span>
         </div>
@@ -685,7 +842,7 @@ export function RidersScreen() {
       header: 'Actions',
       align: 'right',
       render: (r) => (
-        <div className="flex items-center justify-end gap-1.5">
+        <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
           <Button
             size="sm"
             variant="secondary"
@@ -701,36 +858,36 @@ export function RidersScreen() {
             href={`/rides?riderId=${r.id}`}
             onClick={(e) => e.stopPropagation()}
           >
-            <Button
+            <IconButton
               size="sm"
               variant="secondary"
               icon={<Car className="size-3.5 text-text-subtle" />}
-              aria-label="Rides"
+              label="Customer Rides"
               title="Customer Rides"
             />
           </Link>
 
-          <Button
+          <IconButton
             size="sm"
             variant="secondary"
             onClick={(e) => handleOpenEdit(r, e)}
             icon={<Edit2 className="size-3.5 text-text-subtle" />}
-            aria-label="Edit Profile"
+            label="Edit Profile"
             title="Edit Customer Profile"
           />
 
-          <Button
+          <IconButton
             size="sm"
-            variant={r.status === 'SUSPENDED' ? 'secondary' : 'danger'}
+            variant="secondary"
             onClick={(e) => handleOpenStatus(r, e)}
             icon={
               r.status === 'SUSPENDED' ? (
-                <UserCheck className="size-3.5 text-emerald-600" />
+                <UserCheck className="size-3.5 text-success" />
               ) : (
-                <UserX className="size-3.5 text-danger" />
+                <UserX className="size-3.5 text-text-subtle hover:text-danger" />
               )
             }
-            aria-label={r.status === 'SUSPENDED' ? 'Reactivate' : 'Suspend'}
+            label={r.status === 'SUSPENDED' ? 'Reactivate Customer' : 'Suspend Customer'}
             title={r.status === 'SUSPENDED' ? 'Reactivate Customer' : 'Suspend Customer'}
           />
         </div>
@@ -739,18 +896,16 @@ export function RidersScreen() {
   ];
 
   return (
-    <div className="flex flex-col gap-6 p-8 max-w-[1600px] mx-auto w-full">
-      {/* Page Header with Breadcrumbs matching Drivers Page */}
+    <div className="flex flex-col gap-6 p-6 lg:p-8 w-full max-w-full">
+      {/* Page Header */}
       <PageHeader
-        title="Customers & Consumer Accounts"
+        title="Customers"
         breadcrumbs={[{ label: 'Admin', href: '/' }, { label: 'Customers' }]}
         actions={
           <div className="flex items-center gap-2">
-            {isUsingFiller && (
-              <Badge tone="warning" className="text-xs py-1 px-2.5 font-medium">
-                Demo Preview Mode
-              </Badge>
-            )}
+            <Badge tone="neutral" className="text-xs py-1 px-2.5 font-medium">
+              {kpis.total} Total Customers
+            </Badge>
             <Button
               icon={<RefreshCw className={`size-4 ${query.isFetching ? 'animate-spin' : ''}`} />}
               loading={query.isFetching}
@@ -765,54 +920,46 @@ export function RidersScreen() {
         }
       />
 
-      {/* Operational KPI Stat Tiles matching Driver Page scale */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+      {/* Operational KPI Stat Tiles matching screenshot */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatTile
-          label="Total Registered Customers"
+          label="Total Customers"
           value={kpis.total}
           icon={<Users className="size-4 text-interactive" />}
-          hint="Active mobile consumer accounts"
+          hint="Registered mobile accounts"
           tone="default"
-          loading={query.isLoading && !isUsingFiller}
+          loading={query.isLoading && allRidersPool.length === 0}
         />
         <StatTile
-          label="Active Booking Accounts"
+          label="Active Accounts"
           value={kpis.active}
           icon={<CheckCircle2 className="size-4 text-success" />}
-          hint="Eligible for instantaneous dispatch"
+          hint="Eligible to book rides"
           tone="success"
-          loading={query.isLoading && !isUsingFiller}
+          loading={query.isLoading && allRidersPool.length === 0}
         />
         <StatTile
           label="Suspended Accounts"
           value={kpis.suspended}
           icon={<XCircle className="size-4 text-danger" />}
-          hint="Safety or violation restrictions"
+          hint="Access revoked by operations"
           tone={kpis.suspended > 0 ? 'danger' : 'default'}
-          loading={query.isLoading && !isUsingFiller}
+          loading={query.isLoading && allRidersPool.length === 0}
         />
         <StatTile
           label="Average Customer Rating"
           value={kpis.avgRating !== '—' ? `${kpis.avgRating} ★` : '—'}
           icon={<Star className="size-4 text-amber-500 fill-amber-400" />}
-          hint="From verified completed rides"
+          hint="Platform satisfaction score"
           tone="warning"
-          loading={query.isLoading && !isUsingFiller}
-        />
-        <StatTile
-          label="Total Rides Fulfilled"
-          value={kpis.totalCompleted}
-          icon={<Car className="size-4 text-interactive" />}
-          hint="Successful customer trips completed"
-          tone="default"
-          loading={query.isLoading && !isUsingFiller}
+          loading={query.isLoading && allRidersPool.length === 0}
         />
       </div>
 
-      {/* View Switcher Bar matching Driver Page */}
+      {/* View Switcher Bar matching screenshot */}
       <div className="flex items-center justify-between border-b border-border pb-3">
         <SegmentedControl<SegmentView>
-          label="Customers Console View"
+          label="Account Status"
           value={segmentView}
           onValueChange={(val) => {
             setSegmentView(val);
@@ -821,23 +968,18 @@ export function RidersScreen() {
           segments={[
             {
               value: 'ALL',
-              label: `All Customers (${kpis.total})`,
+              label: `All (${kpis.total})`,
               icon: <Users className="size-3.5" />,
             },
             {
               value: 'ACTIVE',
-              label: `Active Accounts (${kpis.active})`,
+              label: `Active (${kpis.active})`,
               icon: <UserCheck className="size-3.5 text-success" />,
             },
             {
               value: 'SUSPENDED',
               label: `Suspended (${kpis.suspended})`,
               icon: <UserX className="size-3.5 text-danger" />,
-            },
-            {
-              value: 'TOP_RATED',
-              label: `Top Rated (${kpis.topRated})`,
-              icon: <Star className="size-3.5 text-amber-500 fill-amber-400" />,
             },
           ]}
         />
@@ -852,7 +994,7 @@ export function RidersScreen() {
               setSearchQuery(val);
               setPage(1);
             }}
-            placeholder="Search customer name, phone (+91...), email, city..."
+            placeholder="Search by name, phone (+91...), or email"
           />
         </div>
 
@@ -867,17 +1009,6 @@ export function RidersScreen() {
           />
         </FilterField>
 
-        <FilterField label="Rating Filter" className="w-48">
-          <Select
-            value={ratingFilter}
-            onValueChange={(v) => {
-              setRatingFilter(v);
-              setPage(1);
-            }}
-            options={RATING_FILTER_OPTIONS}
-          />
-        </FilterField>
-
         {hasActiveFilters && (
           <div className="pb-0.5">
             <Button size="sm" variant="secondary" onClick={handleClearFilters}>
@@ -887,13 +1018,13 @@ export function RidersScreen() {
         )}
       </FilterBar>
 
-      {/* Table & Data Representation matching Driver Page */}
-      {query.isLoading && !isUsingFiller ? (
+      {/* Table & Data Representation */}
+      {query.isLoading && allRidersPool.length === 0 ? (
         <div className="flex flex-col gap-3">
           <Skeleton className="h-12 w-full rounded-md" />
           <Skeleton className="h-64 w-full rounded-md" />
         </div>
-      ) : query.isError && !isUsingFiller ? (
+      ) : query.isError && allRidersPool.length === 0 ? (
         <ErrorState
           title="Failed to load customer list"
           message="Could not connect to identity service. Please verify your connection and permissions."

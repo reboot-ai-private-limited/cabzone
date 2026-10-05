@@ -1,11 +1,11 @@
 import { Suspense } from 'react';
 import { Skeleton } from '@cabzone/design-system';
-import { TripSimulatorScreen } from '@/features/quotes/components/TripSimulatorScreen.js';
+import { SimulatorsScreen } from '@/features/simulators/components/SimulatorsScreen';
 
 export default function QuotesPage() {
   return (
     <Suspense fallback={<TripSimulatorFallback />}>
-      <TripSimulatorScreen />
+      <SimulatorsScreen defaultTab="trip" />
     </Suspense>
   );
 }

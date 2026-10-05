@@ -36,6 +36,7 @@ export class MongoRiderRepository implements RiderRepositoryPort {
       preferred_language: rider.preferredLanguage,
       rating_average: rider.ratingAverage,
       rating_count: rider.ratingCount,
+      trust_score: rider.trustScore ?? null,
       version: rider.version,
     });
     return this.toEntity(created.toObject() as RiderDocument);
@@ -57,6 +58,7 @@ export class MongoRiderRepository implements RiderRepositoryPort {
           preferred_language: rider.preferredLanguage,
           rating_average: rider.ratingAverage,
           rating_count: rider.ratingCount,
+          trust_score: rider.trustScore ?? null,
           version: rider.version + 1,
         },
       },
@@ -152,6 +154,7 @@ export class MongoRiderRepository implements RiderRepositoryPort {
       preferredLanguage: doc.preferred_language,
       ratingAverage: doc.rating_average,
       ratingCount: doc.rating_count,
+      trustScore: doc.trust_score ?? null,
       version: doc.version,
       createdAt: doc.created_at,
       updatedAt: doc.updated_at,

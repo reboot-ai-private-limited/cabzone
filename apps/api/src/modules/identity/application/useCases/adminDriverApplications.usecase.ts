@@ -60,7 +60,9 @@ export class GetDriverApplicationDetailUseCase {
   constructor(private readonly deps: AdminDriverApplicationDeps) {}
 
   async execute(applicationId: string): Promise<DriverApplicationDetail> {
-    const application = await this.deps.applicationRepo.findById(applicationId);
+    const application =
+      (await this.deps.applicationRepo.findById(applicationId)) ??
+      (await this.deps.applicationRepo.findByDriverId(applicationId));
     if (!application) throw AppError.notFound('Driver application not found.');
     const [summary, documents] = await Promise.all([
       summarize(this.deps, application),

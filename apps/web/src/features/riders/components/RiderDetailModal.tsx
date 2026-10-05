@@ -10,16 +10,17 @@ import {
   Copy,
   Edit2,
   ExternalLink,
-  Globe,
   Mail,
   MapPin,
   Phone,
   PhoneCall,
   Shield,
+  ShieldCheck,
   Star,
   User,
   UserCheck,
   UserX,
+  Wallet,
   XCircle,
 } from 'lucide-react';
 import {
@@ -35,6 +36,7 @@ import { useRiderDetail, useRiderRides } from '../hooks/useRiders';
 import { RiderStatusBadge } from './RiderStatusBadge';
 import { RiderEditDialog } from './RiderEditDialog';
 import { RiderStatusDialog } from './RiderStatusDialog';
+import { TrustScoreBadge } from '../../identity/components/TrustScoreBadge';
 
 interface RiderDetailModalProps {
   riderId: string | null;
@@ -164,6 +166,11 @@ export function RiderDetailModal({
                       {rider.name || 'Unnamed Customer'}
                     </span>
                     <RiderStatusBadge status={rider.status} />
+                    <TrustScoreBadge
+                      score={rider.trustScore}
+                      tier={rider.trustScoreBreakdown?.tier}
+                      size="sm"
+                    />
                   </div>
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-subtle mt-0.5">
                     <span className="font-mono font-medium text-text flex items-center gap-1">
@@ -207,7 +214,7 @@ export function RiderDetailModal({
             </div>
 
             {/* Platform Metrics KPI Tiles */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
               <StatTile
                 label="Total Bookings"
                 value={String(rider.totalRides)}
@@ -234,7 +241,7 @@ export function RiderDetailModal({
                 tone={rider.cancelledRides > 0 ? 'danger' : 'default'}
               />
               <StatTile
-                label="Rating & Trust"
+                label="Star Rating"
                 value={
                   rider.ratingAverage !== null
                     ? `${rider.ratingAverage.toFixed(1)} ★`
@@ -245,6 +252,26 @@ export function RiderDetailModal({
                   rider.ratingCount > 0 ? `From ${rider.ratingCount} reviews` : 'No ratings yet'
                 }
                 tone="warning"
+              />
+              <StatTile
+                label="Trust Score"
+                value={
+                  rider.trustScore !== null && rider.trustScore !== undefined
+                    ? `${rider.trustScore}/100`
+                    : 'Unrated'
+                }
+                icon={<ShieldCheck className="size-4 text-emerald-600" />}
+                hint={
+                  rider.trustScoreBreakdown?.summary ??
+                  (rider.trustScore !== null ? 'Verified behavioural reliability' : 'Needs 3+ rides')
+                }
+                tone={
+                  (rider.trustScore ?? 0) >= 80
+                    ? 'success'
+                    : (rider.trustScore ?? 0) >= 60
+                      ? 'warning'
+                      : 'default'
+                }
               />
             </div>
 
@@ -288,15 +315,15 @@ export function RiderDetailModal({
                 )}
               </div>
 
-              {/* Preferences & Total Spend */}
+              {/* Account Volume & Platform Spend */}
               <div className="p-3.5 rounded-lg border border-border bg-surface flex flex-col gap-2">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-semibold text-text flex items-center gap-1.5">
-                    <Globe className="size-3.5 text-interactive" />
-                    Language & Total Spend
+                    <Wallet className="size-3.5 text-interactive" />
+                    Account Spend & Volume
                   </span>
-                  <Badge tone="neutral" className="text-[10px] uppercase">
-                    {rider.preferredLanguage || 'EN'}
+                  <Badge tone="neutral" className="text-[10px]">
+                    {rider.completedRides} Completed
                   </Badge>
                 </div>
                 <div className="flex items-center justify-between mt-1">
@@ -307,13 +334,9 @@ export function RiderDetailModal({
                     </span>
                   </div>
                   <div className="flex flex-col text-right">
-                    <span className="text-xs text-text-subtle">Preferred Language</span>
-                    <span className="text-xs font-medium text-text uppercase">
-                      {rider.preferredLanguage === 'hi'
-                        ? 'Hindi (हिन्दी)'
-                        : rider.preferredLanguage === 'bn'
-                          ? 'Bengali (বাংলা)'
-                          : 'English'}
+                    <span className="text-xs text-text-subtle">Total Bookings</span>
+                    <span className="text-xs font-medium text-text">
+                      {rider.totalRides} {rider.totalRides === 1 ? 'ride' : 'rides'}
                     </span>
                   </div>
                 </div>

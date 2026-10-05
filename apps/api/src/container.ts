@@ -8,11 +8,14 @@ import {
 } from '@/modules/pricing/index.js';
 import {
   canDriverGoOnline,
+  DriverModel,
   isVehicleApproved,
   MongoDriverRepository,
   MongoRiderRepository,
   MongoUserRepository,
   MongoVehicleRepository,
+  UserModel,
+  VehicleModel,
 } from '@/modules/identity/index.js';
 import { buildDispatchContainer, type DispatchContainer } from '@/modules/dispatch/dispatch.container.js';
 import { RedisPresenceRepository } from '@/modules/dispatch/infrastructure/redisPresence.repository.js';
@@ -71,7 +74,51 @@ export function buildContainers(overrides?: Partial<AppContainers>): AppContaine
     (await driverRepo.findByUserId(userId))?.id ?? null;
   const ledger =
     overrides?.ledger ??
-    buildLedgerContainer({ walletRepo: new MongoWalletRepository(), resolveDriverId });
+    buildLedgerContainer({
+      walletRepo: new MongoWalletRepository(),
+      resolveDriverId,
+      lookups: {
+        getDrivers: async () => {
+          const drivers = await DriverModel.find().lean();
+          const userIds = drivers.map((d) => d.user_id);
+          const vehicleIds = drivers.map((d) => d.current_vehicle_id).filter(Boolean);
+          const [users, vehicles] = await Promise.all([
+            UserModel.find({ _id: { $in: userIds } }).lean(),
+            VehicleModel.find({ _id: { $in: vehicleIds } }).lean(),
+          ]);
+          const userMap = new Map(users.map((u) => [u._id, u]));
+          const vehicleMap = new Map(vehicles.map((v) => [v._id, v]));
+
+          return drivers.map((d) => {
+            const u = userMap.get(d.user_id);
+            const v = d.current_vehicle_id ? vehicleMap.get(d.current_vehicle_id) : null;
+            let name = 'Driver';
+            if (u?.phone_e164 === '+919000000002') name = 'Dev Driver';
+            else if (u?.phone_e164 === '+919000000012') name = 'Subrata Ghosh';
+            else if (u?.phone_e164 === '+919000000013') name = 'Rajesh Barman';
+            else if (u) name = `Driver (${u.phone_e164.slice(-4)})`;
+
+            return {
+              id: d._id,
+              name,
+              phoneE164: u?.phone_e164 ?? '',
+              vehicleNumber: v?.registration_number ?? null,
+              zoneName: 'Siliguri City',
+            };
+          });
+        },
+        getRiders: async () => {
+          const res = await riderRepo.list({ limit: 500, offset: 0 });
+          return res.items.map((item) => ({
+            id: item.rider.id,
+            name: item.rider.name,
+            phoneE164: item.phoneE164,
+            email: item.rider.email,
+          }));
+        },
+      },
+    });
+
   const dispatch =
     overrides?.dispatch ??
     buildDispatchContainer({

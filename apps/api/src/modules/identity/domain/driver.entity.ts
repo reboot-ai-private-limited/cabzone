@@ -5,6 +5,15 @@ export type DriverOperationalStatus = 'OFFLINE' | 'ONLINE' | 'BUSY';
 export interface DriverEntity {
   id: string;
   userId: string;
+  name?: string | null | undefined;
+  alternatePhone?: string | null | undefined;
+  gender?: string | null | undefined;
+  dateOfBirth?: string | null | undefined;
+  experience?: string | null | undefined;
+  emergencyContact?: string | null | undefined;
+  address?: string | null | undefined;
+  dlNumber?: string | null | undefined;
+  dlExpiry?: string | null | undefined;
   status: DriverStatus;
   kycStatus: DriverKycStatus;
   operationalStatus: DriverOperationalStatus;

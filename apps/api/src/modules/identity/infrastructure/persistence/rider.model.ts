@@ -12,6 +12,7 @@ export interface RiderDocument extends Document<string> {
   preferred_language: string | null;
   rating_average: number | null;
   rating_count: number;
+  trust_score: number | null;
   version: number;
   created_at: Date;
   updated_at: Date;
@@ -35,6 +36,7 @@ const riderSchema = new Schema<RiderDocument>(
     preferred_language: { type: String, default: null },
     rating_average: { type: Number, default: null },
     rating_count: { type: Number, default: 0 },
+    trust_score: { type: Number, default: null },
     version: { type: Number, default: 1 },
   },
   {

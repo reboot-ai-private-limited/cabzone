@@ -1,7 +1,17 @@
 'use client';
 
 import { useState } from 'react';
-import { ChevronDown, ChevronUp, Download, Pencil, Power, Trash2, Upload } from 'lucide-react';
+import {
+  CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  Download,
+  MapPin,
+  Pencil,
+  Power,
+  Trash2,
+  Upload,
+} from 'lucide-react';
 import type { ZoneDto, ZoneType } from '@cabzone/contracts';
 import type { Polygon } from '@cabzone/geo';
 import {
@@ -57,8 +67,8 @@ export function ZoneInspector(props: ZoneInspectorProps) {
 
   if (mode === 'view' && zone === null) {
     return (
-      <div className="p-4 text-xs text-text-subtle">
-        Select a zone from the sidebar list, or click one on the map.
+      <div className="p-4 flex items-center justify-between text-xs text-text-subtle bg-surface-muted/40">
+        <span>Select an operational zone from the sidebar list or click one on the map to inspect boundary dimensions, vertex points, and tariff associations.</span>
       </div>
     );
   }
@@ -214,36 +224,36 @@ function EditBody({
     form.code.trim() === '';
 
   return (
-    <>
-      <div className="grid grid-cols-2 gap-3">
-        <FormField label="Zone Name" required>
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-3">
+        <FormField label="Zone Name" required hint="Display name for operational city">
           {({ id, invalid }) => (
             <Input
               id={id}
               invalid={invalid}
               value={form.name}
               onChange={(event) => set('name', event.target.value)}
-              placeholder="Siliguri City Area"
+              placeholder="e.g. Siliguri City"
             />
           )}
         </FormField>
 
-        <FormField label="Zone Code" required hint="Unique uppercase identifier.">
-          {({ id, invalid, describedBy }) => (
-            <Input
-              id={id}
-              invalid={invalid}
-              aria-describedby={describedBy}
-              value={form.code}
-              onChange={(event) => set('code', event.target.value.toUpperCase())}
-              placeholder="SMC-MAIN"
-            />
-          )}
-        </FormField>
+        <div className="grid grid-cols-2 gap-3">
+          <FormField label="Zone Code" required hint="Unique ID">
+            {({ id, invalid, describedBy }) => (
+              <Input
+                id={id}
+                invalid={invalid}
+                aria-describedby={describedBy}
+                value={form.code}
+                onChange={(event) => set('code', event.target.value.toUpperCase())}
+                placeholder="SLG-MAIN"
+              />
+            )}
+          </FormField>
 
-        {type === 'CITY' && (
-          <div className="col-span-2">
-            <FormField label="Fallback Buffer Distance (m)" hint="Optional buffer in meters (e.g. 5000)">
+          {type === 'CITY' ? (
+            <FormField label="Buffer (m)" hint="In-city corridor">
               {({ id, invalid }) => (
                 <Input
                   id={id}
@@ -256,27 +266,52 @@ function EditBody({
                 />
               )}
             </FormField>
-          </div>
-        )}
+          ) : (
+            <div />
+          )}
+        </div>
       </div>
 
-      <div className="flex items-center gap-4 text-xs text-text-subtle tabular-nums pt-1">
-        <span>
-          Area <span className="text-text font-medium">{validation.areaKm2.toFixed(2)} km²</span>
-        </span>
-        <span>
-          Vertices <span className="text-text font-medium">{validation.vertexCount}</span>
-        </span>
-        <Button
-          size="sm"
-          variant="ghost"
-          className="ml-auto"
-          icon={<Upload aria-hidden className="size-3.5" />}
-          onClick={onImport}
-        >
-          Import GeoJSON
-        </Button>
+      {/* Geometry Stats Card */}
+      <div className="grid grid-cols-2 gap-2 p-3 bg-surface-muted/60 border border-border rounded-xl">
+        <div className="flex flex-col">
+          <span className="text-[11px] text-text-subtle font-medium uppercase tracking-wider">Calculated Area</span>
+          <span className="text-sm font-bold font-mono text-text">{validation.areaKm2.toFixed(2)} km²</span>
+        </div>
+        <div className="flex flex-col">
+          <span className="text-[11px] text-text-subtle font-medium uppercase tracking-wider">Boundary Vertices</span>
+          <span className="text-sm font-bold font-mono text-text">{validation.vertexCount} points</span>
+        </div>
       </div>
+
+      {/* Boundary Editor Guidance */}
+      <div className="rounded-xl border border-border bg-surface-muted/30 p-3 text-xs text-text-subtle flex flex-col gap-1">
+        <span className="font-semibold text-text flex items-center gap-1.5">
+          <MapPin className="size-3.5 text-interactive" /> Boundary Tracing Guide
+        </span>
+        <p className="text-[11px] leading-relaxed">
+          Drag white vertex points on the map to adjust the perimeter. Click ghost midpoints to insert new vertices.
+        </p>
+      </div>
+
+      {/* GeoJSON Import Action */}
+      <Button
+        size="sm"
+        variant="secondary"
+        className="w-full justify-center rounded-xl"
+        icon={<Upload aria-hidden className="size-3.5" />}
+        onClick={onImport}
+      >
+        Import GeoJSON Boundary
+      </Button>
+
+      {/* Violations or Valid State */}
+      {validation.violations.length === 0 && draft !== null && (
+        <div className="rounded-xl p-3 bg-success-muted/30 border border-success/30 text-xs text-success flex items-center gap-2">
+          <CheckCircle2 className="size-4 shrink-0" />
+          <span>Boundary geometry is topologically sound with no self-intersections.</span>
+        </div>
+      )}
 
       <ZoneViolations
         violations={validation.violations}
@@ -285,7 +320,7 @@ function EditBody({
         onShowOnMap={onShowOnMap}
       />
 
-      <div className="flex items-center justify-between gap-3 pt-2 border-t border-border">
+      <div className="flex items-center justify-between gap-3 pt-3 border-t border-border mt-auto">
         <Button size="sm" variant="ghost" onClick={onCancel} disabled={saving}>
           Cancel
         </Button>
@@ -295,10 +330,11 @@ function EditBody({
           onClick={onSave}
           disabled={blocked}
           loading={saving}
+          className="px-4"
         >
           {creating ? 'Create zone' : 'Save changes'}
         </Button>
       </div>
-    </>
+    </div>
   );
 }

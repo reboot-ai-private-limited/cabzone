@@ -21,10 +21,20 @@ export interface DriverApplicationSummaryDto {
   };
   driver: {
     id: string;
+    name?: string | null | undefined;
+    alternatePhone?: string | null | undefined;
+    gender?: string | null | undefined;
+    dateOfBirth?: string | null | undefined;
+    experience?: string | null | undefined;
+    emergencyContact?: string | null | undefined;
+    address?: string | null | undefined;
+    dlNumber?: string | null | undefined;
+    dlExpiry?: string | null | undefined;
     status: string;
     kycStatus: string;
     ratingAverage: number | null;
     ratingCount: number;
+    trustScore?: number | null | undefined;
   } | null;
   phoneE164: string | null;
   vehicle: {

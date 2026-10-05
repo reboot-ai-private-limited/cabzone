@@ -1,30 +1,23 @@
+import React from 'react';
 import type { AdminStatus } from '@cabzone/contracts';
-import { Badge, type BadgeTone } from '@cabzone/design-system';
 
-const STATUS_TONES: Record<AdminStatus, BadgeTone> = {
-  ACTIVE: 'success',
-  SUSPENDED: 'danger',
-};
-
-const STATUS_LABELS: Record<AdminStatus, string> = {
-  ACTIVE: 'Active',
-  SUSPENDED: 'Suspended',
-};
-
-export function AdminStatusBadge({ status, className }: { status: AdminStatus | string; className?: string }) {
-  const tone = (STATUS_TONES as Record<string, BadgeTone>)[status] ?? 'neutral';
-  const label = (STATUS_LABELS as Record<string, string>)[status] ?? status;
+export function AdminStatusBadge({ status, className = '' }: { status: AdminStatus | string; className?: string }) {
+  const isActive = status === 'ACTIVE';
 
   return (
-    <Badge tone={tone} className={className}>
+    <span
+      className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border ${
+        isActive
+          ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+          : 'bg-rose-50 text-rose-800 border-rose-300'
+      } ${className}`}
+    >
       <span
-        className={`w-1.5 h-1.5 rounded-full mr-1.5 inline-block ${
-          status === 'ACTIVE'
-            ? 'bg-emerald-500 animate-pulse'
-            : 'bg-rose-500'
+        className={`size-1.5 rounded-full ${
+          isActive ? 'bg-emerald-600' : 'bg-rose-600'
         }`}
       />
-      {label}
-    </Badge>
+      <span>{isActive ? 'Active' : 'Suspended'}</span>
+    </span>
   );
 }

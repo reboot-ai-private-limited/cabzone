@@ -1,15 +1,19 @@
 import mongoose, { type Document, Schema } from 'mongoose';
 import {
   TRANSACTION_REFERENCE_TYPES,
+  WALLET_OWNER_TYPES,
   WALLET_TRANSACTION_TYPES,
   type TransactionReferenceType,
+  type WalletOwnerType,
   type WalletTransactionType,
 } from '@cabzone/contracts';
 
 export interface WalletTransactionDocument extends Document<string> {
   _id: string;
   wallet_id: string;
-  driver_id: string;
+  owner_type?: WalletOwnerType;
+  driver_id: string | null;
+  rider_id: string | null;
   type: WalletTransactionType;
   amount_paise: number;
   reference_type: TransactionReferenceType;
@@ -26,7 +30,13 @@ const walletTransactionSchema = new Schema<WalletTransactionDocument>(
   {
     _id: { type: String, required: true },
     wallet_id: { type: String, required: true },
-    driver_id: { type: String, required: true },
+    owner_type: {
+      type: String,
+      enum: WALLET_OWNER_TYPES,
+      default: 'DRIVER',
+    },
+    driver_id: { type: String, default: null, index: true },
+    rider_id: { type: String, default: null, index: true },
     type: {
       type: String,
       enum: WALLET_TRANSACTION_TYPES,
@@ -61,8 +71,10 @@ const walletTransactionSchema = new Schema<WalletTransactionDocument>(
 
 walletTransactionSchema.index({ wallet_id: 1, created_at: -1 });
 walletTransactionSchema.index({ driver_id: 1, created_at: -1 });
+walletTransactionSchema.index({ rider_id: 1, created_at: -1 });
 walletTransactionSchema.index({ reference_type: 1, reference_id: 1 });
 
 export const WalletTransactionModel: mongoose.Model<WalletTransactionDocument> =
   (mongoose.models.WalletTransaction as mongoose.Model<WalletTransactionDocument>) ||
   mongoose.model<WalletTransactionDocument>('WalletTransaction', walletTransactionSchema);
+

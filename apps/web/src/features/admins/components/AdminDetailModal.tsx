@@ -70,27 +70,28 @@ export function AdminDetailModal({
       <Dialog
         open={open}
         onOpenChange={onOpenChange}
-        title="Administrative Staff Profile & Role Dossier"
-        description="Comprehensive operator profile, permission scope, and regional zone jurisdiction"
-        className="max-w-4xl max-h-[88vh] overflow-y-auto"
+        title="Admin Details"
+        description="Administrator profile and permissions"
+        className="max-w-3xl max-h-[88vh] overflow-y-auto rounded-2xl border border-border-strong bg-surface shadow-2xl"
         footer={
-          <div className="flex w-full items-center justify-between">
+          <div className="flex w-full items-center justify-between pt-2">
             <div className="flex items-center gap-2">
               {admin && (
                 <Button
                   size="sm"
                   variant={admin.status === 'SUSPENDED' ? 'primary' : 'danger'}
                   onClick={() => setIsStatusOpen(true)}
+                  className="rounded-xl px-4 font-semibold"
                 >
                   {admin.status === 'SUSPENDED' ? (
                     <>
                       <UserCheck className="size-4 mr-1.5" />
-                      Reactivate Staff
+                      Reactivate
                     </>
                   ) : (
                     <>
                       <UserX className="size-4 mr-1.5" />
-                      Suspend Access
+                      Suspend
                     </>
                   )}
                 </Button>
@@ -102,11 +103,17 @@ export function AdminDetailModal({
                 variant="secondary"
                 onClick={() => setIsEditOpen(true)}
                 disabled={!admin}
+                className="rounded-xl px-4 font-semibold"
               >
                 <Edit2 className="size-3.5 mr-1.5" />
-                Edit Staff Member
+                Edit Admin
               </Button>
-              <Button size="sm" variant="ghost" onClick={() => onOpenChange(false)}>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => onOpenChange(false)}
+                className="rounded-xl px-3"
+              >
                 Close
               </Button>
             </div>

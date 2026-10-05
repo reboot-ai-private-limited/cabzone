@@ -12,6 +12,7 @@ export interface RiderEntity {
   preferredLanguage: string | null;
   ratingAverage: number | null;
   ratingCount: number;
+  trustScore?: number | null | undefined;
   version: number;
   createdAt: Date;
   updatedAt: Date;
