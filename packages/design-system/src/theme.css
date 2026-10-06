@@ -22,17 +22,16 @@
   --color-text-subtle: #5c635a;
 
   /* ── Brand ────────────────────────────────────────────────────────────────────
-   * FILL ONLY. #c0ff72 is 1.18:1 against white — as text, an icon, a border or a
-   * focus ring it is not low-contrast, it is invisible. Use --color-interactive
-   * for anything that needs to be a coloured ink.
+   * Cabzone brand blue: #002451 is 15.32:1 against white. Text/icons on it use
+   * --color-accent-ink (#ffffff).
    */
-  --color-accent: #c0ff72;
-  --color-accent-hover: #aef255;
-  --color-accent-ink: #1c1b1f;
+  --color-accent: #002451;
+  --color-accent-hover: #00336e;
+  --color-accent-ink: #ffffff;
 
   /* The coloured ink: links, focus rings, selected state, active tab underline. */
-  --color-interactive: #3f6212;
-  --color-interactive-hover: #365314;
+  --color-interactive: #002451;
+  --color-interactive-hover: #00336e;
 
   /* ── Lines ────────────────────────────────────────────────────────────────────
    * Two, deliberately. A hairline light enough to sit unobtrusively between table

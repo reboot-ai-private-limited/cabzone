@@ -256,7 +256,7 @@ export function DriverDetailsScreen({ id }: DriverDetailsScreenProps) {
             <span>{isSuspended ? 'Activate' : 'Suspend'}</span>
           </button>
 
-          <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#d4f870] text-[#3f6212]">
+          <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#002451]/10 text-[#002451] border border-[#002451]/20">
             <CheckCircle2 className="size-3.5" />
             <span>Verified</span>
           </span>
@@ -280,7 +280,7 @@ export function DriverDetailsScreen({ id }: DriverDetailsScreenProps) {
           className={cn(
             'pb-2.5 pt-1 transition-all border-b-2 font-semibold',
             activeTab === 'profile'
-              ? 'border-[#2d6a4f] text-[#1b4332]'
+              ? 'border-[#002451] text-[#002451]'
               : 'border-transparent text-slate-500 hover:text-slate-800',
           )}
         >
@@ -292,7 +292,7 @@ export function DriverDetailsScreen({ id }: DriverDetailsScreenProps) {
           className={cn(
             'pb-2.5 pt-1 transition-all border-b-2 font-semibold',
             activeTab === 'financials'
-              ? 'border-[#2d6a4f] text-[#1b4332]'
+              ? 'border-[#002451] text-[#002451]'
               : 'border-transparent text-slate-500 hover:text-slate-800',
           )}
         >
@@ -304,7 +304,7 @@ export function DriverDetailsScreen({ id }: DriverDetailsScreenProps) {
           className={cn(
             'pb-2.5 pt-1 transition-all border-b-2 font-semibold',
             activeTab === 'duty'
-              ? 'border-[#2d6a4f] text-[#1b4332]'
+              ? 'border-[#002451] text-[#002451]'
               : 'border-transparent text-slate-500 hover:text-slate-800',
           )}
         >
@@ -322,7 +322,7 @@ export function DriverDetailsScreen({ id }: DriverDetailsScreenProps) {
             <div className="flex flex-col md:flex-row items-center md:items-start gap-8">
               {/* Avatar & Identity Box */}
               <div className="flex flex-col items-center justify-center text-center w-full md:w-56 shrink-0 pt-1">
-                <div className="size-24 rounded-full bg-[#bef264] flex items-center justify-center text-slate-900 shadow-xs mb-3">
+                <div className="size-24 rounded-full bg-[#002451] flex items-center justify-center text-white shadow-xs mb-3">
                   <User className="size-12 stroke-[1.75]" />
                 </div>
                 <h3 className="font-bold text-slate-900 text-base">{driverDisplayName}</h3>

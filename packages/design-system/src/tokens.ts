@@ -14,9 +14,8 @@
  * `theme.css` (`--color-text`, `--color-accent-ink`, …), which is the layer where the contrast
  * rules are checked. These exist so `theme.css` and React Native have one source for the values.
  *
- * The accent is a near-white lime: 1.18:1 against white, 17.79:1 against black. It is a
- * SURFACE, never an INK. Anything that needs to be a coloured ink — a link, a focus ring, a
- * selected state — uses `interactive`. See docs/engineering/design-language.md §Color.
+ * The accent is Cabzone brand blue (#002451): 15.32:1 against white. It serves as the primary
+ * brand surface and identity color. Text/icons on it use `accentInk` (#ffffff).
  */
 export const colors = {
   // Surfaces
@@ -28,14 +27,14 @@ export const colors = {
   fg: '#1c1b1f',
   muted: '#5c635a',
 
-  // Brand. Fill only — see the note above.
-  accent: '#c0ff72',
-  accentHover: '#aef255',
-  accentInk: '#1c1b1f',
+  // Brand.
+  accent: '#002451',
+  accentHover: '#00336e',
+  accentInk: '#ffffff',
 
-  // The coloured ink. 7.08:1 on bg, 6.65:1 on bgSunken, 6.00:1 on accent.
-  interactive: '#3f6212',
-  interactiveHover: '#365314',
+  // The coloured ink. 15.32:1 on bg, 14.37:1 on bgSunken.
+  interactive: '#002451',
+  interactiveHover: '#00336e',
 
   // Hairlines are decorative; control boundaries carry meaning and need 3:1 (WCAG 1.4.11).
   border: '#d8dcd5',
@@ -104,7 +103,7 @@ export const contrastPairs = [
   { fg: colors.accentInk, bg: colors.accentHover, min: 4.5, name: 'ink on accent hover' },
   { fg: colors.interactive, bg: colors.bg, min: 4.5, name: 'interactive on surface' },
   { fg: colors.interactive, bg: colors.bgSunken, min: 4.5, name: 'interactive on sunken' },
-  { fg: colors.interactive, bg: colors.accent, min: 4.5, name: 'interactive on accent' },
+  { fg: colors.accent, bg: colors.bg, min: 4.5, name: 'accent on surface' },
   { fg: colors.interactiveHover, bg: colors.bg, min: 4.5, name: 'interactive hover on surface' },
   { fg: colors.success, bg: colors.bg, min: 4.5, name: 'success on surface' },
   { fg: colors.warning, bg: colors.bg, min: 4.5, name: 'warning on surface' },

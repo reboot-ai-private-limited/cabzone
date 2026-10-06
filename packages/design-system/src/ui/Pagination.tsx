@@ -89,7 +89,7 @@ function PageButton({
       className={cn(
         'inline-flex items-center justify-center size-8 rounded-sm text-xs tnum',
         'disabled:opacity-40 disabled:pointer-events-none',
-        // The accent fill with dark ink — the only way the lime can carry a label.
+        // The brand blue accent fill with white ink.
         current === true
           ? 'bg-accent text-accent-ink font-medium'
           : 'text-text hover:bg-surface-muted',
