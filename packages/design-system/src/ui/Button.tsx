@@ -8,8 +8,8 @@ export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
 export type ButtonSize = 'sm' | 'md' | 'lg';
 
 /**
- * `primary` is the accent FILL with dark ink on it — never white text. #c0ff72 is 1.18:1
- * against white, so a white label on it is unreadable. See docs/engineering/design-language.md.
+ * `primary` is the brand accent fill with white ink on it. #002451 is 15.32:1
+ * against white. See docs/engineering/design-language.md.
  *
  * No shadows on any variant. Depth comes from the border and the surface.
  */

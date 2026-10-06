@@ -1,10 +1,8 @@
 /**
  * Every colour pairing the design language declares must be legible.
  *
- * This exists because of one specific hazard. The brand accent `#c0ff72` scores 1.18:1 against
- * white — it is a fill, never an ink — and it looks exactly like a colour someone would reach
- * for as a text colour. This test is the answer that does not depend on anyone having read
- * docs/engineering/design-language.md.
+ * The brand accent `#002451` scores 15.32:1 against white, and white ink on it
+ * scores 15.32:1.
  *
  * The pairings live in `tokens.ts` as `contrastPairs`, so adding one is an edit to the design
  * system rather than to a test file someone can forget exists.
@@ -35,13 +33,8 @@ describe('contrast', () => {
     expect(ratio, `${fg} on ${bg} is ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(min);
   });
 
-  /**
-   * Not a redundant restatement of the rule — it is the rule's tripwire. If someone "fixes"
-   * the accent by darkening it so it can be used as text, this fails and points them at the
-   * design language rather than letting the brand quietly change colour.
-   */
-  it('the accent is a surface, not an ink', () => {
-    expect(contrastRatio(colors.accent, colors.bg)).toBeLessThan(3);
+  it('the accent has sufficient contrast against surfaces and ink', () => {
+    expect(contrastRatio(colors.accent, colors.bg)).toBeGreaterThanOrEqual(4.5);
     expect(contrastRatio(colors.accentInk, colors.accent)).toBeGreaterThanOrEqual(4.5);
   });
 });

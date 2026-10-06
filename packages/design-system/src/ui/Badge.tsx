@@ -9,7 +9,7 @@ export type BadgeTone = 'neutral' | 'accent' | 'success' | 'warning' | 'danger' 
  * Tinted background with a full-strength ink of the same hue. No shadow, no heavy border —
  * a row of these should read as labels, not as buttons the user failed to click.
  *
- * The accent tone uses the lime FILL with dark ink, which is the only way it can be used.
+ * The accent tone uses the brand blue fill with white ink.
  */
 const TONES: Record<BadgeTone, string> = {
   neutral: 'bg-surface-muted text-text-subtle',
