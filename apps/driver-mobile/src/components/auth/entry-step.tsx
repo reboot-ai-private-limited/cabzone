@@ -93,44 +93,7 @@ export function EntryStep({ onBecomeDriver, onLogin }: EntryStepProps) {
   const dragReady = useRef(false);
   const userDragging = useRef(false);
 
-  // Sticky slider bar animation values (elastic stretch & sticky spring)
-  const [trackWidth, setTrackWidth] = useState(0);
-  const [barPos] = useState(() => new Animated.Value(0));
-  const [barStretch] = useState(() => new Animated.Value(1));
 
-  useEffect(() => {
-    if (reducedMotion) {
-      barPos.setValue(page);
-      barStretch.setValue(1);
-      return;
-    }
-    Animated.parallel([
-      Animated.spring(barPos, {
-        toValue: page,
-        tension: 190,
-        friction: 14,
-        useNativeDriver: true,
-      }),
-      Animated.sequence([
-        Animated.timing(barStretch, {
-          toValue: 1.25,
-          duration: 120,
-          easing: Easing.out(Easing.ease),
-          useNativeDriver: true,
-        }),
-        Animated.spring(barStretch, {
-          toValue: 1.0,
-          tension: 220,
-          friction: 11,
-          useNativeDriver: true,
-        }),
-      ]),
-    ]).start();
-  }, [page, reducedMotion, barPos, barStretch]);
-
-  const barGap = 8;
-  const segmentWidth = trackWidth > 0 ? (trackWidth - 2 * barGap) / 3 : 0;
-  const barStep = segmentWidth + barGap;
 
   const slideTo = (i: number, duration = SLIDE_MS) => {
     idx.current = i;
@@ -157,7 +120,7 @@ export function EntryStep({ onBecomeDriver, onLogin }: EntryStepProps) {
     });
   };
 
-  const goToPage = (i: number) => slideTo(i);
+
 
   // Finger drag: follows the finger, then eases to the nearest page (flick-aware)
   const pan = useMemo(
@@ -436,6 +399,55 @@ export function EntryStep({ onBecomeDriver, onLogin }: EntryStepProps) {
     transform: [{ scale: scaleVal }],
   });
 
+  // Slide whoop in / whoop out transform (scale: 0.72 -> 1.0 -> 0.72, opacity: 0 -> 1.0 -> 0, slight 8px vertical settle)
+  const getSlideWhoopStyle = (pageIndex: number) => {
+    if (reducedMotion) {
+      return {
+        opacity: 1,
+        transform: [{ scale: 1 }, { translateY: 0 }],
+      };
+    }
+
+    const centerPos = -pageIndex * pageWidth;
+    const prevPos = -(pageIndex - 1) * pageWidth;
+    const nextPos = -(pageIndex + 1) * pageWidth;
+
+    const scale = tx.interpolate({
+      inputRange: [
+        nextPos,
+        nextPos + pageWidth * 0.5,
+        centerPos,
+        prevPos - pageWidth * 0.5,
+        prevPos,
+      ],
+      outputRange: [0.72, 0.88, 1.0, 0.88, 0.72],
+      extrapolate: 'clamp',
+    });
+
+    const opacity = tx.interpolate({
+      inputRange: [
+        nextPos,
+        nextPos + pageWidth * 0.5,
+        centerPos,
+        prevPos - pageWidth * 0.5,
+        prevPos,
+      ],
+      outputRange: [0, 0.75, 1.0, 0.75, 0],
+      extrapolate: 'clamp',
+    });
+
+    const translateY = tx.interpolate({
+      inputRange: [nextPos, centerPos, prevPos],
+      outputRange: [8, 0, 8],
+      extrapolate: 'clamp',
+    });
+
+    return {
+      opacity,
+      transform: [{ scale }, { translateY }],
+    };
+  };
+
   const renderCopy = (headline: string, body: string) => (
     <View style={styles.copySection}>
       <Text style={styles.headline} numberOfLines={1} adjustsFontSizeToFit>{headline}</Text>
@@ -443,115 +455,117 @@ export function EntryStep({ onBecomeDriver, onLogin }: EntryStepProps) {
     </View>
   );
 
-  const pilotPage = (key: string) => (
-    <View key={key} style={{ width: pageWidth, paddingHorizontal: 20, alignItems: 'center' }}>
-      <View style={styles.orbitalContainer}>
-        {/* Soft Warm Circular Backdrop Spotlight */}
-        <BlobBackground />
+  const pilotPage = (key: string, pageIndex: number) => {
+    const whoopStyle = getSlideWhoopStyle(pageIndex);
+    return (
+      <View key={key} style={{ width: pageWidth, paddingHorizontal: 20, alignItems: 'center' }}>
+        <Animated.View style={[{ width: '100%', alignItems: 'center' }, whoopStyle]}>
+          <View style={styles.orbitalContainer}>
+            {/* Dashed Golden Elliptical Orbit Ring */}
+            <View style={styles.dashedOrbit} />
 
-        {/* Dashed Golden Elliptical Orbit Ring */}
-        <View style={styles.dashedOrbit} />
-
-        {/* Central Pilot Avatar with Glowing Golden Ring */}
-        <Animated.View
-          style={[
-            styles.avatarGlowRing,
-            getPopStyle(avatarScale),
-          ]}>
-          <Animated.View style={{ transform: [{ scale: avatarPulse }] }}>
-            <Image
-              source={require('@/assets/images/driverAvatar.png')}
-              style={styles.avatarImage}
-              resizeMode="cover"
-            />
-          </Animated.View>
-        </Animated.View>
-
-        {/* Pill 1: Top-Right (Avg. Daily) */}
-        <Animated.View
-          style={[
-            styles.pillAvgDaily,
-            getPopStyle(pill1Scale),
-          ]}>
-          <Animated.View style={[styles.pillInnerRow, { transform: [{ translateY: floatYRight }] }]}>
-            <View style={styles.walletIconBox}>
-              <Ionicons name="receipt-outline" size={17} color="#92400E" />
-            </View>
-            <View>
-              <Text style={styles.avgDailyLabel}>Avg. Daily</Text>
-              <Text style={styles.avgDailyValue}>₹250</Text>
-            </View>
-          </Animated.View>
-        </Animated.View>
-
-        {/* Pill 2: Mid-Left (Online Now) */}
-        <Animated.View
-          style={[
-            styles.pillOnlineNow,
-            getPopStyle(pill2Scale),
-          ]}>
-          <Animated.View style={[styles.pillInnerRow, { transform: [{ translateY: floatYLeft }] }]}>
+            {/* Central Pilot Avatar with Glowing Golden Ring */}
             <Animated.View
               style={[
-                styles.greenBeaconOuter,
-                {
-                  transform: [{ scale: beaconPulse }],
-                  opacity: beaconOpacity,
-                },
+                styles.avatarGlowRing,
+                getPopStyle(avatarScale),
               ]}>
-              <View style={styles.greenBeaconDot} />
+              <Animated.View style={{ transform: [{ scale: avatarPulse }] }}>
+                <Image
+                  source={require('@/assets/images/driverAvatar.png')}
+                  style={styles.avatarImage}
+                  resizeMode="cover"
+                />
+              </Animated.View>
             </Animated.View>
-            <Text style={styles.onlineNowText}>Online{'\n'}Now</Text>
-          </Animated.View>
-        </Animated.View>
 
-        {/* Pill 3: Center Banner (Drive, Earn & Keep 100% Tips) */}
-        <Animated.View
-          style={[
-            styles.pillCenterBanner,
-            getPopStyle(pill3Scale),
-          ]}>
-          <Animated.View style={[styles.pillInnerRow, { transform: [{ scale: bannerPulse }], width: '100%' }]}>
-            <View style={styles.checkBadge}>
-              <Ionicons name="checkmark" size={14} color="#FFFFFF" />
-            </View>
-            <Text style={styles.centerBannerText}>
-              Drive, Earn & Keep 100%{'\n'}Tips
-            </Text>
-          </Animated.View>
-        </Animated.View>
+            {/* Pill 1: Top-Right (Avg. Daily) */}
+            <Animated.View
+              style={[
+                styles.pillAvgDaily,
+                getPopStyle(pill1Scale),
+              ]}>
+              <Animated.View style={[styles.pillInnerRow, { transform: [{ translateY: floatYRight }] }]}>
+                <View style={styles.walletIconBox}>
+                  <Ionicons name="receipt-outline" size={17} color="#92400E" />
+                </View>
+                <View>
+                  <Text style={styles.avgDailyLabel}>Avg. Daily</Text>
+                  <Text style={styles.avgDailyValue}>₹250</Text>
+                </View>
+              </Animated.View>
+            </Animated.View>
 
-        {/* Pill 4: Bottom-Left (24/7 Support) */}
-        <Animated.View
-          style={[
-            styles.pillSupport,
-            getPopStyle(pill4Scale),
-          ]}>
-          <Animated.View style={[styles.pillInnerRow, { transform: [{ translateY: floatYLeft }] }]}>
-            <View style={styles.amberIconBox}>
-              <Ionicons name="shield-checkmark" size={15} color="#D97706" />
-            </View>
-            <Text style={styles.pillSmallText}>24/7{'\n'}Support</Text>
-          </Animated.View>
-        </Animated.View>
+            {/* Pill 2: Mid-Left (Online Now) */}
+            <Animated.View
+              style={[
+                styles.pillOnlineNow,
+                getPopStyle(pill2Scale),
+              ]}>
+              <Animated.View style={[styles.pillInnerRow, { transform: [{ translateY: floatYLeft }] }]}>
+                <Animated.View
+                  style={[
+                    styles.greenBeaconOuter,
+                    {
+                      transform: [{ scale: beaconPulse }],
+                      opacity: beaconOpacity,
+                    },
+                  ]}>
+                  <View style={styles.greenBeaconDot} />
+                </Animated.View>
+                <Text style={styles.onlineNowText}>Online{'\n'}Now</Text>
+              </Animated.View>
+            </Animated.View>
 
-        {/* Pill 5: Bottom-Right (Smart Dispatch) */}
-        <Animated.View
-          style={[
-            styles.pillDispatch,
-            getPopStyle(pill5Scale),
-          ]}>
-          <Animated.View style={[styles.pillInnerRow, { transform: [{ translateY: floatYRight }] }]}>
-            <View style={styles.amberIconBox}>
-              <Ionicons name="car-sport" size={16} color="#D97706" />
-            </View>
-            <Text style={styles.pillSmallText}>Smart{'\n'}Dispatch</Text>
-          </Animated.View>
+            {/* Pill 3: Center Banner (Drive, Earn & Keep 100% Tips) */}
+            <Animated.View
+              style={[
+                styles.pillCenterBanner,
+                getPopStyle(pill3Scale),
+              ]}>
+              <Animated.View style={[styles.pillInnerRow, { transform: [{ scale: bannerPulse }], width: '100%' }]}>
+                <View style={styles.checkBadge}>
+                  <Ionicons name="checkmark" size={14} color="#FFFFFF" />
+                </View>
+                <Text style={styles.centerBannerText}>
+                  Drive, Earn & Keep 100%{'\n'}Tips
+                </Text>
+              </Animated.View>
+            </Animated.View>
+
+            {/* Pill 4: Bottom-Left (24/7 Support) */}
+            <Animated.View
+              style={[
+                styles.pillSupport,
+                getPopStyle(pill4Scale),
+              ]}>
+              <Animated.View style={[styles.pillInnerRow, { transform: [{ translateY: floatYLeft }] }]}>
+                <View style={styles.amberIconBox}>
+                  <Ionicons name="shield-checkmark" size={15} color="#D97706" />
+                </View>
+                <Text style={styles.pillSmallText}>24/7{'\n'}Support</Text>
+              </Animated.View>
+            </Animated.View>
+
+            {/* Pill 5: Bottom-Right (Smart Dispatch) */}
+            <Animated.View
+              style={[
+                styles.pillDispatch,
+                getPopStyle(pill5Scale),
+              ]}>
+              <Animated.View style={[styles.pillInnerRow, { transform: [{ translateY: floatYRight }] }]}>
+                <View style={styles.amberIconBox}>
+                  <Ionicons name="car-sport" size={16} color="#D97706" />
+                </View>
+                <Text style={styles.pillSmallText}>Smart{'\n'}Dispatch</Text>
+              </Animated.View>
+            </Animated.View>
+          </View>
+          {renderCopy(PILOT_COPY.headline, PILOT_COPY.body)}
         </Animated.View>
       </View>
-      {renderCopy(PILOT_COPY.headline, PILOT_COPY.body)}
-    </View>
-  );
+    );
+  };
 
   return (
     <View style={styles.outerContainer}>
@@ -567,44 +581,14 @@ export function EntryStep({ onBecomeDriver, onLogin }: EntryStepProps) {
           ]}
           showsVerticalScrollIndicator={false}
           bounces={false}>
-          {/* Top Story / Progress Indicators with Sticky Spring Animation */}
-          <View
-            style={styles.storyBarsContainer}
-            onLayout={(e) => setTrackWidth(e.nativeEvent.layout.width)}>
-            {[0, 1, 2].map((i) => (
-              <Pressable
-                key={i}
-                hitSlop={{ top: 14, bottom: 14, left: 6, right: 6 }}
-                style={styles.storyBarHit}
-                onPress={() => goToPage(i)}>
-                <View style={styles.storyBar} />
-              </Pressable>
-            ))}
 
-            {/* Active Sticky Animated Bar */}
-            {segmentWidth > 0 && (
-              <Animated.View
-                pointerEvents="none"
-                style={[
-                  styles.storyBarActiveSticky,
-                  {
-                    width: segmentWidth,
-                    transform: [
-                      {
-                        translateX: barPos.interpolate({
-                          inputRange: [0, 1, 2],
-                          outputRange: [0, barStep, barStep * 2],
-                        }),
-                      },
-                      { scaleX: barStretch },
-                    ],
-                  },
-                ]}
-              />
-            )}
-          </View>
 
           <View style={styles.mainStack}>
+            {/* Single fixed stationary blob anchored behind the slider */}
+            <View pointerEvents="none" style={styles.fixedBlobAnchor}>
+              <BlobBackground />
+            </View>
+
             {/* Swipeable hero pager: top-centered native-driven translateX track */}
             <View
               style={{
@@ -621,42 +605,46 @@ export function EntryStep({ onBecomeDriver, onLogin }: EntryStepProps) {
                   width: pageWidth * (PAGE_COUNT + 1),
                   transform: [{ translateX: tx }],
                 }}>
-                {pilotPage('p0')}
+                {pilotPage('p0', 0)}
 
-                {EXTRA_SLIDES.map((slide) => (
-                  <View key={slide.key} style={{ width: pageWidth, paddingHorizontal: 20, alignItems: 'center' }}>
-                    <View style={styles.orbitalContainer}>
-                      <BlobBackground />
-                      <View style={styles.dashedOrbit} />
+                {EXTRA_SLIDES.map((slide, sIdx) => {
+                  const whoopStyle = getSlideWhoopStyle(sIdx + 1);
+                  return (
+                    <View key={slide.key} style={{ width: pageWidth, paddingHorizontal: 20, alignItems: 'center' }}>
+                      <Animated.View style={[{ width: '100%', alignItems: 'center' }, whoopStyle]}>
+                        <View style={styles.orbitalContainer}>
+                          <View style={styles.dashedOrbit} />
 
-                      <Animated.View style={[styles.avatarGlowRing, { transform: [{ scale: avatarPulse }] }]}>
-                        <View style={styles.slideHeroIcon}>
-                          <Ionicons name={slide.heroIcon} size={40} color="#D97706" />
-                        </View>
-                      </Animated.View>
-
-                      {slide.pills.map((pill, i) => (
-                        <Animated.View
-                          key={pill.label}
-                          style={[
-                            styles.pillBase,
-                            SLIDE_PILL_POSITIONS[i],
-                            { transform: [{ translateY: i % 2 === 0 ? floatYLeft : floatYRight }] },
-                          ]}>
-                          <View style={styles.pillInnerRow}>
-                            <View style={styles.amberIconBox}>
-                              <Ionicons name={pill.icon} size={15} color="#D97706" />
+                          <Animated.View style={[styles.avatarGlowRing, { transform: [{ scale: avatarPulse }] }]}>
+                            <View style={styles.slideHeroIcon}>
+                              <Ionicons name={slide.heroIcon} size={40} color="#D97706" />
                             </View>
-                            <Text style={styles.pillSmallText}>{pill.label}</Text>
-                          </View>
-                        </Animated.View>
-                      ))}
+                          </Animated.View>
+
+                          {slide.pills.map((pill, i) => (
+                            <Animated.View
+                              key={pill.label}
+                              style={[
+                                styles.pillBase,
+                                SLIDE_PILL_POSITIONS[i],
+                                { transform: [{ translateY: i % 2 === 0 ? floatYLeft : floatYRight }] },
+                              ]}>
+                              <View style={styles.pillInnerRow}>
+                                <View style={styles.amberIconBox}>
+                                  <Ionicons name={pill.icon} size={15} color="#D97706" />
+                                </View>
+                                <Text style={styles.pillSmallText}>{pill.label}</Text>
+                              </View>
+                            </Animated.View>
+                          ))}
+                        </View>
+                        {renderCopy(slide.headline, slide.body)}
+                      </Animated.View>
                     </View>
-                    {renderCopy(slide.headline, slide.body)}
-                  </View>
-                ))}
+                  );
+                })}
                 {/* Clone of page 1 so the loop wraps seamlessly */}
-                {pilotPage('p0-clone')}
+                {pilotPage('p0-clone', 3)}
               </Animated.View>
             </View>
 
@@ -668,7 +656,7 @@ export function EntryStep({ onBecomeDriver, onLogin }: EntryStepProps) {
               <CandyButton
                 title="Get Started as Driver"
                 onPress={onBecomeDriver}
-                icon={<Ionicons name="arrow-forward" size={19} color="#FFFFFF" />}
+                icon={<Ionicons name="arrow-forward" size={19} color="#5A3416" />}
                 style={{ width: '100%', maxWidth: 360, alignSelf: 'center' }}
               />
 
@@ -690,10 +678,7 @@ export function EntryStep({ onBecomeDriver, onLogin }: EntryStepProps) {
 }
 
 const styles = StyleSheet.create({
-  storyBarHit: {
-    flex: 1,
-    justifyContent: 'center',
-  },
+
   pillBase: {
     position: 'absolute',
     backgroundColor: '#FFFFFF',
@@ -743,6 +728,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     width: '100%',
     paddingTop: 10,
+    position: 'relative',
+  },
+  fixedBlobAnchor: {
+    position: 'absolute',
+    top: 2,
+    alignSelf: 'center',
+    width: 400,
+    height: 400,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 0,
   },
   midSpacer: {
     flex: 1,
@@ -754,30 +750,7 @@ const styles = StyleSheet.create({
     minHeight: 8,
     maxHeight: 24,
   },
-  storyBarsContainer: {
-    zIndex: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 4,
-    height: 16,
-    marginBottom: 18,
-    position: 'relative',
-  },
-  storyBar: {
-    width: '100%',
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: '#E5DECB',
-  },
-  storyBarActiveSticky: {
-    position: 'absolute',
-    left: 4,
-    top: 6,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: '#111827',
-  },
+
   orbitalContainer: {
     height: 350,
     position: 'relative',

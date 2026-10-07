@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import {
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -9,6 +8,8 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { CandyButton } from '@/components/buttons/candy-button';
 import { useAuth } from '@/context/auth-context';
 import { API_BASE_URL } from '@/services/api';
 
@@ -120,16 +121,24 @@ export function PhoneStep({ onBack }: PhoneStepProps = {}) {
         </View>
 
         {/* CTA Button */}
-        <Pressable
-          style={[styles.button, (!isValid || isLoading) && styles.buttonDisabled]}
+        <CandyButton
+          title={isLoading ? 'Sending code...' : 'Get Verification Code'}
+          onPress={handleSubmit}
           disabled={!isValid || isLoading}
-          onPress={handleSubmit}>
-          {isLoading ? (
-            <ActivityIndicator color="#ffffff" />
-          ) : (
-            <Text style={styles.buttonText}>Get Verification Code →</Text>
-          )}
-        </Pressable>
+          loading={isLoading}
+          variant={isValid ? 'primary' : 'muted'}
+          icon={
+            !isLoading && (
+              <Ionicons
+                name="arrow-forward"
+                size={18}
+                color={isValid ? '#5A3416' : '#B3A48C'}
+                style={{ marginLeft: 2 }}
+              />
+            )
+          }
+          style={{ width: '100%', marginTop: 8 }}
+        />
 
         <Text style={styles.footerNote}>
           By continuing, you agree to Cabzone’s Driver Terms of Service and Privacy Policy.
