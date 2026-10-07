@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native';
 import { useAuth } from '@/context/auth-context';
+import { API_BASE_URL } from '@/services/api';
 
 const DEV_PRESETS = [
   { label: 'Dev Driver', phone: '9000000002' },
@@ -17,7 +18,11 @@ const DEV_PRESETS = [
   { label: 'Rajesh', phone: '9000000013' },
 ];
 
-export function PhoneStep() {
+interface PhoneStepProps {
+  onBack?: () => void;
+}
+
+export function PhoneStep({ onBack }: PhoneStepProps = {}) {
   const { sendOtp, isLoading, error, clearError } = useAuth();
   const [phoneNumber, setPhoneNumber] = useState('');
 
@@ -44,6 +49,12 @@ export function PhoneStep() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       style={styles.container}>
       <View style={styles.card}>
+        {onBack ? (
+          <Pressable onPress={onBack} style={styles.backBtn} hitSlop={12}>
+            <Text style={styles.backArrow}>←</Text>
+          </Pressable>
+        ) : null}
+
         {/* Brand Header */}
         <View style={styles.brandContainer}>
           <View style={styles.logoBadge}>
@@ -123,6 +134,10 @@ export function PhoneStep() {
         <Text style={styles.footerNote}>
           By continuing, you agree to Cabzone’s Driver Terms of Service and Privacy Policy.
         </Text>
+
+        <View style={styles.serverPill}>
+          <Text style={styles.serverPillText}>API: {API_BASE_URL}</Text>
+        </View>
       </View>
     </KeyboardAvoidingView>
   );
@@ -310,5 +325,35 @@ const styles = StyleSheet.create({
     color: '#94a3b8',
     textAlign: 'center',
     lineHeight: 15,
+  },
+  serverPill: {
+    marginTop: 12,
+    alignSelf: 'center',
+    backgroundColor: '#f1f5f9',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  serverPillText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#64748b',
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+  backBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+  },
+  backArrow: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111827',
   },
 });

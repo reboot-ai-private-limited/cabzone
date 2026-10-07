@@ -8,6 +8,7 @@ export interface DriverRouterDeps {
   uploadDocument: RequestHandler;
   registerVehicle: RequestHandler;
   submitApplication: RequestHandler;
+  testApproveApplication?: RequestHandler | undefined;
 }
 
 export function buildDriverRouter(deps: DriverRouterDeps): Router {
@@ -21,6 +22,9 @@ export function buildDriverRouter(deps: DriverRouterDeps): Router {
   router.post('/documents', deps.uploadDocument);
   router.post('/vehicles', deps.registerVehicle);
   router.post('/application/submit', deps.submitApplication);
+  if (deps.testApproveApplication) {
+    router.post('/application/test-approve', deps.testApproveApplication);
+  }
 
   return router;
 }

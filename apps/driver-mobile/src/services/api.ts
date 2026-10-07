@@ -4,8 +4,10 @@ import type {
   VerifyOtpRequestDto,
   VerifyOtpResponseDto,
   RequestOtpResponseDto,
-  DriverDto,
+  DriverProfileDetailDto,
 } from '@cabzone/contracts';
+
+export type { DriverProfileDetailDto };
 
 function getApiBaseUrl(): string {
   // 1. Explicit environment variable
@@ -18,14 +20,21 @@ function getApiBaseUrl(): string {
     return 'http://localhost:4000';
   }
 
-  // 3. Dynamic IP from Expo Host URI (auto-detects dev machine LAN IP when running on phone)
+  // 3. Dynamic IP from Expo Host URI ONLY if it's a real routable LAN IPv4 (not tunnel domain, not 169.254.*)
   const hostUri = Constants.expoConfig?.hostUri;
   if (hostUri) {
-    const ip = hostUri.split(':')[0];
-    return `http://${ip}:4000`;
+    const rawHost = hostUri.split(':')[0];
+    const isTunnel =
+      rawHost.includes('exp.direct') || rawHost.includes('ngrok') || rawHost.includes('expo.dev');
+    const isLinkLocal = rawHost.startsWith('169.254.');
+    const isIpv4 = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(rawHost);
+
+    if (!isTunnel && !isLinkLocal && isIpv4) {
+      return `http://${rawHost}:4000`;
+    }
   }
 
-  // 4. Fallback to local Wi-Fi IP
+  // 4. Default to local Wi-Fi IP
   return 'http://192.168.1.5:4000';
 }
 
@@ -111,9 +120,169 @@ export const authApi = {
     );
   },
 
-  async getDriverProfile(token: string): Promise<DriverDto | null> {
+  async getDriverProfile(token: string): Promise<DriverProfileDetailDto | null> {
     try {
-      return await request<DriverDto>('/api/v1/driver/profile/me', { method: 'GET' }, token);
+      return await request<DriverProfileDetailDto>('/api/v1/driver/profile/me', { method: 'GET' }, token);
+    } catch {
+      return null;
+    }
+  },
+};
+
+export interface CreateDriverProfilePayload {
+  name?: string;
+  gender?: string;
+  dateOfBirth?: string;
+  address?: string;
+  dlNumber?: string;
+  dlExpiry?: string;
+  alternatePhone?: string;
+  emergencyContact?: string;
+}
+
+export interface RegisterVehiclePayload {
+  vehicleType: 'CAB' | 'E_RICKSHAW';
+  make: string;
+  model: string;
+  registrationNumber: string;
+  color?: string | null;
+  manufactureYear?: number | null;
+}
+
+export interface UploadDocumentPayload {
+  type: 'GOVERNMENT_ID' | 'DRIVING_LICENSE';
+  storageKey: string;
+  documentHash: string;
+  documentNumberMasked?: string | null;
+  issuedAt?: string | null;
+  expiresAt?: string | null;
+}
+
+export const driverApi = {
+  async getProfile(token: string): Promise<DriverProfileDetailDto | null> {
+    try {
+      return await request<DriverProfileDetailDto>('/api/v1/driver/profile/me', { method: 'GET' }, token);
+    } catch {
+      return null;
+    }
+  },
+
+  async saveProfile(token: string, payload: CreateDriverProfilePayload): Promise<any> {
+    return request<any>(
+      '/api/v1/driver/profile',
+      {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      },
+      token,
+    );
+  },
+
+  async createApplication(token: string): Promise<any> {
+    return request<any>(
+      '/api/v1/driver/application',
+      {
+        method: 'POST',
+        body: JSON.stringify({}),
+      },
+      token,
+    );
+  },
+
+  async registerVehicle(token: string, payload: RegisterVehiclePayload): Promise<any> {
+    return request<any>(
+      '/api/v1/driver/vehicles',
+      {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      },
+      token,
+    );
+  },
+
+  async uploadDocument(token: string, payload: UploadDocumentPayload): Promise<any> {
+    return request<any>(
+      '/api/v1/driver/documents',
+      {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      },
+      token,
+    );
+  },
+
+  async submitApplication(token: string): Promise<any> {
+    return request<any>(
+      '/api/v1/driver/application/submit',
+      {
+        method: 'POST',
+        body: JSON.stringify({}),
+      },
+      token,
+    );
+  },
+
+  async testApprove(token: string): Promise<DriverProfileDetailDto> {
+    return request<DriverProfileDetailDto>(
+      '/api/v1/driver/application/test-approve',
+      {
+        method: 'POST',
+        body: JSON.stringify({}),
+      },
+      token,
+    );
+  },
+};
+
+export interface UpdateLocationPayload {
+  lat: number;
+  lng: number;
+  heading?: number | null | undefined;
+  speedMps?: number | null | undefined;
+}
+
+export const dispatchApi = {
+  async setStatus(
+    token: string,
+    status: 'ONLINE' | 'OFFLINE',
+    coords?: { lat: number; lng: number },
+  ): Promise<{ status: 'ONLINE' | 'OFFLINE' }> {
+    return request<{ status: 'ONLINE' | 'OFFLINE' }>(
+      '/api/v1/driver/status',
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          status,
+          ...(coords?.lat !== undefined && { lat: coords.lat }),
+          ...(coords?.lng !== undefined && { lng: coords.lng }),
+        }),
+      },
+      token,
+    );
+  },
+
+  async updateLocation(token: string, payload: UpdateLocationPayload): Promise<{ ok: boolean }> {
+    return request<{ ok: boolean }>(
+      '/api/v1/driver/location',
+      {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      },
+      token,
+    );
+  },
+};
+
+export const walletApi = {
+  async getMyWallet(token: string): Promise<{
+    wallet: { id: string; balancePaise: number } | null;
+    transactions: any[];
+  } | null> {
+    try {
+      return await request<{
+        wallet: { id: string; balancePaise: number } | null;
+        transactions: any[];
+      }>('/api/v1/driver/wallet/me', { method: 'GET' }, token);
     } catch {
       return null;
     }

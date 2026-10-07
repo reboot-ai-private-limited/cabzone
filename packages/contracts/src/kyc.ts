@@ -39,6 +39,9 @@ export interface DriverApplicationDto {
 export const DOCUMENT_TYPES = ['GOVERNMENT_ID', 'DRIVING_LICENSE'] as const;
 export type DocumentType = (typeof DOCUMENT_TYPES)[number];
 
+import type { DriverDto } from './identity.js';
+import type { VehicleDto } from './vehicles.js';
+
 export const DOCUMENT_VERIFICATION_STATUSES = ['PENDING', 'VERIFIED', 'FAILED', 'EXPIRED'] as const;
 export type DocumentVerificationStatus = (typeof DOCUMENT_VERIFICATION_STATUSES)[number];
 
@@ -56,4 +59,11 @@ export interface DriverDocumentDto {
   verifiedAt: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface DriverProfileDetailDto {
+  driver: DriverDto | null;
+  vehicle: VehicleDto | null;
+  application: DriverApplicationDto | null;
+  documents: DriverDocumentDto[];
 }
