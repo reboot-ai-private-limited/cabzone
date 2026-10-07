@@ -9,8 +9,8 @@
   --color-popover-foreground: var(--color-text, #1c1b1f);
   --color-muted: var(--color-surface-muted, #edefea);
   --color-muted-foreground: var(--color-text-subtle, #5c635a);
-  --color-primary: var(--color-interactive, #3f6212);
-  --color-primary-hover: var(--color-interactive-hover, #365314);
+  --color-primary: var(--color-interactive, #002451);
+  --color-primary-hover: var(--color-interactive-hover, #00336e);
   --color-primary-foreground: #ffffff;
   --color-secondary: var(--color-surface-muted, #edefea);
   --color-secondary-foreground: var(--color-text, #1c1b1f);

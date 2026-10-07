@@ -1,6 +1,5 @@
 import {
   Car,
-  CreditCard,
   FileCode2,
   FileText,
   FlaskConical,
