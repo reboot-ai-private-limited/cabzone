@@ -1,4 +1,3 @@
-import { AppError } from '../../../../shared/errors/AppError.js';
 import type {
   DriverApplicationEntity,
   DriverApplicationRepositoryPort,
@@ -18,7 +17,7 @@ export interface GetDriverProfileDeps {
 }
 
 export interface DriverProfileDetail {
-  driver: DriverEntity;
+  driver: DriverEntity | null;
   vehicle: VehicleEntity | null;
   application: DriverApplicationEntity | null;
   documents: DriverDocumentEntity[];
@@ -30,7 +29,12 @@ export class GetDriverProfileUseCase {
   async execute(userId: string): Promise<DriverProfileDetail> {
     const driver = await this.deps.driverRepo.findByUserId(userId);
     if (!driver) {
-      throw AppError.notFound('Driver profile not found.');
+      return {
+        driver: null,
+        vehicle: null,
+        application: null,
+        documents: [],
+      };
     }
 
     const [vehicle, application, documents] = await Promise.all([

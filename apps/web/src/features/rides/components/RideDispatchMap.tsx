@@ -355,7 +355,7 @@ export function RideDispatchMap({
                 className={cn(
                   'px-2.5 py-1 rounded-md font-medium transition-colors',
                   selectedCategory === c.value
-                    ? 'bg-interactive text-text-inverse shadow-xs'
+                    ? 'bg-interactive text-white shadow-xs'
                     : 'text-text-subtle hover:text-text',
                 )}
               >
@@ -607,7 +607,7 @@ export function RideDispatchMap({
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-2.5">
                 <div
-                  className="size-9 rounded-lg flex items-center justify-center text-text-inverse font-bold text-xs"
+                  className="size-9 rounded-lg flex items-center justify-center text-white font-bold text-xs"
                   style={{ backgroundColor: getCategoryColor(selectedDriver.vehicleCategory, selectedDriver.status === 'BUSY') }}
                 >
                   <Car className="size-4 text-white" />

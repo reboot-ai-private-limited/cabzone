@@ -58,6 +58,7 @@ import {
   makeReviewDriverApplicationController,
   makeSubmitDriverApplicationController,
   makeUploadDriverDocumentController,
+  makeTestApproveDriverController,
 } from './interface/driver.controller.js';
 import { buildAdminDriverRouter, buildDriverRouter } from './interface/driver.routes.js';
 import {
@@ -270,6 +271,19 @@ export function buildIdentityContainer(deps?: IdentityContainerDeps): IdentityCo
         uploadDocument: makeUploadDriverDocumentController(uploadDriverDocumentUseCase),
         registerVehicle: makeRegisterDriverVehicleController(registerDriverVehicleUseCase),
         submitApplication: makeSubmitDriverApplicationController(submitDriverApplicationUseCase),
+        testApproveApplication:
+          process.env.NODE_ENV !== 'production'
+            ? makeTestApproveDriverController({
+                driverRepo,
+                vehicleRepo,
+                applicationRepo,
+                documentRepo,
+                createDriverProfileUseCase,
+                createDriverApplicationUseCase,
+                registerDriverVehicleUseCase,
+                uploadDriverDocumentUseCase,
+              })
+            : undefined,
       }),
     buildAdminDriverRouter: () =>
       buildAdminDriverRouter({

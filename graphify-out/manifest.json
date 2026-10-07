@@ -432,9 +432,9 @@
     "semantic_hash": ""
   },
   "pnpm-workspace.yaml": {
-    "mtime": 1790692197.2199225,
-    "seen": 1790765483.8001559,
-    "ast_hash": "4cf3188459c671c1d8f31ef3e090d7b6",
+    "mtime": 1791361408.819734,
+    "seen": 1791361797.7224524,
+    "ast_hash": "4f5b88c6e4094cc13e0e5d1e1f5f96b7",
     "semantic_hash": ""
   },
   "apps/web/next-env.d.ts": {
@@ -792,9 +792,9 @@
     "semantic_hash": ""
   },
   "packages/contracts/src/identity.ts": {
-    "mtime": 1791204538.0962985,
-    "seen": 1791207456.6369355,
-    "ast_hash": "88954230c55ffdcc3560c3a1068411a5",
+    "mtime": 1791365065.442274,
+    "seen": 1791377354.2709067,
+    "ast_hash": "e5f68abf6c5eecfe0645eb04686da9d7",
     "semantic_hash": ""
   },
   ".agents/rules/ai-pairing-flow.md": {
@@ -864,9 +864,9 @@
     "semantic_hash": ""
   },
   "packages/contracts/src/kyc.ts": {
-    "mtime": 1790325429.5919235,
-    "seen": 1790340660.170075,
-    "ast_hash": "c5d0c9ae509349b9c5b50059dcda3455",
+    "mtime": 1791364680.945731,
+    "seen": 1791377354.2710388,
+    "ast_hash": "b995f8c310b46835ca189c3a8a87aaf4",
     "semantic_hash": ""
   },
   "apps/api/src/modules/identity/application/useCases/createDriverApplication.usecase.ts": {
@@ -876,15 +876,15 @@
     "semantic_hash": ""
   },
   "apps/api/src/modules/identity/application/useCases/createDriverProfile.usecase.ts": {
-    "mtime": 1790335383.4514396,
-    "seen": 1790340660.1698246,
-    "ast_hash": "99aa5031969c83177c17262a3b4b7f0d",
+    "mtime": 1791364704.4159212,
+    "seen": 1791377354.2056718,
+    "ast_hash": "1e9d3cf9432216d1b3756c2f12bd6bf0",
     "semantic_hash": ""
   },
   "apps/api/src/modules/identity/application/useCases/getDriverProfile.usecase.ts": {
-    "mtime": 1790335383.4514396,
-    "seen": 1790340660.169826,
-    "ast_hash": "6ed94d2b2253ea3a18745001278c790d",
+    "mtime": 1791365129.967443,
+    "seen": 1791377354.2056751,
+    "ast_hash": "25c0cb04ce865529ff9bd7be4bbc61e4",
     "semantic_hash": ""
   },
   "apps/api/src/modules/identity/application/useCases/index.ts": {
@@ -990,9 +990,9 @@
     "semantic_hash": ""
   },
   "apps/api/src/modules/identity/identity.container.ts": {
-    "mtime": 1791200619.3295412,
-    "seen": 1791207456.6087239,
-    "ast_hash": "217d98adc74931d1bd70c20f59ac1acb",
+    "mtime": 1791364754.7654996,
+    "seen": 1791377354.210184,
+    "ast_hash": "e61ba1750655137afdb9ca6d27881017",
     "semantic_hash": ""
   },
   "apps/api/src/modules/identity/infrastructure/consoleSmsGateway.adapter.ts": {
@@ -1056,15 +1056,15 @@
     "semantic_hash": ""
   },
   "apps/api/src/modules/identity/interface/driver.controller.ts": {
-    "mtime": 1791200619.336122,
-    "seen": 1791207456.6115577,
-    "ast_hash": "47cb215a996d2799f2dc59319a4cfe45",
+    "mtime": 1791365152.9740224,
+    "seen": 1791377354.2139695,
+    "ast_hash": "828d578edb93b2d96b2ed8e3c9cb8984",
     "semantic_hash": ""
   },
   "apps/api/src/modules/identity/interface/driver.routes.ts": {
-    "mtime": 1791200619.336122,
-    "seen": 1791207456.6115592,
-    "ast_hash": "da2a8717fff2e0c0c07e4559dafab68d",
+    "mtime": 1791364775.292781,
+    "seen": 1791377354.2139716,
+    "ast_hash": "d28b3fc0c681fc3318f1fbe9269c1ecb",
     "semantic_hash": ""
   },
   "apps/api/src/modules/ledger/domain/index.ts": {
@@ -2238,9 +2238,9 @@
     "semantic_hash": ""
   },
   "apps/api/src/scripts/seed.ts": {
-    "mtime": 1791205488.9296434,
-    "seen": 1791207456.624894,
-    "ast_hash": "fff1e9f7ea9c0846247a1930b6be1c43",
+    "mtime": 1791207896.414191,
+    "seen": 1791361797.6730783,
+    "ast_hash": "2223f27ee291d63712c9daed7ee69db5",
     "semantic_hash": ""
   },
   "apps/api/src/shared/http/swagger.util.ts": {
@@ -2340,9 +2340,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/components/nav-items.ts": {
-    "mtime": 1791202356.7725036,
-    "seen": 1791207456.630857,
-    "ast_hash": "21fb5de73c6cb56333c5cf0f6aef2c72",
+    "mtime": 1791361408.7044165,
+    "seen": 1791361797.6835027,
+    "ast_hash": "b71f4eee9796f12cba3247b5cc8dbe6c",
     "semantic_hash": ""
   },
   "apps/web/src/features/zones/components/ZoneRail.tsx": {
@@ -2520,9 +2520,9 @@
     "semantic_hash": ""
   },
   "packages/design-system/src/theme.contrast.test.ts": {
-    "mtime": 1790692197.1831815,
-    "seen": 1790765483.7977984,
-    "ast_hash": "fe72c9f3be96963c9cf7d516d01748f1",
+    "mtime": 1791361408.708313,
+    "seen": 1791361797.7024133,
+    "ast_hash": "6e4fdf86dba51ba40033f0e308c8c246",
     "semantic_hash": ""
   },
   "packages/design-system/src/tokens.drift.test.ts": {
@@ -2532,21 +2532,21 @@
     "semantic_hash": ""
   },
   "packages/design-system/src/tokens.ts": {
-    "mtime": 1790692197.187215,
-    "seen": 1790765483.7978017,
-    "ast_hash": "80f49d3fb79e424df9949ec9cc9d76d4",
+    "mtime": 1791361408.7108285,
+    "seen": 1791361797.7025802,
+    "ast_hash": "7efceafc88062c9ec8ba461c560cf0f4",
     "semantic_hash": ""
   },
   "packages/design-system/src/ui/Badge.tsx": {
-    "mtime": 1790692197.187215,
-    "seen": 1790765483.7978039,
-    "ast_hash": "0c46cdfcafae48c297f07a4b47c48073",
+    "mtime": 1791361408.711394,
+    "seen": 1791361797.7025824,
+    "ast_hash": "e26c1e250854d75880ef94db4103d723",
     "semantic_hash": ""
   },
   "packages/design-system/src/ui/Button.tsx": {
-    "mtime": 1790692197.189245,
-    "seen": 1790765483.7978053,
-    "ast_hash": "759a0b0a11b599a1e36e07c1723e7e2a",
+    "mtime": 1791361408.7124598,
+    "seen": 1791361797.7025838,
+    "ast_hash": "56e9b86fdf059d33f0eaf9688dbd3ec7",
     "semantic_hash": ""
   },
   "packages/design-system/src/ui/DataState.tsx": {
@@ -2616,9 +2616,9 @@
     "semantic_hash": ""
   },
   "packages/design-system/src/ui/Pagination.tsx": {
-    "mtime": 1790692197.2017107,
-    "seen": 1790765483.7978275,
-    "ast_hash": "c868992273982c1c2039f047417c395a",
+    "mtime": 1791361408.7135437,
+    "seen": 1791361797.7040334,
+    "ast_hash": "2eda8162b0d84adf5b1aa1fd08bb9324",
     "semantic_hash": ""
   },
   "packages/design-system/src/ui/Panel.tsx": {
@@ -3210,9 +3210,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/features/drivers/components/DriversScreen.tsx": {
-    "mtime": 1791205227.526554,
-    "seen": 1791207456.630893,
-    "ast_hash": "3c797564853fa868125ba4fdcf723ed0",
+    "mtime": 1791210197.9476373,
+    "seen": 1791361797.6857357,
+    "ast_hash": "22fb1b3457aacb85def239419eacbd96",
     "semantic_hash": ""
   },
   "apps/web/src/features/drivers/components/StatusBadge.tsx": {
@@ -3228,9 +3228,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/features/finance/components/FinanceScreen.tsx": {
-    "mtime": 1791205625.8144479,
-    "seen": 1791207456.6309032,
-    "ast_hash": "6358b7eac74b48c2f215b2f55c6a49b6",
+    "mtime": 1791361408.7066903,
+    "seen": 1791361797.6864464,
+    "ast_hash": "f02b4f0655fb0b1b3c79e4e984702121",
     "semantic_hash": ""
   },
   "apps/web/src/features/finance/hooks/useWallet.ts": {
@@ -3324,9 +3324,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/features/drivers/components/DriverDetailModal.tsx": {
-    "mtime": 1791204806.7510958,
-    "seen": 1791207456.630889,
-    "ast_hash": "d7fb70fc69a536dc662dd32d2f6bd3b5",
+    "mtime": 1791210222.940878,
+    "seen": 1791361797.68573,
+    "ast_hash": "f4c5ca97fbbcb306dd93bc48a26c3fe9",
     "semantic_hash": ""
   },
   "apps/web/src/features/drivers/components/StatusBadge.test.ts": {
@@ -3576,9 +3576,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/features/riders/components/RiderEditDialog.tsx": {
-    "mtime": 1791207289.1248875,
-    "seen": 1791207456.6309435,
-    "ast_hash": "af9258274f3b5dbff6039c18e5963e4a",
+    "mtime": 1791207924.575903,
+    "seen": 1791361797.6898258,
+    "ast_hash": "6cf0a66182c37e7923f9de5b0661c110",
     "semantic_hash": ""
   },
   "apps/web/src/features/riders/components/RiderStatusBadge.tsx": {
@@ -3594,9 +3594,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/features/riders/components/RidersScreen.tsx": {
-    "mtime": 1791207247.4302042,
-    "seen": 1791207456.6309488,
-    "ast_hash": "146727cce74898938332986243d6e803",
+    "mtime": 1791210183.057734,
+    "seen": 1791361797.6901116,
+    "ast_hash": "dd1e55649d0fb58f0c234dbdc5cf26cd",
     "semantic_hash": ""
   },
   "apps/web/src/features/riders/hooks/useRiders.ts": {
@@ -3702,9 +3702,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/features/drivers/components/DriverDetailsScreen.tsx": {
-    "mtime": 1791205479.1640787,
-    "seen": 1791207456.6308908,
-    "ast_hash": "f62a13efc42ff784a095c7676ae39222",
+    "mtime": 1791361408.7055569,
+    "seen": 1791361797.6857333,
+    "ast_hash": "864b2158df4c1cdce18a3c0410c6b573",
     "semantic_hash": ""
   },
   "apps/web/src/features/finance/components/AdjustBalanceDialog.tsx": {
@@ -3714,9 +3714,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/features/finance/components/DriverBalancesTable.tsx": {
-    "mtime": 1791205531.1782923,
-    "seen": 1791207456.6309018,
-    "ast_hash": "9b3326c2f9e2a2700c98c8ca25d917f7",
+    "mtime": 1791208013.3724566,
+    "seen": 1791361797.6864426,
+    "ast_hash": "cd0f72d509b386711320b4bc8dab55f6",
     "semantic_hash": ""
   },
   "apps/web/src/features/finance/components/SettleDriverDialog.tsx": {
@@ -3750,15 +3750,15 @@
     "semantic_hash": ""
   },
   "apps/web/src/features/identity/components/TrustScoreBadge.tsx": {
-    "mtime": 1791204723.691971,
-    "seen": 1791207456.630915,
-    "ast_hash": "3c568c0957ea799647ba45edf2974a12",
+    "mtime": 1791365077.3530676,
+    "seen": 1791377354.2574804,
+    "ast_hash": "16d6c503aab999dedcc9c6dbae56764b",
     "semantic_hash": ""
   },
   "apps/web/src/features/rides/components/RideDispatchMap.tsx": {
-    "mtime": 1791200619.408712,
-    "seen": 1791207456.6309543,
-    "ast_hash": "a33ea766aa81a75339d4949aea52c836",
+    "mtime": 1791364049.0634384,
+    "seen": 1791377354.261555,
+    "ast_hash": "a1f318f314288f603e9c78b358417a1d",
     "semantic_hash": ""
   },
   "apps/web/src/features/rides/hooks/useDispatchFleet.ts": {
@@ -3798,9 +3798,633 @@
     "semantic_hash": ""
   },
   "daily-work/5thoct.md": {
-    "mtime": 1791205829.222176,
-    "seen": 1791207456.6597004,
-    "ast_hash": "a30897ceb63431e40722ab6e2f4aeee2",
+    "mtime": 1791208221.9721205,
+    "seen": 1791361797.7166793,
+    "ast_hash": "c571d9b39c8988a62d606b18199628f9",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/.vscode/extensions.json": {
+    "mtime": 1791361408.752616,
+    "seen": 1791361797.6802795,
+    "ast_hash": "6cbfc878ae3854f2fc8f9f35813fde5b",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/.vscode/settings.json": {
+    "mtime": 1791361408.7531626,
+    "seen": 1791361797.6802824,
+    "ast_hash": "5812a780e2bb6913d6200435c8860dae",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/app.json": {
+    "mtime": 1791361408.755724,
+    "seen": 1791361797.6802845,
+    "ast_hash": "baa760e60ef11af2c7f8f4cf4dd2dcc8",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/assets/expo.icon/icon.json": {
+    "mtime": 1791361408.7589104,
+    "seen": 1791361797.6802862,
+    "ast_hash": "33a6b9dbbeca7502753af01eaea69a5d",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/eslint.config.js": {
+    "mtime": 1791361408.7852097,
+    "seen": 1791361797.6802876,
+    "ast_hash": "c60b59a7db5b8eca8fbc5543cbe06e4a",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/metro.config.js": {
+    "mtime": 1791361408.7857668,
+    "seen": 1791361797.68029,
+    "ast_hash": "852d1356bb7326f43815579d665b1c15",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/package.json": {
+    "mtime": 1791376443.713986,
+    "seen": 1791377354.2458746,
+    "ast_hash": "00883ad5b63fcdc32ceb36e9dfc84b7b",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/scripts/reset-project.js": {
+    "mtime": 1791361408.7872343,
+    "seen": 1791361797.680293,
+    "ast_hash": "75ebe5715a16630aa66a8f094ceef943",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/src/app/_layout.tsx": {
+    "mtime": 1791365799.8287005,
+    "seen": 1791377354.2460608,
+    "ast_hash": "69e6da2c8341141caa890e4908d323d9",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/src/app/index.tsx": {
+    "mtime": 1791365193.5273302,
+    "seen": 1791377354.2460637,
+    "ast_hash": "16b3db98482f02639745e57012f7f592",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/src/components/animated-icon.tsx": {
+    "mtime": 1791361408.792414,
+    "seen": 1791361797.6802993,
+    "ast_hash": "654f8761f96f6b25dfcc98ff4425513f",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/src/components/animated-icon.web.tsx": {
+    "mtime": 1791361408.7932456,
+    "seen": 1791361797.680301,
+    "ast_hash": "19bff2e7f38549e3307f8d59838f3fc5",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/src/components/auth/auth-screen.tsx": {
+    "mtime": 1791365873.2542422,
+    "seen": 1791377354.246468,
+    "ast_hash": "e2128c3433ae3c9415cba8b0faddff69",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/src/components/auth/otp-step.tsx": {
+    "mtime": 1791361408.795136,
+    "seen": 1791361797.680307,
+    "ast_hash": "38bef4b5741fbf3c4a27405705475bad",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/src/components/auth/phone-step.tsx": {
+    "mtime": 1791364891.9997363,
+    "seen": 1791377354.2466974,
+    "ast_hash": "e5f1f9f5ffb38b3e1b7f0bd83449c04b",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/src/components/driver/driver-home.tsx": {
+    "mtime": 1791365212.0030465,
+    "seen": 1791377354.246711,
+    "ast_hash": "c68ebacaff676d69028cb483f9890413",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/src/components/external-link.tsx": {
+    "mtime": 1791361408.7976933,
+    "seen": 1791361797.6803112,
+    "ast_hash": "f4681f52a20edd637d810e6f853e0be7",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/src/components/hint-row.tsx": {
+    "mtime": 1791361408.7976933,
+    "seen": 1791361797.680313,
+    "ast_hash": "92a7a86f22daa2f6d39f08363d4c059b",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/src/components/themed-text.tsx": {
+    "mtime": 1791361408.8002083,
+    "seen": 1791361797.6803145,
+    "ast_hash": "5b549812a73ef9342d83702cbc9a744b",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/src/components/themed-view.tsx": {
+    "mtime": 1791361408.8007398,
+    "seen": 1791361797.6803162,
+    "ast_hash": "efd27880213658dd1117aa791f95df86",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/src/components/ui/collapsible.tsx": {
+    "mtime": 1791361408.8019876,
+    "seen": 1791361797.6803174,
+    "ast_hash": "e4463e492fed1a7fb403f65e0e4008c4",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/src/components/web-badge.tsx": {
+    "mtime": 1791361408.8025508,
+    "seen": 1791361797.6803188,
+    "ast_hash": "4a22de98544a2fbd7a4d7ff34a59fe29",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/src/constants/theme.ts": {
+    "mtime": 1791361408.8025508,
+    "seen": 1791361797.6803203,
+    "ast_hash": "87a5c49afedce8bddd1636c15defed8c",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/src/context/auth-context.tsx": {
+    "mtime": 1791364845.8275664,
+    "seen": 1791377354.2479885,
+    "ast_hash": "8bd4df9d6f4e5b738095dd30f29f6ac6",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/src/declarations.d.ts": {
+    "mtime": 1791361408.8057578,
+    "seen": 1791361797.6803231,
+    "ast_hash": "e0c22b28acbbd7e6aca73ec3fe2ff30d",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/src/hooks/use-color-scheme.ts": {
+    "mtime": 1791361408.807287,
+    "seen": 1791361797.6803246,
+    "ast_hash": "5e75b3d5ace0289cfc1bab951ca625bb",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/src/hooks/use-color-scheme.web.ts": {
+    "mtime": 1791361408.8083498,
+    "seen": 1791361797.680326,
+    "ast_hash": "7b8c5e0f8deef231e9805803f7d655ed",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/src/hooks/use-theme.ts": {
+    "mtime": 1791361408.809059,
+    "seen": 1791361797.6803274,
+    "ast_hash": "4f25eef0f0f09cf62b3062f08e658aea",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/src/services/api.ts": {
+    "mtime": 1791364813.6952088,
+    "seen": 1791377354.2485945,
+    "ast_hash": "394c14e948626a52fb2a29c71d6e182b",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/src/services/storage.ts": {
+    "mtime": 1791361408.8104215,
+    "seen": 1791361797.6803303,
+    "ast_hash": "f438e20d4d743b6e2c5b3d3e123ef508",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/tsconfig.json": {
+    "mtime": 1791361408.8104215,
+    "seen": 1791361797.6803317,
+    "ast_hash": "8e8ddee61afa88f2eb6a0454e4de725a",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/AGENTS.md": {
+    "mtime": 1791361408.7536993,
+    "seen": 1791361797.7160454,
+    "ast_hash": "36309c593534892601e03ff151134ff8",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/README.md": {
+    "mtime": 1791361408.7552104,
+    "seen": 1791361797.7160478,
+    "ast_hash": "d1f58d9e70143584d1e1af79b79b17f3",
+    "semantic_hash": ""
+  },
+  "daily-work/6thoct.md": {
+    "mtime": 1791361408.7077503,
+    "seen": 1791361797.716682,
+    "ast_hash": "2151f2fbacbd7e7012ef26d8236b6190",
+    "semantic_hash": ""
+  },
+  "daily-work/mobile-setup-guide.md": {
+    "mtime": 1791361408.8117113,
+    "seen": 1791361797.7166839,
+    "ast_hash": "81bab027ffea0f8fff2ca4bc8dfde70a",
+    "semantic_hash": ""
+  },
+  "docs/engineering/driver-app-spec-v1.md": {
+    "mtime": 1791361408.813002,
+    "seen": 1791361797.7210386,
+    "ast_hash": "1c19b4346a36a45420fc7a8fe3eb478d",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/assets/expo.icon/Assets/expo-symbol 2.svg": {
+    "mtime": 1791361408.7573426,
+    "seen": 1791361797.7225792,
+    "ast_hash": "9d5310a9dbbdad9782ade8c75f30150c",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/assets/expo.icon/Assets/grid.png": {
+    "mtime": 1791361408.7589104,
+    "seen": 1791361797.7225823,
+    "ast_hash": "37cdeda9d1af5d7432716d9671b098da",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/assets/images/android-icon-background.png": {
+    "mtime": 1791361408.760733,
+    "seen": 1791361797.7225847,
+    "ast_hash": "2d65569cc0e2afdcea0af9f9902d4173",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/assets/images/android-icon-foreground.png": {
+    "mtime": 1791361408.762743,
+    "seen": 1791361797.722587,
+    "ast_hash": "72e71a9c846c6aa4ae32476641a00e18",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/assets/images/android-icon-monochrome.png": {
+    "mtime": 1791361408.7634263,
+    "seen": 1791361797.7225888,
+    "ast_hash": "1e097dab989759fc0b69440092ca22cd",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/assets/images/expo-badge-white.png": {
+    "mtime": 1791361408.7643478,
+    "seen": 1791361797.7225907,
+    "ast_hash": "02efb8472f161bcf8afc8c8489a28fca",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/assets/images/expo-badge.png": {
+    "mtime": 1791361408.7648573,
+    "seen": 1791361797.722593,
+    "ast_hash": "6b0da8ec880685d1bd053c0f5ea9d09d",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/assets/images/expo-logo.png": {
+    "mtime": 1791361408.7658877,
+    "seen": 1791361797.7225952,
+    "ast_hash": "5ee5db91d59518c45ebcc99a2f5afc57",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/assets/images/favicon.png": {
+    "mtime": 1791361408.7669199,
+    "seen": 1791361797.7225974,
+    "ast_hash": "d9f444efbdfbe7931aa93beada07318a",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/assets/images/icon.png": {
+    "mtime": 1791361408.7720606,
+    "seen": 1791361797.7225995,
+    "ast_hash": "8d892ef03dbd43e8d899c1d605ad42df",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/assets/images/logo-glow.png": {
+    "mtime": 1791361408.774899,
+    "seen": 1791361797.722639,
+    "ast_hash": "dbca075a49dc45e550c5d2e3e9601039",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/assets/images/react-logo.png": {
+    "mtime": 1791361408.7755682,
+    "seen": 1791361797.7226408,
+    "ast_hash": "695d5a1c6f29a689130f3aaa573aec6e",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/assets/images/react-logo@2x.png": {
+    "mtime": 1791361408.77675,
+    "seen": 1791361797.7226424,
+    "ast_hash": "b507e7f2c91ebc8fe24dee79ccb3b600",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/assets/images/react-logo@3x.png": {
+    "mtime": 1791361408.7778153,
+    "seen": 1791361797.7226443,
+    "ast_hash": "8a4d0e5b845044e56e3b2df627d01cfd",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/assets/images/splash-icon.png": {
+    "mtime": 1791361408.7786489,
+    "seen": 1791361797.7226455,
+    "ast_hash": "5ee5db91d59518c45ebcc99a2f5afc57",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/assets/images/tabIcons/explore.png": {
+    "mtime": 1791361408.7796953,
+    "seen": 1791361797.722647,
+    "ast_hash": "8409922f7d5c981001e3c9b25e4bfae5",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/assets/images/tabIcons/explore@2x.png": {
+    "mtime": 1791361408.7796953,
+    "seen": 1791361797.7226489,
+    "ast_hash": "dd40200ba8e8d98061578292d6b73791",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/assets/images/tabIcons/explore@3x.png": {
+    "mtime": 1791361408.7810404,
+    "seen": 1791361797.7226503,
+    "ast_hash": "c4278d79298bb11a8b0e68ed3e40da9e",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/assets/images/tabIcons/home.png": {
+    "mtime": 1791361408.7814264,
+    "seen": 1791361797.722652,
+    "ast_hash": "eeb5de2ac12ace75b31dfda235208956",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/assets/images/tabIcons/home@2x.png": {
+    "mtime": 1791361408.782478,
+    "seen": 1791361797.7226534,
+    "ast_hash": "456346cfb0b82cc0f39e921e05d082d9",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/assets/images/tabIcons/home@3x.png": {
+    "mtime": 1791361408.782478,
+    "seen": 1791361797.7226548,
+    "ast_hash": "5d86e963002b3664ab81c128c838559d",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/assets/images/tutorial-web.png": {
+    "mtime": 1791361408.784078,
+    "seen": 1791361797.7226565,
+    "ast_hash": "c62d22797f3002396754d8cc55b0ae1a",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/src/animations/cabzon-animated-number.tsx": {
+    "mtime": 1791373687.177668,
+    "seen": 1791377354.2460463,
+    "ast_hash": "145060654d5f279e8c7ae2b4f5651893",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/src/animations/cabzon-error.tsx": {
+    "mtime": 1791373860.0339236,
+    "seen": 1791377354.2460485,
+    "ast_hash": "b4b3f6f103559ad3482d671e7a7b6df1",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/src/animations/cabzon-loading.tsx": {
+    "mtime": 1791373868.9133906,
+    "seen": 1791377354.24605,
+    "ast_hash": "ac591374642284e58b1b6058170d9d90",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/src/animations/cabzon-page-transition.tsx": {
+    "mtime": 1791373844.0580282,
+    "seen": 1791377354.246052,
+    "ast_hash": "8e1b6066ebeec759247a94c789627982",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/src/animations/cabzon-success.tsx": {
+    "mtime": 1791373865.0711136,
+    "seen": 1791377354.2460546,
+    "ast_hash": "9751e2aff302e8d2aeb9b3d13c4695ee",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/src/animations/index.ts": {
+    "mtime": 1791373699.7684755,
+    "seen": 1791377354.246058,
+    "ast_hash": "d81f3919462e09422818cca88a7e7c88",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/src/components/auth/blob-background.tsx": {
+    "mtime": 1791377188.9983878,
+    "seen": 1791377354.2464714,
+    "ast_hash": "8c3b5d0785f7b11baf5e2d8ba0c5c485",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/src/components/auth/entry-step.tsx": {
+    "mtime": 1791377620.8877642,
+    "seen": 1791377683.3899207,
+    "ast_hash": "70cc394026cb2996dd641d98886ffd13",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/src/components/auth/vehicle-type-step.tsx": {
+    "mtime": 1791373921.5238006,
+    "seen": 1791377354.2467,
+    "ast_hash": "054b64dc8c1f1ae133ac19701345edd6",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/src/components/buttons/cabzon-button.tsx": {
+    "mtime": 1791373830.852648,
+    "seen": 1791377354.2467022,
+    "ast_hash": "7404ffbac752aec4d059067d97a902ce",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/src/components/buttons/candy-button.tsx": {
+    "mtime": 1791376108.2581215,
+    "seen": 1791377354.2467036,
+    "ast_hash": "d8c51e5d25fb736fe63612334f893bbe",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/src/components/buttons/index.ts": {
+    "mtime": 1791373782.2024746,
+    "seen": 1791377354.2467048,
+    "ast_hash": "0743b8a4c704fbdf78952730e9bb7c40",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/src/components/cards/cabzon-ride-offer.tsx": {
+    "mtime": 1791373875.1348479,
+    "seen": 1791377354.2467067,
+    "ast_hash": "4be89dda387b9ccaea2ae22ca0c12013",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/src/components/cards/index.ts": {
+    "mtime": 1791373786.1291716,
+    "seen": 1791377354.246709,
+    "ast_hash": "1ad513cee2eb12a6bc62f8d23f1ea2af",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/src/components/feedback/cabzon-progress.tsx": {
+    "mtime": 1791373836.5337136,
+    "seen": 1791377354.246908,
+    "ast_hash": "cf1d2eec6f39ebd5524a46741b36b117",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/src/components/feedback/cabzon-status-indicator.tsx": {
+    "mtime": 1791373849.7335012,
+    "seen": 1791377354.2469099,
+    "ast_hash": "51d600bd7ebd8ed5ae7ffeeb572bc4eb",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/src/components/feedback/cabzon-toast.tsx": {
+    "mtime": 1791373917.6347578,
+    "seen": 1791377354.2469115,
+    "ast_hash": "5f9ac854727087c534f44c5cc22b8ced",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/src/components/feedback/index.ts": {
+    "mtime": 1791373704.6800787,
+    "seen": 1791377354.246913,
+    "ast_hash": "c50062b3ad746991c9bfd13ea3e6c312",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/src/components/index.ts": {
+    "mtime": 1791373796.8034642,
+    "seen": 1791377354.247097,
+    "ast_hash": "e537d32541b1237fd3b0affcc4da3002",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/src/components/kyc/kyc-pending-home.tsx": {
+    "mtime": 1791364913.03644,
+    "seen": 1791377354.2470999,
+    "ast_hash": "7ba627138db887c6c88b92e28ea46e38",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/src/components/kyc/kyc-wizard.tsx": {
+    "mtime": 1791364989.7979252,
+    "seen": 1791377354.2471027,
+    "ast_hash": "b13a62063a14ecca7a42503053958b0a",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/src/components/kyc/step-driving-licence.tsx": {
+    "mtime": 1791364953.0428822,
+    "seen": 1791377354.2471044,
+    "ast_hash": "65fa1d1b48176d62a2fc6112aec3ead9",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/src/components/kyc/step-operating-city.tsx": {
+    "mtime": 1791364935.023289,
+    "seen": 1791377354.2471063,
+    "ast_hash": "3c921e152b9e9b394432e69f28e48479",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/src/components/kyc/step-personal-info.tsx": {
+    "mtime": 1791364926.7508173,
+    "seen": 1791377354.247108,
+    "ast_hash": "d11e82bd4645b3112a43ac1731c54393",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/src/components/kyc/step-profile-photo.tsx": {
+    "mtime": 1791364969.185375,
+    "seen": 1791377354.24711,
+    "ast_hash": "2ab341ed5f965e790b54d2e7bb487f89",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/src/components/kyc/step-review.tsx": {
+    "mtime": 1791364977.8375125,
+    "seen": 1791377354.247111,
+    "ast_hash": "5be759e4cdabe61526802f5a1cb552f4",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/src/components/kyc/step-submitted.tsx": {
+    "mtime": 1791364983.5521865,
+    "seen": 1791377354.2471135,
+    "ast_hash": "14b473b8b8a2683fae69c9f8d6850b7a",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/src/components/kyc/step-vehicle-documents.tsx": {
+    "mtime": 1791365091.4095488,
+    "seen": 1791377354.2471159,
+    "ast_hash": "9f4bd96b2c8962e8b3a5e12bfbcfc8b8",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/src/components/kyc/step-vehicle-info.tsx": {
+    "mtime": 1791364944.2453134,
+    "seen": 1791377354.2471178,
+    "ast_hash": "285e913f454e3c2593fc3cc44615f753",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/src/components/kyc/types.ts": {
+    "mtime": 1791364918.318925,
+    "seen": 1791377354.2471194,
+    "ast_hash": "363bb1c9a7a53ef6ea7198dd91eab5d4",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/src/components/onboarding/cabzon-launch.tsx": {
+    "mtime": 1791373892.0905616,
+    "seen": 1791377354.247121,
+    "ast_hash": "802740e9c785e1982c0a5df574b53ba2",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/src/components/onboarding/cabzon-onboarding.tsx": {
+    "mtime": 1791373887.464382,
+    "seen": 1791377354.2471228,
+    "ast_hash": "d7873b62702e8301fea647cac347a4c5",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/src/components/onboarding/index.ts": {
+    "mtime": 1791373777.7110147,
+    "seen": 1791377354.2471244,
+    "ast_hash": "a4ea5a053b999f8ea4fe4bfa8c31ac56",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/src/context/duty-context.tsx": {
+    "mtime": 1791363025.1807964,
+    "seen": 1791377354.2479918,
+    "ast_hash": "9126e25d72799375f1a1a6436932d66f",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/src/design-system/colors.ts": {
+    "mtime": 1791373608.523549,
+    "seen": 1791377354.2481413,
+    "ast_hash": "661da82c9a1f838d5c32427bcddc2d95",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/src/design-system/index.ts": {
+    "mtime": 1791373627.1908479,
+    "seen": 1791377354.2481437,
+    "ast_hash": "a63ca50acac453ed768cf7be0be2dbf8",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/src/design-system/motion.ts": {
+    "mtime": 1791373613.1586354,
+    "seen": 1791377354.2481456,
+    "ast_hash": "a425b136bde012f4c1d47a875abc9661",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/src/design-system/spacing.ts": {
+    "mtime": 1791373621.7442336,
+    "seen": 1791377354.2481487,
+    "ast_hash": "9be01982bfe4b0d1a30d85c9590272aa",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/src/design-system/typography.ts": {
+    "mtime": 1791373617.5899398,
+    "seen": 1791377354.2481508,
+    "ast_hash": "4478f96c382d3aca5cecf6706d766e00",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/src/hooks/use-reduced-motion.ts": {
+    "mtime": 1791373631.5915616,
+    "seen": 1791377354.248448,
+    "ast_hash": "3f91cbd0724ef81791ff624c4887941f",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/src/utils/sfx.ts": {
+    "mtime": 1791375104.35386,
+    "seen": 1791377354.2487419,
+    "ast_hash": "4894f7e544ad184bc7917adf4c9c1ceb",
+    "semantic_hash": ""
+  },
+  "docs/engineering/driver-app-animation-spec-v1.md": {
+    "mtime": 1791373603.3490913,
+    "seen": 1791377354.2931578,
+    "ast_hash": "8d88d4abd8df10eaf2693039f21d7f3b",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/assets/images/driverAvatar.png": {
+    "mtime": 1791371417.39549,
+    "seen": 1791377354.2959156,
+    "ast_hash": "971700751364c4a68b104eb86f27ef8f",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/assets/images/driverLogin.png": {
+    "mtime": 1791365301.3210328,
+    "seen": 1791377354.2959177,
+    "ast_hash": "5ef8d71d7e29a19246d72d0d07f0d1d9",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/assets/images/homeLogin.png": {
+    "mtime": 1791365301.3210328,
+    "seen": 1791377354.2964587,
+    "ast_hash": "5ef8d71d7e29a19246d72d0d07f0d1d9",
+    "semantic_hash": ""
+  },
+  "apps/driver-mobile/assets/sfx/popSound.mp3": {
+    "mtime": 1791374621.502355,
+    "seen": 1791377354.2982292,
+    "ast_hash": "11f1aeb2ab150394b2ab670a19c6218e",
     "semantic_hash": ""
   }
 }

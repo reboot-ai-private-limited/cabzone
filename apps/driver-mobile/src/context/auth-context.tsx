@@ -1,6 +1,12 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import type { DriverDto } from '@cabzone/contracts';
-import { authApi } from '@/services/api';
+import type {
+  DriverDto,
+  VehicleDto,
+  DriverApplicationDto,
+  DriverDocumentDto,
+  DriverProfileDetailDto,
+} from '@cabzone/contracts';
+import { authApi, driverApi } from '@/services/api';
 import {
   clearAuthTokens,
   getAccessToken,
@@ -20,7 +26,14 @@ export type AuthStep = 'phone' | 'otp';
 
 interface AuthContextType {
   user: AuthUser | null;
-  driverProfile: DriverDto | null;
+  driverProfile: DriverProfileDetailDto | null;
+  driver: DriverDto | null;
+  vehicle: VehicleDto | null;
+  application: DriverApplicationDto | null;
+  documents: DriverDocumentDto[];
+  kycStatus: string;
+  isKycVerified: boolean;
+  hasVehicle: boolean;
   token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
@@ -35,13 +48,14 @@ interface AuthContextType {
   verifyOtp: (otpCode: string) => Promise<boolean>;
   logout: () => Promise<void>;
   refreshProfile: () => Promise<void>;
+  testApprove: () => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
-  const [driverProfile, setDriverProfile] = useState<DriverDto | null>(null);
+  const [driverProfile, setDriverProfile] = useState<DriverProfileDetailDto | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -213,15 +227,50 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const refreshProfile = useCallback(async () => {
     if (!token) return;
-    const profile = await authApi.getDriverProfile(token);
-    setDriverProfile(profile);
+    try {
+      const profile = await authApi.getDriverProfile(token);
+      setDriverProfile(profile);
+    } catch (err) {
+      console.warn('Failed to refresh driver profile:', err);
+    }
   }, [token]);
+
+  const testApprove = useCallback(async (): Promise<boolean> => {
+    if (!token) return false;
+    setIsLoading(true);
+    try {
+      const res = await driverApi.testApprove(token);
+      setDriverProfile(res);
+      return true;
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to test approve';
+      setError(msg);
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [token]);
+
+  const driver = driverProfile?.driver || null;
+  const vehicle = driverProfile?.vehicle || null;
+  const application = driverProfile?.application || null;
+  const documents = driverProfile?.documents || [];
+  const kycStatus = driver?.kycStatus || 'PENDING';
+  const isKycVerified = driver?.kycStatus === 'VERIFIED' && driver?.status === 'ACTIVE';
+  const hasVehicle = !!driver?.currentVehicleId;
 
   return (
     <AuthContext.Provider
       value={{
         user,
         driverProfile,
+        driver,
+        vehicle,
+        application,
+        documents,
+        kycStatus,
+        isKycVerified,
+        hasVehicle,
         token,
         isAuthenticated: !!token && !!user,
         isLoading,
@@ -236,6 +285,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         verifyOtp,
         logout,
         refreshProfile,
+        testApprove,
       }}>
       {children}
     </AuthContext.Provider>

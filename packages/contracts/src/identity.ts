@@ -128,6 +128,14 @@ export type DriverOperationalStatus = (typeof DRIVER_OPERATIONAL_STATUSES)[numbe
 export interface DriverDto {
   id: string;
   userId: string;
+  name?: string | null | undefined;
+  gender?: string | null | undefined;
+  dateOfBirth?: string | null | undefined;
+  address?: string | null | undefined;
+  dlNumber?: string | null | undefined;
+  dlExpiry?: string | null | undefined;
+  alternatePhone?: string | null | undefined;
+  emergencyContact?: string | null | undefined;
   status: DriverStatus;
   kycStatus: DriverKycStatus;
   operationalStatus: DriverOperationalStatus;
