@@ -201,7 +201,7 @@ export function SignupStep({ onBack }: SignupStepProps) {
       />
 
       {/* Layer 2: City Skyline (fades in first with 8-12px upward rise) */}
-      <CitySkylineLayer anim={cityAnim} height={illustrationHeight} />
+      <CitySkylineLayer anim={cityAnim} />
 
       {/* Layer 3: Toto / Auto (enters from left into bottom-left) */}
       <TotoVehicleLayer
@@ -225,7 +225,7 @@ export function SignupStep({ onBack }: SignupStepProps) {
           contentContainerStyle={[
             styles.scrollContent,
             {
-              paddingTop: insets.top + (screenHeight > 750 ? 12 : 6),
+              paddingTop: insets.top + (screenHeight > 750 ? 40 : 20),
               minHeight: screenHeight,
               paddingBottom: Math.max(insets.bottom, 20) + illustrationHeight * 0.35,
             },

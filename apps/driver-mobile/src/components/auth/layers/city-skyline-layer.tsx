@@ -1,10 +1,8 @@
 import React from 'react';
-import { Animated, Image, StyleSheet, View } from 'react-native';
+import { Animated, Image, StyleSheet, useWindowDimensions, View } from 'react-native';
 
 export interface CitySkylineLayerProps {
   anim: Animated.Value;
-  height: number;
-  maxWidth?: number;
 }
 
 /**
@@ -13,27 +11,32 @@ export interface CitySkylineLayerProps {
  * - Adds a very slight upward movement while fading in (~10px).
  * - Remains stationary once settled.
  */
-export function CitySkylineLayer({ anim, height, maxWidth = 620 }: CitySkylineLayerProps) {
+export function CitySkylineLayer({ anim }: CitySkylineLayerProps) {
+  const { width } = useWindowDimensions();
+
   const translateY = anim.interpolate({
     inputRange: [0, 1],
     outputRange: [10, 0],
   });
 
+  // Image dimensions: 941 x 1671
+  const imageAspect = 1671 / 941;
+  const imageHeight = width * imageAspect;
+
   return (
-    <View pointerEvents="none" style={[styles.bottomBackdropContainer, { height }]}>
+    <View pointerEvents="none" style={styles.bottomBackdropContainer}>
       <Animated.View
         style={[
           styles.animatedCityWrap,
           {
-            height,
             opacity: anim,
             transform: [{ translateY }],
           },
         ]}>
         <Image
           source={require('@/../assets/images/signUpCityImage.webp')}
-          style={[styles.cityImage, { height, maxWidth }]}
-          resizeMode="cover"
+          style={{ width, height: imageHeight }}
+          resizeMode="contain"
         />
       </Animated.View>
     </View>
@@ -46,19 +49,13 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    width: '100%',
     zIndex: 2,
     alignItems: 'center',
     justifyContent: 'flex-end',
-    overflow: 'hidden',
   },
   animatedCityWrap: {
     width: '100%',
     alignItems: 'center',
     justifyContent: 'flex-end',
-  },
-  cityImage: {
-    width: '100%',
-    alignSelf: 'center',
   },
 });
