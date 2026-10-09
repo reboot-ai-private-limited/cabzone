@@ -138,13 +138,6 @@ export function LoginFormLayer({
           </Pressable>
         </View>
 
-        {/* Welcome Text */}
-        <View style={styles.welcomeTextContainer}>
-          <Text style={styles.welcomeTitle}>Welcome back</Text>
-          <Text style={styles.welcomeSubtitle}>
-            Log in to your Cabzon Driver account.
-          </Text>
-        </View>
 
         {/* Floating Error Notification */}
         {error ? (
@@ -183,6 +176,14 @@ export function LoginFormLayer({
 
       {/* 2. Screen-Centered Form Area */}
       <View style={styles.centeredCardArea}>
+        {/* Welcome Text */}
+        <View style={styles.welcomeTextContainer}>
+          <Text style={styles.welcomeTitle}>{isOtpSent ? 'Verify Phone' : 'Welcome back'}</Text>
+          <Text style={styles.welcomeSubtitle}>
+            {isOtpSent ? 'Enter the code sent to your number.' : 'Log in to your Cabzon Driver account.'}
+          </Text>
+        </View>
+
         {!isOtpSent ? (
           /* State 1: Number input + Send OTP button */
           <View style={styles.stateContainer}>
@@ -292,6 +293,8 @@ export function LoginFormLayer({
               ref={otpInputRef}
               style={styles.hiddenOtpInput}
               keyboardType="number-pad"
+              textContentType="oneTimeCode"
+              autoComplete="one-time-code"
               maxLength={6}
               value={otpInput}
               onChangeText={onOtpChange}
@@ -378,22 +381,24 @@ const styles = StyleSheet.create({
     transform: [{ scale: 0.95 }],
   },
   welcomeTextContainer: {
-    marginTop: 12,
-    marginBottom: 20,
-    paddingHorizontal: 4,
+    marginBottom: 40,
+    paddingHorizontal: 16,
+    alignItems: 'center',
   },
   welcomeTitle: {
     fontSize: 26,
     fontWeight: '800',
     color: '#2C1810',
     letterSpacing: -0.5,
-    marginBottom: 6,
+    marginBottom: 8,
+    textAlign: 'center',
   },
   welcomeSubtitle: {
     fontSize: 15,
     color: '#705746',
     fontWeight: '500',
     lineHeight: 22,
+    textAlign: 'center',
   },
   errorBanner: {
     flexDirection: 'row',
@@ -435,7 +440,8 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 10,
+    paddingTop: 10,
+    paddingBottom: 80,
   },
   stateContainer: {
     width: '100%',

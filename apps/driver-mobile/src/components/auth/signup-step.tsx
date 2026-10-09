@@ -4,6 +4,7 @@ import {
   Easing,
   Keyboard,
   KeyboardAvoidingView,
+  LayoutAnimation,
   Platform,
   ScrollView,
   StyleSheet,
@@ -142,6 +143,7 @@ export function SignupStep({ onBack }: SignupStepProps) {
     setSendingOtp(false);
 
     if (ok) {
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
       setIsOtpSent(true);
       // Feedback fade
       Animated.sequence([
@@ -175,6 +177,7 @@ export function SignupStep({ onBack }: SignupStepProps) {
 
   const handleEditPhone = () => {
     clearError();
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setIsOtpSent(false);
     setOtpInput('');
   };
@@ -182,7 +185,10 @@ export function SignupStep({ onBack }: SignupStepProps) {
   // Proportions & Responsive layout values
   const contentWidth = Math.min(screenWidth - 48, 360);
   const illustrationHeight = Math.min(screenHeight * 0.36, 290);
-  const vehicleWidth = Math.min(screenWidth * 0.44, 182);
+  
+  // Make vehicles bigger, and make cab larger than toto
+  const cabWidth = Math.min(screenWidth * 0.58, 240);
+  const totoWidth = Math.min(screenWidth * 0.48, 200);
 
   return (
     <View style={styles.container}>
@@ -207,14 +213,14 @@ export function SignupStep({ onBack }: SignupStepProps) {
       <TotoVehicleLayer
         anim={totoAnim}
         screenWidth={screenWidth}
-        vehicleWidth={vehicleWidth}
+        vehicleWidth={totoWidth}
       />
 
       {/* Layer 4: Cab / Car (enters from right into bottom-right) */}
       <CabVehicleLayer
         anim={cabAnim}
         screenWidth={screenWidth}
-        vehicleWidth={vehicleWidth}
+        vehicleWidth={cabWidth}
       />
 
       {/* Layer 5: Login / OTP Form (final focal element, screen-centered) */}
@@ -225,7 +231,7 @@ export function SignupStep({ onBack }: SignupStepProps) {
           contentContainerStyle={[
             styles.scrollContent,
             {
-              paddingTop: insets.top + (screenHeight > 750 ? 40 : 20),
+              paddingTop: insets.top + (screenHeight > 750 ? 12 : 6),
               minHeight: screenHeight,
               paddingBottom: Math.max(insets.bottom, 20) + illustrationHeight * 0.35,
             },
