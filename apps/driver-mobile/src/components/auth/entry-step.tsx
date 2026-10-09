@@ -28,10 +28,10 @@ const SLIDE_MS = 1100;
 const SLIDE_EASING = Easing.bezier(0.65, 0, 0.35, 1);
 
 const PILOT_COPY = {
-  headline: 'Drive, Earn & Grow',
-  body: '0% commission on your first 14 days.',
+  headlineMain: 'Drive, Earn & Grow',
+  headlineHighlight: 'With Every Trip',
+  body: 'Quick verification, 0% commission for your first 14 days, and flexible shifts that fit your life.',
 };
-
 // Pages 2 & 3 of the swipeable hero (page 1 is the animated pilot orbit)
 const EXTRA_SLIDES: {
   key: string;
@@ -448,10 +448,13 @@ export function EntryStep({ onBecomeDriver, onLogin }: EntryStepProps) {
     };
   };
 
-  const renderCopy = (headline: string, body: string) => (
+  const renderCopy = (headline: string, body: string, highlight?: string) => (
     <View style={styles.copySection}>
-      <Text style={styles.headline} numberOfLines={1} adjustsFontSizeToFit>{headline}</Text>
-      <Text style={styles.bodyText} numberOfLines={1} adjustsFontSizeToFit>{body}</Text>
+      <Text style={styles.headline} numberOfLines={2} adjustsFontSizeToFit>
+        {headline}
+        {highlight ? <Text style={{ color: '#B43E00' }}>{'\n'}{highlight}</Text> : null}
+      </Text>
+      <Text style={styles.bodyText} numberOfLines={3} adjustsFontSizeToFit>{body}</Text>
     </View>
   );
 
@@ -464,104 +467,81 @@ export function EntryStep({ onBecomeDriver, onLogin }: EntryStepProps) {
             {/* Dashed Golden Elliptical Orbit Ring */}
             <View style={styles.dashedOrbit} />
 
-            {/* Central Pilot Avatar with Glowing Golden Ring */}
-            <Animated.View
-              style={[
-                styles.avatarGlowRing,
-                getPopStyle(avatarScale),
-              ]}>
-              <Animated.View style={{ transform: [{ scale: avatarPulse }] }}>
-                <Image
-                  source={require('@/assets/images/driverAvatar.png')}
-                  style={styles.avatarImage}
-                  resizeMode="cover"
-                />
-              </Animated.View>
-            </Animated.View>
-
-            {/* Pill 1: Top-Right (Avg. Daily) */}
-            <Animated.View
-              style={[
-                styles.pillAvgDaily,
-                getPopStyle(pill1Scale),
-              ]}>
-              <Animated.View style={[styles.pillInnerRow, { transform: [{ translateY: floatYRight }] }]}>
-                <View style={styles.walletIconBox}>
-                  <Ionicons name="receipt-outline" size={17} color="#92400E" />
-                </View>
-                <View>
-                  <Text style={styles.avgDailyLabel}>Avg. Daily</Text>
-                  <Text style={styles.avgDailyValue}>₹250</Text>
-                </View>
-              </Animated.View>
-            </Animated.View>
-
-            {/* Pill 2: Mid-Left (Online Now) */}
-            <Animated.View
-              style={[
-                styles.pillOnlineNow,
-                getPopStyle(pill2Scale),
-              ]}>
-              <Animated.View style={[styles.pillInnerRow, { transform: [{ translateY: floatYLeft }] }]}>
-                <Animated.View
-                  style={[
-                    styles.greenBeaconOuter,
-                    {
-                      transform: [{ scale: beaconPulse }],
-                      opacity: beaconOpacity,
-                    },
-                  ]}>
-                  <View style={styles.greenBeaconDot} />
+            {/* Top Row: Avatar & Earnings Pill */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 12, zIndex: 10 }}>
+              {/* Central Pilot Avatar with Glowing Golden Ring & Star Badge */}
+              <Animated.View
+                style={[
+                  styles.avatarGlowRing,
+                  { position: 'relative', top: 0, alignSelf: 'auto', marginRight: 16 },
+                  getPopStyle(avatarScale),
+                ]}>
+                <Animated.View style={{ transform: [{ scale: avatarPulse }] }}>
+                  <Image
+                    source={require('@/assets/images/driverAvatar.png')}
+                    style={styles.avatarImage}
+                    resizeMode="cover"
+                  />
+                  {/* Star Badge */}
+                  <View style={styles.starBadge}>
+                    <Ionicons name="star" size={13} color="#FBBF24" />
+                  </View>
                 </Animated.View>
-                <Text style={styles.onlineNowText}>Online{'\n'}Now</Text>
               </Animated.View>
-            </Animated.View>
 
-            {/* Pill 3: Center Banner (Drive, Earn & Keep 100% Tips) */}
-            <Animated.View
-              style={[
-                styles.pillCenterBanner,
-                getPopStyle(pill3Scale),
-              ]}>
-              <Animated.View style={[styles.pillInnerRow, { transform: [{ scale: bannerPulse }], width: '100%' }]}>
-                <View style={styles.checkBadge}>
-                  <Ionicons name="checkmark" size={14} color="#FFFFFF" />
-                </View>
-                <Text style={styles.centerBannerText}>
-                  Drive, Earn & Keep 100%{'\n'}Tips
-                </Text>
+              {/* Pill 1: Top-Right (Avg. Daily Earnings) */}
+              <Animated.View
+                style={[
+                  styles.pillAvgDaily,
+                  { position: 'relative', top: 0, right: 0 },
+                  getPopStyle(pill1Scale),
+                ]}>
+                <Animated.View style={[styles.pillInnerRow, { transform: [{ translateY: floatYRight }] }]}>
+                  <View style={styles.walletIconBox}>
+                    <Ionicons name="wallet" size={18} color="#92400E" />
+                  </View>
+                  <View style={{ marginLeft: 6 }}>
+                    <Text style={styles.avgDailyLabel}>Avg. daily{'\n'}earnings</Text>
+                    <Text style={styles.avgDailyValue}>₹1,250</Text>
+                  </View>
+                </Animated.View>
               </Animated.View>
-            </Animated.View>
+            </View>
 
-            {/* Pill 4: Bottom-Left (24/7 Support) */}
-            <Animated.View
-              style={[
-                styles.pillSupport,
-                getPopStyle(pill4Scale),
-              ]}>
-              <Animated.View style={[styles.pillInnerRow, { transform: [{ translateY: floatYLeft }] }]}>
-                <View style={styles.amberIconBox}>
-                  <Ionicons name="shield-checkmark" size={15} color="#D97706" />
-                </View>
-                <Text style={styles.pillSmallText}>24/7{'\n'}Support</Text>
+            {/* Bottom Row: Daily Payouts & 24/7 Support */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 16, zIndex: 10 }}>
+              {/* Pill 2: Bottom-Left (Daily Payouts) */}
+              <Animated.View
+                style={[
+                  styles.pillSupport,
+                  { position: 'relative', top: 0, left: 0, marginRight: 12 },
+                  getPopStyle(pill2Scale),
+                ]}>
+                <Animated.View style={[styles.pillInnerRow, { transform: [{ translateY: floatYLeft }] }]}>
+                  <View style={styles.amberIconBox}>
+                    <Text style={{ fontSize: 16, fontWeight: '700', color: '#92400E' }}>₹</Text>
+                  </View>
+                  <Text style={[styles.pillSmallText, { marginLeft: 6 }]}>Daily payouts</Text>
+                </Animated.View>
               </Animated.View>
-            </Animated.View>
 
-            {/* Pill 5: Bottom-Right (Smart Dispatch) */}
-            <Animated.View
-              style={[
-                styles.pillDispatch,
-                getPopStyle(pill5Scale),
-              ]}>
-              <Animated.View style={[styles.pillInnerRow, { transform: [{ translateY: floatYRight }] }]}>
-                <View style={styles.amberIconBox}>
-                  <Ionicons name="car-sport" size={16} color="#D97706" />
-                </View>
-                <Text style={styles.pillSmallText}>Smart{'\n'}Dispatch</Text>
+              {/* Pill 3: Bottom-Right (24/7 Support) */}
+              <Animated.View
+                style={[
+                  styles.pillDispatch,
+                  { position: 'relative', top: 0, right: 0 },
+                  getPopStyle(pill3Scale),
+                ]}>
+                <Animated.View style={[styles.pillInnerRow, { transform: [{ translateY: floatYRight }] }]}>
+                  <View style={styles.amberIconBox}>
+                    <Ionicons name="headset" size={16} color="#92400E" />
+                  </View>
+                  <Text style={[styles.pillSmallText, { marginLeft: 6 }]}>24/7 support</Text>
+                </Animated.View>
               </Animated.View>
-            </Animated.View>
+            </View>
           </View>
-          {renderCopy(PILOT_COPY.headline, PILOT_COPY.body)}
+          {renderCopy(PILOT_COPY.headlineMain, PILOT_COPY.body, PILOT_COPY.headlineHighlight)}
         </Animated.View>
       </View>
     );
@@ -785,29 +765,52 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 8,
     alignSelf: 'center',
-    width: 90,
-    height: 90,
-    borderRadius: 45,
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 3,
+    borderColor: '#FBBF24',
     shadowColor: '#F59E0B',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.3,
     shadowRadius: 14,
     elevation: 6,
     zIndex: 5,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   avatarImage: {
     width: 90,
     height: 90,
     borderRadius: 45,
   },
+  starBadge: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#1E293B',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
+    elevation: 3,
+  },
   pillAvgDaily: {
     position: 'absolute',
     top: 36,
     right: 14,
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
+    borderRadius: 30,
     paddingVertical: 7,
-    paddingHorizontal: 13,
+    paddingHorizontal: 16,
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.07,
@@ -822,98 +825,29 @@ const styles = StyleSheet.create({
   walletIconBox: {
     width: 32,
     height: 32,
-    borderRadius: 9,
-    backgroundColor: '#FDF2E9',
+    borderRadius: 16,
+    backgroundColor: '#FEF3C7',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 8,
   },
   avgDailyLabel: {
-    fontSize: 10,
-    color: '#6B7280',
+    fontSize: 10.5,
+    color: '#4B5563',
     fontWeight: '600',
   },
   avgDailyValue: {
-    fontSize: 13.5,
-    color: '#111827',
-    fontWeight: '800',
-  },
-  pillOnlineNow: {
-    position: 'absolute',
-    top: 96,
-    left: 14,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.07,
-    shadowRadius: 10,
-    elevation: 3,
-    zIndex: 6,
-  },
-  greenBeaconOuter: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: '#A7F3D0',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 7,
-  },
-  greenBeaconDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
-    backgroundColor: '#059669',
-  },
-  onlineNowText: {
-    fontSize: 11,
-    color: '#111827',
-    fontWeight: '800',
-    lineHeight: 13,
-  },
-  pillCenterBanner: {
-    position: 'absolute',
-    top: 144,
-    alignSelf: 'center',
-    width: '90%',
-    maxWidth: 320,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 24,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 5,
-    zIndex: 10,
-  },
-  checkBadge: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: '#0F172A',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 10,
-  },
-  centerBannerText: {
-    fontSize: 12.5,
-    fontWeight: '800',
-    color: '#0F172A',
-    lineHeight: 16,
+    fontSize: 16,
+    color: '#2C1810',
+    fontWeight: '900',
+    lineHeight: 18,
   },
   pillSupport: {
     position: 'absolute',
-    top: 232,
-    left: 16,
     backgroundColor: '#FFFFFF',
-    borderRadius: 18,
-    paddingVertical: 7,
-    paddingHorizontal: 13,
+    borderRadius: 30,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.06,
@@ -923,12 +857,10 @@ const styles = StyleSheet.create({
   },
   pillDispatch: {
     position: 'absolute',
-    top: 232,
-    right: 14,
     backgroundColor: '#FFFFFF',
-    borderRadius: 18,
-    paddingVertical: 7,
-    paddingHorizontal: 13,
+    borderRadius: 30,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.06,
@@ -939,17 +871,17 @@ const styles = StyleSheet.create({
   amberIconBox: {
     width: 28,
     height: 28,
-    borderRadius: 9,
+    borderRadius: 14,
     backgroundColor: '#FEF3C7',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 8,
   },
   pillSmallText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#111827',
-    lineHeight: 13,
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#2C1810',
+    lineHeight: 14,
   },
   copySection: {
     marginTop: 36,
@@ -957,21 +889,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   headline: {
-    fontSize: 27,
+    fontSize: 29,
     fontWeight: '900',
-    color: '#0F172A',
+    color: '#2C1810',
     textAlign: 'center',
     letterSpacing: -0.6,
-    lineHeight: 33,
+    lineHeight: 35,
   },
   bodyText: {
-    marginTop: 6,
+    marginTop: 10,
     fontSize: 13.5,
     lineHeight: 20,
-    color: '#4B5563',
+    color: '#705746',
     textAlign: 'center',
     maxWidth: '92%',
-    fontWeight: '400',
+    fontWeight: '500',
   },
   ctaSection: {
     alignItems: 'center',

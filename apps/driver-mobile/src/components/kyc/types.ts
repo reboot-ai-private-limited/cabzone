@@ -28,6 +28,7 @@ export interface OnboardingDraft {
 
   // Flow 10: Step 6 of 6 (Selfie / Profile photo)
   selfieTaken: boolean;
+  profilePhotoUri?: string;
 }
 
 export const INITIAL_DRAFT: OnboardingDraft = {

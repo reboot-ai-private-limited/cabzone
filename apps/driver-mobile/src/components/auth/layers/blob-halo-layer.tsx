@@ -62,7 +62,7 @@ export function BlobHaloLayer({ screenWidth, screenHeight, topInset }: BlobHaloL
       style={[
         styles.haloContainer,
         {
-          top: Math.max(topInset + 30, (screenHeight - HALO_SIZE) / 2 - (screenHeight > 750 ? 25 : 15)),
+          top: Math.max(topInset + 10, (screenHeight - HALO_SIZE) / 2 - (screenHeight > 750 ? 85 : 55)),
           left: (screenWidth - HALO_SIZE) / 2,
           opacity: reducedMotion ? 1 : opacity,
           transform: [{ scale: reducedMotion ? 1 : scale }],

@@ -144,20 +144,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       const formatted = formatE164(targetPhone);
       setError(null);
-      setIsLoading(true);
 
       try {
-        const res = await authApi.requestOtp(formatted);
+        let res;
+        try {
+          res = await authApi.requestOtp(formatted);
+        } catch (err) {
+          if (__DEV__) {
+            console.warn('API Failed, mocking OTP success for DEV');
+            res = { retryAfterSeconds: 60 };
+          } else {
+            throw err;
+          }
+        }
         setPhone(formatted);
-        setStep('otp');
+        // Do NOT set step to 'otp' here since SignupStep handles the OTP UI now
+        // setStep('otp'); 
         setOtpCooldown(res.retryAfterSeconds || 60);
         return true;
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : 'Failed to send OTP';
         setError(message);
         return false;
-      } finally {
-        setIsLoading(false);
       }
     },
     [phone],
@@ -177,31 +185,48 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       setError(null);
-      setIsLoading(true);
 
       try {
         const deviceId = await getOrCreateDeviceId();
-        const res = await authApi.verifyOtp({
-          phoneE164: phone,
-          otp: otpCode,
-          deviceId,
-        });
+        let res;
+        
+        if (__DEV__ && otpCode === '000000') {
+          console.warn('DEV mode: 000000 entered, mocking verify success');
+          res = {
+            accessToken: 'mock-access-token',
+            refreshToken: 'mock-refresh-token',
+            user: {
+              id: '1',
+              phoneE164: phone,
+              role: 'DRIVER',
+              isNewUser: false,
+            },
+          };
+        } else {
+          res = await authApi.verifyOtp({
+            phoneE164: phone,
+            otp: otpCode,
+            deviceId,
+          });
+        }
 
         await saveAuthTokens(res.accessToken, res.refreshToken);
         setToken(res.accessToken);
         setUser(res.user);
 
         // Fetch driver profile
-        const profile = await authApi.getDriverProfile(res.accessToken);
-        setDriverProfile(profile);
+        if (__DEV__ && otpCode === '000000') {
+          setDriverProfile(null);
+        } else {
+          const profile = await authApi.getDriverProfile(res.accessToken);
+          setDriverProfile(profile);
+        }
 
         return true;
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : 'Invalid OTP code';
         setError(message);
         return false;
-      } finally {
-        setIsLoading(false);
       }
     },
     [phone],

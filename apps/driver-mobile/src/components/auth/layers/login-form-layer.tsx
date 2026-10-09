@@ -263,11 +263,7 @@ export function LoginFormLayer({
             </View>
 
             {/* Six OTP Digit Boxes */}
-            <Pressable
-              onPress={() => otpInputRef.current?.focus()}
-              style={styles.otpGridContainer}
-              accessibilityRole="button"
-              accessibilityLabel="Enter six digit verification code">
+            <View style={styles.otpGridContainer}>
               {[0, 1, 2, 3, 4, 5].map((index) => {
                 const digit = otpInput[index] || '';
                 const isCurrent = otpInput.length === index && isOtpFocused;
@@ -286,23 +282,25 @@ export function LoginFormLayer({
                   </View>
                 );
               })}
-            </Pressable>
 
-            {/* Hidden Input to handle physical/soft keyboard input for the 6 boxes */}
-            <TextInput
-              ref={otpInputRef}
-              style={styles.hiddenOtpInput}
-              keyboardType="number-pad"
-              textContentType="oneTimeCode"
-              autoComplete="one-time-code"
-              maxLength={6}
-              value={otpInput}
-              onChangeText={onOtpChange}
-              onFocus={() => setIsOtpFocused(true)}
-              onBlur={() => setIsOtpFocused(false)}
-              returnKeyType="done"
-              onSubmitEditing={onVerify}
-            />
+              {/* Hidden Input to handle physical/soft keyboard input for the 6 boxes */}
+              <TextInput
+                ref={otpInputRef}
+                style={[StyleSheet.absoluteFill, { opacity: 0.01, color: 'transparent', zIndex: 10 }]}
+                keyboardType="number-pad"
+                textContentType="oneTimeCode"
+                autoComplete="one-time-code"
+                maxLength={6}
+                value={otpInput}
+                onChangeText={onOtpChange}
+                onFocus={() => setIsOtpFocused(true)}
+                onBlur={() => setIsOtpFocused(false)}
+                returnKeyType="done"
+                onSubmitEditing={() => onVerify()}
+                cursorColor="transparent"
+                caretHidden={true}
+              />
+            </View>
 
             {/* 60s Timer Resend Row */}
             <View style={styles.timerRow}>
