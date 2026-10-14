@@ -58,10 +58,10 @@ export function CabzonButton({
   const isDisabled = disabled || loading;
 
   const getBackgroundColor = () => {
-    if (isDisabled) return '#E2E8F0';
+    if (isDisabled) return colors.lightBlue;
     switch (variant) {
       case 'primary':
-        return colors.cabzonBlue;
+        return colors.amber;
       case 'secondary':
         return colors.lightBlue;
       case 'danger':
@@ -74,11 +74,12 @@ export function CabzonButton({
   };
 
   const getTextColor = () => {
-    if (isDisabled) return '#94A3B8';
+    if (isDisabled) return colors.secondary;
     switch (variant) {
-      case 'primary':
       case 'danger':
         return colors.white;
+      case 'primary':
+        return colors.deepBrown;
       case 'secondary':
         return colors.darkNavy;
       case 'ghost':
@@ -96,6 +97,7 @@ export function CabzonButton({
         onPressOut={handlePressOut}
         disabled={isDisabled}
         accessibilityRole="button"
+        accessibilityLabel={title}
         accessibilityState={{ disabled: isDisabled, busy: loading }}
         style={[
           styles.button,
@@ -107,7 +109,7 @@ export function CabzonButton({
         {loading ? (
           <ActivityIndicator
             size="small"
-            color={variant === 'secondary' ? colors.darkNavy : colors.white}
+            color={variant === 'secondary' || variant === 'primary' ? colors.deepBrown : colors.white}
           />
         ) : (
           <>
@@ -125,20 +127,21 @@ export function CabzonButton({
 const styles = StyleSheet.create({
   button: {
     height: 52,
-    borderRadius: 26,
+    borderRadius: 8,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 24,
     gap: 8,
+    overflow: 'hidden',
   },
   text: {
     fontSize: 16,
-    fontWeight: '700',
-    letterSpacing: 0.2,
+    fontWeight: '600',
+    letterSpacing: 0,
   },
   ghostBorder: {
     borderWidth: 1,
-    borderColor: colors.cabzonBlue,
+    borderColor: colors.deepBrown,
   },
 });

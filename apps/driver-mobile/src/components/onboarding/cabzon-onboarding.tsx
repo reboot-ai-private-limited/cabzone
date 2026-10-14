@@ -1,7 +1,7 @@
+import { SafeAreaView } from 'react-native-safe-area-context';
 import React, { useEffect, useState } from 'react';
 import {
   Animated,
-  SafeAreaView,
   StyleSheet,
   Text,
   View,

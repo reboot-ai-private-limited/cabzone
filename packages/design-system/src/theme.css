@@ -14,32 +14,44 @@
 @theme {
   /* ── Surfaces ─────────────────────────────────────────────────────────────── */
   --color-surface: #ffffff;
-  --color-surface-sunken: #f7f8f5;
-  --color-surface-muted: #edefea;
+  --color-surface-sunken: #ffffff;
+  --color-surface-muted: #fff6e5;
 
   /* ── Ink ──────────────────────────────────────────────────────────────────── */
-  --color-text: #1c1b1f;
-  --color-text-subtle: #5c635a;
+  --color-text: #3a2414;
+  --color-text-subtle: #705746;
 
   /* ── Brand ────────────────────────────────────────────────────────────────────
-   * Cabzone brand blue: #002451 is 15.32:1 against white. Text/icons on it use
-   * --color-accent-ink (#ffffff).
+   * Deep brown text on the solid amber action meets normal-text contrast.
    */
-  --color-accent: #002451;
-  --color-accent-hover: #00336e;
-  --color-accent-ink: #ffffff;
+  --color-accent: #fbbf24;
+  --color-accent-hover: #f59e0b;
+  --color-accent-ink: #3a2414;
 
   /* The coloured ink: links, focus rings, selected state, active tab underline. */
-  --color-interactive: #002451;
-  --color-interactive-hover: #00336e;
+  --color-interactive: #3a2414;
+  --color-interactive-hover: #b45309;
 
   /* ── Lines ────────────────────────────────────────────────────────────────────
    * Two, deliberately. A hairline light enough to sit unobtrusively between table
    * rows is far too light to be the edge of a text input, which WCAG 1.4.11 wants
    * at 3:1. One token for both means either heavy tables or invisible inputs.
    */
-  --color-border: #d8dcd5;
+  --color-border: #ffe7c7;
   --color-border-strong: #8a9281;
+
+  /* Existing slate utilities now follow the warm-neutral brand palette. */
+  --color-slate-50: #fff9f0;
+  --color-slate-100: #fff6e5;
+  --color-slate-200: #ffe7c7;
+  --color-slate-300: #ffd59a;
+  --color-slate-400: #b99a7c;
+  --color-slate-500: #8a705b;
+  --color-slate-600: #705746;
+  --color-slate-700: #58412f;
+  --color-slate-800: #3a2414;
+  --color-slate-900: #28180e;
+  --color-slate-950: #1c1009;
 
   /* ── Status ───────────────────────────────────────────────────────────────── */
   --color-success: #1a7f37;

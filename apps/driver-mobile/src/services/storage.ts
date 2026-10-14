@@ -6,6 +6,72 @@ const ACCESS_TOKEN_KEY = 'cabzone_driver_access_token';
 const REFRESH_TOKEN_KEY = 'cabzone_driver_refresh_token';
 const DEVICE_ID_KEY = 'cabzone_driver_device_id';
 const AUTH_USER_KEY = 'cabzone_driver_auth_user';
+const KYC_DRAFT_PREFIX = 'cabzone_driver_kyc_draft_';
+const LAST_KYC_USER_KEY = 'cabzone_driver_last_kyc_user';
+
+export interface PersistedKycDraft {
+  step: number;
+  vehicleType?: 'CAB' | 'E_RICKSHAW';
+  firstName?: string;
+  lastName?: string;
+  dateOfBirth?: string;
+  gender?: 'MALE' | 'FEMALE' | 'OTHER' | '';
+  city?: string;
+  isCustomCity?: boolean;
+  registrationNumber?: string;
+  make?: string;
+  model?: string;
+  color?: string;
+  manufactureYear?: number | null;
+  dlNumber?: string;
+  dlExpiry?: string;
+}
+
+export async function saveKycDraft(userId: string, draft: PersistedKycDraft): Promise<void> {
+  if (!userId) return;
+  const sanitized: PersistedKycDraft = {
+    step: Math.min(Math.max(draft.step || 1, 1), 7),
+    vehicleType: draft.vehicleType,
+    firstName: draft.firstName,
+    lastName: draft.lastName,
+    dateOfBirth: draft.dateOfBirth,
+    gender: draft.gender,
+    city: draft.city,
+    isCustomCity: draft.isCustomCity,
+    registrationNumber: draft.registrationNumber,
+    make: draft.make,
+    model: draft.model,
+    color: draft.color,
+    manufactureYear: draft.manufactureYear ?? null,
+    dlNumber: draft.dlNumber,
+    dlExpiry: draft.dlExpiry,
+  };
+  await Promise.all([
+    setItem(`${KYC_DRAFT_PREFIX}${userId}`, JSON.stringify(sanitized)),
+    setItem(LAST_KYC_USER_KEY, userId),
+  ]);
+}
+
+export async function getKycDraft(userId: string): Promise<PersistedKycDraft | null> {
+  if (!userId) return null;
+  const raw = await getItem(`${KYC_DRAFT_PREFIX}${userId}`);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as PersistedKycDraft;
+    if (typeof parsed !== 'object' || parsed === null) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+export async function clearKycDraft(userId?: string | null): Promise<void> {
+  const targetUserId = userId || (await getItem(LAST_KYC_USER_KEY));
+  if (targetUserId) {
+    await removeItem(`${KYC_DRAFT_PREFIX}${targetUserId}`);
+  }
+  await removeItem(LAST_KYC_USER_KEY);
+}
 
 export async function saveAuthUser(user: AuthenticatedUserSummary): Promise<void> {
   await setItem(AUTH_USER_KEY, JSON.stringify(user));
@@ -77,6 +143,7 @@ export async function getRefreshToken(): Promise<string | null> {
 }
 
 export async function clearAuthTokens(): Promise<void> {
+  await clearKycDraft();
   await Promise.all([
     removeItem(ACCESS_TOKEN_KEY),
     removeItem(REFRESH_TOKEN_KEY),

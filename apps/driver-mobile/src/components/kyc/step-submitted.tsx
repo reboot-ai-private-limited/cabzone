@@ -1,7 +1,8 @@
+import { colors, typography } from '@/design-system';
 import React from 'react';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
@@ -61,7 +62,7 @@ export function StepSubmitted({ onGoHome }: StepSubmittedProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F7F7F5',
+    backgroundColor: colors.background,
   },
   scrollContent: {
     flexGrow: 1,
@@ -86,13 +87,13 @@ const styles = StyleSheet.create({
   },
   checkIcon: {
     fontSize: 40,
-    fontWeight: '900',
+    fontWeight: '800',
     color: '#16A34A',
   },
   title: {
-    fontSize: 26,
-    fontWeight: '900',
-    color: '#111827',
+    fontSize: typography.sizes.xxl,
+    fontWeight: '800',
+    color: colors.text,
     marginBottom: 6,
     textAlign: 'center',
   },
@@ -104,8 +105,8 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   bodyText: {
-    fontSize: 14,
-    color: '#6B7280',
+    fontSize: typography.sizes.label,
+    color: colors.secondary,
     lineHeight: 22,
     textAlign: 'center',
     marginBottom: 32,
@@ -117,11 +118,11 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 20,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: colors.border,
     gap: 12,
   },
   statusHeader: {
-    fontSize: 13,
+    fontSize: typography.sizes.sm,
     fontWeight: '800',
     color: '#9CA3AF',
     textTransform: 'uppercase',
@@ -134,29 +135,29 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   dotActive: {
-    fontSize: 16,
+    fontSize: typography.sizes.base,
     color: '#16A34A',
   },
   statusTextActive: {
-    fontSize: 15,
+    fontSize: typography.sizes.base,
     fontWeight: '700',
-    color: '#111827',
+    color: colors.text,
   },
   dotPending: {
-    fontSize: 16,
+    fontSize: typography.sizes.base,
     color: '#9CA3AF',
   },
   statusTextPending: {
-    fontSize: 15,
+    fontSize: typography.sizes.base,
     color: '#9CA3AF',
   },
   homeBtn: {
-    backgroundColor: '#002451',
+    backgroundColor: colors.darkNavy,
     borderRadius: 18,
     height: 56,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#002451',
+    shadowColor: colors.darkNavy,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
     shadowRadius: 10,
@@ -167,8 +168,8 @@ const styles = StyleSheet.create({
     transform: [{ scale: 0.99 }],
   },
   homeBtnText: {
-    color: '#C8FF00',
-    fontSize: 16,
+    color: colors.white,
+    fontSize: typography.sizes.base,
     fontWeight: '800',
   },
 });

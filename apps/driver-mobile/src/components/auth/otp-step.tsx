@@ -1,3 +1,4 @@
+import { colors, typography } from '@/design-system';
 import React, { useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
@@ -126,7 +127,7 @@ export function OtpStep() {
               <Ionicons
                 name="arrow-forward"
                 size={18}
-                color={otp.length === 6 ? '#5A3416' : '#B3A48C'}
+                color={otp.length === 6 ? colors.darkNavy : colors.secondary}
                 style={{ marginLeft: 2 }}
               />
             )
@@ -161,7 +162,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
     borderRadius: 20,
     padding: 24,
-    shadowColor: '#002451',
+    shadowColor: colors.darkNavy,
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.08,
     shadowRadius: 24,
@@ -175,9 +176,9 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   backButtonText: {
-    fontSize: 13,
+    fontSize: typography.sizes.sm,
     fontWeight: '600',
-    color: '#002451',
+    color: colors.darkNavy,
   },
   header: {
     alignItems: 'center',
@@ -200,14 +201,14 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   subheading: {
-    fontSize: 13,
-    color: '#64748b',
+    fontSize: typography.sizes.sm,
+    color: colors.secondary,
     textAlign: 'center',
     lineHeight: 18,
   },
   phoneHighlight: {
     fontWeight: '700',
-    color: '#002451',
+    color: colors.darkNavy,
   },
   otpGrid: {
     flexDirection: 'row',
@@ -226,21 +227,21 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   otpCellFocused: {
-    borderColor: '#002451',
+    borderColor: colors.darkNavy,
     backgroundColor: '#ffffff',
-    shadowColor: '#002451',
+    shadowColor: colors.darkNavy,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
   },
   otpCellFilled: {
-    borderColor: '#002451',
+    borderColor: colors.darkNavy,
     backgroundColor: '#ffffff',
   },
   otpCellText: {
-    fontSize: 22,
+    fontSize: typography.sizes.xl,
     fontWeight: '800',
-    color: '#002451',
+    color: colors.darkNavy,
   },
   hiddenInput: {
     position: 'absolute',
@@ -257,7 +258,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   errorText: {
-    fontSize: 12,
+    fontSize: typography.sizes.xs,
     fontWeight: '600',
     color: '#b91c1c',
     textAlign: 'center',
@@ -276,7 +277,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   devText: {
-    fontSize: 11,
+    fontSize: typography.sizes.xs,
     fontWeight: '600',
     color: '#166534',
   },
@@ -287,12 +288,12 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   devOtpBtnText: {
-    fontSize: 11,
+    fontSize: typography.sizes.xs,
     fontWeight: '700',
     color: '#ffffff',
   },
   button: {
-    backgroundColor: '#002451',
+    backgroundColor: colors.darkNavy,
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',
@@ -303,7 +304,7 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   buttonText: {
-    fontSize: 15,
+    fontSize: typography.sizes.base,
     fontWeight: '700',
     color: '#ffffff',
   },
@@ -312,16 +313,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   resendTimer: {
-    fontSize: 12,
-    color: '#64748b',
+    fontSize: typography.sizes.xs,
+    color: colors.secondary,
   },
   timerBold: {
     fontWeight: '700',
-    color: '#002451',
+    color: colors.darkNavy,
   },
   resendLink: {
-    fontSize: 12,
+    fontSize: typography.sizes.xs,
     fontWeight: '700',
-    color: '#002451',
+    color: colors.darkNavy,
   },
 });

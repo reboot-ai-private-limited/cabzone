@@ -1,7 +1,15 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/context/auth-context';
 import { driverApi } from '@/services/api';
-import { personalInfoPayload, toBackendDate, toDisplayDate } from '@/services/profile';
+import {
+  getServerDocumentStatus,
+  isValidRegistrationNumber,
+  normalizeRegistrationNumber,
+  personalInfoPayload,
+  toBackendDate,
+  toDisplayDate,
+} from '@/services/profile';
+import { clearKycDraft, getKycDraft, saveKycDraft } from '@/services/storage';
 import { INITIAL_DRAFT, type OnboardingDraft } from './types';
 import { StepPersonalInfo } from './step-personal-info';
 import { StepOperatingCity } from './step-operating-city';
@@ -13,32 +21,139 @@ import { StepReview } from './step-review';
 import { StepSubmitted } from './step-submitted';
 
 export function KycWizard() {
-  const { token, driver, vehicle, documents, refreshProfile, logout } = useAuth();
+  const { user, token, driver, vehicle, documents, refreshProfile, logout } = useAuth();
 
   const [draft, setDraft] = useState<OnboardingDraft>(() => ({
     ...INITIAL_DRAFT,
     firstName: driver?.name?.split(' ')[0] || '',
     lastName: driver?.name?.split(' ').slice(1).join(' ') || '',
     dateOfBirth: toDisplayDate(driver?.dateOfBirth || ''),
-    gender: driver?.gender === 'FEMALE' || driver?.gender === 'OTHER' ? driver.gender : 'MALE',
+    gender:
+      driver?.gender === 'MALE' || driver?.gender === 'FEMALE' || driver?.gender === 'OTHER'
+        ? driver.gender
+        : '',
     profilePhotoUri: driver?.profilePhotoUrl || undefined,
     selfieTaken: Boolean(driver?.profilePhotoUrl),
     dlNumber: driver?.dlNumber || '',
-    dlExpiry: documents.find((document) => document.type === 'DRIVING_LICENSE')?.expiresAt?.slice(0, 10) || driver?.dlExpiry || '',
-    dlUploaded: documents.some((document) => document.type === 'DRIVING_LICENSE' && !document.storageKey.startsWith('mock/')),
-    govtIdUploaded: documents.some((document) => document.type === 'GOVERNMENT_ID' && !document.storageKey.startsWith('mock/')),
-    rcUploaded: documents.some((document) => document.type === 'REGISTRATION_CERTIFICATE' && !document.storageKey.startsWith('mock/')),
-    insuranceUploaded: documents.some((document) => document.type === 'INSURANCE' && !document.storageKey.startsWith('mock/')),
-    permitUploaded: documents.some((document) => document.type === 'PERMIT' && !document.storageKey.startsWith('mock/')),
-    city: driver?.address || 'Siliguri',
+    dlExpiry: toDisplayDate(
+      documents.find((document) => document.type === 'DRIVING_LICENSE')?.expiresAt?.slice(0, 10) ||
+        driver?.dlExpiry ||
+        '',
+    ),
+    dlUploaded: getServerDocumentStatus(documents, 'DRIVING_LICENSE').status === 'READY',
+    govtIdUploaded: getServerDocumentStatus(documents, 'GOVERNMENT_ID').status === 'READY',
+    rcUploaded: getServerDocumentStatus(documents, 'REGISTRATION_CERTIFICATE').status === 'READY',
+    insuranceUploaded: getServerDocumentStatus(documents, 'INSURANCE').status === 'READY',
+    permitUploaded: getServerDocumentStatus(documents, 'PERMIT').status === 'READY',
+    city: driver?.address || '',
     vehicleType: vehicle?.vehicleType || 'CAB',
     registrationNumber: vehicle?.registrationNumber || '',
-    make: vehicle?.make || INITIAL_DRAFT.make,
-    model: vehicle?.model || 'Maruti Dzire Tour',
-    color: vehicle?.color || 'White',
+    make: vehicle?.make || '',
+    model: vehicle?.model || '',
+    color: vehicle?.color || '',
+    manufactureYear: vehicle?.manufactureYear ?? null,
   }));
 
   const [step, setStep] = useState<number>(1);
+  const hydratedForUserRef = useRef<string | null>(null);
+
+  // Hydrate non-sensitive local draft for current user and reconcile with authoritative server state (F03)
+  useEffect(() => {
+    const userId = user?.id;
+    if (!userId) return;
+
+    let cancelled = false;
+    void (async () => {
+      const persisted = await getKycDraft(userId);
+      if (cancelled) return;
+
+      const serverFirstName = driver?.name?.split(' ')[0] || '';
+      const serverLastName = driver?.name?.split(' ').slice(1).join(' ') || '';
+      const serverDob = toDisplayDate(driver?.dateOfBirth || '');
+      const serverGender =
+        driver?.gender === 'MALE' || driver?.gender === 'FEMALE' || driver?.gender === 'OTHER'
+          ? driver.gender
+          : '';
+      const serverDlExpiry = toDisplayDate(
+        documents.find((doc) => doc.type === 'DRIVING_LICENSE')?.expiresAt?.slice(0, 10) ||
+          driver?.dlExpiry ||
+          '',
+      );
+
+      setDraft((prev) => ({
+        ...prev,
+        firstName: serverFirstName || persisted?.firstName || prev.firstName || '',
+        lastName: serverFirstName ? serverLastName : (persisted?.lastName ?? prev.lastName ?? ''),
+        dateOfBirth: serverDob || persisted?.dateOfBirth || prev.dateOfBirth || '',
+        gender: serverGender || persisted?.gender || prev.gender || '',
+        profilePhotoUri: driver?.profilePhotoUrl || prev.profilePhotoUri || undefined,
+        selfieTaken: Boolean(driver?.profilePhotoUrl || prev.selfieTaken),
+        dlNumber: driver?.dlNumber || persisted?.dlNumber || prev.dlNumber || '',
+        dlExpiry: serverDlExpiry || persisted?.dlExpiry || prev.dlExpiry || '',
+        dlUploaded: getServerDocumentStatus(documents, 'DRIVING_LICENSE').status === 'READY',
+        govtIdUploaded: getServerDocumentStatus(documents, 'GOVERNMENT_ID').status === 'READY',
+        rcUploaded:
+          getServerDocumentStatus(documents, 'REGISTRATION_CERTIFICATE').status === 'READY',
+        insuranceUploaded: getServerDocumentStatus(documents, 'INSURANCE').status === 'READY',
+        permitUploaded: getServerDocumentStatus(documents, 'PERMIT').status === 'READY',
+        city: driver?.address || persisted?.city || prev.city || '',
+        isCustomCity: persisted?.isCustomCity ?? prev.isCustomCity,
+        vehicleType: vehicle?.vehicleType || persisted?.vehicleType || prev.vehicleType || 'CAB',
+        registrationNumber:
+          vehicle?.registrationNumber ||
+          persisted?.registrationNumber ||
+          prev.registrationNumber ||
+          '',
+        make: vehicle?.make || persisted?.make || prev.make || '',
+        model: vehicle?.model || persisted?.model || prev.model || '',
+        color: vehicle?.color || persisted?.color || prev.color || '',
+        manufactureYear:
+          vehicle?.manufactureYear ??
+          persisted?.manufactureYear ??
+          prev.manufactureYear ??
+          null,
+      }));
+
+      if (hydratedForUserRef.current !== userId) {
+        hydratedForUserRef.current = userId;
+        if (persisted?.step && persisted.step >= 1 && persisted.step <= 7) {
+          setStep(persisted.step);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, driver, vehicle, documents]);
+
+  // Persist non-sensitive draft and active step on changes (F03), debounced to avoid blocking typing
+  useEffect(() => {
+    const userId = user?.id;
+    if (!userId || step === 8 || hydratedForUserRef.current !== userId) return;
+
+    const timer = setTimeout(() => {
+      void saveKycDraft(userId, {
+        step,
+        vehicleType: draft.vehicleType,
+        firstName: draft.firstName,
+        lastName: draft.lastName,
+        dateOfBirth: draft.dateOfBirth,
+        gender: draft.gender,
+        city: draft.city,
+        isCustomCity: draft.isCustomCity,
+        registrationNumber: draft.registrationNumber,
+        make: draft.make,
+        model: draft.model,
+        color: draft.color,
+        manufactureYear: draft.manufactureYear,
+        dlNumber: draft.dlNumber,
+        dlExpiry: draft.dlExpiry,
+      });
+    }, 350);
+
+    return () => clearTimeout(timer);
+  }, [user?.id, step, draft]);
 
   const updateDraft = (partial: Partial<OnboardingDraft>) => {
     setDraft((prev) => ({ ...prev, ...partial }));
@@ -57,38 +172,63 @@ export function KycWizard() {
   };
 
   const handleSubmitApplication = async () => {
-    if (!token) return;
+    if (!token) throw new Error('Please sign in before submitting your application.');
+    if (!draft.gender) {
+      throw new Error('Please select your gender in Step 1.');
+    }
+    if (!draft.city.trim()) {
+      throw new Error('Please select your operating city in Step 2.');
+    }
 
-    // 1. Save / Update Driver Profile
+    const normalizedReg = normalizeRegistrationNumber(
+      vehicle?.registrationNumber || draft.registrationNumber,
+    );
+    if (!isValidRegistrationNumber(normalizedReg)) {
+      throw new Error('Please enter a valid vehicle registration number in Step 3.');
+    }
+
+    // 1. Save / Update Driver Profile (including operating city as address)
     await driverApi.saveProfile(token, {
       name: `${draft.firstName} ${draft.lastName}`.trim(),
       gender: draft.gender,
       dateOfBirth: toBackendDate(draft.dateOfBirth),
-      address: draft.city,
-      dlNumber: draft.dlNumber,
+      address: draft.city.trim(),
+      dlNumber: (driver?.dlNumber || draft.dlNumber).trim(),
     });
 
     // 2. Ensure application exists in DRAFT
     await driverApi.createApplication(token);
 
-    // 3. Register Vehicle
-    await driverApi.registerVehicle(token, {
-      vehicleType: draft.vehicleType,
-      make: draft.make,
-      model: draft.model,
-      registrationNumber: draft.registrationNumber || 'WB74AB1234',
-      color: draft.color,
-      manufactureYear: draft.manufactureYear,
-    });
+    // 3. Register Vehicle only if not already registered with matching details
+    const vehicleAlreadyMatches =
+      vehicle &&
+      driver?.currentVehicleId &&
+      vehicle.registrationNumber === normalizedReg &&
+      vehicle.make === (draft.make || vehicle.make) &&
+      vehicle.model === (draft.model || vehicle.model) &&
+      vehicle.color === (draft.color || vehicle.color) &&
+      (vehicle.manufactureYear ?? null) === (draft.manufactureYear ?? null);
 
-    // 4. Submit the documents already uploaded during onboarding for review.
+    if (!vehicleAlreadyMatches) {
+      await driverApi.registerVehicle(token, {
+        vehicleType: draft.vehicleType,
+        make: (draft.make || vehicle?.make || '').trim(),
+        model: (draft.model || vehicle?.model || '').trim(),
+        registrationNumber: normalizedReg,
+        color: (draft.color || vehicle?.color || '').trim(),
+        manufactureYear: draft.manufactureYear ?? null,
+      });
+    }
+
+    // 4. Submit the application for review
     await driverApi.submitApplication(token);
 
-    // 5. Refresh authoritative profile from backend
-    await refreshProfile();
-
-    // 6. Advance to Flow 12 (Application Submitted)
+    // 5. Clear local onboarding draft and immediately advance to confirmation screen (F03, F18)
+    await clearKycDraft(user?.id);
     setStep(8);
+
+    // 6. Refresh authoritative profile in background without blocking confirmation
+    void refreshProfile().catch(() => {});
   };
 
   switch (step) {

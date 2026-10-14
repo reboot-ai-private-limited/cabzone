@@ -5,6 +5,10 @@ import { Providers } from './providers';
 export const metadata: Metadata = {
   title: 'Cabzonee Admin',
   description: 'Cabzonee Operations & Management Console',
+  icons: {
+    icon: '/brand/cabzone-app-icon.png',
+    apple: '/brand/cabzone-app-icon.png',
+  },
 };
 
 export default function RootLayout({

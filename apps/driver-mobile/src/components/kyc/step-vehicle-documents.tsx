@@ -1,3 +1,4 @@
+import { colors, typography } from '@/design-system';
 import React, { useState } from 'react';
 import {
   Alert,
@@ -16,9 +17,15 @@ import { CandyButton } from '@/components/buttons/candy-button';
 import { useAuth } from '@/context/auth-context';
 import { driverApi } from '@/services/api';
 import { pickDriverLicense, type SelectedDriverLicense } from '@/services/driver-license';
+import {
+  formatDateInput,
+  getServerDocumentStatus,
+  validateFutureExpiryDate,
+} from '@/services/profile';
 import type { OnboardingDraft } from './types';
 
 type VehicleDocumentType = 'GOVERNMENT_ID' | 'REGISTRATION_CERTIFICATE' | 'INSURANCE' | 'PERMIT';
+type UploadItemState = 'IDLE' | 'QUEUED' | 'UPLOADING' | 'SAVED' | 'FAILED';
 
 interface DocConfig {
   type: VehicleDocumentType;
@@ -26,7 +33,7 @@ interface DocConfig {
   subtitle: string;
   draftKey: 'govtIdUploaded' | 'rcUploaded' | 'insuranceUploaded' | 'permitUploaded';
   icon: keyof typeof Ionicons.glyphMap;
-  required: boolean;
+  requiresExpiry: boolean;
 }
 
 const DOCUMENTS: DocConfig[] = [
@@ -36,7 +43,7 @@ const DOCUMENTS: DocConfig[] = [
     subtitle: 'Aadhaar, voter ID, or passport',
     draftKey: 'govtIdUploaded',
     icon: 'id-card-outline',
-    required: true,
+    requiresExpiry: false,
   },
   {
     type: 'REGISTRATION_CERTIFICATE',
@@ -44,7 +51,7 @@ const DOCUMENTS: DocConfig[] = [
     subtitle: 'RC Smart Card or Paper Registration',
     draftKey: 'rcUploaded',
     icon: 'car-sport-outline',
-    required: true,
+    requiresExpiry: true,
   },
   {
     type: 'INSURANCE',
@@ -52,7 +59,7 @@ const DOCUMENTS: DocConfig[] = [
     subtitle: 'Comprehensive or Commercial Third-Party',
     draftKey: 'insuranceUploaded',
     icon: 'shield-checkmark-outline',
-    required: true,
+    requiresExpiry: true,
   },
   {
     type: 'PERMIT',
@@ -60,7 +67,7 @@ const DOCUMENTS: DocConfig[] = [
     subtitle: 'Route Permit or Tourist Vehicle Authorization',
     draftKey: 'permitUploaded',
     icon: 'ribbon-outline',
-    required: true,
+    requiresExpiry: true,
   },
 ];
 
@@ -71,18 +78,7 @@ interface StepVehicleDocumentsProps {
   onBack: () => void;
 }
 
-// Helper to format date DD/MM/YYYY into YYYY-MM-DD
-function parseFormattedDate(dateStr: string): string | null {
-  if (!dateStr || dateStr.length !== 10) return null;
-  const parts = dateStr.split('/');
-  if (parts.length !== 3) return null;
-  const [d, m, y] = parts;
-  if (!d || !m || !y || d.length !== 2 || m.length !== 2 || y.length !== 4) return null;
-  return `${y}-${m}-${d}`;
-}
-
 export function StepVehicleDocuments({
-  draft,
   onUpdate,
   onNext,
   onBack,
@@ -93,97 +89,155 @@ export function StepVehicleDocuments({
   const [selected, setSelected] = useState<Partial<Record<VehicleDocumentType, SelectedDriverLicense>>>({});
   const [expiries, setExpiries] = useState<Partial<Record<VehicleDocumentType, string>>>({});
   const [uploadedThisSession, setUploadedThisSession] = useState<VehicleDocumentType[]>([]);
+  const [uploadStates, setUploadStates] = useState<Partial<Record<VehicleDocumentType, UploadItemState>>>({});
+  const [uploadErrors, setUploadErrors] = useState<Partial<Record<VehicleDocumentType, string>>>({});
   const [isSaving, setIsSaving] = useState(false);
 
-  // Check if document already exists and is unexpired in profile
-  const hasCurrentDocument = (type: VehicleDocumentType) =>
-    uploadedThisSession.includes(type) ||
-    documents.some(
-      (document) =>
-        document.type === type &&
-        !document.storageKey.startsWith('mock/') &&
-        (type === 'GOVERNMENT_ID' || (!!document.expiresAt && new Date(document.expiresAt) > new Date())),
-    );
+  const getDocServerStatus = (type: VehicleDocumentType) => {
+    if (uploadedThisSession.includes(type)) {
+      return { status: 'READY' as const, expiresAtDisplay: expiries[type] };
+    }
+    return getServerDocumentStatus(documents, type);
+  };
 
-  // Pick document file
+  const hasCurrentDocument = (type: VehicleDocumentType) =>
+    getDocServerStatus(type).status === 'READY';
+
   const handlePick = async (type: VehicleDocumentType, title: string) => {
     try {
       const file = await pickDriverLicense(title);
       if (file) {
         setSelected((prev) => ({ ...prev, [type]: file }));
+        setUploadStates((prev) => ({ ...prev, [type]: 'IDLE' }));
+        setUploadErrors((prev) => ({ ...prev, [type]: undefined }));
       }
     } catch (error) {
-      Alert.alert('Document Selection', error instanceof Error ? error.message : 'Please try again.');
+      Alert.alert(
+        'Document Selection',
+        error instanceof Error ? error.message : 'Please try again.',
+      );
     }
   };
 
-  // Direct manual typing with auto slash formatting
+  const handleRemoveSelected = (type: VehicleDocumentType) => {
+    setSelected((prev) => ({ ...prev, [type]: undefined }));
+    setUploadStates((prev) => ({ ...prev, [type]: 'IDLE' }));
+    setUploadErrors((prev) => ({ ...prev, [type]: undefined }));
+  };
+
   const handleExpiryTextChange = (type: VehicleDocumentType, text: string) => {
-    const cleaned = text.replace(/\D/g, '').slice(0, 8);
-    let formatted = cleaned;
-    if (cleaned.length > 2 && cleaned.length <= 4) {
-      formatted = `${cleaned.slice(0, 2)}/${cleaned.slice(2)}`;
-    } else if (cleaned.length > 4) {
-      formatted = `${cleaned.slice(0, 2)}/${cleaned.slice(2, 4)}/${cleaned.slice(4)}`;
-    }
+    const formatted = formatDateInput(text);
     setExpiries((prev) => ({ ...prev, [type]: formatted }));
+    setUploadErrors((prev) => ({ ...prev, [type]: undefined }));
   };
 
-  // Validation
-  const isRCReady = hasCurrentDocument('REGISTRATION_CERTIFICATE') || Boolean(selected['REGISTRATION_CERTIFICATE']);
-  const isInsuranceReady = hasCurrentDocument('INSURANCE') || Boolean(selected['INSURANCE']);
-  const isPermitReady = hasCurrentDocument('PERMIT') || Boolean(selected['PERMIT']);
-  const isIdReady = hasCurrentDocument('GOVERNMENT_ID') || Boolean(selected['GOVERNMENT_ID']);
-  const canContinue = isRCReady && isInsuranceReady && isPermitReady && isIdReady;
+  // Pre-flight validation for each document before any upload is attempted
+  const isDocumentReadyForContinue = (doc: DocConfig): boolean => {
+    const file = selected[doc.type];
+    if (file) {
+      if (!doc.requiresExpiry) return true;
+      return validateFutureExpiryDate(expiries[doc.type] ?? '').valid;
+    }
+    return hasCurrentDocument(doc.type);
+  };
+
+  const canContinue = DOCUMENTS.every(isDocumentReadyForContinue);
 
   const handleContinue = async () => {
     if (!token || isSaving) return;
+
+    // 1. Validate ALL pending uploads up front before sending any network request (F04)
+    const pendingItems: {
+      doc: DocConfig;
+      file: SelectedDriverLicense;
+      isoTimestamp?: string;
+    }[] = [];
+    const nextErrors: Partial<Record<VehicleDocumentType, string>> = {};
+
+    for (const doc of DOCUMENTS) {
+      const file = selected[doc.type];
+      if (!file) {
+        if (!hasCurrentDocument(doc.type)) {
+          nextErrors[doc.type] = `Please select your ${doc.title}.`;
+        }
+        continue;
+      }
+
+      if (doc.requiresExpiry) {
+        const expiryCheck = validateFutureExpiryDate(expiries[doc.type] ?? '');
+        if (!expiryCheck.valid || !expiryCheck.isoTimestamp) {
+          nextErrors[doc.type] =
+            expiryCheck.error || `Enter a valid future expiry date for ${doc.title}.`;
+          continue;
+        }
+        pendingItems.push({ doc, file, isoTimestamp: expiryCheck.isoTimestamp });
+      } else {
+        pendingItems.push({ doc, file });
+      }
+    }
+
+    if (Object.keys(nextErrors).length > 0) {
+      setUploadErrors(nextErrors);
+      const firstMessage = Object.values(nextErrors)[0];
+      if (firstMessage) {
+        Alert.alert('Check Document Details', firstMessage);
+      }
+      return;
+    }
+
+    // If all 4 documents are already saved on the server and no replacements are selected
+    if (pendingItems.length === 0 && canContinue) {
+      onNext();
+      return;
+    }
+
     setIsSaving(true);
+    setUploadErrors({});
+    setUploadStates((prev) => {
+      const queued = { ...prev };
+      for (const item of pendingItems) {
+        queued[item.doc.type] = 'QUEUED';
+      }
+      return queued;
+    });
 
+    let activeType: VehicleDocumentType | null = null;
     try {
-      for (const { type, title, draftKey, required } of DOCUMENTS) {
-        const file = selected[type];
-        if (!file) {
-          if (required && !hasCurrentDocument(type)) {
-            throw new Error(`Please upload your ${title}.`);
-          }
-          continue;
-        }
+      await driverApi.createApplication(token);
 
-        if (type === 'GOVERNMENT_ID') {
+      for (const { doc, file, isoTimestamp } of pendingItems) {
+        activeType = doc.type;
+        setUploadStates((prev) => ({ ...prev, [doc.type]: 'UPLOADING' }));
+
+        if (doc.type === 'GOVERNMENT_ID') {
           await driverApi.uploadIdentityDocumentFile(token, file.dataUrl);
-          setUploadedThisSession((prev) => [...prev, type]);
-          onUpdate({ [draftKey]: true });
-          setSelected((prev) => ({ ...prev, [type]: undefined }));
-          continue;
+        } else {
+          await driverApi.uploadVehicleDocumentFile(token, {
+            type: doc.type,
+            fileDataUrl: file.dataUrl,
+            expiresAt: isoTimestamp!,
+          });
         }
 
-        const dateStr = expiries[type]?.trim() ?? '';
-        const isoDate = parseFormattedDate(dateStr);
-        if (!isoDate) {
-          throw new Error(`Enter a valid future expiry date (DD/MM/YYYY) for ${title}.`);
-        }
-
-        const parsed = new Date(`${isoDate}T23:59:59.999Z`);
-        if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== isoDate || parsed <= new Date()) {
-          throw new Error(`Expiry date for ${title} must be in the future.`);
-        }
-
-        await driverApi.uploadVehicleDocumentFile(token, {
-          type,
-          fileDataUrl: file.dataUrl,
-          expiresAt: parsed.toISOString(),
-        });
-
-        setUploadedThisSession((prev) => [...prev, type]);
-        onUpdate({ [draftKey]: true });
-        setSelected((prev) => ({ ...prev, [type]: undefined }));
+        setUploadedThisSession((prev) =>
+          prev.includes(doc.type) ? prev : [...prev, doc.type],
+        );
+        setUploadStates((prev) => ({ ...prev, [doc.type]: 'SAVED' }));
+        onUpdate({ [doc.draftKey]: true });
+        setSelected((prev) => ({ ...prev, [doc.type]: undefined }));
       }
 
       await refreshProfile();
       onNext();
     } catch (error) {
-      Alert.alert('Upload Error', error instanceof Error ? error.message : 'Please try again.');
+      const msg = error instanceof Error ? error.message : 'Upload failed. Please try again.';
+      if (activeType) {
+        const failedType = activeType;
+        setUploadStates((prev) => ({ ...prev, [failedType]: 'FAILED' }));
+        setUploadErrors((prev) => ({ ...prev, [failedType]: msg }));
+      }
+      await refreshProfile().catch(() => {});
+      Alert.alert('Upload Incomplete', msg);
     } finally {
       setIsSaving(false);
     }
@@ -203,7 +257,6 @@ export function StepVehicleDocuments({
         ]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}>
-
         {/* Top Header Bar */}
         <View style={styles.topBar}>
           <Pressable
@@ -212,7 +265,7 @@ export function StepVehicleDocuments({
             hitSlop={12}
             accessibilityRole="button"
             accessibilityLabel="Go back">
-            <Ionicons name="arrow-back" size={20} color="#2C1810" />
+            <Ionicons name="arrow-back" size={20} color="#172B3A" />
           </Pressable>
 
           <View style={styles.stepBadge}>
@@ -244,89 +297,175 @@ export function StepVehicleDocuments({
 
         {/* Document Cards List */}
         <View style={styles.docList}>
-          {DOCUMENTS.map(({ type, title, subtitle, icon, required }) => {
-            const saved = hasCurrentDocument(type);
+          {DOCUMENTS.map(({ type, title, subtitle, icon, requiresExpiry }) => {
+            const serverDoc = getDocServerStatus(type);
+            const saved = serverDoc.status === 'READY';
+            const expiredOnServer = serverDoc.status === 'EXPIRED';
             const file = selected[type];
-            const isCompleted = saved || Boolean(file);
-            const expiryValue = expiries[type] ?? '';
+            const uploadState = uploadStates[type] ?? 'IDLE';
+            const expiryValue = expiries[type] ?? (file ? '' : getDocServerStatus(type).expiresAtDisplay ?? '');
+            const expiryCheck = requiresExpiry ? validateFutureExpiryDate(expiryValue) : { valid: true };
+            const showInlineExpiryError =
+              requiresExpiry &&
+              Boolean(file) &&
+              expiryValue.trim().length === 10 &&
+              !expiryCheck.valid;
+            const itemError =
+              uploadErrors[type] || (showInlineExpiryError ? expiryCheck.error : undefined);
+
+            const isReadyCard = (saved && !file) || (Boolean(file) && expiryCheck.valid);
 
             return (
-              <View key={type} style={[styles.docCardContainer, isCompleted && styles.docCardContainerDone]}>
+              <View
+                key={type}
+                style={[
+                  styles.docCardContainer,
+                  isReadyCard && styles.docCardContainerDone,
+                  Boolean(itemError) && styles.docCardContainerError,
+                ]}>
                 {/* Header Row: Icon, Title, Status & Upload Button */}
                 <Pressable
                   style={styles.docHeaderRow}
                   onPress={() => void handlePick(type, title)}
                   disabled={isSaving}
-                  accessibilityRole="button">
-                  <View style={[styles.docIconBox, isCompleted && styles.docIconBoxDone]}>
+                  accessibilityRole="button"
+                  accessibilityLabel={`${file ? 'Change' : saved ? 'Replace' : 'Upload'} ${title}`}>
+                  <View
+                    style={[
+                      styles.docIconBox,
+                      saved && !file && styles.docIconBoxDone,
+                      expiredOnServer && !file && styles.docIconBoxExpired,
+                    ]}>
                     <Ionicons
-                      name={isCompleted ? 'checkmark-circle' : icon}
+                      name={
+                        saved && !file
+                          ? 'checkmark-circle'
+                          : expiredOnServer && !file
+                            ? 'warning-outline'
+                            : icon
+                      }
                       size={22}
-                      color={isCompleted ? '#15803D' : '#8C4A1B'}
+                      color={
+                        saved && !file
+                          ? '#15803D'
+                          : expiredOnServer && !file
+                            ? '#DC2626'
+                            : colors.darkNavy
+                      }
                     />
                   </View>
 
                   <View style={styles.docInfo}>
                     <View style={styles.docTitleRow}>
                       <Text style={styles.docTitle}>{title}</Text>
-                      {required && <Text style={styles.requiredStar}>*</Text>}
+                      <Text style={styles.requiredStar}>*</Text>
                     </View>
                     <Text style={styles.docSubtitle}>{subtitle}</Text>
-                    {saved && !file && (
+
+                    {uploadState === 'UPLOADING' && (
+                      <View style={styles.pendingBadge}>
+                        <Text style={styles.pendingBadgeText}>Uploading…</Text>
+                      </View>
+                    )}
+                    {uploadState === 'QUEUED' && (
+                      <View style={styles.pendingBadge}>
+                        <Text style={styles.pendingBadgeText}>Queued for upload</Text>
+                      </View>
+                    )}
+                    {saved && !file && uploadState !== 'UPLOADING' && (
                       <View style={styles.savedBadge}>
-                        <Ionicons name="checkmark" size={12} color="#15803D" style={{ marginRight: 3 }} />
-                        <Text style={styles.savedBadgeText}>Saved for review</Text>
+                        <Ionicons
+                          name="checkmark"
+                          size={12}
+                          color="#15803D"
+                          style={{ marginRight: 3 }}
+                        />
+                        <Text style={styles.savedBadgeText}>
+                          Saved for review
+                          {requiresExpiry && serverDoc.expiresAtDisplay
+                            ? ` · Expires ${serverDoc.expiresAtDisplay}`
+                            : ''}
+                        </Text>
+                      </View>
+                    )}
+                    {expiredOnServer && !file && (
+                      <View style={styles.expiredBadge}>
+                        <Text style={styles.expiredBadgeText}>
+                          Expired
+                          {serverDoc.expiresAtDisplay ? ` (${serverDoc.expiresAtDisplay})` : ''} ·
+                          Upload current document
+                        </Text>
                       </View>
                     )}
                   </View>
 
-                  <View style={[styles.actionPill, isCompleted && styles.actionPillDone]}>
-                    <Text style={[styles.actionPillText, isCompleted && styles.actionPillTextDone]}>
+                  <View style={[styles.actionPill, saved && !file && styles.actionPillDone]}>
+                    <Text
+                      style={[styles.actionPillText, saved && !file && styles.actionPillTextDone]}>
                       {file ? 'Change' : saved ? 'Replace' : 'Upload'}
                     </Text>
                     <Ionicons
-                      name={isCompleted ? 'refresh-outline' : 'cloud-upload-outline'}
+                      name={file || saved ? 'refresh-outline' : 'cloud-upload-outline'}
                       size={14}
-                      color={isCompleted ? '#15803D' : '#8C4A1B'}
+                      color={saved && !file ? '#15803D' : colors.darkNavy}
                       style={{ marginLeft: 4 }}
                     />
                   </View>
                 </Pressable>
 
-                {/* Selected File Details Banner */}
-                {file && type !== 'GOVERNMENT_ID' && (
+                {/* Selected File Details Banner — shown for ALL document types including GOVERNMENT_ID (F12) */}
+                {file && (
                   <View style={styles.fileSelectedBanner}>
-                    <Ionicons name="document-attach" size={16} color="#8C4A1B" />
+                    <Ionicons name="document-attach" size={16} color="#12304A" />
                     <Text style={styles.fileNameText} numberOfLines={1}>
                       {file.name}
                     </Text>
                     <Pressable
-                      onPress={() => setSelected((prev) => ({ ...prev, [type]: undefined }))}
-                      hitSlop={8}>
-                      <Ionicons name="close-circle" size={16} color="#DC2626" />
+                      onPress={() => handleRemoveSelected(type)}
+                      disabled={isSaving}
+                      hitSlop={8}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Remove selected ${title} file`}>
+                      <Ionicons name="close-circle" size={18} color="#DC2626" />
                     </Pressable>
                   </View>
                 )}
 
-                {/* Expiry Date Section for Selected / Uploaded File */}
-                {file && (
+                {/* Expiry Date Section — ONLY for documents that require expiry (NOT GOVERNMENT_ID) (F12) */}
+                {file && requiresExpiry && (
                   <View style={styles.expirySection}>
-                    <Text style={styles.expiryLabel}>Document Expiry Date *</Text>
-                    <View style={styles.expiryInputWrapper}>
-                      <Ionicons name="calendar-outline" size={18} color="#8C5A20" style={{ marginRight: 8 }} />
+                    <Text style={styles.expiryLabel}>Document expiry date *</Text>
+                    <View
+                      style={[
+                        styles.expiryInputWrapper,
+                        Boolean(itemError) && styles.expiryInputWrapperError,
+                      ]}>
+                      <Ionicons
+                        name="calendar-outline"
+                        size={18}
+                        color="#8C5A20"
+                        style={{ marginRight: 8 }}
+                      />
                       <TextInput
                         style={styles.expiryTextInput}
                         placeholder="DD / MM / YYYY"
-                        placeholderTextColor="#A89A88"
+                        placeholderTextColor="#53616C"
                         value={expiryValue}
                         onChangeText={(text) => handleExpiryTextChange(type, text)}
                         keyboardType="number-pad"
                         maxLength={10}
+                        editable={!isSaving}
+                        accessibilityLabel={`${title} expiry date in DD/MM/YYYY format`}
                       />
                     </View>
-
                   </View>
                 )}
+
+                {itemError ? (
+                  <Text style={styles.itemErrorText} accessibilityRole="alert">
+                    {itemError}
+                  </Text>
+                ) : null}
               </View>
             );
           })}
@@ -335,20 +474,46 @@ export function StepVehicleDocuments({
         {/* Guidelines Security Card */}
         <View style={styles.guidelinesCard}>
           <View style={styles.guidelinesHeader}>
-            <Ionicons name="shield-checkmark" size={18} color="#D97706" style={{ marginRight: 6 }} />
+            <Ionicons
+              name="shield-checkmark"
+              size={18}
+              color="#D97706"
+              style={{ marginRight: 6 }}
+            />
             <Text style={styles.guidelinesTitle}>Verification Guidelines</Text>
           </View>
           <View style={styles.guidelineRow}>
-            <Ionicons name="checkmark-circle" size={14} color="#15803D" style={{ marginRight: 6, marginTop: 2 }} />
-            <Text style={styles.guidelineText}>Upload clear PDF, JPG, or JPEG files (max 500 KB).</Text>
+            <Ionicons
+              name="checkmark-circle"
+              size={14}
+              color="#15803D"
+              style={{ marginRight: 6, marginTop: 2 }}
+            />
+            <Text style={styles.guidelineText}>
+              Upload clear PDF, JPG, or JPEG files (max 500 KB).
+            </Text>
           </View>
           <View style={styles.guidelineRow}>
-            <Ionicons name="checkmark-circle" size={14} color="#15803D" style={{ marginRight: 6, marginTop: 2 }} />
-            <Text style={styles.guidelineText}>Ensure all four corners are visible, uncropped, and free of glare.</Text>
+            <Ionicons
+              name="checkmark-circle"
+              size={14}
+              color="#15803D"
+              style={{ marginRight: 6, marginTop: 2 }}
+            />
+            <Text style={styles.guidelineText}>
+              Ensure all four corners are visible, uncropped, and free of glare.
+            </Text>
           </View>
           <View style={styles.guidelineRow}>
-            <Ionicons name="checkmark-circle" size={14} color="#15803D" style={{ marginRight: 6, marginTop: 2 }} />
-            <Text style={styles.guidelineText}>Vehicle registration number and chassis number must match Step 3 details.</Text>
+            <Ionicons
+              name="checkmark-circle"
+              size={14}
+              color="#15803D"
+              style={{ marginRight: 6, marginTop: 2 }}
+            />
+            <Text style={styles.guidelineText}>
+              Ensure the registration number on your RC matches the number you entered in Step 3.
+            </Text>
           </View>
         </View>
 
@@ -360,13 +525,20 @@ export function StepVehicleDocuments({
             disabled={!canContinue || isSaving}
             loading={isSaving}
             variant={canContinue ? 'espresso' : 'muted'}
-            icon={<Ionicons name="arrow-forward" size={18} color={canContinue ? '#FFFFFF' : '#B3A48C'} />}
+            icon={
+              <Ionicons
+                name="arrow-forward"
+                size={18}
+                color={canContinue ? '#FFFFFF' : colors.secondary}
+              />
+            }
             style={{ width: '100%' }}
           />
 
           {!canContinue && (
             <Text style={styles.validationPrompt}>
-              • Upload Government ID, RC, insurance, and permit to proceed
+              • Upload Government ID, RC, insurance, and permit (with valid future expiry dates) to
+              proceed
             </Text>
           )}
         </View>
@@ -378,7 +550,7 @@ export function StepVehicleDocuments({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFDF7',
+    backgroundColor: colors.background,
   },
   scrollContent: {
     flexGrow: 1,
@@ -398,8 +570,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1.5,
-    borderColor: '#ECE0CE',
-    shadowColor: '#3D2314',
+    borderColor: colors.border,
+    shadowColor: colors.darkNavy,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 4,
@@ -412,7 +584,7 @@ const styles = StyleSheet.create({
   stepBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FEF3C7',
+    backgroundColor: colors.lightBlue,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 20,
@@ -423,13 +595,13 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#D97706',
+    backgroundColor: colors.darkNavy,
     marginRight: 6,
   },
   stepBadgeText: {
     fontSize: 12.5,
     fontWeight: '800',
-    color: '#92400E',
+    color: colors.darkNavy,
   },
   progressContainer: {
     flexDirection: 'row',
@@ -442,26 +614,26 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   progressSegmentActive: {
-    backgroundColor: '#3D2314',
+    backgroundColor: colors.darkNavy,
   },
   progressSegmentInactive: {
-    backgroundColor: '#EADBCA',
+    backgroundColor: colors.border,
   },
   titleSection: {
     marginBottom: 18,
   },
   heading: {
-    fontSize: 27,
-    fontWeight: '900',
-    color: '#2C1810',
+    fontSize: typography.sizes.xxl,
+    fontWeight: '800',
+    color: colors.text,
     letterSpacing: -0.6,
     lineHeight: 33,
     marginBottom: 6,
   },
   subheading: {
-    fontSize: 14,
+    fontSize: typography.sizes.label,
     lineHeight: 20,
-    color: '#705746',
+    color: colors.secondary,
     fontWeight: '500',
   },
   docList: {
@@ -473,21 +645,24 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 16,
     borderWidth: 1.5,
-    borderColor: '#ECE0CE',
-    shadowColor: '#3D2314',
+    borderColor: colors.border,
+    shadowColor: colors.darkNavy,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.04,
     shadowRadius: 6,
     elevation: 2,
   },
   docCardContainerDone: {
-    borderColor: '#8C4A1B',
-    backgroundColor: '#FFFDF9',
-    shadowColor: '#8C4A1B',
+    borderColor: colors.darkNavy,
+    backgroundColor: colors.surface,
+    shadowColor: colors.darkNavy,
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.08,
     shadowRadius: 8,
     elevation: 3,
+  },
+  docCardContainerError: {
+    borderColor: '#DC2626',
   },
   docHeaderRow: {
     flexDirection: 'row',
@@ -505,6 +680,9 @@ const styles = StyleSheet.create({
   docIconBoxDone: {
     backgroundColor: '#DCFCE7',
   },
+  docIconBoxExpired: {
+    backgroundColor: '#FEE2E2',
+  },
   docInfo: {
     flex: 1,
   },
@@ -513,19 +691,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   docTitle: {
-    fontSize: 15,
+    fontSize: typography.sizes.base,
     fontWeight: '800',
-    color: '#2C1810',
+    color: colors.text,
   },
   requiredStar: {
-    fontSize: 15,
+    fontSize: typography.sizes.base,
     fontWeight: '800',
     color: '#DC2626',
     marginLeft: 3,
   },
   docSubtitle: {
-    fontSize: 12,
-    color: '#705746',
+    fontSize: typography.sizes.xs,
+    color: colors.secondary,
     fontWeight: '500',
     marginTop: 2,
   },
@@ -540,9 +718,39 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   savedBadgeText: {
-    fontSize: 11,
+    fontSize: typography.sizes.xs,
     fontWeight: '700',
     color: '#15803D',
+  },
+  pendingBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+    marginTop: 4,
+  },
+  pendingBadgeText: {
+    fontSize: typography.sizes.xs,
+    fontWeight: '700',
+    color: '#92400E',
+  },
+  expiredBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEE2E2',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+    marginTop: 4,
+  },
+  expiredBadgeText: {
+    fontSize: typography.sizes.xs,
+    fontWeight: '700',
+    color: '#991B1B',
   },
   actionPill: {
     flexDirection: 'row',
@@ -559,7 +767,7 @@ const styles = StyleSheet.create({
   actionPillText: {
     fontSize: 12.5,
     fontWeight: '800',
-    color: '#8C4A1B',
+    color: colors.darkNavy,
   },
   actionPillTextDone: {
     color: '#15803D',
@@ -579,7 +787,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 12.5,
     fontWeight: '700',
-    color: '#8C4A1B',
+    color: colors.darkNavy,
     marginHorizontal: 8,
   },
   expirySection: {
@@ -591,7 +799,7 @@ const styles = StyleSheet.create({
   expiryLabel: {
     fontSize: 12.5,
     fontWeight: '700',
-    color: '#3D2314',
+    color: colors.darkNavy,
     marginBottom: 6,
   },
   expiryInputWrapper: {
@@ -600,38 +808,27 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: 14,
     borderWidth: 1.2,
-    borderColor: '#ECE0CE',
+    borderColor: colors.border,
     paddingHorizontal: 12,
     height: 46,
   },
+  expiryInputWrapperError: {
+    borderColor: '#DC2626',
+  },
   expiryTextInput: {
     flex: 1,
-    fontSize: 14,
+    height: '100%',
+    minHeight: 44,
+    fontSize: typography.sizes.label,
     fontWeight: '600',
-    color: '#2C1810',
+    color: colors.text,
+    paddingVertical: Platform.OS === 'ios' ? 10 : 6,
   },
-  presetsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  itemErrorText: {
+    fontSize: typography.sizes.xs,
+    color: '#DC2626',
     marginTop: 8,
-    gap: 6,
-  },
-  presetsLabel: {
-    fontSize: 11.5,
     fontWeight: '600',
-    color: '#8C7B68',
-    marginRight: 2,
-  },
-  presetChip: {
-    backgroundColor: '#FEF3C7',
-    paddingHorizontal: 9,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  presetChipText: {
-    fontSize: 11.5,
-    fontWeight: '700',
-    color: '#8C4A1B',
   },
   guidelinesCard: {
     backgroundColor: '#FFFBEB',
@@ -649,7 +846,7 @@ const styles = StyleSheet.create({
   guidelinesTitle: {
     fontSize: 13.5,
     fontWeight: '800',
-    color: '#2C1810',
+    color: colors.text,
   },
   guidelineRow: {
     flexDirection: 'row',
@@ -658,8 +855,8 @@ const styles = StyleSheet.create({
   },
   guidelineText: {
     flex: 1,
-    fontSize: 12,
-    color: '#705746',
+    fontSize: typography.sizes.xs,
+    color: colors.secondary,
     lineHeight: 17,
     fontWeight: '500',
   },
@@ -669,7 +866,7 @@ const styles = StyleSheet.create({
   },
   validationPrompt: {
     fontSize: 12.5,
-    color: '#8C4A1B',
+    color: colors.darkNavy,
     fontWeight: '600',
     marginTop: 10,
     textAlign: 'center',

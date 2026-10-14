@@ -6,21 +6,22 @@ export interface OnboardingDraft {
   firstName: string;
   lastName: string;
   dateOfBirth: string; // DD/MM/YYYY
-  gender: 'MALE' | 'FEMALE' | 'OTHER';
+  gender: 'MALE' | 'FEMALE' | 'OTHER' | '';
 
   // Flow 6: Step 2 of 6 (Where do you drive?)
   city: string;
+  isCustomCity?: boolean;
 
   // Flow 7: Step 3 of 6 (Vehicle details)
-  registrationNumber: string; // Indian reg format, e.g. WB74AB1234
+  registrationNumber: string; // Indian reg format, e.g. WB74AB1234 (up to 11 chars)
   make: string;
   model: string;
   color: string;
-  manufactureYear: number;
+  manufactureYear: number | null;
 
   // Flow 8: Step 4 of 6 (Driving licence)
   dlNumber: string;
-  dlExpiry: string; // YYYY-MM-DD
+  dlExpiry: string; // DD/MM/YYYY or YYYY-MM-DD
   dlUploaded: boolean;
   govtIdUploaded: boolean;
 
@@ -29,7 +30,7 @@ export interface OnboardingDraft {
   insuranceUploaded: boolean;
   permitUploaded: boolean;
 
-  // Flow 10: Step 6 of 6 (Selfie / Profile photo)
+  // Flow 10: Step 6 of 6 (Profile photo)
   selfieTaken: boolean;
   profilePhotoUri?: string;
   profilePhotoDataUrl?: string | null;
@@ -40,13 +41,14 @@ export const INITIAL_DRAFT: OnboardingDraft = {
   firstName: '',
   lastName: '',
   dateOfBirth: '',
-  gender: 'MALE',
-  city: 'Siliguri',
+  gender: '',
+  city: '',
+  isCustomCity: false,
   registrationNumber: '',
-  make: 'Maruti Suzuki',
-  model: 'Maruti Dzire Tour',
-  color: 'White',
-  manufactureYear: 2022,
+  make: '',
+  model: '',
+  color: '',
+  manufactureYear: null,
   dlNumber: '',
   dlExpiry: '',
   dlUploaded: false,

@@ -1,20 +1,30 @@
 /**
  * Cabzon Driver App — Color Tokens
- * Theme: Sky Blue + Light Grey
+ * Theme: deep brown, amber, and cream
  */
 
 export const colors = {
-  cabzonBlue: '#1597E5',
-  lightBlue: '#DDF2FF',
-  softBlue: '#EEF8FF',
-  background: '#F5F7F8',
+  deepBrown: '#3A2414',
+  amber: '#FBBF24',
+  cream: '#FFF9F0',
+  lightCream: '#FFF6E5',
+  warmBeige: '#FFE7C7',
+  softAmber: '#FFD59A',
+  orange: '#FB923C',
+  brandBrown: '#B45309',
+  cabzonBlue: '#3A2414',
+  lightBlue: '#FFE7C7',
+  softBlue: '#FFF6E5',
+  background: '#FFFFFF',
   white: '#FFFFFF',
-  darkNavy: '#102A43',
-  text: '#111827',
-  secondary: '#667085',
-  success: '#16A34A',
-  warning: '#F59E0B',
-  error: '#DC2626',
+  surface: '#FFFFFF',
+  border: '#FFE7C7',
+  darkNavy: '#3A2414',
+  text: '#3A2414',
+  secondary: '#705746',
+  success: '#166534',
+  warning: '#B45309',
+  error: '#B42318',
 } as const;
 
 export type ColorKey = keyof typeof colors;

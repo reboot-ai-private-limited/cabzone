@@ -41,11 +41,11 @@ export function PlaceSearch({ map }: { map: google.maps.Map | null }) {
     autocomplete.setAttribute('placeholder', 'Find a place');
     autocomplete.style.colorScheme = 'light';
     autocomplete.style.setProperty('--gmpx-color-surface', '#ffffff');
-    autocomplete.style.setProperty('--gmpx-color-on-surface', '#1c1b1f');
+    autocomplete.style.setProperty('--gmpx-color-on-surface', '#3A2414');
     autocomplete.style.setProperty('--gmpx-color-outline', '#8a9281');
     autocomplete.style.setProperty('--gmpx-font-family-base', 'inherit');
     autocomplete.style.backgroundColor = '#ffffff';
-    autocomplete.style.color = '#1c1b1f';
+    autocomplete.style.color = '#3A2414';
     autocomplete.style.borderRadius = '4px';
 
     autocomplete.addEventListener('gmp-select', (event: Event) => {

@@ -1,14 +1,15 @@
+import { SafeAreaView } from 'react-native-safe-area-context';
 import React, { useState } from 'react';
 import {
   Animated,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
-import { colors } from '@/design-system';
+import { VEHICLE_CATEGORY_REGISTRY } from '@cabzone/contracts';
+import { colors, typography } from '@/design-system';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 
 interface VehicleTypeStepProps {
@@ -18,8 +19,11 @@ interface VehicleTypeStepProps {
 
 export function VehicleTypeStep({ onSelect, onBack }: VehicleTypeStepProps) {
   const [selectedType, setSelectedType] = useState<'CAB' | 'E_RICKSHAW' | null>(null);
+  const cabActive = VEHICLE_CATEGORY_REGISTRY.CAB.status === 'ACTIVE';
+  const erickshawActive = VEHICLE_CATEGORY_REGISTRY.E_RICKSHAW.status === 'ACTIVE';
 
   const handleSelect = (type: 'CAB' | 'E_RICKSHAW') => {
+    if (VEHICLE_CATEGORY_REGISTRY[type].status !== 'ACTIVE') return;
     setSelectedType(type);
     setTimeout(() => {
       onSelect(type);
@@ -30,24 +34,31 @@ export function VehicleTypeStep({ onSelect, onBack }: VehicleTypeStepProps) {
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Back navigation */}
-        <Pressable onPress={onBack} style={styles.backBtn} hitSlop={12}>
+        <Pressable
+          onPress={onBack}
+          style={styles.backBtn}
+          hitSlop={12}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+        >
           <Text style={styles.backArrow}>←</Text>
         </Pressable>
 
         {/* Heading */}
         <View style={styles.titleSection}>
           <Text style={styles.heading}>What do you drive?</Text>
-          <Text style={styles.subheading}>Choose your vehicle category to get started</Text>
+          <Text style={styles.subheading}>Choose an active vehicle category to get started</Text>
         </View>
 
         {/* Options */}
-        <View style={styles.cardList}>
+        <View style={styles.cardList} accessibilityRole="radiogroup">
           <VehicleCard
             type="CAB"
             icon="🚕"
             title="Car / Cab"
             subtitle="Offer city rides & outstation intercity trips"
-            tag="Active Launch"
+            tag={cabActive ? 'Active Launch' : 'Coming Soon'}
+            disabled={!cabActive}
             isSelected={selectedType === 'CAB'}
             onPress={() => handleSelect('CAB')}
           />
@@ -56,8 +67,9 @@ export function VehicleTypeStep({ onSelect, onBack }: VehicleTypeStepProps) {
             type="E_RICKSHAW"
             icon="🛺"
             title="E-Rickshaw"
-            subtitle="City local commutes, point-to-point and share trips"
-            tag="Supported in Siliguri"
+            subtitle="Local city commutes — onboarding opens when E-Rickshaw dispatch launches"
+            tag={erickshawActive ? 'Active Launch' : 'Coming Soon'}
+            disabled={!erickshawActive}
             isSelected={selectedType === 'E_RICKSHAW'}
             onPress={() => handleSelect('E_RICKSHAW')}
           />
@@ -65,7 +77,7 @@ export function VehicleTypeStep({ onSelect, onBack }: VehicleTypeStepProps) {
 
         <View style={styles.infoBox}>
           <Text style={styles.infoText}>
-            💡 You will be eligible for ride requests specifically configured for your vehicle type.
+            💡 Cab / Car onboarding is currently active. E-Rickshaw registration is staged and will open once local E-Rickshaw dispatch is enabled.
           </Text>
         </View>
       </ScrollView>
@@ -78,6 +90,7 @@ function VehicleCard({
   title,
   subtitle,
   tag,
+  disabled,
   isSelected,
   onPress,
 }: {
@@ -86,6 +99,7 @@ function VehicleCard({
   title: string;
   subtitle: string;
   tag: string;
+  disabled?: boolean;
   isSelected: boolean;
   onPress: () => void;
 }) {
@@ -94,8 +108,8 @@ function VehicleCard({
   const reducedMotion = useReducedMotion();
 
   const handlePress = () => {
+    if (disabled) return;
     if (!reducedMotion) {
-      // 180ms: scale 1 -> 0.98 -> 1
       Animated.sequence([
         Animated.timing(cardScale, {
           toValue: 0.98,
@@ -109,7 +123,6 @@ function VehicleCard({
         }),
       ]).start();
 
-      // Icon scale -> 1.04
       Animated.spring(iconScale, {
         toValue: 1.04,
         friction: 5,
@@ -120,9 +133,13 @@ function VehicleCard({
   };
 
   return (
-    <Animated.View style={{ transform: [{ scale: cardScale }] }}>
+    <Animated.View style={{ transform: [{ scale: cardScale }], opacity: disabled ? 0.6 : 1 }}>
       <Pressable
         onPress={handlePress}
+        disabled={disabled}
+        accessibilityRole="radio"
+        accessibilityLabel={`${title}, ${tag}`}
+        accessibilityState={{ selected: isSelected, disabled: Boolean(disabled) }}
         style={[
           styles.optionCard,
           isSelected && styles.optionCardSelected,
@@ -138,7 +155,9 @@ function VehicleCard({
           >
             <Text style={styles.vehicleIcon}>{icon}</Text>
           </Animated.View>
-          <Text style={[styles.chevron, isSelected && styles.chevronSelected]}>›</Text>
+          <Text style={[styles.chevron, isSelected && styles.chevronSelected]}>
+            {disabled ? '🔒' : '›'}
+          </Text>
         </View>
         <Text style={[styles.cardTitle, isSelected && styles.cardTitleSelected]}>{title}</Text>
         <Text style={styles.cardSubtitle}>{subtitle}</Text>
@@ -170,10 +189,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 24,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: colors.border,
   },
   backArrow: {
-    fontSize: 22,
+    fontSize: typography.sizes.xl,
     fontWeight: '700',
     color: colors.text,
   },
@@ -181,14 +200,14 @@ const styles = StyleSheet.create({
     marginBottom: 32,
   },
   heading: {
-    fontSize: 28,
-    fontWeight: '900',
+    fontSize: typography.sizes.xxl,
+    fontWeight: '800',
     color: colors.darkNavy,
     marginBottom: 8,
     letterSpacing: -0.5,
   },
   subheading: {
-    fontSize: 15,
+    fontSize: typography.sizes.base,
     color: colors.secondary,
     lineHeight: 22,
   },
@@ -201,7 +220,7 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     padding: 22,
     borderWidth: 1.5,
-    borderColor: '#E5E7EB',
+    borderColor: colors.border,
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.04,
@@ -230,10 +249,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.lightBlue,
   },
   vehicleIcon: {
-    fontSize: 26,
+    fontSize: typography.sizes.xxl,
   },
   chevron: {
-    fontSize: 28,
+    fontSize: typography.sizes.xxl,
     color: '#9CA3AF',
     fontWeight: '300',
   },
@@ -251,7 +270,7 @@ const styles = StyleSheet.create({
     color: colors.cabzonBlue,
   },
   cardSubtitle: {
-    fontSize: 14,
+    fontSize: typography.sizes.label,
     color: colors.secondary,
     lineHeight: 20,
     marginBottom: 14,
@@ -267,7 +286,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.lightBlue,
   },
   tagText: {
-    fontSize: 11,
+    fontSize: typography.sizes.xs,
     fontWeight: '700',
     color: '#059669',
   },
@@ -279,10 +298,10 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: colors.border,
   },
   infoText: {
-    fontSize: 13,
+    fontSize: typography.sizes.sm,
     color: colors.secondary,
     lineHeight: 19,
   },

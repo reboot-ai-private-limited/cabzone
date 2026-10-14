@@ -2,6 +2,7 @@ import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { Platform } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import { AuthProvider } from '@/context/auth-context';
@@ -11,8 +12,9 @@ SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   return (
-    <AuthProvider>
-      <DutyProvider>
+    <SafeAreaProvider>
+      <AuthProvider>
+        <DutyProvider>
         <StatusBar style="dark" />
         <AnimatedSplashOverlay />
         <Stack
@@ -23,7 +25,8 @@ export default function RootLayout() {
           }}>
           <Stack.Screen name="index" options={{ headerShown: false }} />
         </Stack>
-      </DutyProvider>
-    </AuthProvider>
+        </DutyProvider>
+      </AuthProvider>
+    </SafeAreaProvider>
   );
 }

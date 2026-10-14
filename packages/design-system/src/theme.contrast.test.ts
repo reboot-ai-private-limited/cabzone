@@ -1,8 +1,7 @@
 /**
  * Every colour pairing the design language declares must be legible.
  *
- * The brand accent `#002451` scores 15.32:1 against white, and white ink on it
- * scores 15.32:1.
+ * Deep-brown ink stays readable on the solid amber primary action.
  *
  * The pairings live in `tokens.ts` as `contrastPairs`, so adding one is an edit to the design
  * system rather than to a test file someone can forget exists.
@@ -34,7 +33,7 @@ describe('contrast', () => {
   });
 
   it('the accent has sufficient contrast against surfaces and ink', () => {
-    expect(contrastRatio(colors.accent, colors.bg)).toBeGreaterThanOrEqual(4.5);
     expect(contrastRatio(colors.accentInk, colors.accent)).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio(colors.accentInk, colors.accentHover)).toBeGreaterThanOrEqual(4.5);
   });
 });

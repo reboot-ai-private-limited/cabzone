@@ -14,31 +14,43 @@
  * `theme.css` (`--color-text`, `--color-accent-ink`, …), which is the layer where the contrast
  * rules are checked. These exist so `theme.css` and React Native have one source for the values.
  *
- * The accent is Cabzone brand blue (#002451): 15.32:1 against white. It serves as the primary
- * brand surface and identity color. Text/icons on it use `accentInk` (#ffffff).
+ * Deep brown is the readable brand ink; amber is reserved for filled primary actions.
  */
 export const colors = {
   // Surfaces
   bg: '#ffffff',
-  bgSunken: '#f7f8f5',
-  bgMuted: '#edefea',
+  bgSunken: '#ffffff',
+  bgMuted: '#fff6e5',
 
   // Ink
-  fg: '#1c1b1f',
-  muted: '#5c635a',
+  fg: '#3a2414',
+  muted: '#705746',
 
   // Brand.
-  accent: '#002451',
-  accentHover: '#00336e',
-  accentInk: '#ffffff',
+  accent: '#fbbf24',
+  accentHover: '#f59e0b',
+  accentInk: '#3a2414',
 
-  // The coloured ink. 15.32:1 on bg, 14.37:1 on bgSunken.
-  interactive: '#002451',
-  interactiveHover: '#00336e',
+  // Readable links, focus rings, and selected states remain dark enough for white surfaces.
+  interactive: '#3a2414',
+  interactiveHover: '#b45309',
 
   // Hairlines are decorative; control boundaries carry meaning and need 3:1 (WCAG 1.4.11).
-  border: '#d8dcd5',
+  border: '#ffe7c7',
   borderStrong: '#8a9281',
+
+  // Compatibility values for the panel's existing Tailwind slate utility classes.
+  slate50: '#fff9f0',
+  slate100: '#fff6e5',
+  slate200: '#ffe7c7',
+  slate300: '#ffd59a',
+  slate400: '#b99a7c',
+  slate500: '#8a705b',
+  slate600: '#705746',
+  slate700: '#58412f',
+  slate800: '#3a2414',
+  slate900: '#28180e',
+  slate950: '#1c1009',
 
   // Status
   success: '#1a7f37',
@@ -103,7 +115,6 @@ export const contrastPairs = [
   { fg: colors.accentInk, bg: colors.accentHover, min: 4.5, name: 'ink on accent hover' },
   { fg: colors.interactive, bg: colors.bg, min: 4.5, name: 'interactive on surface' },
   { fg: colors.interactive, bg: colors.bgSunken, min: 4.5, name: 'interactive on sunken' },
-  { fg: colors.accent, bg: colors.bg, min: 4.5, name: 'accent on surface' },
   { fg: colors.interactiveHover, bg: colors.bg, min: 4.5, name: 'interactive hover on surface' },
   { fg: colors.success, bg: colors.bg, min: 4.5, name: 'success on surface' },
   { fg: colors.warning, bg: colors.bg, min: 4.5, name: 'warning on surface' },

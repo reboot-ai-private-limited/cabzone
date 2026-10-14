@@ -1,3 +1,4 @@
+import { colors, typography } from '@/design-system';
 import React, { useMemo, useRef, useState } from 'react';
 import {
   Alert,
@@ -10,7 +11,6 @@ import {
   StyleSheet,
   Text,
   TextInput,
-  useWindowDimensions,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -18,7 +18,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { pickProfilePhoto } from '@/services/profile-photo';
 import { CandyButton } from '@/components/buttons/candy-button';
 import type { OnboardingDraft } from './types';
-import { toBackendDate } from '@/services/profile';
+import {
+  formatDateInput,
+  getMaxDobYear,
+  MIN_DOB_YEAR,
+  validateDob,
+} from '@/services/profile';
 
 interface StepPersonalInfoProps {
   draft: OnboardingDraft;
@@ -42,45 +47,21 @@ const MONTHS = [
   { label: 'Dec', full: 'December', val: 12 },
 ];
 
-// Helper to calculate age from DD/MM/YYYY
-function calculateAge(dobString: string): number | null {
-  if (!dobString || dobString.length !== 10) return null;
-  const parts = dobString.split('/');
-  if (parts.length !== 3) return null;
-  const day = parseInt(parts[0], 10);
-  const month = parseInt(parts[1], 10) - 1;
-  const year = parseInt(parts[2], 10);
-  if (isNaN(day) || isNaN(month) || isNaN(year)) return null;
-
-  const birthDate = new Date(year, month, day);
-  try {
-    toBackendDate(dobString);
-  } catch {
-    return null;
-  }
-  const today = new Date();
-  let age = today.getFullYear() - birthDate.getFullYear();
-  const m = today.getMonth() - birthDate.getMonth();
-  if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
-    age--;
-  }
-  return age >= 0 && age <= 120 ? age : null;
-}
-
-// Generate years from 2008 down to 1950 (must be 18+ to drive)
-const CURRENT_YEAR = new Date().getFullYear();
-const MAX_ELIGIBLE_YEAR = CURRENT_YEAR - 18;
-const YEARS = Array.from({ length: MAX_ELIGIBLE_YEAR - 1950 + 1 }, (_, i) => MAX_ELIGIBLE_YEAR - i);
+// Generate years from (currentYear - 18) down to MIN_DOB_YEAR (1950)
+const MAX_ELIGIBLE_YEAR = getMaxDobYear();
+const YEARS = Array.from(
+  { length: MAX_ELIGIBLE_YEAR - MIN_DOB_YEAR + 1 },
+  (_, i) => MAX_ELIGIBLE_YEAR - i,
+);
 
 export function StepPersonalInfo({ draft, onUpdate, onNext, onClose }: StepPersonalInfoProps) {
   const insets = useSafeAreaInsets();
-  const { width: screenWidth } = useWindowDimensions();
 
   // Form states
   const [firstName, setFirstName] = useState(draft.firstName || '');
   const [lastName, setLastName] = useState(draft.lastName || '');
   const [dob, setDob] = useState(draft.dateOfBirth || '');
-  const [gender, setGender] = useState<'MALE' | 'FEMALE' | 'OTHER'>(draft.gender || 'MALE');
+  const [gender, setGender] = useState<'MALE' | 'FEMALE' | 'OTHER' | ''>(draft.gender || '');
   const [photoUri, setPhotoUri] = useState<string | undefined>(draft.profilePhotoUri);
   const [photoDataUrl, setPhotoDataUrl] = useState<string | null | undefined>(
     draft.profilePhotoDataUrl,
@@ -91,6 +72,7 @@ export function StepPersonalInfo({ draft, onUpdate, onNext, onClose }: StepPerso
   // Input refs for responsive focus
   const firstNameRef = useRef<TextInput>(null);
   const lastNameRef = useRef<TextInput>(null);
+  const dobInputRef = useRef<TextInput>(null);
 
   // Focus tracking for warm borders
   const [focusedField, setFocusedField] = useState<'firstName' | 'lastName' | 'dob' | null>(null);
@@ -104,9 +86,9 @@ export function StepPersonalInfo({ draft, onUpdate, onNext, onClose }: StepPerso
     if (dob && dob.length === 10) {
       const [d, m, y] = dob.split('/').map((n) => parseInt(n, 10));
       return {
-        day: d || 15,
-        month: m || 6,
-        year: y || 1995,
+        day: d && d >= 1 && d <= 31 ? d : 15,
+        month: m && m >= 1 && m <= 12 ? m : 6,
+        year: y && y >= MIN_DOB_YEAR && y <= MAX_ELIGIBLE_YEAR ? y : 1995,
       };
     }
     return { day: 15, month: 6, year: 1995 };
@@ -121,10 +103,12 @@ export function StepPersonalInfo({ draft, onUpdate, onNext, onClose }: StepPerso
     return new Date(pickerYear, pickerMonth, 0).getDate();
   }, [pickerYear, pickerMonth]);
 
-  const age = useMemo(() => calculateAge(dob), [dob]);
-  const isAgeValid = age !== null && age >= 18;
+  const dobValidation = useMemo(() => validateDob(dob), [dob]);
+  const age = dobValidation.age ?? null;
+  const isAgeValid = dobValidation.valid;
   const isFirstNameValid = firstName.trim().length >= 2;
-  const isValid = isFirstNameValid && isAgeValid;
+  const isGenderValid = gender === 'MALE' || gender === 'FEMALE' || gender === 'OTHER';
+  const isValid = isFirstNameValid && isAgeValid && isGenderValid;
 
   // Handle Photo Picker
   const handlePickImage = async (useCamera: boolean) => {
@@ -158,14 +142,9 @@ export function StepPersonalInfo({ draft, onUpdate, onNext, onClose }: StepPerso
 
   // Handle manual typing of DOB with auto-formatting
   const handleDobTextChange = (text: string) => {
-    const cleaned = text.replace(/\D/g, '').slice(0, 8);
-    let formatted = cleaned;
-    if (cleaned.length > 2 && cleaned.length <= 4) {
-      formatted = `${cleaned.slice(0, 2)}/${cleaned.slice(2)}`;
-    } else if (cleaned.length > 4) {
-      formatted = `${cleaned.slice(0, 2)}/${cleaned.slice(2, 4)}/${cleaned.slice(4)}`;
-    }
+    const formatted = formatDateInput(text);
     setDob(formatted);
+    onUpdate({ dateOfBirth: formatted });
   };
 
   // Open Date Picker Modal synced with current DOB
@@ -184,13 +163,14 @@ export function StepPersonalInfo({ draft, onUpdate, onNext, onClose }: StepPerso
     const yyyy = String(pickerYear);
     const formatted = `${dd}/${mm}/${yyyy}`;
     setDob(formatted);
+    onUpdate({ dateOfBirth: formatted });
     setShowDatePicker(false);
   };
 
   // Handle Continue
   const handleContinue = async () => {
     if (!isValid || isSaving) return;
-    const values = {
+    const values: OnboardingDraft = {
       ...draft,
       firstName: firstName.trim(),
       lastName: lastName.trim(),
@@ -212,8 +192,6 @@ export function StepPersonalInfo({ draft, onUpdate, onNext, onClose }: StepPerso
       setIsSaving(false);
     }
   };
-
-  const isSmallScreen = screenWidth < 360;
 
   return (
     <KeyboardAvoidingView
@@ -240,7 +218,7 @@ export function StepPersonalInfo({ draft, onUpdate, onNext, onClose }: StepPerso
             accessibilityRole="button"
             accessibilityLabel="Close onboarding"
           >
-            <Ionicons name="close" size={20} color="#2C1810" />
+            <Ionicons name="close" size={20} color="#172B3A" />
           </Pressable>
 
           <View style={styles.stepBadge}>
@@ -322,9 +300,12 @@ export function StepPersonalInfo({ draft, onUpdate, onNext, onClose }: StepPerso
                 ref={firstNameRef}
                 style={styles.textInput}
                 placeholder="e.g. Rahul"
-                placeholderTextColor="#A89A88"
+                placeholderTextColor="#53616C"
                 value={firstName}
-                onChangeText={setFirstName}
+                onChangeText={(val) => {
+                  setFirstName(val);
+                  onUpdate({ firstName: val });
+                }}
                 onFocus={() => setFocusedField('firstName')}
                 onBlur={() => setFocusedField(null)}
                 autoCapitalize="words"
@@ -332,9 +313,18 @@ export function StepPersonalInfo({ draft, onUpdate, onNext, onClose }: StepPerso
                 returnKeyType="next"
                 onSubmitEditing={() => lastNameRef.current?.focus()}
                 editable={true}
+                accessibilityLabel="First name, required"
               />
               {firstName.length > 0 && (
-                <Pressable onPress={() => setFirstName('')} hitSlop={12}>
+                <Pressable
+                  onPress={() => {
+                    setFirstName('');
+                    onUpdate({ firstName: '' });
+                  }}
+                  hitSlop={12}
+                  accessibilityRole="button"
+                  accessibilityLabel="Clear first name"
+                >
                   <Ionicons name="close-circle" size={18} color="#C4B5A5" />
                 </Pressable>
               )}
@@ -343,7 +333,7 @@ export function StepPersonalInfo({ draft, onUpdate, onNext, onClose }: StepPerso
 
           {/* Last Name Input */}
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Last name</Text>
+            <Text style={styles.label}>Last name (Optional)</Text>
             <Pressable
               onPress={() => lastNameRef.current?.focus()}
               style={[
@@ -356,25 +346,37 @@ export function StepPersonalInfo({ draft, onUpdate, onNext, onClose }: StepPerso
                 ref={lastNameRef}
                 style={styles.textInput}
                 placeholder="e.g. Sharma"
-                placeholderTextColor="#A89A88"
+                placeholderTextColor="#53616C"
                 value={lastName}
-                onChangeText={setLastName}
+                onChangeText={(val) => {
+                  setLastName(val);
+                  onUpdate({ lastName: val });
+                }}
                 onFocus={() => setFocusedField('lastName')}
                 onBlur={() => setFocusedField(null)}
                 autoCapitalize="words"
                 autoCorrect={false}
                 returnKeyType="done"
                 editable={true}
+                accessibilityLabel="Last name, optional"
               />
               {lastName.length > 0 && (
-                <Pressable onPress={() => setLastName('')} hitSlop={12}>
+                <Pressable
+                  onPress={() => {
+                    setLastName('');
+                    onUpdate({ lastName: '' });
+                  }}
+                  hitSlop={12}
+                  accessibilityRole="button"
+                  accessibilityLabel="Clear last name"
+                >
                   <Ionicons name="close-circle" size={18} color="#C4B5A5" />
                 </Pressable>
               )}
             </Pressable>
           </View>
 
-          {/* Date of Birth Input with Proper Date Selector Modal */}
+          {/* Date of Birth Input with Separate Text Entry and Date Picker Button */}
           <View style={styles.inputGroup}>
             <View style={styles.labelRow}>
               <Text style={styles.label}>Date of birth *</Text>
@@ -400,8 +402,7 @@ export function StepPersonalInfo({ draft, onUpdate, onNext, onClose }: StepPerso
               )}
             </View>
 
-            <Pressable
-              onPress={handleOpenDatePicker}
+            <View
               style={[styles.inputWrapper, focusedField === 'dob' && styles.inputWrapperFocused]}
             >
               <Ionicons
@@ -411,29 +412,37 @@ export function StepPersonalInfo({ draft, onUpdate, onNext, onClose }: StepPerso
                 style={styles.inputIcon}
               />
               <TextInput
+                ref={dobInputRef}
                 style={[styles.textInput, { flex: 1 }]}
-                placeholder="DD / MM / YYYY"
-                placeholderTextColor="#A89A88"
+                placeholder="DD/MM/YYYY"
+                placeholderTextColor="#53616C"
                 value={dob}
                 onChangeText={handleDobTextChange}
                 keyboardType="number-pad"
                 maxLength={10}
                 onFocus={() => setFocusedField('dob')}
                 onBlur={() => setFocusedField(null)}
+                accessibilityLabel="Date of birth in DD/MM/YYYY format, required"
               />
               <Pressable
                 onPress={handleOpenDatePicker}
                 style={styles.datePickerTriggerBtn}
                 hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="Open date of birth calendar picker"
               >
-                <Ionicons name="options-outline" size={18} color="#8C4A1B" />
+                <Ionicons name="options-outline" size={18} color="#12304A" />
                 <Text style={styles.datePickerTriggerText}>Select</Text>
               </Pressable>
-            </Pressable>
+            </View>
 
-            {dob.length === 10 && !isAgeValid && (
-              <Text style={styles.errorHelperText}>
-                Driver must be at least 18 years old to drive with Cabzon.
+            {dob.length > 0 && !isAgeValid ? (
+              <Text style={styles.errorHelperText} accessibilityRole="alert">
+                {dobValidation.error}
+              </Text>
+            ) : (
+              <Text style={{ fontSize: 11.5, color: colors.secondary, marginTop: 6, fontWeight: '500' }}>
+                Format: DD/MM/YYYY · Must be at least 18 years old
               </Text>
             )}
           </View>
@@ -453,19 +462,23 @@ export function StepPersonalInfo({ draft, onUpdate, onNext, onClose }: StepPerso
                 return (
                   <Pressable
                     key={item.key}
-                    onPress={() => setGender(item.key)}
+                    onPress={() => {
+                      setGender(item.key);
+                      onUpdate({ gender: item.key });
+                    }}
                     style={({ pressed }) => [
                       styles.genderChip,
                       isSelected && styles.genderChipActive,
                       pressed && styles.btnPressed,
                     ]}
                     accessibilityRole="radio"
+                    accessibilityLabel={`Gender ${item.label}`}
                     accessibilityState={{ selected: isSelected }}
                   >
                     <Ionicons
                       name={item.icon}
                       size={17}
-                      color={isSelected ? '#FFFFFF' : '#8C4A1B'}
+                      color={isSelected ? '#FFFFFF' : colors.darkNavy}
                       style={{ marginRight: 6 }}
                     />
                     <Text
@@ -489,7 +502,7 @@ export function StepPersonalInfo({ draft, onUpdate, onNext, onClose }: StepPerso
             loading={isSaving}
             variant={isValid ? 'espresso' : 'muted'}
             icon={
-              <Ionicons name="arrow-forward" size={18} color={isValid ? '#FFFFFF' : '#B3A48C'} />
+              <Ionicons name="arrow-forward" size={18} color={isValid ? '#FFFFFF' : colors.secondary} />
             }
             style={{ width: '100%' }}
           />
@@ -505,10 +518,12 @@ export function StepPersonalInfo({ draft, onUpdate, onNext, onClose }: StepPerso
               {!isFirstNameValid
                 ? '• Enter your first name to continue'
                 : !dob
-                  ? '• Enter your date of birth'
+                  ? '• Enter your date of birth (DD/MM/YYYY)'
                   : !isAgeValid
-                    ? '• Must be at least 18 years old'
-                    : '• Fill required fields'}
+                    ? `• ${dobValidation.error}`
+                    : !isGenderValid
+                      ? '• Select your gender to continue'
+                      : '• Fill required fields'}
             </Text>
           )}
         </View>
@@ -537,7 +552,7 @@ export function StepPersonalInfo({ draft, onUpdate, onNext, onClose }: StepPerso
                 onPress={() => handlePickImage(true)}
               >
                 <View style={styles.actionIconBox}>
-                  <Ionicons name="camera" size={20} color="#8C4A1B" />
+                  <Ionicons name="camera" size={20} color="#12304A" />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.actionItemTitle}>Take a Selfie (Camera)</Text>
@@ -551,7 +566,7 @@ export function StepPersonalInfo({ draft, onUpdate, onNext, onClose }: StepPerso
                 onPress={() => handlePickImage(false)}
               >
                 <View style={styles.actionIconBox}>
-                  <Ionicons name="images" size={20} color="#8C4A1B" />
+                  <Ionicons name="images" size={20} color="#12304A" />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.actionItemTitle}>Choose from Gallery</Text>
@@ -615,19 +630,21 @@ export function StepPersonalInfo({ draft, onUpdate, onNext, onClose }: StepPerso
                   hitSlop={10}
                   style={styles.modalCloseIconBtn}
                 >
-                  <Ionicons name="close" size={20} color="#705746" />
+                  <Ionicons name="close" size={20} color="#53616C" />
                 </Pressable>
               </View>
 
               {/* Live Date Preview Pill */}
               <View style={styles.datePreviewBox}>
-                <Ionicons name="calendar" size={18} color="#8C4A1B" />
+                <Ionicons name="calendar" size={18} color="#12304A" />
                 <Text style={styles.datePreviewText}>
                   {String(Math.min(pickerDay, daysInMonth)).padStart(2, '0')}{' '}
                   {MONTHS.find((m) => m.val === pickerMonth)?.full} {pickerYear}
                 </Text>
                 <View style={styles.datePreviewAgeTag}>
-                  <Text style={styles.datePreviewAgeText}>Age: {CURRENT_YEAR - pickerYear}</Text>
+                  <Text style={styles.datePreviewAgeText}>
+                    Age: {validateDob(`${String(Math.min(pickerDay, daysInMonth)).padStart(2, '0')}/${String(pickerMonth).padStart(2, '0')}/${pickerYear}`).age ?? '—'}
+                  </Text>
                 </View>
               </View>
 
@@ -731,7 +748,7 @@ export function StepPersonalInfo({ draft, onUpdate, onNext, onClose }: StepPerso
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFDF7',
+    backgroundColor: colors.background,
   },
   scrollContent: {
     flexGrow: 1,
@@ -751,8 +768,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1.5,
-    borderColor: '#ECE0CE',
-    shadowColor: '#3D2314',
+    borderColor: colors.border,
+    shadowColor: colors.darkNavy,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 4,
@@ -765,7 +782,7 @@ const styles = StyleSheet.create({
   stepBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FEF3C7',
+    backgroundColor: colors.lightBlue,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 20,
@@ -776,13 +793,13 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#D97706',
+    backgroundColor: colors.darkNavy,
     marginRight: 6,
   },
   stepBadgeText: {
     fontSize: 12.5,
     fontWeight: '800',
-    color: '#92400E',
+    color: colors.darkNavy,
   },
   progressContainer: {
     flexDirection: 'row',
@@ -795,26 +812,26 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   progressSegmentActive: {
-    backgroundColor: '#3D2314',
+    backgroundColor: colors.darkNavy,
   },
   progressSegmentInactive: {
-    backgroundColor: '#EADBCA',
+    backgroundColor: colors.border,
   },
   titleSection: {
     marginBottom: 20,
   },
   heading: {
-    fontSize: 27,
-    fontWeight: '900',
-    color: '#2C1810',
+    fontSize: typography.sizes.xxl,
+    fontWeight: '800',
+    color: colors.text,
     letterSpacing: -0.6,
     lineHeight: 33,
     marginBottom: 6,
   },
   subheading: {
-    fontSize: 14,
+    fontSize: typography.sizes.label,
     lineHeight: 20,
-    color: '#705746',
+    color: colors.secondary,
     fontWeight: '500',
   },
   avatarSection: {
@@ -828,7 +845,7 @@ const styles = StyleSheet.create({
     width: 104,
     height: 104,
     borderRadius: 52,
-    backgroundColor: '#FFFDF4',
+    backgroundColor: colors.surface,
     borderWidth: 3.5,
     borderColor: '#FBBF24',
     alignItems: 'center',
@@ -860,7 +877,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#3D2314',
+    backgroundColor: colors.darkNavy,
     borderWidth: 2.5,
     borderColor: '#FFFFFF',
     alignItems: 'center',
@@ -872,23 +889,23 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   avatarLabel: {
-    fontSize: 14,
+    fontSize: typography.sizes.label,
     fontWeight: '800',
-    color: '#2C1810',
+    color: colors.text,
     marginBottom: 2,
   },
   avatarHint: {
-    fontSize: 12,
+    fontSize: typography.sizes.xs,
     fontWeight: '500',
-    color: '#8C7B68',
+    color: colors.secondary,
   },
   formCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 24,
     padding: 18,
     borderWidth: 1.2,
-    borderColor: '#ECE0CE',
-    shadowColor: '#3D2314',
+    borderColor: colors.border,
+    shadowColor: colors.darkNavy,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.05,
     shadowRadius: 10,
@@ -907,7 +924,7 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 13.5,
     fontWeight: '700',
-    color: '#3D2314',
+    color: colors.darkNavy,
   },
   fieldError: {
     fontSize: 11.5,
@@ -917,18 +934,18 @@ const styles = StyleSheet.create({
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFDF9',
+    backgroundColor: colors.surface,
     borderRadius: 16,
     borderWidth: 1.5,
-    borderColor: '#ECE0CE',
+    borderColor: colors.border,
     paddingHorizontal: 14,
     height: 52,
     minHeight: 52,
   },
   inputWrapperFocused: {
-    borderColor: '#8C4A1B',
+    borderColor: colors.darkNavy,
     backgroundColor: '#FFFFFF',
-    shadowColor: '#8C4A1B',
+    shadowColor: colors.darkNavy,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
     shadowRadius: 4,
@@ -941,9 +958,9 @@ const styles = StyleSheet.create({
     flex: 1,
     height: '100%',
     minHeight: 48,
-    fontSize: 15,
+    fontSize: typography.sizes.base,
     fontWeight: '600',
-    color: '#2C1810',
+    color: colors.text,
     paddingVertical: Platform.OS === 'ios' ? 12 : 6,
   },
   datePickerTriggerBtn: {
@@ -955,9 +972,9 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   datePickerTriggerText: {
-    fontSize: 12,
+    fontSize: typography.sizes.xs,
     fontWeight: '800',
-    color: '#8C4A1B',
+    color: colors.darkNavy,
     marginLeft: 4,
   },
   ageTag: {
@@ -984,7 +1001,7 @@ const styles = StyleSheet.create({
     color: '#991B1B',
   },
   errorHelperText: {
-    fontSize: 12,
+    fontSize: typography.sizes.xs,
     color: '#DC2626',
     fontWeight: '600',
     marginTop: 5,
@@ -1000,15 +1017,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     height: 48,
-    backgroundColor: '#FFFDF9',
+    backgroundColor: colors.surface,
     borderRadius: 14,
     borderWidth: 1.5,
-    borderColor: '#ECE0CE',
+    borderColor: colors.border,
   },
   genderChipActive: {
-    backgroundColor: '#3D2314',
-    borderColor: '#3D2314',
-    shadowColor: '#3D2314',
+    backgroundColor: colors.darkNavy,
+    borderColor: colors.darkNavy,
+    shadowColor: colors.darkNavy,
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.2,
     shadowRadius: 5,
@@ -1017,7 +1034,7 @@ const styles = StyleSheet.create({
   genderChipText: {
     fontSize: 13.5,
     fontWeight: '700',
-    color: '#705746',
+    color: colors.secondary,
   },
   genderChipTextActive: {
     color: '#FFFFFF',
@@ -1029,7 +1046,7 @@ const styles = StyleSheet.create({
   },
   validationPrompt: {
     fontSize: 12.5,
-    color: '#8C4A1B',
+    color: colors.darkNavy,
     fontWeight: '600',
     marginTop: 10,
     textAlign: 'center',
@@ -1064,13 +1081,13 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     fontSize: 20,
-    fontWeight: '900',
-    color: '#2C1810',
+    fontWeight: '800',
+    color: colors.text,
     letterSpacing: -0.4,
   },
   modalSubtitle: {
     fontSize: 13.5,
-    color: '#705746',
+    color: colors.secondary,
     fontWeight: '500',
     marginTop: 4,
     marginBottom: 18,
@@ -1092,26 +1109,26 @@ const styles = StyleSheet.create({
     marginRight: 14,
   },
   actionItemTitle: {
-    fontSize: 15,
+    fontSize: typography.sizes.base,
     fontWeight: '800',
-    color: '#2C1810',
+    color: colors.text,
   },
   actionItemSub: {
     fontSize: 12.5,
-    color: '#8C7B68',
+    color: colors.secondary,
     marginTop: 2,
   },
   modalCancelBtn: {
     marginTop: 16,
-    backgroundColor: '#F5EFE6',
+    backgroundColor: colors.lightBlue,
     borderRadius: 16,
     paddingVertical: 14,
     alignItems: 'center',
   },
   modalCancelText: {
-    fontSize: 15,
+    fontSize: typography.sizes.base,
     fontWeight: '800',
-    color: '#705746',
+    color: colors.secondary,
   },
 
   // Date Modal Styles
@@ -1138,14 +1155,14 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#F5EFE6',
+    backgroundColor: colors.lightBlue,
     alignItems: 'center',
     justifyContent: 'center',
   },
   datePreviewBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFDF4',
+    backgroundColor: colors.surface,
     borderWidth: 1.5,
     borderColor: '#FDE68A',
     borderRadius: 16,
@@ -1156,7 +1173,7 @@ const styles = StyleSheet.create({
   datePreviewText: {
     fontSize: 15.5,
     fontWeight: '800',
-    color: '#2C1810',
+    color: colors.text,
     marginLeft: 8,
     flex: 1,
   },
@@ -1167,7 +1184,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   datePreviewAgeText: {
-    fontSize: 12,
+    fontSize: typography.sizes.xs,
     fontWeight: '800',
     color: '#92400E',
   },
@@ -1183,11 +1200,11 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 6,
     borderWidth: 1,
-    borderColor: '#ECE0CE',
+    borderColor: colors.border,
   },
   columnHeader: {
-    fontSize: 11,
-    fontWeight: '900',
+    fontSize: typography.sizes.xs,
+    fontWeight: '800',
     color: '#8C5A20',
     textAlign: 'center',
     paddingVertical: 4,
@@ -1203,25 +1220,25 @@ const styles = StyleSheet.create({
     marginVertical: 2,
   },
   pickerItemSelected: {
-    backgroundColor: '#3D2314',
+    backgroundColor: colors.darkNavy,
   },
   pickerItemText: {
-    fontSize: 14,
+    fontSize: typography.sizes.label,
     fontWeight: '600',
-    color: '#705746',
+    color: colors.secondary,
   },
   pickerItemTextSelected: {
     color: '#FFFFFF',
-    fontWeight: '900',
+    fontWeight: '800',
   },
   confirmDateBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#3D2314',
+    backgroundColor: colors.darkNavy,
     height: 54,
     borderRadius: 16,
-    shadowColor: '#3D2314',
+    shadowColor: colors.darkNavy,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 8,
@@ -1229,7 +1246,7 @@ const styles = StyleSheet.create({
   },
   confirmDateBtnText: {
     color: '#FFFFFF',
-    fontSize: 16,
+    fontSize: typography.sizes.base,
     fontWeight: '800',
   },
 });

@@ -1,3 +1,4 @@
+import { colors, motion, typography } from '@/design-system';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
@@ -14,7 +15,6 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { motion } from '@/design-system';
 import { CandyButton } from '@/components/buttons/candy-button';
 import { BlobBackground } from './blob-background';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
@@ -86,7 +86,7 @@ export function EntryStep({ onBecomeDriver, onLogin }: EntryStepProps) {
   // Swipeable hero pager (native-driven so it stays smooth while other animations run)
   const { width: windowWidth } = useWindowDimensions();
   const pageWidth = Math.min(windowWidth, 440);
-  const [page, setPage] = useState(0);
+  const [, setPage] = useState(0);
   const [tx] = useState(() => new Animated.Value(0));
   const idx = useRef(0); // target page index, 0..PAGE_COUNT (PAGE_COUNT = clone of page 1)
   const dragBase = useRef(0);
@@ -519,7 +519,7 @@ export function EntryStep({ onBecomeDriver, onLogin }: EntryStepProps) {
                 ]}>
                 <Animated.View style={[styles.pillInnerRow, { transform: [{ translateY: floatYLeft }] }]}>
                   <View style={styles.amberIconBox}>
-                    <Text style={{ fontSize: 16, fontWeight: '700', color: '#92400E' }}>₹</Text>
+                    <Text style={{ fontSize: typography.sizes.base, fontWeight: '700', color: '#92400E' }}>₹</Text>
                   </View>
                   <Text style={[styles.pillSmallText, { marginLeft: 6 }]}>Daily payouts</Text>
                 </Animated.View>
@@ -636,7 +636,7 @@ export function EntryStep({ onBecomeDriver, onLogin }: EntryStepProps) {
               <CandyButton
                 title="Get Started as Driver"
                 onPress={onBecomeDriver}
-                icon={<Ionicons name="arrow-forward" size={19} color="#5A3416" />}
+                icon={<Ionicons name="arrow-forward" size={19} color="#12304A" />}
                 style={{ width: '100%', maxWidth: 360, alignSelf: 'center' }}
               />
 
@@ -684,14 +684,14 @@ const styles = StyleSheet.create({
   },
   outerContainer: {
     flex: 1,
-    backgroundColor: Platform.OS === 'web' ? '#0F172A' : '#FFFDF7',
+    backgroundColor: Platform.OS === 'web' ? '#0F172A' : colors.background,
     alignItems: 'center',
     justifyContent: 'center',
   },
   screen: {
     flex: 1,
     width: '100%',
-    backgroundColor: '#FFFDF7',
+    backgroundColor: colors.background,
     position: 'relative',
     overflow: 'hidden',
   },
@@ -837,9 +837,9 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   avgDailyValue: {
-    fontSize: 16,
-    color: '#2C1810',
-    fontWeight: '900',
+    fontSize: typography.sizes.base,
+    color: colors.text,
+    fontWeight: '800',
     lineHeight: 18,
   },
   pillSupport: {
@@ -878,9 +878,9 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   pillSmallText: {
-    fontSize: 12,
+    fontSize: typography.sizes.xs,
     fontWeight: '700',
-    color: '#2C1810',
+    color: colors.text,
     lineHeight: 14,
   },
   copySection: {
@@ -889,9 +889,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   headline: {
-    fontSize: 29,
-    fontWeight: '900',
-    color: '#2C1810',
+    fontSize: typography.sizes.xxl,
+    fontWeight: '800',
+    color: colors.text,
     textAlign: 'center',
     letterSpacing: -0.6,
     lineHeight: 35,
@@ -900,7 +900,7 @@ const styles = StyleSheet.create({
     marginTop: 10,
     fontSize: 13.5,
     lineHeight: 20,
-    color: '#705746',
+    color: colors.secondary,
     textAlign: 'center',
     maxWidth: '92%',
     fontWeight: '500',
@@ -913,11 +913,11 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 54,
     borderRadius: 18,
-    backgroundColor: '#3D2314',
+    backgroundColor: colors.darkNavy,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#3D2314',
+    shadowColor: colors.darkNavy,
     shadowOffset: { width: 0, height: 5 },
     shadowOpacity: 0.28,
     shadowRadius: 12,
@@ -941,7 +941,7 @@ const styles = StyleSheet.create({
   },
   footerPrompt: {
     fontSize: 13.5,
-    color: '#6B7280',
+    color: colors.secondary,
     fontWeight: '500',
   },
   loginLink: {

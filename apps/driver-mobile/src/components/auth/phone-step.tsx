@@ -1,6 +1,8 @@
+import { colors, typography } from '@/design-system';
 import React, { useState } from 'react';
 import {
   KeyboardAvoidingView,
+  Image,
   Platform,
   Pressable,
   StyleSheet,
@@ -58,10 +60,7 @@ export function PhoneStep({ onBack }: PhoneStepProps = {}) {
 
         {/* Brand Header */}
         <View style={styles.brandContainer}>
-          <View style={styles.logoBadge}>
-            <Text style={styles.logoIcon}>🚕</Text>
-          </View>
-          <Text style={styles.brandTitle}>Cabzone</Text>
+          <Image source={require('@/assets/brand/cabzone-horizontal.png')} style={styles.brandLogo} resizeMode="contain" accessibilityLabel="Cabzone" />
           <View style={styles.driverTag}>
             <Text style={styles.driverTagText}>DRIVER PARTNER</Text>
           </View>
@@ -132,7 +131,7 @@ export function PhoneStep({ onBack }: PhoneStepProps = {}) {
               <Ionicons
                 name="arrow-forward"
                 size={18}
-                color={isValid ? '#5A3416' : '#B3A48C'}
+                color={isValid ? colors.darkNavy : colors.secondary}
                 style={{ marginLeft: 2 }}
               />
             )
@@ -162,7 +161,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
     borderRadius: 20,
     padding: 24,
-    shadowColor: '#002451',
+    shadowColor: colors.darkNavy,
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.08,
     shadowRadius: 24,
@@ -174,23 +173,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 20,
   },
-  logoBadge: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#002451',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 10,
-  },
-  logoIcon: {
-    fontSize: 28,
-  },
-  brandTitle: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: '#002451',
-    letterSpacing: 0.5,
+  brandLogo: {
+    width: 190,
+    height: 64,
   },
   driverTag: {
     marginTop: 4,
@@ -202,7 +187,7 @@ const styles = StyleSheet.create({
     borderColor: '#bfdbfe',
   },
   driverTagText: {
-    fontSize: 10,
+    fontSize: typography.sizes.xs,
     fontWeight: '700',
     color: '#1d4ed8',
     letterSpacing: 0.5,
@@ -215,8 +200,8 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   subheading: {
-    fontSize: 13,
-    color: '#64748b',
+    fontSize: typography.sizes.sm,
+    color: colors.secondary,
     textAlign: 'center',
     lineHeight: 18,
     marginBottom: 20,
@@ -241,10 +226,10 @@ const styles = StyleSheet.create({
     borderRightColor: '#cbd5e1',
   },
   flag: {
-    fontSize: 16,
+    fontSize: typography.sizes.base,
   },
   countryCode: {
-    fontSize: 15,
+    fontSize: typography.sizes.base,
     fontWeight: '700',
     color: '#1e293b',
   },
@@ -266,7 +251,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   errorText: {
-    fontSize: 12,
+    fontSize: typography.sizes.xs,
     fontWeight: '600',
     color: '#b91c1c',
   },
@@ -280,9 +265,9 @@ const styles = StyleSheet.create({
     borderColor: '#cbd5e1',
   },
   devLabel: {
-    fontSize: 10,
+    fontSize: typography.sizes.xs,
     fontWeight: '800',
-    color: '#64748b',
+    color: colors.secondary,
     marginBottom: 8,
     letterSpacing: 0.5,
   },
@@ -300,11 +285,11 @@ const styles = StyleSheet.create({
     borderColor: '#cbd5e1',
   },
   presetChipActive: {
-    backgroundColor: '#002451',
-    borderColor: '#002451',
+    backgroundColor: colors.darkNavy,
+    borderColor: colors.darkNavy,
   },
   presetChipText: {
-    fontSize: 11,
+    fontSize: typography.sizes.xs,
     fontWeight: '600',
     color: '#334155',
   },
@@ -313,7 +298,7 @@ const styles = StyleSheet.create({
   },
   button: {
     marginTop: 20,
-    backgroundColor: '#002451',
+    backgroundColor: colors.darkNavy,
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',
@@ -324,13 +309,13 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   buttonText: {
-    fontSize: 15,
+    fontSize: typography.sizes.base,
     fontWeight: '700',
     color: '#ffffff',
   },
   footerNote: {
     marginTop: 16,
-    fontSize: 11,
+    fontSize: typography.sizes.xs,
     color: '#94a3b8',
     textAlign: 'center',
     lineHeight: 15,
@@ -346,9 +331,9 @@ const styles = StyleSheet.create({
     borderColor: '#e2e8f0',
   },
   serverPillText: {
-    fontSize: 10,
+    fontSize: typography.sizes.xs,
     fontWeight: '600',
-    color: '#64748b',
+    color: colors.secondary,
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
   },
   backBtn: {
@@ -363,6 +348,6 @@ const styles = StyleSheet.create({
   backArrow: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#111827',
+    color: colors.text,
   },
 });
