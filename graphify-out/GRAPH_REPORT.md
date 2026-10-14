@@ -3,7 +3,6 @@
 ## Corpus Check
 - 773 files · ~1,313,785 words
 - Verdict: corpus is large enough that graph structure adds value.
-- Unclassified: 23 file(s) not represented in the graph (top: (none) 8, .example 5, .toml 4)
 
 ## Summary
 - 6979 nodes · 17869 edges · 398 communities (281 shown, 117 thin omitted)
@@ -464,7 +463,7 @@ Nodes (134): addManualContextText(), applyEditing(), applyGlobalBarLabelState(),
 
 ### Community 4 - "connectSSE"
 Cohesion: 0.05
-Nodes (104): abortSvelteComponentInjection(), applyParamDefaults(), applyParamValue(), applySavedSessionMeta(), buildInsertPlaceholderSnapshotFromDom(), buildPickedAnchorSnapshot(), captureAndEmit(), checkpointPayload() (+96 more)
+Nodes (103): abortSvelteComponentInjection(), applyParamDefaults(), applySavedSessionMeta(), buildInsertPlaceholderSnapshotFromDom(), buildPickedAnchorSnapshot(), captureAndEmit(), checkpointPayload(), clampVariantIndex() (+95 more)
 
 ### Community 5 - "design-system/src/index.ts"
 Cohesion: 0.03
