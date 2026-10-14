@@ -17,6 +17,8 @@ import {
   cancelRideSchema,
   createRideRequestSchema,
   listRidesQuerySchema,
+  paymentDisputeSchema,
+  paymentDisputeResolutionSchema,
   rideIdParamSchema,
   startRideRequestSchema,
 } from './rides.validation.js';
@@ -60,14 +62,6 @@ async function requireRiderId(req: Request, actors: RideHttpContext): Promise<st
     if (!id) throw AppError.forbidden('RIDER_PROFILE_REQUIRED: No rider profile for this account.');
     return id;
   }
-  if (ADMIN_ROLES.has(role)) {
-    if (typeof req.body?.riderId === 'string' && req.body.riderId.length > 0) {
-      return req.body.riderId;
-    }
-    const resolved = await actors.resolveRiderId(userId);
-    if (resolved) return resolved;
-    return '01900000-0000-7000-8000-000000000003';
-  }
   throw AppError.forbidden('RIDER_PROFILE_REQUIRED: No rider profile for this account.');
 }
 
@@ -75,16 +69,9 @@ async function requireDriverId(req: Request, actors: RideHttpContext): Promise<s
   const { role, userId } = auth(req);
   if (role === 'DRIVER') {
     const id = await actors.resolveDriverId(userId);
-    if (!id) throw AppError.forbidden('DRIVER_PROFILE_REQUIRED: No driver profile for this account.');
+    if (!id)
+      throw AppError.forbidden('DRIVER_PROFILE_REQUIRED: No driver profile for this account.');
     return id;
-  }
-  if (ADMIN_ROLES.has(role)) {
-    if (typeof req.body?.driverId === 'string' && req.body.driverId.length > 0) {
-      return req.body.driverId;
-    }
-    const resolved = await actors.resolveDriverId(userId);
-    if (resolved) return resolved;
-    return '01900000-0000-7000-8000-000000000020';
   }
   throw AppError.forbidden('DRIVER_PROFILE_REQUIRED: No driver profile for this account.');
 }
@@ -139,9 +126,8 @@ export function makeGetRideController(
       throw AppError.notFound('RIDE_NOT_FOUND: The requested ride was not found.');
     }
     const isRider = req.auth?.role === 'RIDER';
-    const isAdmin = ADMIN_ROLES.has(req.auth?.role ?? '');
     const pickupOtp =
-      (isRider || isAdmin) &&
+      isRider &&
       actors.pickupOtpSecret &&
       ride.passenger.pickupOtpExpiresAt &&
       OTP_VISIBLE.has(ride.status)
@@ -215,17 +201,13 @@ export function makeAcceptRideController(
   return asyncHandler(async (req: Request, res: Response) => {
     const { id } = rideIdParamSchema.parse(req.params);
     const driverId = await requireDriverId(req, actors);
-    // The rider pickup OTP is deliberately dropped here for drivers, but returned to admins for simulation/testing.
+    // Pickup OTP is delivered to the rider only.
     const { ride, _riderPickupOtp } = await useCase.execute({ rideId: id, driverId });
-    await notify(actors.notifier?.rideUpdated(ride, 'ride.driver.assigned', { pickupOtp: _riderPickupOtp }));
-    const isAdmin = ADMIN_ROLES.has(req.auth?.role ?? '');
-    const view = toRideView(ride);
-    sendSuccess(
-      req,
-      res,
-      isAdmin && _riderPickupOtp ? { ...view, pickupOtp: _riderPickupOtp } : view,
-      'Ride accepted successfully',
+    await notify(
+      actors.notifier?.rideUpdated(ride, 'ride.driver.assigned', { pickupOtp: _riderPickupOtp }),
     );
+    const view = toRideView(ride);
+    sendSuccess(req, res, view, 'Ride accepted successfully');
   });
 }
 
@@ -272,13 +254,20 @@ export function makeStartRideController(
 export function makeCompleteRideController(
   useCase: CompleteRideUseCase,
   actors: RideHttpContext,
+  confirmPayment = false,
 ): RequestHandler {
   return asyncHandler(async (req: Request, res: Response) => {
     const { id } = rideIdParamSchema.parse(req.params);
     const driverId = await requireDriverId(req, actors);
-    const result = await useCase.execute({ rideId: id, driverId });
+    const result = await (confirmPayment
+      ? useCase.confirmPayment({ rideId: id, driverId })
+      : useCase.execute({ rideId: id, driverId }));
     await notify(
-      actors.notifier?.rideUpdated(result.ride, 'ride.completed', { farePaise: result.farePaise }),
+      actors.notifier?.rideUpdated(
+        result.ride,
+        confirmPayment ? 'ride.payment.confirmed' : 'ride.completed',
+        { farePaise: result.farePaise },
+      ),
     );
     sendSuccess(
       req,
@@ -289,8 +278,64 @@ export function makeCompleteRideController(
         commissionPaise: result.commissionPaise,
         walletBalancePaise: result.driverWallet.balancePaise,
       },
-      'Trip completed',
+      confirmPayment
+        ? 'Payment received and ride settled'
+        : 'Trip completed; awaiting payment confirmation',
     );
+  });
+}
+
+export function makeDisputePaymentController(
+  useCase: CompleteRideUseCase,
+  actors: RideHttpContext,
+): RequestHandler {
+  return asyncHandler(async (req: Request, res: Response) => {
+    const { id } = rideIdParamSchema.parse(req.params);
+    const { reason } = paymentDisputeSchema.parse(req.body);
+    const riderId = await requireRiderId(req, actors);
+    const ride = await useCase.disputePayment({ rideId: id, riderId, reason });
+    await notify(actors.notifier?.rideUpdated(ride, 'ride.payment.disputed'));
+    sendSuccess(req, res, toRideView(ride), 'Payment dispute filed');
+  });
+}
+
+export function makeResolvePaymentDisputeController(
+  useCase: CompleteRideUseCase,
+  actors: RideHttpContext,
+): RequestHandler {
+  return asyncHandler(async (req: Request, res: Response) => {
+    const { id } = rideIdParamSchema.parse(req.params);
+    const { outcome, reason } = paymentDisputeResolutionSchema.parse(req.body);
+    const ride = await useCase.resolveDispute({
+      rideId: id,
+      adminId: auth(req).userId,
+      outcome,
+      reason,
+    });
+    await notify(actors.notifier?.rideUpdated(ride, 'ride.payment.dispute_resolved', { outcome }));
+    sendSuccess(req, res, toRideView(ride), 'Payment dispute resolved');
+  });
+}
+
+export function makeListPaymentDisputesController(
+  rideRepo: RideRepositoryPort,
+  eventRepo: RideEventRepositoryPort,
+): RequestHandler {
+  return asyncHandler(async (req: Request, res: Response) => {
+    const { limit, offset } = listRidesQuerySchema
+      .pick({ limit: true, offset: true })
+      .parse(req.query);
+    const rides = await rideRepo.list({ statuses: ['PAYMENT_DISPUTED'], limit, offset });
+    const data = await Promise.all(
+      rides.map(async (ride) => ({
+        ride: toRideView(ride),
+        ticket:
+          (await eventRepo.findByRideId(ride.id)).find(
+            (event) => event.eventType === 'PAYMENT_DISPUTED',
+          ) ?? null,
+      })),
+    );
+    sendSuccess(req, res, data, 'Open payment disputes retrieved');
   });
 }
 

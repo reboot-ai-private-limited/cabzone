@@ -1,5 +1,6 @@
+import { unitOfWork } from './helpers/unitOfWork.js';
 import request from 'supertest';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createApp } from '../src/app.js';
 import {
   CreateDriverApplicationUseCase,
@@ -50,6 +51,9 @@ import {
   makeReviewDriverApplicationController,
   makeSubmitDriverApplicationController,
   makeUploadDriverDocumentController,
+  makeUploadDriverLicenseFileController,
+  makeUploadVehicleDocumentFileController,
+  makeUploadIdentityDocumentFileController,
   makeVerifyOtpController,
 } from '../src/modules/identity/index.js';
 import {
@@ -105,7 +109,11 @@ class MemoryDriverApplicationRepository implements DriverApplicationRepositoryPo
     return null;
   }
 
-  async list(filter: { status?: string | undefined; limit: number; offset: number }): Promise<DriverApplicationEntity[]> {
+  async list(filter: {
+    status?: string | undefined;
+    limit: number;
+    offset: number;
+  }): Promise<DriverApplicationEntity[]> {
     return [...this.apps.values()]
       .filter((a) => filter.status === undefined || a.status === filter.status)
       .slice(filter.offset, filter.offset + filter.limit)
@@ -190,7 +198,8 @@ class MemorySessionRepository implements SessionRepositoryPort {
 
   async findByTokenHash(tokenHash: string): Promise<SessionEntity | null> {
     for (const s of this.sessions.values()) {
-      if (s.refreshTokenHash === tokenHash || s.previousRefreshTokenHash === tokenHash) return { ...s };
+      if (s.refreshTokenHash === tokenHash || s.previousRefreshTokenHash === tokenHash)
+        return { ...s };
     }
     return null;
   }
@@ -232,12 +241,35 @@ describe('Driver Onboarding Use Cases', () => {
     const vehicleRepo = new MemoryVehicleRepository();
 
     const createProfile = new CreateDriverProfileUseCase({ driverRepo });
-    const getProfile = new GetDriverProfileUseCase({ driverRepo, vehicleRepo, applicationRepo: appRepo, documentRepo: docRepo });
-    const createApplication = new CreateDriverApplicationUseCase({ driverRepo, applicationRepo: appRepo });
-    const uploadDocument = new UploadDriverDocumentUseCase({ driverRepo, applicationRepo: appRepo, documentRepo: docRepo });
+    const getProfile = new GetDriverProfileUseCase({
+      driverRepo,
+      vehicleRepo,
+      applicationRepo: appRepo,
+      documentRepo: docRepo,
+    });
+    const createApplication = new CreateDriverApplicationUseCase({
+      driverRepo,
+      applicationRepo: appRepo,
+    });
+    const uploadDocument = new UploadDriverDocumentUseCase({
+      driverRepo,
+      applicationRepo: appRepo,
+      documentRepo: docRepo,
+    });
     const registerVehicle = new RegisterDriverVehicleUseCase({ driverRepo, vehicleRepo });
-    const submitApplication = new SubmitDriverApplicationUseCase({ driverRepo, applicationRepo: appRepo, documentRepo: docRepo, vehicleRepo });
-    const reviewApplication = new ReviewDriverApplicationUseCase({ driverRepo, applicationRepo: appRepo, documentRepo: docRepo, vehicleRepo });
+    const submitApplication = new SubmitDriverApplicationUseCase({
+      driverRepo,
+      applicationRepo: appRepo,
+      documentRepo: docRepo,
+      vehicleRepo,
+    });
+    const reviewApplication = new ReviewDriverApplicationUseCase({
+      unitOfWork,
+      driverRepo,
+      applicationRepo: appRepo,
+      documentRepo: docRepo,
+      vehicleRepo,
+    });
 
     const driverUserId = '018f0a00-0000-7000-8000-000000000001';
     const adminUserId = '018f0a00-0000-7000-8000-000000000099';
@@ -252,9 +284,20 @@ describe('Driver Onboarding Use Cases', () => {
     expect(app.status).toBe('DRAFT');
 
     // 3. Fail submit before docs and vehicle are attached
-    await expect(submitApplication.execute(driverUserId)).rejects.toThrow('Both Government ID and Driving License');
+    await expect(submitApplication.execute(driverUserId)).rejects.toThrow(
+      'Both Government ID and Driving License',
+    );
 
     // 4. Upload Gov ID and Driving License
+    await uploadDocument.execute({
+      userId: driverUserId,
+      type: 'GOVERNMENT_ID',
+      storageKey: 'mock/aadhaar_rc.jpg',
+      documentHash: 'a'.repeat(64),
+    });
+    await expect(submitApplication.execute(driverUserId)).rejects.toThrow(
+      'Both Government ID and Driving License',
+    );
     await uploadDocument.execute({
       userId: driverUserId,
       type: 'GOVERNMENT_ID',
@@ -271,7 +314,9 @@ describe('Driver Onboarding Use Cases', () => {
     });
 
     // 5. Fail submit before vehicle registration
-    await expect(submitApplication.execute(driverUserId)).rejects.toThrow('A vehicle must be registered');
+    await expect(submitApplication.execute(driverUserId)).rejects.toThrow(
+      'A vehicle must be registered',
+    );
 
     // 6. Register vehicle
     const vehicle = await registerVehicle.execute({
@@ -285,6 +330,24 @@ describe('Driver Onboarding Use Cases', () => {
     expect(vehicle.verificationStatus).toBe('PENDING');
 
     // 7. Submit application
+    await expect(submitApplication.execute(driverUserId)).rejects.toThrow('DOCUMENTS_REQUIRED');
+    for (const type of ['REGISTRATION_CERTIFICATE', 'INSURANCE', 'PERMIT'] as const) {
+      await uploadDocument.execute({
+        userId: driverUserId,
+        type,
+        storageKey: `kyc/driver-1/${type}.jpg`,
+        documentHash: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+        expiresAt: type === 'PERMIT' ? null : new Date(Date.now() + 86400_000 * 365),
+      });
+    }
+    await expect(submitApplication.execute(driverUserId)).rejects.toThrow('DOCUMENTS_REQUIRED');
+    await uploadDocument.execute({
+      userId: driverUserId,
+      type: 'PERMIT',
+      storageKey: 'kyc/driver-1/permit-renewed.jpg',
+      documentHash: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+      expiresAt: new Date(Date.now() + 86400_000 * 365),
+    });
     const submitted = await submitApplication.execute(driverUserId);
     expect(submitted.status).toBe('SUBMITTED');
 
@@ -308,7 +371,7 @@ describe('Driver Onboarding Use Cases', () => {
     expect(profile.driver.kycStatus).toBe('VERIFIED');
     expect(profile.vehicle?.verificationStatus).toBe('APPROVED');
     expect(profile.application?.status).toBe('APPROVED');
-    expect(profile.documents.length).toBe(2);
+    expect(profile.documents.length).toBe(5);
   });
 });
 
@@ -321,13 +384,43 @@ describe('Driver Onboarding Endpoints (Supertest)', () => {
     const sessionRepo = new MemorySessionRepository();
     const tokenAdapter = new JoseTokenAdapter(TEST_SECRET);
 
-    const createProfile = new CreateDriverProfileUseCase({ driverRepo });
-    const getProfile = new GetDriverProfileUseCase({ driverRepo, vehicleRepo, applicationRepo: appRepo, documentRepo: docRepo });
-    const createApplication = new CreateDriverApplicationUseCase({ driverRepo, applicationRepo: appRepo });
-    const uploadDocument = new UploadDriverDocumentUseCase({ driverRepo, applicationRepo: appRepo, documentRepo: docRepo });
+    const photoUrl = 'https://res.cloudinary.com/test/image/upload/driver-profiles/photo.png';
+    const createProfile = new CreateDriverProfileUseCase({
+      driverRepo,
+      photoStorage: { upload: async () => photoUrl },
+    });
+    const getProfile = new GetDriverProfileUseCase({
+      driverRepo,
+      vehicleRepo,
+      applicationRepo: appRepo,
+      documentRepo: docRepo,
+    });
+    const createApplication = new CreateDriverApplicationUseCase({
+      driverRepo,
+      applicationRepo: appRepo,
+    });
+    const uploadDocument = new UploadDriverDocumentUseCase({
+      driverRepo,
+      applicationRepo: appRepo,
+      documentRepo: docRepo,
+      licenseStorage: {
+        upload: vi.fn(async (_fileDataUrl, extension) => `driver-kyc/test-license.${extension}`),
+      },
+    });
     const registerVehicle = new RegisterDriverVehicleUseCase({ driverRepo, vehicleRepo });
-    const submitApplication = new SubmitDriverApplicationUseCase({ driverRepo, applicationRepo: appRepo, documentRepo: docRepo, vehicleRepo });
-    const reviewApplication = new ReviewDriverApplicationUseCase({ driverRepo, applicationRepo: appRepo, documentRepo: docRepo, vehicleRepo });
+    const submitApplication = new SubmitDriverApplicationUseCase({
+      driverRepo,
+      applicationRepo: appRepo,
+      documentRepo: docRepo,
+      vehicleRepo,
+    });
+    const reviewApplication = new ReviewDriverApplicationUseCase({
+      unitOfWork,
+      driverRepo,
+      applicationRepo: appRepo,
+      documentRepo: docRepo,
+      vehicleRepo,
+    });
 
     const authenticate = makeAuthenticate({
       tokenVerifier: tokenAdapter,
@@ -350,6 +443,9 @@ describe('Driver Onboarding Endpoints (Supertest)', () => {
       getProfile: makeGetDriverProfileController(getProfile),
       createApplication: makeCreateDriverApplicationController(createApplication),
       uploadDocument: makeUploadDriverDocumentController(uploadDocument),
+      uploadLicenseFile: makeUploadDriverLicenseFileController(uploadDocument),
+      uploadVehicleDocumentFile: makeUploadVehicleDocumentFileController(uploadDocument),
+      uploadIdentityDocumentFile: makeUploadIdentityDocumentFileController(uploadDocument),
       registerVehicle: makeRegisterDriverVehicleController(registerVehicle),
       submitApplication: makeSubmitDriverApplicationController(submitApplication),
     });
@@ -358,8 +454,12 @@ describe('Driver Onboarding Endpoints (Supertest)', () => {
       authenticate,
       requireAdminRole: requireRole('SUPER_ADMIN', 'CITY_ADMIN'),
       reviewApplication: makeReviewDriverApplicationController(reviewApplication),
-      listApplications: makeListDriverApplicationsController(new ListDriverApplicationsUseCase(adminDeps)),
-      getApplication: makeGetDriverApplicationController(new GetDriverApplicationDetailUseCase(adminDeps)),
+      listApplications: makeListDriverApplicationsController(
+        new ListDriverApplicationsUseCase(adminDeps),
+      ),
+      getApplication: makeGetDriverApplicationController(
+        new GetDriverApplicationDetailUseCase(adminDeps),
+      ),
     });
 
     const identityContainer = {
@@ -371,6 +471,7 @@ describe('Driver Onboarding Endpoints (Supertest)', () => {
       buildAdminDriverRouter: () => adminDriverRouter,
       authenticate,
       requireRole,
+      requireAdminScope: () => requireRole('SUPER_ADMIN'),
       requireZoneAccess: makeRequireZoneAccess({
         adminRepo: {
           findByUserId: async () => null,
@@ -384,6 +485,112 @@ describe('Driver Onboarding Endpoints (Supertest)', () => {
       tokenAdapter,
     };
   }
+
+  it('stores a real licence file for the authenticated driver and rejects invalid formats', async () => {
+    const { app, sessionRepo, tokenAdapter } = createTestApp();
+    const userId = '018f0a00-0000-7000-8000-000000000031';
+    const sessionId = 'session-license-1';
+    await sessionRepo.save({
+      id: sessionId,
+      userId,
+      deviceId: 'dev-license',
+      refreshTokenHash: 'license-hash',
+      expiresAt: new Date(Date.now() + 86_400_000),
+      revokedAt: null,
+      lastUsedAt: new Date(),
+      createdAt: new Date(),
+    });
+    const token = await tokenAdapter.signAccessToken({ sub: userId, sessionId, role: 'DRIVER' });
+    await request(app).post('/api/v1/driver/profile').set('Authorization', `Bearer ${token}`).send({ name: 'Test Driver' }).expect(201);
+    await request(app).post('/api/v1/driver/application').set('Authorization', `Bearer ${token}`).expect(201);
+
+    const fileDataUrl = `data:application/pdf;base64,${Buffer.from('%PDF-1.4\n%%EOF').toString('base64')}`;
+    const licenseExpiry = new Date(Date.now() + 86_400_000 * 300).toISOString();
+    const upload = await request(app)
+      .post('/api/v1/driver/documents/license')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ fileDataUrl, dlNumber: 'WB7420220012345', expiresAt: licenseExpiry })
+      .expect(201);
+    expect(upload.body.data).toMatchObject({
+      type: 'DRIVING_LICENSE',
+      storageKey: 'driver-kyc/test-license.pdf',
+      documentNumberMasked: '****2345',
+      expiresAt: licenseExpiry,
+    });
+    expect(upload.body.data.documentHash).toMatch(/^[a-f0-9]{64}$/);
+    const profile = await request(app).get('/api/v1/driver/profile/me').set('Authorization', `Bearer ${token}`).expect(200);
+    expect(profile.body.data.documents).toHaveLength(1);
+
+    const correctedExpiry = new Date(Date.now() + 86_400_000 * 365).toISOString();
+    const corrected = await request(app)
+      .post('/api/v1/driver/documents/license')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ dlNumber: 'WB7420220012345', expiresAt: correctedExpiry })
+      .expect(201);
+    expect(corrected.body.data).toMatchObject({
+      id: upload.body.data.id,
+      storageKey: upload.body.data.storageKey,
+      documentHash: upload.body.data.documentHash,
+      expiresAt: correctedExpiry,
+    });
+    await request(app)
+      .post('/api/v1/driver/documents/license')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ dlNumber: 'WB7420220099999', expiresAt: correctedExpiry })
+      .expect(400);
+
+    const expiry = new Date(Date.now() + 86_400_000).toISOString();
+    const vehicleUpload = await request(app)
+      .post('/api/v1/driver/documents/vehicle')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ type: 'INSURANCE', fileDataUrl, expiresAt: expiry })
+      .expect(201);
+    expect(vehicleUpload.body.data).toMatchObject({
+      type: 'INSURANCE',
+      storageKey: 'driver-kyc/test-license.pdf',
+      expiresAt: expiry,
+    });
+    await request(app)
+      .post('/api/v1/driver/documents/vehicle')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ type: 'INSURANCE', fileDataUrl, expiresAt: new Date(Date.now() - 86_400_000).toISOString() })
+      .expect(400);
+    await request(app)
+      .post('/api/v1/driver/documents/vehicle')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ type: 'DRIVING_LICENSE', fileDataUrl, expiresAt: expiry })
+      .expect(400);
+
+    await request(app)
+      .post('/api/v1/driver/documents/license')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ fileDataUrl: 'data:image/png;base64,aGVsbG8=', dlNumber: 'WB7420220012345', expiresAt: correctedExpiry })
+      .expect(400);
+    await request(app)
+      .post('/api/v1/driver/documents')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ type: 'DRIVING_LICENSE', storageKey: 'mock/dl.jpg', documentHash: 'a'.repeat(64) })
+      .expect(400);
+    await request(app)
+      .post('/api/v1/driver/documents')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ type: 'INSURANCE', storageKey: 'mock/insurance.jpg', documentHash: 'a'.repeat(64) })
+      .expect(400);
+    await request(app)
+      .post('/api/v1/driver/documents')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ type: 'GOVERNMENT_ID', storageKey: 'mock/id.jpg', documentHash: 'a'.repeat(64) })
+      .expect(400);
+    await request(app)
+      .post('/api/v1/driver/documents/identity')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ fileDataUrl: 'data:image/png;base64,aGVsbG8=' })
+      .expect(400);
+    await request(app)
+      .post('/api/v1/driver/documents/license')
+      .send({ fileDataUrl, dlNumber: 'WB7420220012345' })
+      .expect(401);
+  });
 
   it('executes driver profile and document onboarding over HTTP', async () => {
     const { app, sessionRepo, tokenAdapter } = createTestApp();
@@ -408,13 +615,42 @@ describe('Driver Onboarding Endpoints (Supertest)', () => {
     });
 
     // 1. POST /api/v1/driver/profile
+    await request(app)
+      .post('/api/v1/driver/profile')
+      .set('Authorization', `Bearer ${driverToken}`)
+      .send({ userId: 'someone-else' })
+      .expect(400);
     const profRes = await request(app)
       .post('/api/v1/driver/profile')
       .set('Authorization', `Bearer ${driverToken}`)
+      .send({
+        name: 'Priya Sharma',
+        dateOfBirth: '1995-05-15',
+        gender: 'FEMALE',
+        profilePhotoDataUrl:
+          'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jD1sAAAAASUVORK5CYII=',
+      })
       .expect(201);
 
     expect(profRes.body.success).toBe(true);
     expect(profRes.body.data.status).toBe('PENDING');
+    expect(profRes.body.data.userId).toBe(driverUserId);
+    expect(profRes.body.data).toMatchObject({
+      name: 'Priya Sharma',
+      dateOfBirth: '1995-05-15',
+      gender: 'FEMALE',
+      profilePhotoUrl: 'https://res.cloudinary.com/test/image/upload/driver-profiles/photo.png',
+    });
+    const personalProfile = await request(app)
+      .get('/api/v1/driver/profile/me')
+      .set('Authorization', `Bearer ${driverToken}`)
+      .expect(200);
+    expect(personalProfile.body.data.driver).toMatchObject({
+      name: 'Priya Sharma',
+      dateOfBirth: '1995-05-15',
+      gender: 'FEMALE',
+      profilePhotoUrl: 'https://res.cloudinary.com/test/image/upload/driver-profiles/photo.png',
+    });
 
     // 2. POST /api/v1/driver/application
     const appRes = await request(app)
@@ -426,27 +662,26 @@ describe('Driver Onboarding Endpoints (Supertest)', () => {
     expect(appRes.body.data.status).toBe('DRAFT');
     const applicationId = appRes.body.data.id;
 
-    // 3. POST /api/v1/driver/documents (Gov ID)
+    // 3. POST /api/v1/driver/documents/identity (real Gov ID file)
     const docRes = await request(app)
-      .post('/api/v1/driver/documents')
+      .post('/api/v1/driver/documents/identity')
       .set('Authorization', `Bearer ${driverToken}`)
       .send({
-        type: 'GOVERNMENT_ID',
-        storageKey: 'kyc/doc-govt.jpg',
-        documentHash: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+        fileDataUrl: `data:application/pdf;base64,${Buffer.from('%PDF-1.4\n%%EOF').toString('base64')}`,
       })
       .expect(201);
 
     expect(docRes.body.success).toBe(true);
+    expect(docRes.body.data).toMatchObject({ type: 'GOVERNMENT_ID' });
 
-    // 4. POST /api/v1/driver/documents (DL)
+    // 4. POST /api/v1/driver/documents/license (real file)
     await request(app)
-      .post('/api/v1/driver/documents')
+      .post('/api/v1/driver/documents/license')
       .set('Authorization', `Bearer ${driverToken}`)
       .send({
-        type: 'DRIVING_LICENSE',
-        storageKey: 'kyc/doc-dl.jpg',
-        documentHash: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+        fileDataUrl: `data:application/pdf;base64,${Buffer.from('%PDF-1.4\n%%EOF').toString('base64')}`,
+        dlNumber: 'WB7420220012345',
+        expiresAt: new Date(Date.now() + 86400_000 * 365).toISOString(),
       })
       .expect(201);
 
@@ -466,6 +701,21 @@ describe('Driver Onboarding Endpoints (Supertest)', () => {
     expect(vehRes.body.success).toBe(true);
 
     // 6. POST /api/v1/driver/application/submit
+    await request(app)
+      .post('/api/v1/driver/application/submit')
+      .set('Authorization', `Bearer ${driverToken}`)
+      .expect(400);
+    for (const type of ['REGISTRATION_CERTIFICATE', 'INSURANCE', 'PERMIT'] as const) {
+      await request(app)
+        .post('/api/v1/driver/documents/vehicle')
+        .set('Authorization', `Bearer ${driverToken}`)
+        .send({
+          type,
+          fileDataUrl: `data:application/pdf;base64,${Buffer.from('%PDF-1.4\n%%EOF').toString('base64')}`,
+          expiresAt: new Date(Date.now() + 86400_000 * 365).toISOString(),
+        })
+        .expect(201);
+    }
     const subRes = await request(app)
       .post('/api/v1/driver/application/submit')
       .set('Authorization', `Bearer ${driverToken}`)
@@ -527,7 +777,7 @@ describe('Driver Onboarding Endpoints (Supertest)', () => {
       .get(`/api/v1/admin/driver-applications/${applicationId}`)
       .set('Authorization', `Bearer ${adminToken}`)
       .expect(200);
-    expect(detailRes.body.data.documents).toHaveLength(2);
+    expect(detailRes.body.data.documents).toHaveLength(5);
     await request(app)
       .get('/api/v1/admin/driver-applications/does-not-exist')
       .set('Authorization', `Bearer ${adminToken}`)

@@ -114,6 +114,7 @@ export class MemoryZoneRepository implements ZoneRepositoryPort {
     const search = filter?.search?.trim().toLowerCase();
 
     return Array.from(this.zones.values()).filter((z) => {
+      if (filter?.allowedCityZoneIds && !filter.allowedCityZoneIds.includes(z.zoneType === 'CITY' ? z.id : z.parentCityZoneId ?? '')) return false;
       if (filter?.status && z.status !== filter.status) return false;
       if (targetType && z.zoneType !== targetType) return false;
       if (filter?.parentCityZoneId !== undefined && z.parentCityZoneId !== filter.parentCityZoneId) {

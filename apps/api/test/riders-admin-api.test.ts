@@ -172,6 +172,10 @@ class TestMemorySessionRepo implements SessionRepositoryPort {
 }
 
 class TestMemoryRideRepo implements RideRepositoryPort {
+  async update(ride: RideEntity, expectedVersion: number): Promise<RideEntity | null> {
+    if (this.rides.get(ride.id)?.version !== expectedVersion) return null;
+    return this.save(ride);
+  }
   readonly rides = new Map<string, RideEntity>();
 
   async save(ride: RideEntity): Promise<RideEntity> {
@@ -230,15 +234,16 @@ class TestMemoryRideRepo implements RideRepositoryPort {
 
   async getRiderTripCountsBatch(
     riderIds: string[],
-  ): Promise<Map<string, { totalRides: number; completedRides: number }>> {
-    const map = new Map<string, { totalRides: number; completedRides: number }>();
+  ): Promise<Map<string, { totalRides: number; completedRides: number; cancelledRides: number }>> {
+    const map = new Map<string, { totalRides: number; completedRides: number; cancelledRides: number }>();
     const idSet = new Set(riderIds);
 
     for (const r of this.rides.values()) {
       const id = idSet.has(r.bookerRiderId) ? r.bookerRiderId : null;
       if (!id) continue;
-      const cur = map.get(id) ?? { totalRides: 0, completedRides: 0 };
+      const cur = map.get(id) ?? { totalRides: 0, completedRides: 0, cancelledRides: 0 };
       cur.totalRides++;
+      if (r.status === 'CANCELLED') cur.cancelledRides++;
       if (r.status === 'TRIP_COMPLETED' || r.status === 'SETTLED' || r.status === 'PAYMENT_CONFIRMED') {
         cur.completedRides++;
       }

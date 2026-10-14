@@ -1,4 +1,5 @@
 import type { RequestHandler, Router } from 'express';
+import type { UnitOfWorkPort } from '../../shared/db/unitOfWork.port.js';
 import type { ServiceClassificationUseCase } from '../zone/zone.public.js';
 import type { RouteRequest, RouteResult } from '../routing/routing.public.js';
 import {
@@ -18,12 +19,10 @@ import {
   makeListPricingConfigsController,
   makeUpdatePricingConfigController,
 } from './interface/pricing.controller.js';
-import {
-  buildAdminPricingRouter,
-  buildPricingRouter,
-} from './interface/pricing.routes.js';
+import { buildAdminPricingRouter, buildPricingRouter } from './interface/pricing.routes.js';
 
 export interface PricingContainerDeps {
+  unitOfWork: UnitOfWorkPort;
   pricingConfigRepo: PricingConfigRepositoryPort;
   serviceClassificationUseCase: ServiceClassificationUseCase;
   tokenSecret: string;
@@ -47,10 +46,19 @@ export interface PricingContainer {
 }
 
 export function buildPricingContainer(deps: PricingContainerDeps): PricingContainer {
-  const createPricingConfigUseCase = new CreatePricingConfigUseCase(deps.pricingConfigRepo);
-  const updatePricingConfigUseCase = new UpdatePricingConfigUseCase(deps.pricingConfigRepo);
+  const createPricingConfigUseCase = new CreatePricingConfigUseCase(
+    deps.pricingConfigRepo,
+    deps.unitOfWork,
+  );
+  const updatePricingConfigUseCase = new UpdatePricingConfigUseCase(
+    deps.pricingConfigRepo,
+    deps.unitOfWork,
+  );
   const deletePricingConfigUseCase = new DeletePricingConfigUseCase(deps.pricingConfigRepo);
-  const activatePricingConfigUseCase = new ActivatePricingConfigUseCase(deps.pricingConfigRepo);
+  const activatePricingConfigUseCase = new ActivatePricingConfigUseCase(
+    deps.pricingConfigRepo,
+    deps.unitOfWork,
+  );
   const listPricingConfigsUseCase = new ListPricingConfigsUseCase(deps.pricingConfigRepo);
   const createQuoteUseCase = new CreateQuoteUseCase({
     serviceClassificationUseCase: deps.serviceClassificationUseCase,

@@ -177,6 +177,7 @@ async function setup() {
   const tokenAdapter = new JoseTokenAdapter(JWT_SECRET);
   const verifyToken = makeTokenVerifier({ tokenVerifier: tokenAdapter, sessionRepo });
   const identity: IdentityContainer = {
+    requireAdminScope: () => requireRole('SUPER_ADMIN'),
     buildAuthRouter: () => Router(),
     buildDriverRouter: () => Router(),
     buildAdminDriverRouter: () => Router(),
@@ -238,6 +239,8 @@ async function setup() {
     },
   });
   const rides = buildRidesContainer({
+    requireDriverEligibility: async () => 'test-vehicle',
+    unitOfWork,
     rideRepo,
     rideEventRepo: new MemoryRideEventRepository(),
     walletRepo,
@@ -249,6 +252,7 @@ async function setup() {
     pickupOtpSecret: 'otp-secret-for-tests',
   });
   const ledger = buildLedgerContainer({
+    unitOfWork,
     walletRepo,
     resolveDriverId: async (u) => byUser.get(u)?.driverId ?? null,
   });
@@ -589,3 +593,4 @@ describe('Dispatch: offer expiry', () => {
   });
 });
 
+import { unitOfWork } from './helpers/unitOfWork.js';

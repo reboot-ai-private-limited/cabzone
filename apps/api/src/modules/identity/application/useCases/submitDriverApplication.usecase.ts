@@ -36,8 +36,8 @@ export class SubmitDriverApplicationUseCase {
     }
 
     const docs = await this.deps.documentRepo.findByApplicationId(application.id);
-    const hasGovtId = docs.some((d) => d.type === 'GOVERNMENT_ID');
-    const hasLicense = docs.some((d) => d.type === 'DRIVING_LICENSE');
+    const hasGovtId = docs.some((d) => d.type === 'GOVERNMENT_ID' && !d.storageKey.startsWith('mock/'));
+    const hasLicense = docs.some((d) => d.type === 'DRIVING_LICENSE' && !d.storageKey.startsWith('mock/'));
 
     if (!hasGovtId || !hasLicense) {
       throw AppError.badRequest(
@@ -56,6 +56,23 @@ export class SubmitDriverApplicationUseCase {
       throw AppError.badRequest('Registered vehicle not found.');
     }
 
+    const missing = DOCUMENT_TYPES.filter(
+      (type) =>
+        !docs.some(
+          (doc) =>
+            doc.type === type &&
+            !doc.storageKey.startsWith('mock/') &&
+            (type === 'GOVERNMENT_ID'
+              ? !doc.expiresAt || doc.expiresAt > new Date()
+              : doc.expiresAt !== null && doc.expiresAt > new Date()),
+        ),
+    );
+    if (missing.length > 0) {
+      throw AppError.badRequest(
+        `DOCUMENTS_REQUIRED: Upload current ${missing.join(', ')} before submitting.`,
+      );
+    }
+
     const updatedApp: DriverApplicationEntity = {
       ...application,
       status: 'SUBMITTED',
@@ -65,3 +82,4 @@ export class SubmitDriverApplicationUseCase {
     return this.deps.applicationRepo.update(updatedApp);
   }
 }
+import { DOCUMENT_TYPES } from '@cabzone/contracts';

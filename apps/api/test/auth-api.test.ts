@@ -622,7 +622,8 @@ describe('Auth HTTP Endpoints (Supertest)', () => {
       },
       authenticate,
       requireRole,
-      requireZoneAccess: makeRequireZoneAccess({
+      requireAdminScope: () => requireRole('SUPER_ADMIN'),
+    requireZoneAccess: makeRequireZoneAccess({
         adminRepo: {
           findByUserId: async () => null,
         },
@@ -636,6 +637,21 @@ describe('Auth HTTP Endpoints (Supertest)', () => {
       adminRepo,
     };
   }
+
+  it('returns a validation error for malformed JSON', async () => {
+    const { app } = createTestApp();
+    const response = await request(app)
+      .post('/api/v1/auth/admin/login')
+      .set('Content-Type', 'application/json')
+      .send('{invalid json')
+      .expect(400);
+
+    expect(response.body).toMatchObject({
+      success: false,
+      statusCode: 400,
+      code: 'VALIDATION_FAILED',
+    });
+  });
 
   it('runs complete HTTP auth flow end-to-end', async () => {
     const { app } = createTestApp();

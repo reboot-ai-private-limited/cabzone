@@ -36,19 +36,25 @@ export class RequestOtpUseCase {
       }
     }
 
-    const otp = this.deps.devFixedOtp || String(randomInt(100000, 999999));
+    const otp = this.deps.devFixedOtp || String(randomInt(100000, 1000000));
     const otpHmac = createHmac('sha256', this.deps.otpPepper).update(otp).digest('hex');
     const expiresAt = new Date(now.getTime() + this.ttlSeconds * 1000);
 
-    await this.deps.otpStore.save({
+    const reserved = await this.deps.otpStore.reserve({
       phoneE164,
       otpHmac,
       attempts: 0,
       expiresAt,
       lastSentAt: now,
-    });
+    }, this.cooldownSeconds);
+    if (!reserved) throw AppError.badRequest('Please wait before requesting another OTP.');
 
-    await this.deps.smsGateway.sendOtp(phoneE164, otp);
+    try {
+      await this.deps.smsGateway.sendOtp(phoneE164, otp);
+    } catch {
+      await this.deps.otpStore.consume(phoneE164, otpHmac, Number.MAX_SAFE_INTEGER);
+      throw AppError.internal();
+    }
 
     return {
       phoneE164,

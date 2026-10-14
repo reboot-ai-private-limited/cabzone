@@ -1,13 +1,21 @@
 import type { PricingConfigDto, UpdatePricingConfigRequest } from '@cabzone/contracts';
 import { AppError } from '../../../../shared/errors/AppError.js';
+import type { UnitOfWorkPort } from '../../../../shared/db/unitOfWork.port.js';
 import type { PricingConfigRepositoryPort } from '../../domain/index.js';
 import { getStateNameFromCode } from '@cabzone/geo';
 import { toPricingConfigDto } from './createPricingConfig.usecase.js';
 
 export class UpdatePricingConfigUseCase {
-  constructor(private readonly pricingConfigRepo: PricingConfigRepositoryPort) {}
+  constructor(
+    private readonly pricingConfigRepo: PricingConfigRepositoryPort,
+    private readonly unitOfWork: UnitOfWorkPort,
+  ) {}
 
   async execute(id: string, patch: UpdatePricingConfigRequest): Promise<PricingConfigDto> {
+    return this.unitOfWork.run(() => this.update(id, patch));
+  }
+
+  private async update(id: string, patch: UpdatePricingConfigRequest): Promise<PricingConfigDto> {
     const config = await this.pricingConfigRepo.findById(id);
     if (!config) {
       throw AppError.notFound(`Pricing config ${id} not found`);
@@ -47,13 +55,18 @@ export class UpdatePricingConfigUseCase {
     config.bufferSurchargePaise = patch.bufferSurchargePaise ?? config.bufferSurchargePaise;
     config.negotiationFloorPercent = negotiationFloorPercent;
     config.negotiationCeilingPercent = negotiationCeilingPercent;
-    config.negotiationWindowSeconds = patch.negotiationWindowSeconds ?? config.negotiationWindowSeconds;
+    config.negotiationWindowSeconds =
+      patch.negotiationWindowSeconds ?? config.negotiationWindowSeconds;
     config.commissionPercent = patch.commissionPercent ?? config.commissionPercent;
-    config.effectiveFrom = patch.effectiveFrom ? new Date(patch.effectiveFrom) : config.effectiveFrom;
+    config.effectiveFrom = patch.effectiveFrom
+      ? new Date(patch.effectiveFrom)
+      : config.effectiveFrom;
 
     if (patch.stateCode !== undefined && config.level === 'STATE') {
       config.stateCode = patch.stateCode ? patch.stateCode.toUpperCase() : null;
-      config.stateName = config.stateCode ? (getStateNameFromCode(config.stateCode) ?? config.stateCode) : null;
+      config.stateName = config.stateCode
+        ? (getStateNameFromCode(config.stateCode) ?? config.stateCode)
+        : null;
     }
     if (patch.status !== undefined) {
       if (patch.status === 'ACTIVE' && config.status !== 'ACTIVE') {
@@ -66,10 +79,15 @@ export class UpdatePricingConfigUseCase {
           config.vehicleType,
           now,
         );
-        if (activeExisting && activeExisting.id !== config.id && activeExisting.level === config.level) {
+        if (
+          activeExisting &&
+          activeExisting.id !== config.id &&
+          activeExisting.level === config.level
+        ) {
           activeExisting.status = 'RETIRED';
           activeExisting.effectiveTo = now;
-          await this.pricingConfigRepo.save(activeExisting);
+          activeExisting.version += 1;
+          await this.pricingConfigRepo.save(activeExisting, activeExisting.version - 1);
         }
         config.effectiveFrom = now;
         config.effectiveTo = null;
@@ -77,7 +95,8 @@ export class UpdatePricingConfigUseCase {
       config.status = patch.status;
     }
 
-    const saved = await this.pricingConfigRepo.save(config);
+    config.version += 1;
+    const saved = await this.pricingConfigRepo.save(config, config.version - 1);
     return toPricingConfigDto(saved);
   }
 }

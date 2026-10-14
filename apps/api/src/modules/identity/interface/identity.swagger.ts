@@ -7,12 +7,16 @@ import {
   VEHICLE_CATEGORIES,
   VEHICLE_VERIFICATION_STATUSES,
 } from '@cabzone/contracts';
-import { registry, successResponse, errorResponse, bearerAuth } from '@/shared/http/swagger.util.js';
+import {
+  registry,
+  successResponse,
+  errorResponse,
+  bearerAuth,
+} from '@/shared/http/swagger.util.js';
 import {
   adminLoginSchema,
   adminUserIdParamSchema,
   createAdminUserSchema,
-  createDriverProfileSchema,
   listAdminUsersQuerySchema,
   refreshTokenSchema,
   requestOtpSchema,
@@ -21,10 +25,26 @@ import {
   verifyOtpSchema,
 } from './identity.validation.js';
 import {
+  createDriverProfileRequestSchema,
   createVehicleSchema,
   submitDriverApplicationSchema,
   reviewDriverApplicationSchema,
+  uploadDriverLicenseFileRequestSchema,
+  uploadVehicleDocumentFileRequestSchema,
+  uploadIdentityDocumentFileRequestSchema,
 } from './kyc.validation.js';
+
+const driverProfileSchema = z.object({
+  id: z.string().uuid(),
+  userId: z.string().uuid(),
+  name: z.string().nullable().optional(),
+  gender: z.enum(['MALE', 'FEMALE', 'OTHER']).nullable().optional(),
+  dateOfBirth: z.string().date().nullable().optional(),
+  profilePhotoUrl: z.string().url().nullable().optional(),
+  status: z.enum(DRIVER_STATUSES),
+  kycStatus: z.enum(DRIVER_KYC_STATUSES),
+  operationalStatus: z.enum(DRIVER_OPERATIONAL_STATUSES),
+});
 
 export function registerIdentitySwaggerPaths(): void {
   // Auth OTP Request
@@ -207,13 +227,13 @@ export function registerIdentitySwaggerPaths(): void {
     method: 'post',
     path: '/v1/driver/profile',
     tags: ['Driver Onboarding'],
-    summary: 'Create driver profile',
+    summary: 'Create or update personal driver profile and optional photo',
     security: bearerAuth,
     request: {
       body: {
         content: {
           'application/json': {
-            schema: createDriverProfileSchema,
+            schema: createDriverProfileRequestSchema,
           },
         },
       },
@@ -223,15 +243,7 @@ export function registerIdentitySwaggerPaths(): void {
         description: 'Driver profile created',
         content: {
           'application/json': {
-            schema: successResponse(
-              z.object({
-                id: z.string().uuid(),
-                userId: z.string().uuid(),
-                status: z.enum(DRIVER_STATUSES),
-                kycStatus: z.enum(DRIVER_KYC_STATUSES),
-                operationalStatus: z.enum(DRIVER_OPERATIONAL_STATUSES),
-              }),
-            ),
+            schema: successResponse(driverProfileSchema),
           },
         },
       },
@@ -252,16 +264,73 @@ export function registerIdentitySwaggerPaths(): void {
           'application/json': {
             schema: successResponse(
               z.object({
-                id: z.string().uuid(),
-                userId: z.string().uuid(),
-                status: z.enum(DRIVER_STATUSES),
-                kycStatus: z.enum(DRIVER_KYC_STATUSES),
-                operationalStatus: z.enum(DRIVER_OPERATIONAL_STATUSES),
+                driver: driverProfileSchema.nullable(),
+                vehicle: z.any().nullable(),
+                application: z.any().nullable(),
+                documents: z.array(z.any()),
               }),
             ),
           },
         },
       },
+    },
+  });
+
+  // Driver Licence File
+  registry.registerPath({
+    method: 'post',
+    path: '/v1/driver/documents/license',
+    tags: ['Driver Onboarding'],
+    summary: 'Upload a private driving licence PDF or JPEG (maximum 500 KB), or update its expiry',
+    security: bearerAuth,
+    request: {
+      body: { content: { 'application/json': { schema: uploadDriverLicenseFileRequestSchema } } },
+    },
+    responses: {
+      201: {
+        description: 'Driving licence stored and linked to the authenticated driver application',
+        content: {
+          'application/json': {
+            schema: successResponse(z.object({
+              id: z.string().uuid(),
+              type: z.literal('DRIVING_LICENSE'),
+              storageKey: z.string(),
+              documentHash: z.string(),
+            })),
+          },
+        },
+      },
+      400: { description: 'Invalid file or application state', content: { 'application/json': { schema: errorResponse } } },
+    },
+  });
+
+  // Driver Register Vehicle
+  registry.registerPath({
+    method: 'post',
+    path: '/v1/driver/documents/identity',
+    tags: ['Driver Onboarding'],
+    summary: 'Upload a private Government ID PDF or JPEG (maximum 500 KB)',
+    security: bearerAuth,
+    request: { body: { content: { 'application/json': { schema: uploadIdentityDocumentFileRequestSchema } } } },
+    responses: {
+      201: { description: 'Government ID stored and linked to the driver application' },
+      400: { description: 'Invalid file or application state', content: { 'application/json': { schema: errorResponse } } },
+    },
+  });
+
+  // Driver Register Vehicle
+  registry.registerPath({
+    method: 'post',
+    path: '/v1/driver/documents/vehicle',
+    tags: ['Driver Onboarding'],
+    summary: 'Upload a private RC, insurance, or permit PDF or JPEG (maximum 500 KB)',
+    security: bearerAuth,
+    request: {
+      body: { content: { 'application/json': { schema: uploadVehicleDocumentFileRequestSchema } } },
+    },
+    responses: {
+      201: { description: 'Vehicle document stored and linked to the driver application' },
+      400: { description: 'Invalid file, expiry, or application state', content: { 'application/json': { schema: errorResponse } } },
     },
   });
 

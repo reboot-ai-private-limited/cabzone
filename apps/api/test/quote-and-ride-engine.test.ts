@@ -1,3 +1,5 @@
+import { MemoryRideEventRepository } from '../src/modules/rides/index.js';
+import { unitOfWork } from './helpers/unitOfWork.js';
 import { describe, expect, it } from 'vitest';
 import {
   MemoryWalletRepository,
@@ -129,19 +131,20 @@ describe('Quote Lifecycle & First-to-Accept Ride Engine', () => {
     walletRepo.save(driver2Wallet);
     walletRepo.save(zeroBalanceWallet);
 
-    const createRideUseCase = new CreateRideUseCase({
+    const createRideUseCase = new CreateRideUseCase({ unitOfWork, rideEventRepo: new MemoryRideEventRepository(),
       rideRepo,
       pricingConfigRepo,
       tokenSecret: TEST_SECRET,
     });
 
-    const acceptRideUseCase = new AcceptRideUseCase({
+    const acceptRideUseCase = new AcceptRideUseCase({ unitOfWork, rideEventRepo: new MemoryRideEventRepository(),
+      requireDriverEligibility: async () => 'test-vehicle',
       rideRepo,
       walletRepo,
       otpTtlMinutes: 20,
     });
 
-    const startRideUseCase = new StartRideUseCase({
+    const startRideUseCase = new StartRideUseCase({ unitOfWork, rideEventRepo: new MemoryRideEventRepository(),
       rideRepo,
     });
 

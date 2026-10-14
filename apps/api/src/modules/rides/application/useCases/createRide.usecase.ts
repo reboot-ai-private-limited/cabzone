@@ -6,7 +6,8 @@ import {
   CreateQuoteUseCase,
   type PricingConfigRepositoryPort,
 } from '../../../pricing/pricing.public.js';
-import type { RideEntity, RideRepositoryPort } from '../../domain/index.js';
+import type { RideEntity, RideRepositoryPort, RideEventRepositoryPort } from '../../domain/index.js';
+import type { UnitOfWorkPort } from '../../../../shared/db/unitOfWork.port.js';
 
 export interface CreateRideInput {
   quoteToken: string;
@@ -20,6 +21,8 @@ export interface CreateRideInput {
 }
 
 export interface CreateRideDeps {
+  unitOfWork: UnitOfWorkPort;
+  rideEventRepo: RideEventRepositoryPort;
   rideRepo: RideRepositoryPort;
   pricingConfigRepo: PricingConfigRepositoryPort;
   tokenSecret: string;
@@ -29,6 +32,10 @@ export class CreateRideUseCase {
   constructor(private readonly deps: CreateRideDeps) {}
 
   async execute(input: CreateRideInput): Promise<RideEntity> {
+    return this.deps.unitOfWork.run(() => this.create(input));
+  }
+
+  private async create(input: CreateRideInput): Promise<RideEntity> {
     // 0. Sovereign Domestic Boundary Restriction: strictly within India
     const pickupCheck = isPointInIndia(input.pickup);
     if (!pickupCheck.inside) {
@@ -61,10 +68,15 @@ export class CreateRideUseCase {
 
     // 3. Stale quote prevention: check pricing config version
     const currentConfig = await this.deps.pricingConfigRepo.findById(quote.pricingConfigId);
-    if (!currentConfig || currentConfig.version !== quote.pricingConfigVersion) {
+    const effectiveConfig = await this.deps.pricingConfigRepo.findEffectiveConfig({ cityZoneId: quote.cityZoneId, stateCode: quote.originStateCode }, quote.vehicleCategory);
+    if (!currentConfig || currentConfig.version !== quote.pricingConfigVersion || effectiveConfig?.id !== currentConfig.id) {
       throw AppError.conflict(
         'PRICING_VERSION_MISMATCH: Pricing configuration has been updated. Please fetch a fresh quote.',
       );
+    }
+    for (const state of quote.statePricingVersions ?? []) {
+      const config = await this.deps.pricingConfigRepo.findEffectiveConfigByState(state.stateCode, quote.vehicleCategory);
+      if (config?.id !== state.configId || config.version !== state.version) throw AppError.conflict('PRICING_VERSION_MISMATCH: State pricing changed. Please fetch a fresh quote.');
     }
 
     // 4. Validate rider proposed fare against server negotiation bounds
@@ -109,7 +121,7 @@ export class CreateRideUseCase {
         provider: quote.routeProvider ?? 'GOOGLE_ROUTES',
         distanceM: quote.distanceM,
         durationSeconds: quote.durationSeconds,
-        polyline: '',
+        polyline: quote.polyline ?? '',
         calculatedAt: now,
       },
       zoneSnapshot: {
@@ -139,13 +151,14 @@ export class CreateRideUseCase {
         negotiationCeilingPercent: currentConfig.negotiationCeilingPercent,
         commissionPercent: currentConfig.commissionPercent,
         zoneType: quote.serviceType,
+        stateBreakdown: quote.stateBreakdown ?? [],
       },
       suggestedFarePaise: quote.suggestedFarePaise,
       proposedFarePaise: input.proposedFarePaise,
       agreedFarePaise: null,
       status: 'OFFERING',
       cancellationReason: null,
-      offeringExpiresAt: new Date(now.getTime() + 90 * 1000), // 90s broadcast window
+      offeringExpiresAt: new Date(now.getTime() + currentConfig.negotiationWindowSeconds * 1000),
       acceptedAt: null,
       arrivedAt: null,
       startedAt: null,
@@ -157,6 +170,11 @@ export class CreateRideUseCase {
       updatedAt: now,
     };
 
-    return this.deps.rideRepo.save(ride);
+    const saved = await this.deps.rideRepo.save(ride);
+    await this.deps.rideEventRepo.save({
+      id: newUuid(), rideId: saved.id, eventType: 'RIDE_CREATED', actorType: 'RIDER', actorId: input.riderId,
+      previousStatus: null, newStatus: saved.status, metadata: { quoteId: quote.quoteId }, createdAt: now,
+    });
+    return saved;
   }
 }

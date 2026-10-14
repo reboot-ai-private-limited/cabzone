@@ -42,7 +42,6 @@ export class VerifyOtpUseCase {
     }
 
     if (record.attempts >= this.maxAttempts) {
-      await this.deps.otpStore.delete(dto.phoneE164);
       throw AppError.badRequest('Maximum OTP verification attempts exceeded. Please request a new OTP.');
     }
 
@@ -52,11 +51,13 @@ export class VerifyOtpUseCase {
       timingSafeEqual(Buffer.from(record.otpHmac, 'hex'), Buffer.from(candidateHmac, 'hex'));
 
     if (!isValid) {
-      await this.deps.otpStore.incrementAttempts(dto.phoneE164);
+      await this.deps.otpStore.incrementAttempts(dto.phoneE164, record.otpHmac);
       throw AppError.unauthenticated('Invalid OTP.');
     }
 
-    await this.deps.otpStore.delete(dto.phoneE164);
+    if (!(await this.deps.otpStore.consume(dto.phoneE164, record.otpHmac, this.maxAttempts))) {
+      throw AppError.unauthenticated('OTP expired, used or locked.');
+    }
 
     let user = await this.deps.userRepo.findByPhone(dto.phoneE164);
     let isNewUser = false;

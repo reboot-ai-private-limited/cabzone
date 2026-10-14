@@ -5,6 +5,7 @@ import type {
   DriverApplicationRepositoryPort,
   DriverRepositoryPort,
 } from '../../domain/index.js';
+import { canDriverReapply } from '../../domain/index.js';
 
 export interface CreateDriverApplicationDeps {
   driverRepo: DriverRepositoryPort;
@@ -21,6 +22,14 @@ export class CreateDriverApplicationUseCase {
     }
 
     const existing = await this.deps.applicationRepo.findByDriverId(driver.id);
+    if (driver.status === 'REJECTED' || existing?.rejectionType === 'HARD_FRAUD') {
+      throw AppError.forbidden('DRIVER_PERMANENTLY_REJECTED: Fraud rejection cannot be reapplied.');
+    }
+    if (existing?.status === 'APPROVED') throw AppError.conflict('DRIVER_ALREADY_APPROVED: No new application is required.');
+    if (existing?.status === 'REJECTED') {
+      const eligibility = canDriverReapply(existing);
+      if (!eligibility.allowed) throw AppError.forbidden(eligibility.reason);
+    }
     if (existing && ['DRAFT', 'SUBMITTED', 'UNDER_REVIEW_AUTO', 'UNDER_REVIEW_ADMIN'].includes(existing.status)) {
       return existing;
     }

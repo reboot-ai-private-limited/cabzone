@@ -1,5 +1,23 @@
-import 'dotenv/config';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import dotenv from 'dotenv';
 import { z } from 'zod';
+
+const currentDir = path.dirname(fileURLToPath(import.meta.url));
+const rootEnvPath = path.resolve(currentDir, '../../../../.env');
+const localEnvPath = path.resolve(currentDir, '../../../.env');
+
+// Load monorepo root .env first as primary source of truth
+if (fs.existsSync(rootEnvPath)) {
+  dotenv.config({ path: rootEnvPath });
+}
+// Load local apps/api/.env if present
+if (fs.existsSync(localEnvPath)) {
+  dotenv.config({ path: localEnvPath });
+}
+// Also check standard process.cwd() fallback
+dotenv.config();
 
 const schema = z.object({
   /**
@@ -128,6 +146,10 @@ export function loadEnv(): Env {
   }
 
   // Google Routes API key validation when provider is google
+  if (parsed.data.NODE_ENV === 'production' && parsed.data.ROUTING_PROVIDER === 'haversine') {
+    console.error('Invalid environment: production requires a road-routing provider.');
+    process.exit(1);
+  }
   if (parsed.data.ROUTING_PROVIDER === 'google' && !parsed.data.GOOGLE_ROUTES_API_KEY) {
     console.error(
       'Invalid environment:\n  GOOGLE_ROUTES_API_KEY: is required when ROUTING_PROVIDER="google".',

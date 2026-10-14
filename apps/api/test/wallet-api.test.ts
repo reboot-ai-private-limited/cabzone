@@ -40,6 +40,7 @@ async function setup() {
   const sessionRepo = new MemorySessionRepository();
   const tokenAdapter = new JoseTokenAdapter(JWT_SECRET);
   const identity: IdentityContainer = {
+    requireAdminScope: () => requireRole('SUPER_ADMIN'),
     buildAuthRouter: () => Router(),
     buildDriverRouter: () => Router(),
     buildAdminDriverRouter: () => Router(),
@@ -48,6 +49,7 @@ async function setup() {
     requireZoneAccess: makeRequireZoneAccess({ adminRepo: { findByUserId: async () => null } }),
   };
   const ledger = buildLedgerContainer({
+    unitOfWork,
     walletRepo: new MemoryWalletRepository(),
     resolveDriverId: async (u) => (u === DRIVER_USER ? DRIVER_ID : null),
   });
@@ -88,7 +90,11 @@ describe('Wallet API', () => {
     const s = await setup();
     expect((await request(s.app).get(`/api/v1/admin/wallets/${DRIVER_ID}`)).status).toBe(401);
     expect(
-      (await request(s.app).get(`/api/v1/admin/wallets/${DRIVER_ID}`).set('Authorization', s.support)).status,
+      (
+        await request(s.app)
+          .get(`/api/v1/admin/wallets/${DRIVER_ID}`)
+          .set('Authorization', s.support)
+      ).status,
     ).toBe(403);
     expect(
       (await request(s.app).get('/api/v1/driver/wallet/me').set('Authorization', s.rider)).status,
@@ -120,8 +126,32 @@ describe('Wallet API', () => {
       note: 'Cash top-up received at office',
     });
 
-    const mine = await request(s.app).get('/api/v1/driver/wallet/me').set('Authorization', s.driver);
+    const mine = await request(s.app)
+      .get('/api/v1/driver/wallet/me')
+      .set('Authorization', s.driver);
     expect(mine.body.data.wallet.balancePaise).toBe(50_000);
+    expect(mine.body.data.transactions).toHaveLength(1);
+  });
+
+  it('replays a manual adjustment once and rejects a changed request under the same key', async () => {
+    const s = await setup();
+    const body = {
+      driverId: DRIVER_ID,
+      amountPaise: 5000,
+      type: 'CREDIT',
+      reason: 'Manual cash receipt',
+      idempotencyKey: crypto.randomUUID(),
+    };
+    const first = await adjust(s, s.finance, body);
+    const replay = await adjust(s, s.finance, body);
+    expect(first.status).toBe(201);
+    expect(replay.status).toBe(201);
+    expect(replay.body.data.transaction.id).toBe(first.body.data.transaction.id);
+    expect(replay.body.data.wallet.balancePaise).toBe(5000);
+    expect((await adjust(s, s.finance, { ...body, amountPaise: 6000 })).status).toBe(409);
+    const mine = await request(s.app)
+      .get('/api/v1/driver/wallet/me')
+      .set('Authorization', s.driver);
     expect(mine.body.data.transactions).toHaveLength(1);
   });
 
@@ -231,3 +261,4 @@ describe('Wallet API', () => {
   });
 });
 
+import { unitOfWork } from './helpers/unitOfWork.js';

@@ -18,6 +18,7 @@ export interface DriverDocumentEntity {
 
 export function isDocumentValid(doc: DriverDocumentEntity, now: Date = new Date()): boolean {
   if (doc.verificationStatus !== 'VERIFIED') return false;
+  if (doc.type !== 'GOVERNMENT_ID' && doc.expiresAt === null) return false;
   if (doc.expiresAt !== null && doc.expiresAt <= now) return false;
   return true;
 }

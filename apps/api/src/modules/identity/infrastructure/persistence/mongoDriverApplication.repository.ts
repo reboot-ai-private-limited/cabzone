@@ -4,6 +4,7 @@ import type {
   DriverApplicationRepositoryPort,
 } from '../../domain/index.js';
 import { DriverApplicationModel, type DriverApplicationDocument } from './driverApplication.model.js';
+import { AppError } from '../../../../shared/errors/AppError.js';
 
 export class MongoDriverApplicationRepository implements DriverApplicationRepositoryPort {
   async findById(id: string): Promise<DriverApplicationEntity | null> {
@@ -51,8 +52,8 @@ export class MongoDriverApplicationRepository implements DriverApplicationReposi
   }
 
   async update(app: DriverApplicationEntity): Promise<DriverApplicationEntity> {
-    const updated = await DriverApplicationModel.findByIdAndUpdate(
-      app.id,
+    const updated = await DriverApplicationModel.findOneAndUpdate(
+      { _id: app.id, version: app.version },
       {
         status: app.status,
         rejection_type: app.rejectionType,
@@ -71,7 +72,7 @@ export class MongoDriverApplicationRepository implements DriverApplicationReposi
       .lean<DriverApplicationDocument | null>()
       .exec();
 
-    if (!updated) throw new Error(`Application not found: ${app.id}`);
+    if (!updated) throw AppError.conflict('APPLICATION_CHANGED: Refresh the application before retrying.');
     return this.toEntity(updated);
   }
 

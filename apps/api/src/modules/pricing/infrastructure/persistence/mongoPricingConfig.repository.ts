@@ -1,4 +1,5 @@
 import type { PricingConfigLevel, VehicleCategory } from '@cabzone/contracts';
+import { AppError } from '../../../../shared/errors/AppError.js';
 import type {
   EffectivePricingTarget,
   PricingConfigEntity,
@@ -122,9 +123,9 @@ export class MongoPricingConfigRepository implements PricingConfigRepositoryPort
     return doc ? toPricingConfigEntity(doc) : null;
   }
 
-  async save(config: PricingConfigEntity): Promise<PricingConfigEntity> {
-    const doc = await PricingConfigModel.findByIdAndUpdate(
-      config.id,
+  async save(config: PricingConfigEntity, expectedVersion?: number): Promise<PricingConfigEntity> {
+    const doc = await PricingConfigModel.findOneAndUpdate(
+      { _id: config.id, ...(expectedVersion === undefined ? {} : { version: expectedVersion }) },
       {
         level: config.level,
         city_zone_id: config.cityZoneId,
@@ -149,13 +150,15 @@ export class MongoPricingConfigRepository implements PricingConfigRepositoryPort
         created_by_admin_id: config.createdByAdminId,
         created_at: config.createdAt,
       },
-      { upsert: true, new: true, setDefaultsOnInsert: true },
+      { upsert: expectedVersion === undefined, new: true, setDefaultsOnInsert: true, runValidators: true },
     );
+    if (!doc) throw AppError.conflict('PRICING_CHANGED: Refresh pricing before retrying.');
     return toPricingConfigEntity(doc);
   }
 
   async findConfigs(filter?: PricingConfigFilter): Promise<PricingConfigEntity[]> {
     const query: Record<string, unknown> = {};
+    if (filter?.allowedCityZoneIds) query.$and = [{ level: 'CITY', city_zone_id: { $in: filter.allowedCityZoneIds } }];
     if (filter?.level) query.level = filter.level;
     if (filter?.cityZoneId) query.city_zone_id = filter.cityZoneId;
     if (filter?.stateCode) query.state_code = filter.stateCode.toUpperCase();

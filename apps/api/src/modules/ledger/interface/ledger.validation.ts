@@ -27,6 +27,7 @@ export const adminAdjustWalletSchema = z
     amountPaise: z.number().int().positive('Amount must be positive'),
     type: z.enum(['CREDIT', 'DEBIT'] as const),
     reason: z.string().trim().min(5, 'Reason must be at least 5 characters').max(255),
+    idempotencyKey: z.string().trim().min(8).max(128).optional(),
   })
   .refine((data) => data.driverId || data.riderId || data.walletId, {
     message: 'Must provide driverId, riderId, or walletId',

@@ -6,6 +6,7 @@ export interface RidesRouterDeps {
   requireDriver: RequestHandler;
   requireCanCancel: RequestHandler;
   requireCanRead: RequestHandler;
+  requireDisputeAdmin: RequestHandler;
   createRide: RequestHandler;
   listRides: RequestHandler;
   getRide: RequestHandler;
@@ -15,6 +16,10 @@ export interface RidesRouterDeps {
   driverArrived: RequestHandler;
   startRide: RequestHandler;
   completeRide: RequestHandler;
+  confirmPayment: RequestHandler;
+  disputePayment: RequestHandler;
+  resolvePaymentDispute: RequestHandler;
+  listPaymentDisputes: RequestHandler;
   cancelRide: RequestHandler;
 }
 
@@ -24,6 +29,7 @@ export function buildRidesRouter(deps: RidesRouterDeps): Router {
 
   // Rider
   router.post('/', deps.requireRider, deps.createRide);
+  router.get('/payment/disputes', deps.requireDisputeAdmin, deps.listPaymentDisputes);
 
   // Rider / driver / admin
   router.get('/', deps.requireCanRead, deps.listRides);
@@ -37,6 +43,9 @@ export function buildRidesRouter(deps: RidesRouterDeps): Router {
   router.post('/:id/arrived', deps.requireDriver, deps.driverArrived);
   router.post('/:id/start', deps.requireDriver, deps.startRide);
   router.post('/:id/complete', deps.requireDriver, deps.completeRide);
+  router.post('/:id/payment/confirm', deps.requireDriver, deps.confirmPayment);
+  router.post('/:id/payment/dispute', deps.requireRider, deps.disputePayment);
+  router.post('/:id/payment/dispute/resolve', deps.requireDisputeAdmin, deps.resolvePaymentDispute);
 
   return router;
 }

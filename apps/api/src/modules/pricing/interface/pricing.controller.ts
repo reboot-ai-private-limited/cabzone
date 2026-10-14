@@ -31,7 +31,7 @@ export function makeListPricingConfigsController(
 ): RequestHandler {
   return asyncHandler(async (req: Request, res: Response) => {
     const query = listPricingConfigsSchema.parse(req.query);
-    const result = await useCase.execute(query);
+    const result = await useCase.execute(query, req.adminCityZoneIds);
     sendSuccess(req, res, result, 'Pricing configs retrieved successfully', 200);
   });
 }

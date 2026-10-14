@@ -33,7 +33,7 @@ export interface RouteSnapshot {
 export interface ZoneSnapshot {
   classification: ZoneClassificationType;
   cityZoneId: string | null;
-  /** Display-only labels; pricing does not vary by route scope or state. */
+  /** Labels retained with the fare calculation snapshot. */
   routeScope?: 'INTRA_STATE' | 'INTERSTATE' | null;
   destinationStateCode?: string | null;
 }
@@ -78,7 +78,7 @@ export const VALID_RIDE_TRANSITIONS: Record<RideStatus, readonly RideStatus[]> =
   PAYMENT_PENDING: ['PAYMENT_CONFIRMED', 'PAYMENT_DISPUTED', 'SETTLED'],
   PAYMENT_CONFIRMED: ['SETTLED'],
   PAYMENT_DISPUTED: ['SETTLED'],
-  SETTLED: [],
+  SETTLED: ['PAYMENT_DISPUTED'],
   CANCELLED: [],
   EXPIRED: [],
 };
@@ -88,11 +88,7 @@ export function canTransitionRide(from: RideStatus, to: RideStatus): boolean {
 }
 
 export function canCancelRide(status: RideStatus): boolean {
-  return [
-    'REQUESTED',
-    'OFFERING',
-    'DRIVER_ASSIGNED',
-    'DRIVER_EN_ROUTE',
-    'DRIVER_ARRIVED',
-  ].includes(status);
+  return ['REQUESTED', 'OFFERING', 'DRIVER_ASSIGNED', 'DRIVER_EN_ROUTE', 'DRIVER_ARRIVED'].includes(
+    status,
+  );
 }

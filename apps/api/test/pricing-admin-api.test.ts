@@ -11,6 +11,7 @@ import type { IdentityContainer } from '../src/modules/identity/identity.contain
 import { Router } from 'express';
 import { MemoryPricingConfigRepository } from '../src/modules/pricing/infrastructure/persistence/index.js';
 import { buildPricingContainer } from '../src/modules/pricing/pricing.container.js';
+import { unitOfWork } from './helpers/unitOfWork.js';
 import { buildZoneContainer, MemoryZoneRepository } from '../src/modules/zone/index.js';
 
 const TEST_SECRET = 'this-is-a-super-secret-key-that-is-at-least-32-chars-long!';
@@ -24,7 +25,8 @@ class MemorySessionRepository implements SessionRepositoryPort {
 
   async findByTokenHash(tokenHash: string): Promise<SessionEntity | null> {
     for (const s of this.sessions.values()) {
-      if (s.refreshTokenHash === tokenHash || s.previousRefreshTokenHash === tokenHash) return { ...s };
+      if (s.refreshTokenHash === tokenHash || s.previousRefreshTokenHash === tokenHash)
+        return { ...s };
     }
     return null;
   }
@@ -73,7 +75,8 @@ describe('Admin Pricing API Endpoints', () => {
     otpAuditRepo: {} as any,
     authenticate,
     requireRole,
-    makeRequireZoneAccess: () => (_req, _res, next) => next(),
+    requireAdminScope: () => requireRole('SUPER_ADMIN'),
+    requireZoneAccess: () => (_req, _res, next) => next(),
     buildAuthRouter: () => Router(),
     buildDriverRouter: () => Router(),
     buildAdminDriverRouter: () => Router(),
@@ -85,6 +88,7 @@ describe('Admin Pricing API Endpoints', () => {
   const pricingConfigRepo = new MemoryPricingConfigRepository();
 
   const pricingContainer = buildPricingContainer({
+    unitOfWork,
     pricingConfigRepo,
     serviceClassificationUseCase: zoneContainer.serviceClassificationUseCase,
     tokenSecret: TEST_SECRET,
@@ -160,6 +164,7 @@ describe('Admin Pricing API Endpoints', () => {
 
     expect(res3.status).toBe(200);
     expect(res3.body.data.status).toBe('ACTIVE');
+    expect(res3.body.data.version).toBe(2);
 
     // 4. Create v2 config as ACTIVE and check that v1 is retired
     const res4 = await request(app)
@@ -176,7 +181,7 @@ describe('Admin Pricing API Endpoints', () => {
       });
 
     expect(res4.status).toBe(201);
-    expect(res4.body.data.version).toBe(2);
+    expect(res4.body.data.version).toBe(3);
     expect(res4.body.data.status).toBe('ACTIVE');
 
     const v1Check = await pricingConfigRepo.findById(createdConfig.id);

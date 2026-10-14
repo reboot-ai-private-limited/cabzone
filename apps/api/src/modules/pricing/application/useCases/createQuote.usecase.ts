@@ -1,4 +1,5 @@
-import { createHmac } from 'node:crypto';
+import { createHmac, timingSafeEqual } from 'node:crypto';
+import { z } from 'zod';
 import type {
   GeoPoint,
   QuoteDto,
@@ -6,7 +7,7 @@ import type {
   StateDistanceBreakdown,
   VehicleCategory,
 } from '@cabzone/contracts';
-import { calculateNegotiationBounds } from '@cabzone/contracts';
+import { calculateNegotiationBounds, SERVICE_CLASSIFICATION_TYPES, VEHICLE_CATEGORIES } from '@cabzone/contracts';
 import { AppError } from '../../../../shared/errors/AppError.js';
 import { newUuid } from '../../../../shared/ids.js';
 import {
@@ -43,7 +44,9 @@ export interface QuoteTokenPayload {
   originCityName?: string | null | undefined;
   destinationCityName?: string | null | undefined;
   stateBreakdown?: StateDistanceBreakdown[] | undefined;
+  statePricingVersions?: { stateCode: string; configId: string; version: number }[] | undefined;
   routeProvider?: string | undefined;
+  polyline?: string | null | undefined;
   pricingConfigId: string;
   pricingConfigVersion: number;
   distanceM: number;
@@ -53,6 +56,27 @@ export interface QuoteTokenPayload {
   ceilingPaise: number;
   expiresAtMs: number;
 }
+
+const pointSchema = z.object({ lat: z.number().finite().min(-90).max(90), lng: z.number().finite().min(-180).max(180) });
+const integerSchema = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
+const quotePayloadSchema = z.object({
+  quoteId: z.string().uuid(), pickup: pointSchema, drop: pointSchema,
+  vehicleCategory: z.enum(VEHICLE_CATEGORIES), serviceType: z.enum(SERVICE_CLASSIFICATION_TYPES),
+  cityZoneId: z.string().nullable(), pricingConfigId: z.string().min(1), pricingConfigVersion: integerSchema.positive(),
+  distanceM: integerSchema, durationSeconds: integerSchema, suggestedFarePaise: integerSchema,
+  floorPaise: integerSchema, ceilingPaise: integerSchema, expiresAtMs: integerSchema.positive(),
+  routeScope: z.enum(['INTRA_STATE', 'INTERSTATE']).nullish(),
+  originStateCode: z.string().nullish(), destinationStateCode: z.string().nullish(),
+  originCountryCode: z.string().nullish(), destinationCountryCode: z.string().nullish(),
+  originCityName: z.string().nullish(), destinationCityName: z.string().nullish(),
+  routeProvider: z.string().optional(), polyline: z.string().max(100000).nullish(),
+  stateBreakdown: z.array(z.object({
+    stateCode: z.string(), stateName: z.string(), distanceM: integerSchema,
+    distanceKm: z.number().finite().nonnegative(), percentage: z.number().finite().min(0).max(100),
+    ratePerKmPaise: integerSchema.optional(), distanceFarePaise: integerSchema.optional(),
+  })).max(100).optional(),
+  statePricingVersions: z.array(z.object({ stateCode: z.string(), configId: z.string().min(1), version: integerSchema.positive() })).max(100).optional(),
+}).refine((quote) => quote.floorPaise <= quote.ceilingPaise && quote.floorPaise <= quote.suggestedFarePaise && quote.suggestedFarePaise <= quote.ceilingPaise);
 
 export interface CreateQuoteDeps {
   serviceClassificationUseCase: ServiceClassificationUseCase;
@@ -142,6 +166,7 @@ export class CreateQuoteUseCase {
 
     // 5. If route crosses multiple states in an outstation trip, resolve per-state rates
     const stateRateCache = new Map<string, number>();
+    const statePricingVersions: { stateCode: string; configId: string; version: number }[] = [];
     if (classification.serviceType === 'OUTSTATION' && stateBreakdown.length > 0) {
       for (const seg of stateBreakdown) {
         const stateCfg = await this.deps.pricingConfigRepo.findEffectiveConfigByState(
@@ -150,6 +175,7 @@ export class CreateQuoteUseCase {
         );
         if (stateCfg) {
           stateRateCache.set(seg.stateCode, stateCfg.outstationRatePerKmPaise);
+          statePricingVersions.push({ stateCode: seg.stateCode, configId: stateCfg.id, version: stateCfg.version });
         }
       }
     }
@@ -196,6 +222,8 @@ export class CreateQuoteUseCase {
       destinationCityName: classification.destinationCityName ?? null,
       stateBreakdown,
       routeProvider: routeResult.provider,
+      statePricingVersions,
+      polyline: routeResult.polyline,
       pricingConfigId: config.id,
       pricingConfigVersion: config.version,
       distanceM: routeResult.distanceM,
@@ -252,24 +280,25 @@ export class CreateQuoteUseCase {
     now: Date = new Date(),
   ): QuoteTokenPayload {
     const parts = token.split('.');
+    if (token.length > 200000) throw AppError.badRequest('INVALID_QUOTE_TOKEN: Quote token is too large.');
     if (parts.length !== 2 || !parts[0] || !parts[1]) {
       throw AppError.badRequest('INVALID_QUOTE_TOKEN: Malformed quote token.');
     }
 
     const [data, signature] = parts;
     const expectedSig = createHmac('sha256', secret).update(data).digest('base64url');
-    if (signature !== expectedSig) {
+    if (signature.length !== expectedSig.length || !timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSig))) {
       throw AppError.badRequest('INVALID_QUOTE_TOKEN: Quote signature verification failed.');
     }
 
     let payload: QuoteTokenPayload;
     try {
-      payload = JSON.parse(Buffer.from(data, 'base64url').toString('utf8')) as QuoteTokenPayload;
+      payload = quotePayloadSchema.parse(JSON.parse(Buffer.from(data, 'base64url').toString('utf8')));
     } catch {
       throw AppError.badRequest('INVALID_QUOTE_TOKEN: Corrupted quote payload.');
     }
 
-    if (now.getTime() > payload.expiresAtMs) {
+    if (now.getTime() >= payload.expiresAtMs) {
       throw AppError.badRequest(
         'QUOTE_EXPIRED: Quote has expired. Quotes are valid for 5 minutes. Please fetch a fresh quote.',
       );

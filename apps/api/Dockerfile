@@ -5,19 +5,20 @@ WORKDIR /app
 FROM base AS deps
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json .npmrc ./
 COPY apps/api/package.json                apps/api/
-COPY apps/web/package.json                apps/web/
 COPY packages/config/package.json         packages/config/
 COPY packages/contracts/package.json      packages/contracts/
+COPY packages/geo/package.json            packages/geo/
 RUN pnpm install --frozen-lockfile --ignore-scripts=false
 
 FROM deps AS build
 COPY packages/contracts packages/contracts
 COPY packages/config    packages/config
+COPY packages/geo       packages/geo
 COPY apps/api/tsconfig.json apps/api/.dependency-cruiser.cjs apps/api/esbuild.config.mjs apps/api/
 COPY apps/api/src apps/api/src
 
-RUN pnpm --filter @Cabzonee/api build
-RUN pnpm --filter @Cabzonee/api deploy --prod --legacy /prod/api
+RUN pnpm --filter @cabzone/api build
+RUN pnpm --filter @cabzone/api deploy --prod --legacy /prod/api
 
 FROM node:22-alpine AS runtime
 WORKDIR /app

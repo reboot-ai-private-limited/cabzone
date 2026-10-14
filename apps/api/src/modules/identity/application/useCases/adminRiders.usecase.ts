@@ -35,7 +35,7 @@ export class ListRidersUseCase {
       offset,
     });
 
-    let tripCounts = new Map<string, { totalRides: number; completedRides: number }>();
+    let tripCounts = new Map<string, { totalRides: number; completedRides: number; cancelledRides: number }>();
     if (this.deps.rideRepo && items.length > 0) {
       try {
         const riderIds = items.map((i) => i.rider.id);
@@ -46,8 +46,8 @@ export class ListRidersUseCase {
     }
 
     const riders: AdminRiderSummaryDto[] = items.map((item) => {
-      const counts = tripCounts.get(item.rider.id) ?? { totalRides: 0, completedRides: 0 };
-      const cancelledRides = Math.max(0, counts.totalRides - counts.completedRides);
+      const counts = tripCounts.get(item.rider.id) ?? { totalRides: 0, completedRides: 0, cancelledRides: 0 };
+      const cancelledRides = counts.cancelledRides;
       const trust = calculateTrustScore({
         completedRides: counts.completedRides,
         cancelledRides,
@@ -176,11 +176,11 @@ export class UpdateRiderStatusUseCase {
       await this.deps.sessionRepo.revokeAllForUser(user.id);
     }
 
-    let counts = { totalRides: 0, completedRides: 0 };
+    let counts = { totalRides: 0, completedRides: 0, cancelledRides: 0 };
     if (this.deps.rideRepo) {
       try {
         const stats = await this.deps.rideRepo.getRiderStats(rider.id);
-        counts = { totalRides: stats.totalRides, completedRides: stats.completedRides };
+        counts = { totalRides: stats.totalRides, completedRides: stats.completedRides, cancelledRides: stats.cancelledRides };
       } catch {
         // Fallback gracefully
       }

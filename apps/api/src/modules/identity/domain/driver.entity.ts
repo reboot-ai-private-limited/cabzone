@@ -6,6 +6,7 @@ export interface DriverEntity {
   id: string;
   userId: string;
   name?: string | null | undefined;
+  profilePhotoUrl?: string | null | undefined;
   alternatePhone?: string | null | undefined;
   gender?: string | null | undefined;
   dateOfBirth?: string | null | undefined;

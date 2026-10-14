@@ -5,8 +5,9 @@ import { toPricingConfigDto } from './createPricingConfig.usecase.js';
 export class ListPricingConfigsUseCase {
   constructor(private readonly pricingConfigRepo: PricingConfigRepositoryPort) {}
 
-  async execute(query?: ListPricingConfigsQuery): Promise<PricingConfigDto[]> {
+  async execute(query?: ListPricingConfigsQuery, allowedCityZoneIds?: string[]): Promise<PricingConfigDto[]> {
     const filter = {
+      allowedCityZoneIds,
       level: query?.level,
       cityZoneId: query?.cityZoneId,
       stateCode: query?.stateCode,

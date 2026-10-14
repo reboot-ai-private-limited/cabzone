@@ -1,6 +1,8 @@
 import type { CancellationReason, RideEventActor } from '@cabzone/contracts';
 import { AppError } from '../../../../shared/errors/AppError.js';
 import { newUuid } from '../../../../shared/ids.js';
+import type { UnitOfWorkPort } from '../../../../shared/db/unitOfWork.port.js';
+import { saveRideTransition } from '../rideTransition.js';
 import {
   calculateNewBalance,
   type WalletEntity,
@@ -26,6 +28,7 @@ export interface CancelRideInput {
 }
 
 export interface CancelRideDeps {
+  unitOfWork: UnitOfWorkPort;
   rideRepo: RideRepositoryPort;
   walletRepo: WalletRepositoryPort;
   rideEventRepo?: RideEventRepositoryPort;
@@ -41,15 +44,13 @@ export class CancelRideUseCase {
   constructor(private readonly deps: CancelRideDeps) {}
 
   async execute(input: CancelRideInput): Promise<CancelRideResult> {
+    return this.deps.unitOfWork.run(() => this.cancel(input));
+  }
+
+  private async cancel(input: CancelRideInput): Promise<CancelRideResult> {
     const ride = await this.deps.rideRepo.findById(input.rideId);
     if (!ride) {
       throw AppError.notFound('RIDE_NOT_FOUND: The requested ride was not found.');
-    }
-
-    if (!canCancelRide(ride.status)) {
-      throw AppError.badRequest(
-        `INVALID_RIDE_STATE: Cannot cancel ride in status ${ride.status}.`,
-      );
     }
 
     // Authorization checks
@@ -70,14 +71,28 @@ export class CancelRideUseCase {
       }
     }
 
+    if (ride.status === 'CANCELLED') {
+      const event = (await this.deps.rideEventRepo?.findByRideId(ride.id))?.find((entry) => entry.eventType === 'RIDE_CANCELLED');
+      if (!event || event.actorType !== input.actorType || event.actorId !== input.actorId || event.metadata.reason !== input.reason) {
+        throw AppError.conflict('CANCELLATION_REPLAY_MISMATCH: Cancellation belongs to a different request.');
+      }
+      const { totalFeePaise, driverCompensationPaise, platformFeePaise, isGracePeriod } = event.metadata;
+      if (typeof totalFeePaise !== 'number' || typeof driverCompensationPaise !== 'number' || typeof platformFeePaise !== 'number' || typeof isGracePeriod !== 'boolean') {
+        throw AppError.conflict('CANCELLATION_AUDIT_MISSING: Recorded cancellation fees are unavailable.');
+      }
+      return { ride, feeBreakdown: { totalFeePaise, driverCompensationPaise, platformFeePaise, isGracePeriod }, driverWallet: ride.driverId ? await this.deps.walletRepo.findByDriverId(ride.driverId) ?? undefined : undefined };
+    }
+    if (!canCancelRide(ride.status)) throw AppError.badRequest(`INVALID_RIDE_STATE: Cannot cancel ride in status ${ride.status}.`);
+
     const now = input.cancelledAt ?? new Date();
 
     // Daily rate-limiting for unassigned rider cancellations (max 5 per day)
     const isUnassigned =
       ride.status === 'REQUESTED' || ride.status === 'OFFERING' || !ride.driverId;
     if (input.actorType === 'RIDER' && isUnassigned) {
-      const startOfDay = new Date(now);
-      startOfDay.setHours(0, 0, 0, 0);
+      // Indian business days stay stable when the server runs in UTC.
+      const indiaTime = new Date(now.getTime() + 330 * 60_000);
+      const startOfDay = new Date(Date.UTC(indiaTime.getUTCFullYear(), indiaTime.getUTCMonth(), indiaTime.getUTCDate()) - 330 * 60_000);
 
       const unassignedCount =
         await this.deps.rideRepo.countDailyRiderUnassignedCancellations(
@@ -101,6 +116,19 @@ export class CancelRideUseCase {
     });
 
     let updatedWallet: WalletEntity | undefined;
+
+    const savedRide = await saveRideTransition(
+      this.deps.rideRepo,
+      {
+        ...ride,
+        status: 'CANCELLED',
+        cancellationReason: input.reason,
+        cancelledAt: now,
+        version: ride.version + 1,
+        updatedAt: now,
+      },
+      ride.version,
+    );
 
     // Credit driver compensation to driver's prepaid wallet if applicable
     if (feeBreakdown.driverCompensationPaise > 0 && ride.driverId) {
@@ -137,18 +165,6 @@ export class CancelRideUseCase {
       }
     }
 
-    // Transition ride to CANCELLED
-    const cancelledRide: RideEntity = {
-      ...ride,
-      status: 'CANCELLED',
-      cancellationReason: input.reason,
-      cancelledAt: now,
-      version: ride.version + 1,
-      updatedAt: now,
-    };
-
-    const savedRide = await this.deps.rideRepo.save(cancelledRide);
-
     // Record immutable RideEvent
     if (this.deps.rideEventRepo) {
       await this.deps.rideEventRepo.save({
@@ -160,13 +176,13 @@ export class CancelRideUseCase {
         previousStatus: ride.status,
         newStatus: 'CANCELLED',
         metadata: {
+          ...(input.metadata ?? {}),
           reason: input.reason,
           totalFeePaise: feeBreakdown.totalFeePaise,
           driverCompensationPaise: feeBreakdown.driverCompensationPaise,
           platformFeePaise: feeBreakdown.platformFeePaise,
           isGracePeriod: feeBreakdown.isGracePeriod,
           cancelledAt: now.toISOString(),
-          ...(input.metadata ?? {}),
         },
         createdAt: now,
       });

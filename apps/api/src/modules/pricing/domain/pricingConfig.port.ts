@@ -2,6 +2,7 @@ import type { PricingConfigLevel, PricingConfigStatus, VehicleCategory } from '@
 import type { PricingConfigEntity } from './pricingConfig.entity.js';
 
 export interface PricingConfigFilter {
+  allowedCityZoneIds?: string[] | undefined;
   level?: PricingConfigLevel | undefined;
   cityZoneId?: string | undefined;
   stateCode?: string | undefined;
@@ -26,7 +27,7 @@ export interface PricingConfigRepositoryPort {
     now?: Date,
   ): Promise<PricingConfigEntity | null>;
   findById(id: string): Promise<PricingConfigEntity | null>;
-  save(config: PricingConfigEntity): Promise<PricingConfigEntity>;
+  save(config: PricingConfigEntity, expectedVersion?: number): Promise<PricingConfigEntity>;
   findConfigs(filter?: PricingConfigFilter): Promise<PricingConfigEntity[]>;
   findLatestVersion(
     target: string | { cityZoneId?: string | null; stateCode?: string | null; level?: PricingConfigLevel },

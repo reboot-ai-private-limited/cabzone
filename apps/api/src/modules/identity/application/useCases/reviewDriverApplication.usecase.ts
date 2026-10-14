@@ -1,5 +1,7 @@
 import type { RejectionType } from '@cabzone/contracts';
+import { DOCUMENT_TYPES } from '@cabzone/contracts';
 import { AppError } from '../../../../shared/errors/AppError.js';
+import type { UnitOfWorkPort } from '../../../../shared/db/unitOfWork.port.js';
 import type {
   DriverApplicationEntity,
   DriverApplicationRepositoryPort,
@@ -9,6 +11,7 @@ import type {
 } from '../../domain/index.js';
 
 export interface ReviewDriverApplicationDeps {
+  unitOfWork: UnitOfWorkPort;
   driverRepo: DriverRepositoryPort;
   applicationRepo: DriverApplicationRepositoryPort;
   documentRepo: DriverDocumentRepositoryPort;
@@ -27,13 +30,24 @@ export class ReviewDriverApplicationUseCase {
   constructor(private readonly deps: ReviewDriverApplicationDeps) {}
 
   async execute(dto: ReviewDriverApplicationDto): Promise<DriverApplicationEntity> {
+    return this.deps.unitOfWork.run(() => this.review(dto));
+  }
+
+  private async review(dto: ReviewDriverApplicationDto): Promise<DriverApplicationEntity> {
     const application = await this.deps.applicationRepo.findById(dto.applicationId);
     if (!application) {
       throw AppError.notFound('Driver application not found.');
     }
 
     if (application.status === 'APPROVED' || application.status === 'REJECTED') {
-      throw AppError.badRequest(`Application has already been reviewed with status ${application.status}.`);
+      throw AppError.badRequest(
+        `Application has already been reviewed with status ${application.status}.`,
+      );
+    }
+    if (!['SUBMITTED', 'UNDER_REVIEW_AUTO', 'UNDER_REVIEW_ADMIN'].includes(application.status)) {
+      throw AppError.badRequest(
+        'APPLICATION_NOT_SUBMITTED: Only submitted applications can be reviewed.',
+      );
     }
 
     const driver = await this.deps.driverRepo.findById(application.driverId);
@@ -44,6 +58,27 @@ export class ReviewDriverApplicationUseCase {
     const now = new Date();
 
     if (dto.status === 'APPROVED') {
+      const docs = await this.deps.documentRepo.findByApplicationId(application.id);
+      const missing = DOCUMENT_TYPES.filter((type) => !docs.some((doc) => doc.type === type && !doc.storageKey.startsWith('mock/')));
+      if (missing.length > 0)
+        throw AppError.badRequest(
+          `DOCUMENTS_REQUIRED: Cannot approve without ${missing.join(', ')}.`,
+        );
+      if (docs.some((doc) => doc.type !== 'GOVERNMENT_ID' && doc.expiresAt === null)) {
+        throw AppError.badRequest(
+          'DOCUMENT_EXPIRY_REQUIRED: DL, RC, insurance and permit require expiry dates.',
+        );
+      }
+      if (docs.some((doc) => doc.expiresAt !== null && doc.expiresAt <= now)) {
+        throw AppError.badRequest('DOCUMENT_EXPIRED: Replace expired documents before approval.');
+      }
+      const vehicle = driver.currentVehicleId
+        ? await this.deps.vehicleRepo.findById(driver.currentVehicleId)
+        : null;
+      if (!vehicle || vehicle.driverId !== driver.id)
+        throw AppError.badRequest(
+          'DRIVER_VEHICLE_REQUIRED: A vehicle owned by this driver is required.',
+        );
       const updatedApp: DriverApplicationEntity = {
         ...application,
         status: 'APPROVED',
@@ -71,7 +106,6 @@ export class ReviewDriverApplicationUseCase {
         }
       }
 
-      const docs = await this.deps.documentRepo.findByApplicationId(application.id);
       for (const doc of docs) {
         await this.deps.documentRepo.update({
           ...doc,

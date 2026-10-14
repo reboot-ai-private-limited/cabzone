@@ -86,8 +86,11 @@ pricingConfigSchema.index({ city_zone_id: 1, vehicle_type: 1, version: -1 });
 pricingConfigSchema.index({ city_zone_id: 1, vehicle_type: 1, status: 1 });
 pricingConfigSchema.index({ level: 1, state_code: 1, vehicle_type: 1, status: 1 });
 pricingConfigSchema.index({ level: 1, vehicle_type: 1, status: 1 });
+pricingConfigSchema.index(
+  { level: 1, city_zone_id: 1, state_code: 1, vehicle_type: 1 },
+  { unique: true, partialFilterExpression: { status: 'ACTIVE' } },
+);
 
 export const PricingConfigModel: mongoose.Model<PricingConfigDocument> =
   (mongoose.models.PricingConfig as mongoose.Model<PricingConfigDocument>) ||
   mongoose.model<PricingConfigDocument>('PricingConfig', pricingConfigSchema);
-

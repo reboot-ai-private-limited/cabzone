@@ -1,4 +1,5 @@
 import { Router, type RequestHandler } from 'express';
+import { allowDevShortcuts } from '../../../config/env.js';
 
 export interface AdminDispatchRouterDeps {
   authenticate: RequestHandler;
@@ -12,6 +13,6 @@ export function buildAdminDispatchRouter(deps: AdminDispatchRouterDeps): Router 
   router.use(deps.authenticate);
   router.use(deps.requireAdminRole);
   router.get('/fleet', deps.listFleet);
-  router.post('/simulate-fleet', deps.simulateFleet);
+  if (allowDevShortcuts) router.post('/simulate-fleet', deps.simulateFleet);
   return router;
 }

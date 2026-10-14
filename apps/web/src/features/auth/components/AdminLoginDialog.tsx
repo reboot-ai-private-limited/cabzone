@@ -32,21 +32,15 @@ export function AdminLoginDialog({ isOpen, onClose, onSuccess }: AdminLoginDialo
 
   if (!isOpen) return null;
 
-  // 1-Click Fast Login for Super Admin dev account
+  // 1-Click Fast Login for the seeded Super Admin development account
   const handleFastSuperAdminLogin = async () => {
     setIsLoading(true);
     setErrorMessage(null);
     try {
       await adminLogin('+919000000001', 'admin123');
       onSuccess();
-    } catch {
-      try {
-        await requestOtp('+919000000001');
-        await verifyOtp('+919000000001', '000000');
-        onSuccess();
-      } catch (err: unknown) {
-        setErrorMessage((err as Error).message || 'Failed to authenticate as Super Admin.');
-      }
+    } catch (err: unknown) {
+      setErrorMessage((err as Error).message || 'Failed to authenticate as Super Admin.');
     } finally {
       setIsLoading(false);
     }

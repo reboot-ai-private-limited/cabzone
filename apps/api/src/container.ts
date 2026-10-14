@@ -1,6 +1,10 @@
 import { env } from '@/config/env.js';
+import { MongoUnitOfWork } from '@/shared/db/unitOfWork.js';
 import { buildHealthContainer } from '@/modules/health/health.container.js';
-import { buildIdentityContainer, type IdentityContainer } from '@/modules/identity/identity.container.js';
+import {
+  buildIdentityContainer,
+  type IdentityContainer,
+} from '@/modules/identity/identity.container.js';
 import {
   buildPricingContainer,
   MongoPricingConfigRepository,
@@ -11,13 +15,17 @@ import {
   DriverModel,
   isVehicleApproved,
   MongoDriverRepository,
+  MongoDriverDocumentRepository,
   MongoRiderRepository,
   MongoUserRepository,
   MongoVehicleRepository,
   UserModel,
   VehicleModel,
 } from '@/modules/identity/index.js';
-import { buildDispatchContainer, type DispatchContainer } from '@/modules/dispatch/dispatch.container.js';
+import {
+  buildDispatchContainer,
+  type DispatchContainer,
+} from '@/modules/dispatch/dispatch.container.js';
 import { RedisPresenceRepository } from '@/modules/dispatch/infrastructure/redisPresence.repository.js';
 import { MongoWalletRepository } from '@/modules/ledger/index.js';
 import { buildLedgerContainer, type LedgerContainer } from '@/modules/ledger/ledger.container.js';
@@ -27,6 +35,8 @@ import { getRedis } from '@/shared/queue/redis.js';
 import { getRealtimeHub } from '@/shared/realtime/index.js';
 import { buildZoneContainer, type ZoneContainer } from '@/modules/zone/zone.container.js';
 import { buildRoutingContainer, type RoutingContainer } from '@/modules/routing/index.js';
+import { AppError } from '@/shared/errors/AppError.js';
+import { isDriverEligibleForRide } from '@/modules/identity/domain/driverRideEligibility.js';
 
 export interface AppContainers {
   health: ReturnType<typeof buildHealthContainer>;
@@ -39,10 +49,12 @@ export interface AppContainers {
   dispatch: DispatchContainer;
 }
 export function buildContainers(overrides?: Partial<AppContainers>): AppContainers {
+  const unitOfWork = new MongoUnitOfWork();
   const riderRepo = new MongoRiderRepository();
   const userRepo = new MongoUserRepository();
   const driverRepo = new MongoDriverRepository();
   const vehicleRepo = new MongoVehicleRepository();
+  const documentRepo = new MongoDriverDocumentRepository();
   const rideRepo = new MongoRideRepository();
 
   const health = overrides?.health ?? buildHealthContainer();
@@ -64,6 +76,7 @@ export function buildContainers(overrides?: Partial<AppContainers>): AppContaine
   const pricing =
     overrides?.pricing ??
     buildPricingContainer({
+      unitOfWork,
       pricingConfigRepo: new MongoPricingConfigRepository(),
       serviceClassificationUseCase: zone.serviceClassificationUseCase,
       tokenSecret: env.JWT_ACCESS_SECRET,
@@ -75,6 +88,7 @@ export function buildContainers(overrides?: Partial<AppContainers>): AppContaine
   const ledger =
     overrides?.ledger ??
     buildLedgerContainer({
+      unitOfWork,
       walletRepo: new MongoWalletRepository(),
       resolveDriverId,
       lookups: {
@@ -143,7 +157,8 @@ export function buildContainers(overrides?: Partial<AppContainers>): AppContaine
           };
         },
         getUserIdForRider: async (riderId) => (await riderRepo.findById(riderId))?.userId ?? null,
-        getUserIdForDriver: async (driverId) => (await driverRepo.findById(driverId))?.userId ?? null,
+        getUserIdForDriver: async (driverId) =>
+          (await driverRepo.findById(driverId))?.userId ?? null,
         getDriverInfo: async (driverId) => {
           const driver = await driverRepo.findById(driverId);
           if (!driver) return null;
@@ -163,6 +178,7 @@ export function buildContainers(overrides?: Partial<AppContainers>): AppContaine
   const rides =
     overrides?.rides ??
     buildRidesContainer({
+      unitOfWork,
       rideRepo,
       rideEventRepo: new MongoRideEventRepository(),
       walletRepo: ledger.walletRepo,
@@ -172,6 +188,30 @@ export function buildContainers(overrides?: Partial<AppContainers>): AppContaine
       resolveDriverId,
       notifier: dispatch.notifier,
       pickupOtpSecret: env.JWT_ACCESS_SECRET,
+      requireDriverEligibility: async (driverId, ride) => {
+        const driver = await driverRepo.findById(driverId);
+        if (!driver) throw AppError.forbidden('DRIVER_INELIGIBLE: Driver is unavailable.');
+        const user = await userRepo.findById(driver.userId);
+        const vehicle = driver.currentVehicleId
+          ? await vehicleRepo.findById(driver.currentVehicleId)
+          : null;
+        const documents = await documentRepo.findByDriverId(driverId);
+        const presence = await dispatch.presence.get(driverId);
+        const now = new Date();
+        if (
+          !isDriverEligibleForRide(driver, user, vehicle, documents, ride.vehicleCategory, now) ||
+          !presence ||
+          presence.userId !== driver.userId ||
+          presence.vehicleCategory !== ride.vehicleCategory ||
+          now.getTime() - presence.locationUpdatedAt.getTime() >= 120_000 ||
+          presence.locationUpdatedAt > now
+        ) {
+          throw AppError.forbidden(
+            'DRIVER_INELIGIBLE: Driver must be verified, online and available with valid documents and a matching vehicle.',
+          );
+        }
+        return vehicle!.id;
+      },
     });
 
   return {

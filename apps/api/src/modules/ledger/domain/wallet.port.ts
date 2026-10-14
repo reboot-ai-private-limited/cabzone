@@ -24,6 +24,7 @@ export interface WalletRepositoryPort {
   save(wallet: WalletEntity): Promise<WalletEntity>;
   recordTransaction(transaction: WalletTransactionEntity): Promise<WalletTransactionEntity>;
   findTransactionsByWalletId(walletId: string): Promise<WalletTransactionEntity[]>;
+  findTransactionByIdempotencyKey(key: string): Promise<WalletTransactionEntity | null>;
   listWallets(
     query: ListWalletsQueryDto,
     lookups?: {

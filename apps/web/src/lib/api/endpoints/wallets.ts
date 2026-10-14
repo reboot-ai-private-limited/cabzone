@@ -40,6 +40,7 @@ export interface AdjustWalletBody {
   amountPaise: number;
   type: 'CREDIT' | 'DEBIT';
   reason: string;
+  idempotencyKey?: string;
 }
 
 export const walletsApi = {

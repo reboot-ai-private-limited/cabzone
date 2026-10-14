@@ -646,6 +646,32 @@ The state-boundary GeoJSON system and the `StatePricing` per-state rate table ar
 
 ---
 
+## D-039 — Pricing fallback and interstate segment rates
+
+**Date:** 2026-10-13
+**Status:** Decided by product; supersedes D-037's uniform pricing rule
+
+An explicit city price applies within that city. Otherwise the state's price applies; when no state price exists, use the global price. For an outstation route crossing state boundaries, price each state's distance using that state's rate, with global pricing as the fallback for a state without its own rate. Preserve the segment distances and selected pricing versions in the signed quote and ride snapshot so the fare can be reconstructed.
+
+This replaces the uniform outstation rate decision in D-037. D-038's outstation tier still applies to the rate selected for each segment.
+
+## D-040 — Direct payment confirmation before commission
+
+**Date:** 2026-10-13
+**Status:** Decided by product; clarifies D-033 and D-026
+
+For cash or personal UPI rides, completing the trip moves it to `PAYMENT_PENDING` without charging commission. The assigned driver confirms receipt of payment; that confirmation settles the ride and charges commission once. A duplicate confirmation must not charge again. Payment disputes remain a separate required workflow.
+
+SMS delivery, external KYC verification and wallet top-up providers are deferred by product until a provider is selected. Production authentication must reject unsafe console SMS or process-local OTP storage in the meantime.
+
+## D-041 — Payment dispute commission treatment
+
+**Date:** 2026-10-13
+
+**Status:** Decided by product; completes the D-040 dispute outcome
+
+After driver receipt confirmation, an authorized rider may dispute the payment. Support or super administration records a reasoned outcome. If the rider wins, refund the platform commission already charged through a single compensating driver-wallet ledger credit; if the driver wins, retain that commission. Keep the original debit and both dispute events in the audit history. A repeated resolution must not issue a second refund.
+
 ## Explicitly Not Decided by This Log
 
 The PRD does not decide:

@@ -1,5 +1,12 @@
 import type { Router } from 'express';
-import { env } from '@/config/env.js';
+import { env, allowDevShortcuts, isProdLike } from '@/config/env.js';
+import type { OtpStorePort, SmsGatewayPort } from './domain/otp.port.js';
+import { MongoOtpStoreAdapter } from './infrastructure/mongoOtpStore.adapter.js';
+import { CloudinaryDriverPhotoAdapter } from './infrastructure/cloudinaryDriverPhoto.adapter.js';
+import { CloudinaryDriverLicenseAdapter } from './infrastructure/cloudinaryDriverLicense.adapter.js';
+import { MongoUnitOfWork } from '@/shared/db/unitOfWork.js';
+import type { UnitOfWorkPort } from '@/shared/db/unitOfWork.port.js';
+import { makeRequireAdminScope } from './interface/middlewares/requireAdminScope.middleware.js';
 import {
   AdminLoginUseCase,
   CreateAdminUserUseCase,
@@ -58,6 +65,9 @@ import {
   makeReviewDriverApplicationController,
   makeSubmitDriverApplicationController,
   makeUploadDriverDocumentController,
+  makeUploadDriverLicenseFileController,
+  makeUploadVehicleDocumentFileController,
+  makeUploadIdentityDocumentFileController,
   makeTestApproveDriverController,
 } from './interface/driver.controller.js';
 import { buildAdminDriverRouter, buildDriverRouter } from './interface/driver.routes.js';
@@ -101,9 +111,11 @@ export interface IdentityContainer {
   verifyToken?: ReturnType<typeof makeTokenVerifier>;
   requireRole: typeof requireRole;
   requireZoneAccess: ReturnType<typeof makeRequireZoneAccess>;
+  requireAdminScope: ReturnType<typeof makeRequireAdminScope>;
 }
 
 export interface IdentityContainerDeps {
+  unitOfWork?: UnitOfWorkPort;
   userRepo?: MongoUserRepository;
   riderRepo?: MongoRiderRepository;
   sessionRepo?: MongoSessionRepository;
@@ -115,8 +127,8 @@ export interface IdentityContainerDeps {
   rideRepo?: RideRepositoryPort;
   zoneRepo?: ZoneRepositoryPort;
   tokenAdapter?: JoseTokenAdapter;
-  otpStore?: MemoryOtpStoreAdapter;
-  smsGateway?: ConsoleSmsGatewayAdapter;
+  otpStore?: OtpStorePort;
+  smsGateway?: SmsGatewayPort;
 }
 
 export function buildIdentityContainer(deps?: IdentityContainerDeps): IdentityContainer {
@@ -130,7 +142,18 @@ export function buildIdentityContainer(deps?: IdentityContainerDeps): IdentityCo
   const documentRepo = deps?.documentRepo ?? new MongoDriverDocumentRepository();
   const vehicleRepo = deps?.vehicleRepo ?? new MongoVehicleRepository();
   const tokenAdapter = deps?.tokenAdapter ?? new JoseTokenAdapter(env.JWT_ACCESS_SECRET);
-  const otpStore = deps?.otpStore ?? new MemoryOtpStoreAdapter();
+  if (
+    isProdLike &&
+    !allowDevShortcuts &&
+    (!deps?.smsGateway ||
+      deps.smsGateway instanceof ConsoleSmsGatewayAdapter ||
+      deps.otpStore instanceof MemoryOtpStoreAdapter)
+  ) {
+    throw new Error('Live authentication requires a real SMS gateway and shared OTP storage.');
+  }
+  const otpStore =
+    deps?.otpStore ??
+    (isProdLike && !allowDevShortcuts ? new MongoOtpStoreAdapter() : new MemoryOtpStoreAdapter());
   const smsGateway = deps?.smsGateway ?? new ConsoleSmsGatewayAdapter();
 
   const requestOtpUseCase = new RequestOtpUseCase({
@@ -166,6 +189,11 @@ export function buildIdentityContainer(deps?: IdentityContainerDeps): IdentityCo
 
   const createDriverProfileUseCase = new CreateDriverProfileUseCase({
     driverRepo,
+    photoStorage: new CloudinaryDriverPhotoAdapter({
+      cloudName: env.CLOUDINARY_CLOUD_NAME,
+      apiKey: env.CLOUDINARY_API_KEY,
+      apiSecret: env.CLOUDINARY_API_SECRET,
+    }),
   });
 
   const getDriverProfileUseCase = new GetDriverProfileUseCase({
@@ -184,6 +212,11 @@ export function buildIdentityContainer(deps?: IdentityContainerDeps): IdentityCo
     driverRepo,
     applicationRepo,
     documentRepo,
+    licenseStorage: new CloudinaryDriverLicenseAdapter({
+      cloudName: env.CLOUDINARY_CLOUD_NAME,
+      apiKey: env.CLOUDINARY_API_KEY,
+      apiSecret: env.CLOUDINARY_API_SECRET,
+    }),
   });
 
   const registerDriverVehicleUseCase = new RegisterDriverVehicleUseCase({
@@ -199,6 +232,7 @@ export function buildIdentityContainer(deps?: IdentityContainerDeps): IdentityCo
   });
 
   const reviewDriverApplicationUseCase = new ReviewDriverApplicationUseCase({
+    unitOfWork: deps?.unitOfWork ?? new MongoUnitOfWork(),
     driverRepo,
     applicationRepo,
     documentRepo,
@@ -269,26 +303,29 @@ export function buildIdentityContainer(deps?: IdentityContainerDeps): IdentityCo
         getProfile: makeGetDriverProfileController(getDriverProfileUseCase),
         createApplication: makeCreateDriverApplicationController(createDriverApplicationUseCase),
         uploadDocument: makeUploadDriverDocumentController(uploadDriverDocumentUseCase),
+        uploadLicenseFile: makeUploadDriverLicenseFileController(uploadDriverDocumentUseCase),
+        uploadVehicleDocumentFile: makeUploadVehicleDocumentFileController(uploadDriverDocumentUseCase),
+        uploadIdentityDocumentFile: makeUploadIdentityDocumentFileController(uploadDriverDocumentUseCase),
         registerVehicle: makeRegisterDriverVehicleController(registerDriverVehicleUseCase),
         submitApplication: makeSubmitDriverApplicationController(submitDriverApplicationUseCase),
-        testApproveApplication:
-          process.env.NODE_ENV !== 'production'
-            ? makeTestApproveDriverController({
-                driverRepo,
-                vehicleRepo,
-                applicationRepo,
-                documentRepo,
-                createDriverProfileUseCase,
-                createDriverApplicationUseCase,
-                registerDriverVehicleUseCase,
-                uploadDriverDocumentUseCase,
-              })
-            : undefined,
+        testApproveApplication: allowDevShortcuts
+          ? makeTestApproveDriverController({
+              driverRepo,
+              vehicleRepo,
+              applicationRepo,
+              documentRepo,
+              createDriverProfileUseCase,
+              createDriverApplicationUseCase,
+              registerDriverVehicleUseCase,
+              uploadDriverDocumentUseCase,
+            })
+          : undefined,
       }),
     buildAdminDriverRouter: () =>
       buildAdminDriverRouter({
         authenticate,
-        requireAdminRole: requireRole('SUPER_ADMIN', 'CITY_ADMIN'),
+        // Applications currently have no authoritative city assignment.
+        requireAdminRole: requireRole('SUPER_ADMIN'),
         reviewApplication: makeReviewDriverApplicationController(reviewDriverApplicationUseCase),
         listApplications: makeListDriverApplicationsController(
           new ListDriverApplicationsUseCase(adminApplicationDeps),
@@ -316,7 +353,12 @@ export function buildIdentityContainer(deps?: IdentityContainerDeps): IdentityCo
     buildAdminUserRouter: () =>
       buildAdminUserRouter({
         authenticate,
-        requireAdminRole: requireRole('SUPER_ADMIN', 'CITY_ADMIN', 'SUPPORT_ADMIN', 'FINANCE_ADMIN'),
+        requireAdminRole: requireRole(
+          'SUPER_ADMIN',
+          'CITY_ADMIN',
+          'SUPPORT_ADMIN',
+          'FINANCE_ADMIN',
+        ),
         requireSuperAdminRole: requireRole('SUPER_ADMIN'),
         listAdminUsers: makeListAdminUsersController(listAdminUsersUseCase),
         getAdminUser: makeGetAdminUserDetailController(getAdminUserDetailUseCase),
@@ -329,5 +371,6 @@ export function buildIdentityContainer(deps?: IdentityContainerDeps): IdentityCo
     verifyToken: makeTokenVerifier({ tokenVerifier: tokenAdapter, sessionRepo }),
     requireRole,
     requireZoneAccess,
+    requireAdminScope: makeRequireAdminScope(adminRepo),
   };
 }
