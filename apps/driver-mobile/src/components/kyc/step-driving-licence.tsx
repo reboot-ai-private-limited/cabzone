@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import { colors, typography } from '@/design-system';
+import React, { useRef, useState } from 'react';
 import {
   Alert,
   KeyboardAvoidingView,
@@ -16,6 +17,12 @@ import { CandyButton } from '@/components/buttons/candy-button';
 import { useAuth } from '@/context/auth-context';
 import { driverApi } from '@/services/api';
 import { pickDriverLicense, type SelectedDriverLicense } from '@/services/driver-license';
+import {
+  formatDateInput,
+  getServerDocumentStatus,
+  toDisplayDate,
+  validateFutureExpiryDate,
+} from '@/services/profile';
 import type { OnboardingDraft } from './types';
 
 interface StepDrivingLicenceProps {
@@ -32,60 +39,113 @@ export function StepDrivingLicence({
   onBack,
 }: StepDrivingLicenceProps) {
   const insets = useSafeAreaInsets();
-  const { token, documents, refreshProfile } = useAuth();
-  const [dlNumber, setDlNumber] = useState(draft.dlNumber || (__DEV__ ? 'WB7420220012345' : ''));
-  const [expiryDate, setExpiryDate] = useState(draft.dlExpiry);
-  const [isUploaded, setIsUploaded] = useState(draft.dlUploaded);
+  const { token, driver, documents, refreshProfile } = useAuth();
+  const dlInputRef = useRef<TextInput>(null);
+  const expiryInputRef = useRef<TextInput>(null);
+
+  const [dlNumber, setDlNumber] = useState(draft.dlNumber || driver?.dlNumber || '');
+  const [expiryDate, setExpiryDate] = useState(() =>
+    toDisplayDate(draft.dlExpiry || driver?.dlExpiry || ''),
+  );
   const [selectedFile, setSelectedFile] = useState<SelectedDriverLicense | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
+  const [isExpiryFocused, setIsExpiryFocused] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
+  const serverLicenceStatus = getServerDocumentStatus(documents, 'DRIVING_LICENSE');
+  const savedLicence = documents.find(
+    (document) => document.type === 'DRIVING_LICENSE' && !document.storageKey.startsWith('mock/'),
+  );
+  const savedDlNumber = (driver?.dlNumber || draft.dlNumber || '').trim();
+  const savedNumberMatches =
+    serverLicenceStatus.status === 'READY' &&
+    savedDlNumber.length >= 8 &&
+    savedDlNumber === dlNumber.trim();
+
+  const expiryCheck = validateFutureExpiryDate(expiryDate);
+  const hasCompleteExpiry = expiryDate.trim().length === 10;
+  const expiryError = hasCompleteExpiry && !expiryCheck.valid ? expiryCheck.error : undefined;
+
+  const isValid =
+    dlNumber.trim().length >= 8 &&
+    expiryCheck.valid &&
+    (selectedFile !== null || savedNumberMatches);
 
   const handleDlChange = (text: string) => {
-    // Uppercase and strip invalid characters
     const cleaned = text.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 16);
     setDlNumber(cleaned);
+    setSubmitError(null);
+    onUpdate({ dlNumber: cleaned });
+  };
+
+  const handleExpiryChange = (text: string) => {
+    const formatted = formatDateInput(text);
+    setExpiryDate(formatted);
+    setSubmitError(null);
+    onUpdate({ dlExpiry: formatted });
   };
 
   const handlePickFile = async () => {
     try {
-      const file = await pickDriverLicense();
+      setSubmitError(null);
+      const file = await pickDriverLicense('Driving licence');
       if (file) setSelectedFile(file);
     } catch (err) {
-      Alert.alert('Licence file unavailable', err instanceof Error ? err.message : 'Please try again.');
+      Alert.alert(
+        'Licence file unavailable',
+        err instanceof Error ? err.message : 'Please try again.',
+      );
     }
   };
 
   const handleContinue = async () => {
-    if (!token || isSaving || !isValid) return;
+    if (!token || isSaving || !isValid || !expiryCheck.isoDate || !expiryCheck.isoTimestamp) return;
     setIsSaving(true);
+    setSubmitError(null);
     try {
-      const expiry = new Date(`${expiryDate}T23:59:59.999Z`);
-      await driverApi.saveProfile(token, { dlNumber: dlNumber.trim(), dlExpiry: expiryDate });
+      const normalizedDl = dlNumber.trim();
+      await driverApi.saveProfile(token, {
+        dlNumber: normalizedDl,
+        dlExpiry: expiryCheck.isoDate,
+      });
       await driverApi.createApplication(token);
-      if (selectedFile || !savedLicence?.expiresAt || savedLicence.expiresAt.slice(0, 10) !== expiryDate) {
+
+      const savedIsoDate = savedLicence?.expiresAt?.slice(0, 10);
+      if (
+        selectedFile ||
+        !savedIsoDate ||
+        savedIsoDate !== expiryCheck.isoDate ||
+        !savedNumberMatches
+      ) {
         await driverApi.uploadLicenseFile(token, {
           ...(selectedFile ? { fileDataUrl: selectedFile.dataUrl } : {}),
-          dlNumber: dlNumber.trim(),
-          expiresAt: expiry.toISOString(),
+          dlNumber: normalizedDl,
+          expiresAt: expiryCheck.isoTimestamp,
         });
       }
-      setIsUploaded(true);
+
       setSelectedFile(null);
-      onUpdate({ dlNumber: dlNumber.trim(), dlExpiry: expiryDate, dlUploaded: true });
+      onUpdate({
+        dlNumber: normalizedDl,
+        dlExpiry: expiryDate,
+        dlUploaded: true,
+      });
       await refreshProfile();
       onNext();
     } catch (err) {
-      Alert.alert('Could not save licence', err instanceof Error ? err.message : 'Please try again.');
+      const msg = err instanceof Error ? err.message : 'Please try again.';
+      setSubmitError(msg);
+      Alert.alert('Could not save licence', msg);
     } finally {
       setIsSaving(false);
     }
   };
 
-  const savedNumberMatches = isUploaded && draft.dlNumber.trim() === dlNumber.trim();
-  const savedLicence = documents.find((document) => document.type === 'DRIVING_LICENSE');
-  const expiry = /^\d{4}-\d{2}-\d{2}$/.test(expiryDate) ? new Date(`${expiryDate}T23:59:59.999Z`) : new Date(NaN);
-  const expiryValid = !Number.isNaN(expiry.getTime()) && expiry.toISOString().slice(0, 10) === expiryDate && expiry > new Date();
-  const isValid = dlNumber.trim().length >= 8 && expiryValid && (selectedFile !== null || (savedNumberMatches && !!savedLicence));
+  const isSelectedPendingUpload = selectedFile !== null;
+  const isSavedOnServer = !isSelectedPendingUpload && savedNumberMatches;
+  const isExpiredOnServer =
+    !isSelectedPendingUpload && serverLicenceStatus.status === 'EXPIRED';
 
   return (
     <KeyboardAvoidingView
@@ -101,7 +161,6 @@ export function StepDrivingLicence({
         ]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}>
-        
         {/* Top Header Bar */}
         <View style={styles.topBar}>
           <Pressable
@@ -110,7 +169,7 @@ export function StepDrivingLicence({
             hitSlop={12}
             accessibilityRole="button"
             accessibilityLabel="Go back">
-            <Ionicons name="chevron-back" size={20} color="#2C1810" />
+            <Ionicons name="chevron-back" size={20} color="#172B3A" />
           </Pressable>
 
           <View style={styles.stepBadge}>
@@ -140,32 +199,70 @@ export function StepDrivingLicence({
           </Text>
         </View>
 
+        {submitError ? (
+          <View style={styles.errorBanner} accessibilityRole="alert">
+            <Ionicons name="alert-circle" size={18} color="#991B1B" />
+            <Text style={styles.errorBannerText}>{submitError}</Text>
+          </View>
+        ) : null}
+
         {/* Upload Box Card */}
         <Pressable
           style={({ pressed }) => [
             styles.uploadBox,
-            (selectedFile || isUploaded) && styles.uploadBoxDone,
+            isSelectedPendingUpload && styles.uploadBoxPending,
+            isSavedOnServer && styles.uploadBoxDone,
+            isExpiredOnServer && styles.uploadBoxExpired,
             pressed && styles.btnPressed,
           ]}
           onPress={() => void handlePickFile()}
           disabled={isSaving}
           accessibilityRole="button"
-          accessibilityLabel="Select driving licence PDF or JPEG">
-          {selectedFile || isUploaded ? (
+          accessibilityLabel={
+            isSelectedPendingUpload
+              ? `Selected driving licence ${selectedFile.name}, ready to upload`
+              : isSavedOnServer
+                ? 'Driving licence saved for review. Tap to replace document'
+                : 'Select driving licence PDF or JPEG'
+          }>
+          {isSelectedPendingUpload ? (
+            <View style={styles.uploadedState}>
+              <View style={styles.pendingCircle}>
+                <Ionicons name="document-attach" size={26} color="#92400E" />
+              </View>
+              <Text style={styles.pendingTitle} numberOfLines={1}>
+                {selectedFile.name}
+              </Text>
+              <Text style={styles.pendingSub}>
+                Ready to upload · Tap Continue to save for review
+              </Text>
+            </View>
+          ) : isSavedOnServer ? (
             <View style={styles.uploadedState}>
               <View style={styles.checkCircle}>
                 <Ionicons name="checkmark" size={26} color="#166534" />
               </View>
-              <Text style={styles.uploadedTitle}>{selectedFile?.name || 'Licence saved'}</Text>
+              <Text style={styles.uploadedTitle}>Saved for review</Text>
               <Text style={styles.uploadedSub}>
-                {selectedFile ? 'Selected. Continue to upload securely.' :
-                  savedNumberMatches ? 'Tap to replace document' : 'Select a file for this licence number'}
+                {serverLicenceStatus.expiresAtDisplay
+                  ? `Expires ${serverLicenceStatus.expiresAtDisplay} · Tap to replace`
+                  : 'Tap to replace document'}
+              </Text>
+            </View>
+          ) : isExpiredOnServer ? (
+            <View style={styles.uploadedState}>
+              <View style={styles.expiredCircle}>
+                <Ionicons name="warning-outline" size={26} color="#991B1B" />
+              </View>
+              <Text style={styles.expiredTitle}>Licence expired</Text>
+              <Text style={styles.expiredSub}>
+                Upload a current driving licence and enter its new expiry date
               </Text>
             </View>
           ) : (
             <View style={styles.emptyState}>
               <View style={styles.uploadPlusCircle}>
-                <Ionicons name="add" size={28} color="#705746" />
+                <Ionicons name="add" size={28} color="#53616C" />
               </View>
               <Text style={styles.uploadTitle}>Select driving licence</Text>
               <Text style={styles.uploadSub}>PDF, JPG or JPEG · up to 500 KB</Text>
@@ -176,20 +273,38 @@ export function StepDrivingLicence({
         {/* Licence Number Input */}
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Licence number *</Text>
-          <View style={[styles.inputWrapper, isFocused && styles.inputWrapperFocused]}>
-            <Ionicons name="card-outline" size={20} color="#8C7B68" style={styles.inputIcon} />
+          <Pressable
+            onPress={() => dlInputRef.current?.focus()}
+            style={[styles.inputWrapper, isFocused && styles.inputWrapperFocused]}>
+            <Ionicons name="card-outline" size={20} color="#53616C" style={styles.inputIcon} />
             <TextInput
+              ref={dlInputRef}
               style={[styles.textInput, styles.dlInput]}
               placeholder="e.g. WB7420220012345"
-              placeholderTextColor="#B3A48C"
+              placeholderTextColor="#53616C"
               value={dlNumber}
               onChangeText={handleDlChange}
               autoCapitalize="characters"
+              autoCorrect={false}
+              spellCheck={false}
               maxLength={16}
+              returnKeyType="next"
+              onSubmitEditing={() => expiryInputRef.current?.focus()}
+              editable={!isSaving}
               onFocus={() => setIsFocused(true)}
               onBlur={() => setIsFocused(false)}
+              accessibilityLabel="Driving licence number"
             />
-          </View>
+            {dlNumber.length > 0 && !isSaving ? (
+              <Pressable
+                onPress={() => handleDlChange('')}
+                hitSlop={12}
+                accessibilityRole="button"
+                accessibilityLabel="Clear driving licence number">
+                <Ionicons name="close-circle" size={18} color="#C4B5A5" />
+              </Pressable>
+            ) : null}
+          </Pressable>
           <Text style={styles.helperText}>
             Enter without spaces or hyphens as printed on your Smart Card DL.
           </Text>
@@ -197,20 +312,48 @@ export function StepDrivingLicence({
 
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Licence expiry date *</Text>
-          <View style={styles.inputWrapper}>
-            <Ionicons name="calendar-outline" size={20} color="#8C7B68" style={styles.inputIcon} />
+          <Pressable
+            onPress={() => expiryInputRef.current?.focus()}
+            style={[
+              styles.inputWrapper,
+              isExpiryFocused && styles.inputWrapperFocused,
+              Boolean(expiryError) && styles.inputWrapperError,
+            ]}>
+            <Ionicons name="calendar-outline" size={20} color="#53616C" style={styles.inputIcon} />
             <TextInput
+              ref={expiryInputRef}
               style={styles.textInput}
-              placeholder="YYYY-MM-DD"
-              placeholderTextColor="#B3A48C"
+              placeholder="DD / MM / YYYY"
+              placeholderTextColor="#53616C"
               value={expiryDate}
-              onChangeText={setExpiryDate}
-              keyboardType="numbers-and-punctuation"
+              onChangeText={handleExpiryChange}
+              keyboardType="number-pad"
               maxLength={10}
-              accessibilityLabel="Driving licence expiry date"
+              returnKeyType="done"
+              editable={!isSaving}
+              onFocus={() => setIsExpiryFocused(true)}
+              onBlur={() => setIsExpiryFocused(false)}
+              accessibilityLabel="Driving licence expiry date in DD/MM/YYYY format"
             />
-          </View>
-          <Text style={styles.helperText}>Enter the expiry date printed on your licence.</Text>
+            {expiryDate.length > 0 && !isSaving ? (
+              <Pressable
+                onPress={() => handleExpiryChange('')}
+                hitSlop={12}
+                accessibilityRole="button"
+                accessibilityLabel="Clear licence expiry date">
+                <Ionicons name="close-circle" size={18} color="#C4B5A5" />
+              </Pressable>
+            ) : null}
+          </Pressable>
+          {expiryError ? (
+            <Text style={styles.errorText} accessibilityRole="alert">
+              {expiryError}
+            </Text>
+          ) : (
+            <Text style={styles.helperText}>
+              Enter the future expiry date printed on your licence (DD/MM/YYYY).
+            </Text>
+          )}
         </View>
 
         <View style={styles.tipsBox}>
@@ -218,7 +361,7 @@ export function StepDrivingLicence({
             <Ionicons name="information-circle" size={18} color="#8C5A20" />
             <Text style={styles.tipsTitle}>Document guidelines:</Text>
           </View>
-          <Text style={styles.tipItem}>PDF, JPG or JPEG only; maximum 500 KB.</Text>
+          <Text style={styles.tipItem}>• PDF, JPG or JPEG only; maximum 500 KB.</Text>
           <Text style={styles.tipItem}>• All 4 corners of the licence must be visible.</Text>
           <Text style={styles.tipItem}>• Avoid camera flash reflections or dark shadows.</Text>
           <Text style={styles.tipItem}>• Must be valid and not expired.</Text>
@@ -227,14 +370,14 @@ export function StepDrivingLicence({
         <CandyButton
           title="Continue"
           onPress={handleContinue}
-          disabled={!isValid}
+          disabled={!isValid || isSaving}
           loading={isSaving}
           variant={isValid ? 'primary' : 'muted'}
           icon={
             <Ionicons
               name="arrow-forward"
               size={18}
-              color={isValid ? '#5A3416' : '#B3A48C'}
+              color={isValid ? colors.darkNavy : colors.secondary}
               style={{ marginLeft: 2 }}
             />
           }
@@ -248,7 +391,7 @@ export function StepDrivingLicence({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFDF7',
+    backgroundColor: colors.background,
   },
   scrollContent: {
     flexGrow: 1,
@@ -268,8 +411,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1.5,
-    borderColor: '#ECE0CE',
-    shadowColor: '#3D2314',
+    borderColor: colors.border,
+    shadowColor: colors.darkNavy,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 4,
@@ -282,7 +425,7 @@ const styles = StyleSheet.create({
   stepBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FEF3C7',
+    backgroundColor: colors.lightBlue,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 20,
@@ -293,13 +436,13 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#D97706',
+    backgroundColor: colors.darkNavy,
     marginRight: 6,
   },
   stepBadgeText: {
     fontSize: 12.5,
     fontWeight: '800',
-    color: '#92400E',
+    color: colors.darkNavy,
   },
   progressContainer: {
     flexDirection: 'row',
@@ -312,43 +455,71 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   progressSegmentActive: {
-    backgroundColor: '#3D2314',
+    backgroundColor: colors.darkNavy,
   },
   progressSegmentInactive: {
-    backgroundColor: '#EADBCA',
+    backgroundColor: colors.border,
   },
   titleSection: {
     marginBottom: 20,
   },
   heading: {
-    fontSize: 27,
-    fontWeight: '900',
-    color: '#2C1810',
+    fontSize: typography.sizes.xxl,
+    fontWeight: '800',
+    color: colors.text,
     letterSpacing: -0.6,
     lineHeight: 33,
     marginBottom: 6,
   },
   subheading: {
-    fontSize: 14,
+    fontSize: typography.sizes.label,
     lineHeight: 20,
-    color: '#705746',
+    color: colors.secondary,
     fontWeight: '500',
   },
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#FEF2F2',
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    marginBottom: 16,
+  },
+  errorBannerText: {
+    flex: 1,
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: '#991B1B',
+  },
   uploadBox: {
-    backgroundColor: '#FFFDF9',
+    backgroundColor: colors.surface,
     borderRadius: 24,
     borderWidth: 1.5,
-    borderColor: '#D4C5B0',
+    borderColor: colors.border,
     borderStyle: 'dashed',
     padding: 28,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 24,
   },
+  uploadBoxPending: {
+    borderColor: '#D97706',
+    borderStyle: 'solid',
+    backgroundColor: '#FFFBEB',
+  },
   uploadBoxDone: {
     borderColor: '#16A34A',
     borderStyle: 'solid',
     backgroundColor: '#F0FDF4',
+  },
+  uploadBoxExpired: {
+    borderColor: '#DC2626',
+    borderStyle: 'solid',
+    backgroundColor: '#FEF2F2',
   },
   emptyState: {
     alignItems: 'center',
@@ -357,24 +528,45 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: '#F5EFE6',
+    backgroundColor: colors.lightBlue,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
   },
   uploadTitle: {
-    fontSize: 16,
+    fontSize: typography.sizes.base,
     fontWeight: '800',
-    color: '#2C1810',
+    color: colors.text,
     marginBottom: 6,
   },
   uploadSub: {
-    fontSize: 13,
-    color: '#8C7B68',
+    fontSize: typography.sizes.sm,
+    color: colors.secondary,
     fontWeight: '500',
   },
   uploadedState: {
     alignItems: 'center',
+  },
+  pendingCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#FEF3C7',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  pendingTitle: {
+    fontSize: typography.sizes.base,
+    fontWeight: '800',
+    color: '#92400E',
+    marginBottom: 6,
+  },
+  pendingSub: {
+    fontSize: typography.sizes.sm,
+    color: '#B45309',
+    fontWeight: '600',
+    textAlign: 'center',
   },
   checkCircle: {
     width: 64,
@@ -391,15 +583,37 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   uploadedTitle: {
-    fontSize: 16,
+    fontSize: typography.sizes.base,
     fontWeight: '800',
     color: '#14532D',
     marginBottom: 6,
   },
   uploadedSub: {
-    fontSize: 13,
+    fontSize: typography.sizes.sm,
     color: '#15803D',
     fontWeight: '500',
+    textAlign: 'center',
+  },
+  expiredCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#FEE2E2',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  expiredTitle: {
+    fontSize: typography.sizes.base,
+    fontWeight: '800',
+    color: '#991B1B',
+    marginBottom: 6,
+  },
+  expiredSub: {
+    fontSize: typography.sizes.sm,
+    color: '#B91C1C',
+    fontWeight: '500',
+    textAlign: 'center',
   },
   inputGroup: {
     marginBottom: 24,
@@ -407,50 +621,61 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 13.5,
     fontWeight: '700',
-    color: '#3D2314',
+    color: colors.darkNavy,
     marginBottom: 8,
   },
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFDF9',
+    backgroundColor: colors.surface,
     borderRadius: 16,
     borderWidth: 1.5,
-    borderColor: '#ECE0CE',
+    borderColor: colors.border,
     paddingHorizontal: 14,
     height: 52,
+    minHeight: 52,
   },
   inputWrapperFocused: {
-    borderColor: '#8C4A1B',
+    borderColor: colors.darkNavy,
     backgroundColor: '#FFFFFF',
-    shadowColor: '#8C4A1B',
+    shadowColor: colors.darkNavy,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
     shadowRadius: 4,
     elevation: 1,
+  },
+  inputWrapperError: {
+    borderColor: '#DC2626',
   },
   inputIcon: {
     marginRight: 10,
   },
   textInput: {
     flex: 1,
-    fontSize: 15,
+    height: '100%',
+    minHeight: 48,
+    fontSize: typography.sizes.base,
     fontWeight: '600',
-    color: '#2C1810',
-    paddingVertical: 0,
+    color: colors.text,
+    paddingVertical: Platform.OS === 'ios' ? 12 : 6,
   },
   dlInput: {
     fontWeight: '800',
-    letterSpacing: 1.5,
   },
   helperText: {
     fontSize: 11.5,
-    color: '#8C7B68',
+    color: colors.secondary,
     marginTop: 8,
     fontWeight: '500',
   },
+  errorText: {
+    fontSize: typography.sizes.xs,
+    color: '#DC2626',
+    marginTop: 6,
+    fontWeight: '600',
+  },
   tipsBox: {
-    backgroundColor: '#FFFDF4',
+    backgroundColor: colors.surface,
     borderRadius: 16,
     padding: 16,
     borderWidth: 1.5,

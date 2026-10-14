@@ -133,10 +133,10 @@ export function TripPointMap({
           autocomplete.setAttribute('placeholder', 'Search place or landmark...');
           autocomplete.style.colorScheme = 'light';
           autocomplete.style.setProperty('--gmpx-color-surface', '#ffffff');
-          autocomplete.style.setProperty('--gmpx-color-on-surface', '#1c1b1f');
+          autocomplete.style.setProperty('--gmpx-color-on-surface', '#3A2414');
           autocomplete.style.setProperty('--gmpx-color-outline', '#8a9281');
           autocomplete.style.backgroundColor = '#ffffff';
-          autocomplete.style.color = '#1c1b1f';
+          autocomplete.style.color = '#3A2414';
           autocomplete.style.borderRadius = '6px';
           autocomplete.style.width = '100%';
 

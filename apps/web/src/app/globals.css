@@ -6,20 +6,20 @@
 
 @theme {
   --color-card: var(--color-surface, #ffffff);
-  --color-card-foreground: var(--color-text, #1c1b1f);
+  --color-card-foreground: var(--color-text, #3A2414);
   --color-popover: var(--color-surface, #ffffff);
-  --color-popover-foreground: var(--color-text, #1c1b1f);
-  --color-muted: var(--color-surface-muted, #edefea);
-  --color-muted-foreground: var(--color-text-subtle, #5c635a);
-  --color-primary: var(--color-interactive, #002451);
-  --color-primary-hover: var(--color-interactive-hover, #00336e);
-  --color-primary-foreground: #ffffff;
+  --color-popover-foreground: var(--color-text, #3A2414);
+  --color-muted: var(--color-surface-muted, #FFF6E5);
+  --color-muted-foreground: var(--color-text-subtle, #705746);
+  --color-primary: var(--color-accent, #FBBF24);
+  --color-primary-hover: var(--color-accent-hover, #F59E0B);
+  --color-primary-foreground: #3A2414;
   --color-interactive-foreground: #ffffff;
   --color-text-inverse: #ffffff;
-  --color-secondary: var(--color-surface-muted, #edefea);
-  --color-secondary-foreground: var(--color-text, #1c1b1f);
-  --color-background: var(--color-surface-sunken, #f7f8f5);
-  --color-foreground: var(--color-text, #1c1b1f);
+  --color-secondary: var(--color-surface-muted, #FFF6E5);
+  --color-secondary-foreground: var(--color-text, #3A2414);
+  --color-background: var(--color-surface-sunken, #ffffff);
+  --color-foreground: var(--color-text, #3A2414);
 }
 
 /* System base layer defaults */
@@ -28,7 +28,7 @@
 }
 
 body {
-  background-color: var(--color-surface-sunken);
+  background-color: #ffffff;
   color: var(--color-text);
   font-family: var(--font-sans);
   margin: 0;
@@ -42,16 +42,16 @@ body {
 gmp-place-autocomplete {
   color-scheme: light !important;
   --gmpx-color-surface: #ffffff !important;
-  --gmpx-color-on-surface: #1c1b1f !important;
+  --gmpx-color-on-surface: #3A2414 !important;
   --gmpx-color-outline: #8a9281 !important;
   --gmpx-font-family-base: var(--font-sans) !important;
   background-color: #ffffff !important;
-  color: #1c1b1f !important;
+  color: #3A2414 !important;
   border-radius: var(--radius-sm) !important;
   font-size: var(--text-sm) !important;
 }
 
 .dz-place-search input {
-  color: #1c1b1f !important;
+  color: #3A2414 !important;
   background-color: #ffffff !important;
 }

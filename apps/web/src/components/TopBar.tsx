@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { LogIn, LogOut, Shield } from 'lucide-react';
 import { Button } from '@cabzone/design-system';
 import { getStoredPhone, getStoredToken, logout } from '../features/auth/lib/authApi';
@@ -31,11 +32,8 @@ export function TopBar({ onOpenLogin }: TopBarProps) {
   return (
     <header className="h-14 border-b border-border bg-surface px-6 flex items-center justify-between z-30 shrink-0">
       <div className="flex items-center gap-3">
-        <Link href="/admins" className="flex items-center gap-2 text-text hover:opacity-90 transition-opacity">
-          <div className="size-7 rounded-sm bg-accent text-accent-ink flex items-center justify-center font-bold text-sm tracking-tight">
-            C
-          </div>
-          <span className="font-semibold text-text text-md tracking-tight">Cabzone</span>
+        <Link href="/admins" className="flex items-center text-text hover:opacity-90 transition-opacity">
+          <Image src="/brand/cabzone-horizontal.png" alt="Cabzone" width={132} height={44} priority />
         </Link>
       </div>
 

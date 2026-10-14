@@ -1,8 +1,9 @@
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { colors, typography } from '@/design-system';
 import React, { useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
@@ -142,7 +143,7 @@ export function KycPendingHome() {
             onPress={handleRefresh}
             disabled={isRefreshing}>
             {isRefreshing ? (
-              <ActivityIndicator color="#002451" size="small" />
+              <ActivityIndicator color="#12304A" size="small" />
             ) : (
               <Text style={styles.refreshBtnText}>🔄 Check Verification Status</Text>
             )}
@@ -165,7 +166,7 @@ export function KycPendingHome() {
         </View>
 
         {/* Developer Quick-Approve Banner (Only in Dev Mode) */}
-        <View style={styles.devCard}>
+        {__DEV__ ? <View style={styles.devCard}>
           <View style={styles.devHeader}>
             <Text style={styles.devBadge}>⚡ DEV MODE TESTER</Text>
           </View>
@@ -184,7 +185,7 @@ export function KycPendingHome() {
               <Text style={styles.devBtnText}>⚡ Fast-Track / Test Approve</Text>
             )}
           </Pressable>
-        </View>
+        </View> : null}
 
         {/* Footer Logout */}
         <Pressable onPress={logout} style={styles.logoutBtn} hitSlop={12}>
@@ -198,7 +199,7 @@ export function KycPendingHome() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F7F7F5',
+    backgroundColor: colors.background,
   },
   scrollContent: {
     flexGrow: 1,
@@ -213,14 +214,14 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   greetingText: {
-    fontSize: 14,
-    color: '#6B7280',
+    fontSize: typography.sizes.label,
+    color: colors.secondary,
     fontWeight: '500',
   },
   driverName: {
-    fontSize: 22,
-    fontWeight: '900',
-    color: '#111827',
+    fontSize: typography.sizes.xl,
+    fontWeight: '800',
+    color: colors.text,
   },
   underReviewBadge: {
     flexDirection: 'row',
@@ -232,11 +233,11 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   underReviewDot: {
-    fontSize: 10,
+    fontSize: typography.sizes.xs,
     color: '#D97706',
   },
   underReviewText: {
-    fontSize: 11,
+    fontSize: typography.sizes.xs,
     fontWeight: '800',
     color: '#B45309',
     letterSpacing: 0.5,
@@ -250,7 +251,7 @@ const styles = StyleSheet.create({
     borderColor: '#BAE6FD',
   },
   statusToastText: {
-    fontSize: 13,
+    fontSize: typography.sizes.sm,
     color: '#0369A1',
     fontWeight: '600',
     textAlign: 'center',
@@ -260,7 +261,7 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     padding: 24,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: colors.border,
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.05,
@@ -278,18 +279,18 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   shieldIcon: {
-    fontSize: 28,
+    fontSize: typography.sizes.xxl,
   },
   cardHeading: {
-    fontSize: 22,
-    fontWeight: '900',
-    color: '#111827',
+    fontSize: typography.sizes.xl,
+    fontWeight: '800',
+    color: colors.text,
     marginBottom: 8,
     letterSpacing: -0.3,
   },
   cardSubheading: {
-    fontSize: 14,
-    color: '#6B7280',
+    fontSize: typography.sizes.label,
+    color: colors.secondary,
     lineHeight: 20,
     marginBottom: 24,
   },
@@ -305,7 +306,7 @@ const styles = StyleSheet.create({
   timelineTrack: {
     width: 2,
     height: 24,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: colors.border,
     marginLeft: 14,
   },
   dotCircle: {
@@ -319,22 +320,22 @@ const styles = StyleSheet.create({
     backgroundColor: '#DCFCE7',
   },
   dotDoneCheck: {
-    fontSize: 14,
-    fontWeight: '900',
+    fontSize: typography.sizes.label,
+    fontWeight: '800',
     color: '#16A34A',
   },
   dotActive: {
     backgroundColor: '#FEF3C7',
   },
   dotActiveIcon: {
-    fontSize: 14,
+    fontSize: typography.sizes.label,
     color: '#D97706',
   },
   dotPending: {
     backgroundColor: '#F3F4F6',
   },
   dotPendingIcon: {
-    fontSize: 16,
+    fontSize: typography.sizes.base,
     color: '#9CA3AF',
   },
   timelineTextWrap: {
@@ -342,7 +343,7 @@ const styles = StyleSheet.create({
     paddingTop: 4,
   },
   timelineLabel: {
-    fontSize: 15,
+    fontSize: typography.sizes.base,
     fontWeight: '700',
   },
   labelDone: {
@@ -355,8 +356,8 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
   },
   timelineSub: {
-    fontSize: 12,
-    color: '#6B7280',
+    fontSize: typography.sizes.xs,
+    color: colors.secondary,
     marginTop: 2,
   },
   cardFooterNotice: {
@@ -368,7 +369,7 @@ const styles = StyleSheet.create({
     borderColor: '#F3F4F6',
   },
   cardFooterNoticeText: {
-    fontSize: 13,
+    fontSize: typography.sizes.sm,
     color: '#4B5563',
     fontWeight: '600',
     textAlign: 'center',
@@ -380,12 +381,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: colors.border,
   },
   refreshBtnText: {
-    fontSize: 15,
+    fontSize: typography.sizes.base,
     fontWeight: '700',
-    color: '#002451',
+    color: colors.darkNavy,
   },
   btnPressed: {
     opacity: 0.85,
@@ -402,21 +403,21 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: colors.border,
   },
   kpiLabel: {
-    fontSize: 12,
+    fontSize: typography.sizes.xs,
     fontWeight: '600',
-    color: '#6B7280',
+    color: colors.secondary,
     marginBottom: 4,
   },
   kpiValue: {
     fontSize: 20,
-    fontWeight: '900',
-    color: '#111827',
+    fontWeight: '800',
+    color: colors.text,
   },
   kpiSub: {
-    fontSize: 11,
+    fontSize: typography.sizes.xs,
     color: '#9CA3AF',
     marginTop: 2,
   },
@@ -430,8 +431,8 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   devBadge: {
-    fontSize: 11,
-    fontWeight: '900',
+    fontSize: typography.sizes.xs,
+    fontWeight: '800',
     color: '#38BDF8',
     letterSpacing: 1,
   },
@@ -442,7 +443,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   devSub: {
-    fontSize: 13,
+    fontSize: typography.sizes.sm,
     color: '#94A3B8',
     lineHeight: 18,
     marginBottom: 16,
@@ -455,7 +456,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   devBtnText: {
-    fontSize: 14,
+    fontSize: typography.sizes.label,
     fontWeight: '800',
     color: '#FFFFFF',
     letterSpacing: 0.3,
@@ -465,7 +466,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   logoutText: {
-    fontSize: 14,
+    fontSize: typography.sizes.label,
     fontWeight: '700',
     color: '#9CA3AF',
   },

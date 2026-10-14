@@ -8,8 +8,7 @@ export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
 export type ButtonSize = 'sm' | 'md' | 'lg';
 
 /**
- * `primary` is the brand accent fill with white ink on it. #002451 is 15.32:1
- * against white. See docs/engineering/design-language.md.
+ * `primary` uses the brand amber fill with deep-brown ink. See docs/engineering/design-language.md.
  *
  * No shadows on any variant. Depth comes from the border and the surface.
  */

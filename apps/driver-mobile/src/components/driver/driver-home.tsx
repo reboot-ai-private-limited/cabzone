@@ -1,8 +1,9 @@
+import { SafeAreaView } from 'react-native-safe-area-context';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Image,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
@@ -10,6 +11,8 @@ import {
 } from 'react-native';
 import { useAuth } from '@/context/auth-context';
 import { useDuty } from '@/context/duty-context';
+import { colors, typography } from '@/design-system';
+import { Ionicons } from '@expo/vector-icons';
 
 export function DriverHome() {
   const { user, driver, logout, isLoading: isAuthLoading } = useAuth();
@@ -68,7 +71,7 @@ export function DriverHome() {
         {/* Top App Bar */}
         <View style={styles.topBar}>
           <View>
-            <Text style={styles.appTitle}>Cabzone</Text>
+            <Image source={require('@/assets/brand/cabzone-horizontal.png')} style={styles.brandLogo} resizeMode="contain" accessibilityLabel="Cabzone" />
             <Text style={styles.driverSub}>
               {driver?.status === 'ACTIVE' ? 'Verified Driver' : 'Driver Partner'}
             </Text>
@@ -85,10 +88,10 @@ export function DriverHome() {
 
         {/* Today's KPI Metrics Strip (Section 8) */}
         <View style={styles.kpiContainer}>
-          <View style={styles.kpiCard}>
+          <View style={[styles.kpiCard, styles.earningsCard]}>
             <Text style={styles.kpiLabel}>Today&apos;s Earnings</Text>
             <Text style={styles.kpiValue}>₹{(todayEarningsPaise / 100).toFixed(0)}</Text>
-            <Text style={styles.kpiSub}>Cash & UPI</Text>
+            <Text style={styles.kpiSub}>Cash and UPI rides</Text>
           </View>
 
           <View style={styles.kpiCard}>
@@ -98,7 +101,7 @@ export function DriverHome() {
           </View>
 
           <View style={styles.kpiCard}>
-            <Text style={styles.kpiLabel}>Float Wallet</Text>
+            <Text style={styles.kpiLabel}>Wallet balance</Text>
             <Text
               style={[
                 styles.kpiValue,
@@ -107,7 +110,7 @@ export function DriverHome() {
               ₹{walletBalancePaise != null ? (walletBalancePaise / 100).toFixed(0) : '0'}
             </Text>
             <Text style={styles.kpiSub}>
-              {walletBalancePaise != null && walletBalancePaise < 0 ? 'Owed to Co.' : 'Balance'}
+              {walletBalancePaise != null && walletBalancePaise < 0 ? 'Amount due' : 'Available'}
             </Text>
           </View>
         </View>
@@ -116,13 +119,13 @@ export function DriverHome() {
         {error ? (
           <View style={styles.errorBanner}>
             <View style={styles.errorIconBox}>
-              <Text style={styles.errorIcon}>⚠️</Text>
+              <Ionicons name="alert-circle-outline" size={24} color={colors.error} />
             </View>
             <View style={styles.errorContent}>
               <Text style={styles.errorTitle}>Cannot Go Online</Text>
               <Text style={styles.errorMessage}>{error}</Text>
             </View>
-            <Pressable onPress={clearError} style={styles.errorClose}>
+            <Pressable onPress={clearError} style={styles.errorClose} accessibilityRole="button" accessibilityLabel="Dismiss error" hitSlop={12}>
               <Text style={styles.errorCloseText}>✕</Text>
             </Pressable>
           </View>
@@ -135,7 +138,7 @@ export function DriverHome() {
             <View style={styles.onlineSection}>
               <View style={styles.radarRing}>
                 <View style={styles.radarPulse}>
-                  <Text style={styles.radarIcon}>📡</Text>
+                  <Ionicons name="radio-outline" size={48} color={colors.darkNavy} />
                 </View>
               </View>
 
@@ -144,26 +147,18 @@ export function DriverHome() {
                 Stay in your service zone to receive ride offers. You will be alerted with sound when a request arrives.
               </Text>
 
-              {/* Telemetry Indicator (Section 9) */}
+              {/* Keep the duty location state readable at a glance. */}
               <View style={styles.telemetryBox}>
                 <View style={styles.telemetryRow}>
-                  <Text style={styles.telemetryLabel}>GPS Coordinates:</Text>
+                  <Text style={styles.telemetryLabel}>Location</Text>
                   <Text style={styles.telemetryVal}>
-                    {coords ? `${coords.lat.toFixed(4)}° N, ${coords.lng.toFixed(4)}° E` : 'Obtaining...'}
+                    {coords ? 'Connected' : 'Connecting'}
                   </Text>
                 </View>
-                <View style={styles.telemetryRow}>
-                  <Text style={styles.telemetryLabel}>Transmission:</Text>
-                  <Text style={[styles.telemetryVal, styles.telemetryLive]}>
-                    ● {locationStatus} ({timeAgo})
-                  </Text>
-                </View>
-                {coords?.speedMps ? (
+                {__DEV__ ? (
                   <View style={styles.telemetryRow}>
-                    <Text style={styles.telemetryLabel}>Current Speed:</Text>
-                    <Text style={styles.telemetryVal}>
-                      {Math.round(coords.speedMps * 3.6)} km/h
-                    </Text>
+                    <Text style={styles.telemetryLabel}>Diagnostics</Text>
+                    <Text style={styles.telemetryVal}>{locationStatus} · {timeAgo}</Text>
                   </View>
                 ) : null}
               </View>
@@ -172,6 +167,9 @@ export function DriverHome() {
               <Pressable
                 style={[styles.offlineButton, isToggling && styles.buttonDisabled]}
                 disabled={isToggling}
+                accessibilityRole="button"
+                accessibilityLabel="Go offline"
+                accessibilityState={{ disabled: isToggling, busy: isToggling }}
                 onPress={goOffline}>
                 {isToggling ? (
                   <ActivityIndicator color="#dc2626" />
@@ -184,7 +182,7 @@ export function DriverHome() {
             /* OFFLINE VIEW */
             <View style={styles.offlineSection}>
               <View style={styles.sleepIconCircle}>
-                <Text style={styles.sleepIcon}>🚕</Text>
+                <Ionicons name="car-sport-outline" size={48} color={colors.darkNavy} />
               </View>
 
               <Text style={styles.offlineTitle}>You are currently OFFLINE</Text>
@@ -199,7 +197,7 @@ export function DriverHome() {
                     {isKycVerified ? '✓' : '●'}
                   </Text>
                   <Text style={styles.checkText}>
-                    KYC Status: {driver?.kycStatus ?? 'VERIFIED'}
+                    KYC status: {driver?.kycStatus ?? 'Unknown'}
                   </Text>
                 </View>
                 <View style={styles.checkItem}>
@@ -207,7 +205,7 @@ export function DriverHome() {
                     {hasVehicle ? '✓' : '●'}
                   </Text>
                   <Text style={styles.checkText}>
-                    Vehicle Registered: {hasVehicle ? 'Yes' : 'Assigned in backend'}
+                    Vehicle registered: {hasVehicle ? 'Yes' : 'No'}
                   </Text>
                 </View>
               </View>
@@ -216,9 +214,12 @@ export function DriverHome() {
               <Pressable
                 style={[styles.onlineButton, (isToggling || isVerifyingOnline) && styles.buttonDisabled]}
                 disabled={isToggling || isVerifyingOnline}
+                accessibilityRole="button"
+                accessibilityLabel="Go online"
+                accessibilityState={{ disabled: isToggling || isVerifyingOnline, busy: isToggling || isVerifyingOnline }}
                 onPress={handleGoOnline}>
                 {isToggling || isVerifyingOnline ? (
-                  <ActivityIndicator color="#C8FF00" />
+                  <ActivityIndicator color={colors.deepBrown} />
                 ) : (
                   <Text style={styles.onlineButtonText}>GO ONLINE →</Text>
                 )}
@@ -231,13 +232,10 @@ export function DriverHome() {
         {isVerifyingOnline ? (
           <View style={styles.verifyingOverlay}>
             <View style={styles.verifyingCard}>
-              <ActivityIndicator size="large" color="#002451" style={{ marginBottom: 16 }} />
+              <ActivityIndicator size="large" color="#12304A" style={{ marginBottom: 16 }} />
               <Text style={styles.verifyingTitle}>Getting you online...</Text>
               <View style={styles.verifyingList}>
-                <Text style={styles.verifyingItem}>✓ Account verified</Text>
-                <Text style={styles.verifyingItem}>✓ Vehicle eligible</Text>
-                <Text style={styles.verifyingItem}>✓ Location available</Text>
-                <Text style={styles.verifyingItem}>✓ Wallet eligible</Text>
+                <Text style={styles.verifyingItem}>Checking account, vehicle, location and wallet</Text>
               </View>
             </View>
           </View>
@@ -260,6 +258,8 @@ export function DriverHome() {
           <Pressable
             style={styles.logoutBtn}
             onPress={logout}
+            accessibilityRole="button"
+            accessibilityLabel="Log out"
             disabled={isAuthLoading || isToggling}>
             <Text style={styles.logoutBtnText}>Log Out Account</Text>
           </Pressable>
@@ -272,7 +272,7 @@ export function DriverHome() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F7F7F5',
+    backgroundColor: colors.background,
   },
   scrollContent: {
     padding: 20,
@@ -284,15 +284,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 16,
   },
-  appTitle: {
-    fontSize: 22,
-    fontWeight: '900',
-    color: '#002451',
+  brandLogo: {
+    width: 126,
+    height: 42,
   },
   driverSub: {
-    fontSize: 12,
+    fontSize: typography.sizes.xs,
     fontWeight: '600',
-    color: '#64748b',
+    color: colors.secondary,
   },
   statusBadge: {
     flexDirection: 'row',
@@ -313,16 +312,16 @@ const styles = StyleSheet.create({
     borderColor: '#cbd5e1',
   },
   statusDot: {
-    fontSize: 10,
+    fontSize: typography.sizes.xs,
   },
   statusDotOnline: {
     color: '#16a34a',
   },
   statusDotOffline: {
-    color: '#64748b',
+    color: colors.secondary,
   },
   statusText: {
-    fontSize: 12,
+    fontSize: typography.sizes.xs,
     fontWeight: '800',
     letterSpacing: 0.5,
   },
@@ -334,36 +333,41 @@ const styles = StyleSheet.create({
   },
   kpiContainer: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 8,
     marginBottom: 16,
   },
   kpiCard: {
     flex: 1,
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    padding: 12,
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    padding: 16,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
-    alignItems: 'center',
+    borderColor: colors.border,
+    alignItems: 'flex-start',
+  },
+  earningsCard: {
+    flexBasis: '100%',
+    flexGrow: 0,
   },
   kpiLabel: {
-    fontSize: 11,
-    color: '#64748b',
+    fontSize: typography.sizes.label,
+    color: colors.secondary,
     fontWeight: '600',
     marginBottom: 4,
-    textAlign: 'center',
+    textAlign: 'left',
   },
   kpiValue: {
-    fontSize: 18,
-    fontWeight: '900',
-    color: '#002451',
+    fontSize: 24,
+    fontWeight: '800',
+    color: colors.darkNavy,
   },
   kpiNegative: {
     color: '#dc2626',
   },
   kpiSub: {
-    fontSize: 10,
-    color: '#94a3b8',
+    fontSize: typography.sizes.xs,
+    color: colors.secondary,
     marginTop: 2,
   },
   errorBanner: {
@@ -386,12 +390,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   errorTitle: {
-    fontSize: 13,
+    fontSize: typography.sizes.sm,
     fontWeight: '700',
     color: '#991b1b',
   },
   errorMessage: {
-    fontSize: 12,
+    fontSize: typography.sizes.xs,
     color: '#b91c1c',
     marginTop: 2,
     lineHeight: 16,
@@ -400,7 +404,7 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   errorCloseText: {
-    fontSize: 14,
+    fontSize: typography.sizes.label,
     color: '#991b1b',
     fontWeight: '700',
   },
@@ -411,7 +415,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#e2e8f0',
     marginBottom: 16,
-    shadowColor: '#002451',
+    shadowColor: colors.darkNavy,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.05,
     shadowRadius: 12,
@@ -444,7 +448,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   radarIcon: {
-    fontSize: 28,
+    fontSize: typography.sizes.xxl,
   },
   onlineTitle: {
     fontSize: 19,
@@ -453,7 +457,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   onlineSub: {
-    fontSize: 13,
+    fontSize: typography.sizes.sm,
     color: '#475569',
     textAlign: 'center',
     lineHeight: 18,
@@ -475,12 +479,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   telemetryLabel: {
-    fontSize: 11,
-    color: '#64748b',
+    fontSize: typography.sizes.xs,
+    color: colors.secondary,
     fontWeight: '600',
   },
   telemetryVal: {
-    fontSize: 11,
+    fontSize: typography.sizes.xs,
     fontWeight: '700',
     color: '#1e293b',
   },
@@ -489,19 +493,16 @@ const styles = StyleSheet.create({
   },
   offlineButton: {
     width: '100%',
-    backgroundColor: '#ffffff',
-    borderWidth: 1.5,
-    borderColor: '#dc2626',
-    borderRadius: 12,
+    backgroundColor: colors.lightBlue,
+    borderRadius: 16,
     paddingVertical: 14,
     alignItems: 'center',
     justifyContent: 'center',
   },
   offlineButtonText: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#dc2626',
-    letterSpacing: 0.5,
+    fontSize: typography.sizes.base,
+    fontWeight: '600',
+    color: colors.darkNavy,
   },
   offlineSection: {
     alignItems: 'center',
@@ -525,8 +526,8 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   offlineSub: {
-    fontSize: 13,
-    color: '#64748b',
+    fontSize: typography.sizes.sm,
+    color: colors.secondary,
     textAlign: 'center',
     lineHeight: 18,
     marginBottom: 16,
@@ -545,37 +546,33 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   checkOk: {
-    fontSize: 13,
+    fontSize: typography.sizes.sm,
     fontWeight: '800',
     color: '#16a34a',
   },
   checkWait: {
-    fontSize: 10,
+    fontSize: typography.sizes.xs,
     color: '#f59e0b',
   },
   checkText: {
-    fontSize: 12,
+    fontSize: typography.sizes.xs,
     color: '#334155',
     fontWeight: '500',
   },
   onlineButton: {
     width: '100%',
-    backgroundColor: '#16a34a',
-    borderRadius: 12,
-    paddingVertical: 15,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#16a34a',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 3,
+    borderRadius: 8,
+    overflow: 'hidden',
+    shadowColor: colors.darkNavy,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 2,
   },
   onlineButtonText: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#ffffff',
-    letterSpacing: 0.5,
+    fontSize: typography.sizes.base,
+    fontWeight: '600',
+    color: colors.deepBrown,
   },
   buttonDisabled: {
     opacity: 0.6,
@@ -594,13 +591,13 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   footerName: {
-    fontSize: 15,
+    fontSize: typography.sizes.base,
     fontWeight: '800',
     color: '#0f172a',
   },
   footerPhone: {
-    fontSize: 12,
-    color: '#64748b',
+    fontSize: typography.sizes.xs,
+    color: colors.secondary,
     marginTop: 2,
   },
   ratingPill: {
@@ -610,7 +607,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   ratingText: {
-    fontSize: 12,
+    fontSize: typography.sizes.xs,
     fontWeight: '800',
     color: '#b45309',
   },
@@ -621,7 +618,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   logoutBtnText: {
-    fontSize: 13,
+    fontSize: typography.sizes.sm,
     fontWeight: '600',
     color: '#94a3b8',
   },
@@ -644,7 +641,7 @@ const styles = StyleSheet.create({
   verifyingTitle: {
     fontSize: 17,
     fontWeight: '800',
-    color: '#002451',
+    color: colors.darkNavy,
     marginBottom: 14,
   },
   verifyingList: {
@@ -654,7 +651,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   verifyingItem: {
-    fontSize: 14,
+    fontSize: typography.sizes.label,
     fontWeight: '700',
     color: '#15803d',
   },

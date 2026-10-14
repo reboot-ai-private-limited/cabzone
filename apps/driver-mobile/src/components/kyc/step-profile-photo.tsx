@@ -1,19 +1,21 @@
+import { colors, typography } from '@/design-system';
 import React, { useState } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
+  Image,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   View,
-  Image,
-  Alert,
-  ActivityIndicator,
 } from 'react-native';
-import type { OnboardingDraft } from './types';
-import { pickProfilePhoto } from '@/services/profile-photo';
-import { driverApi } from '@/services/api';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/context/auth-context';
+import { driverApi } from '@/services/api';
+import { pickProfilePhoto } from '@/services/profile-photo';
+import type { OnboardingDraft } from './types';
 
 interface StepProfilePhotoProps {
   draft: OnboardingDraft;
@@ -23,15 +25,18 @@ interface StepProfilePhotoProps {
 }
 
 export function StepProfilePhoto({ draft, onUpdate, onNext, onBack }: StepProfilePhotoProps) {
-  const { token, refreshProfile } = useAuth();
-  const [photoUri, setPhotoUri] = useState(draft.profilePhotoUri);
-  const [photoDataUrl, setPhotoDataUrl] = useState<string | undefined>();
+  const insets = useSafeAreaInsets();
+  const { token, driver, refreshProfile } = useAuth();
+  const [photoUri, setPhotoUri] = useState(draft.profilePhotoUri || driver?.profilePhotoUrl || undefined);
+  const [photoDataUrl, setPhotoDataUrl] = useState<string | undefined>(draft.profilePhotoDataUrl ?? undefined);
   const [isSaving, setIsSaving] = useState(false);
-  const photoTaken = Boolean(photoUri);
 
-  const handleTakePhoto = async () => {
+  const hasPhoto = Boolean(photoUri);
+  const isSavedOnServer = Boolean(driver?.profilePhotoUrl) && !photoDataUrl;
+
+  const handleChoosePhoto = (useCamera: boolean) => async () => {
     try {
-      const photo = await pickProfilePhoto(true);
+      const photo = await pickProfilePhoto(useCamera);
       if (photo) {
         setPhotoUri(photo.uri);
         setPhotoDataUrl(photo.dataUrl);
@@ -41,8 +46,12 @@ export function StepProfilePhoto({ draft, onUpdate, onNext, onBack }: StepProfil
     }
   };
 
-  const handleRetake = () => {
-    void handleTakePhoto();
+  const handlePromptSource = () => {
+    Alert.alert('Profile photo', 'Choose how you would like to add your profile photo.', [
+      { text: 'Take Photo', onPress: () => void handleChoosePhoto(true)() },
+      { text: 'Choose from Gallery', onPress: () => void handleChoosePhoto(false)() },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
   };
 
   const handleContinue = async () => {
@@ -53,65 +62,105 @@ export function StepProfilePhoto({ draft, onUpdate, onNext, onBack }: StepProfil
       if (photoDataUrl) {
         const saved = await driverApi.saveProfile(token, { profilePhotoDataUrl: photoDataUrl });
         storedUrl = saved.profilePhotoUrl || photoUri;
+        setPhotoDataUrl(undefined);
         await refreshProfile();
       }
-      onUpdate({ selfieTaken: true, profilePhotoUri: storedUrl, profilePhotoDataUrl: undefined });
+      onUpdate({
+        selfieTaken: true,
+        profilePhotoUri: storedUrl,
+        profilePhotoDataUrl: undefined,
+      });
       onNext();
     } catch (err) {
-      Alert.alert('Could not save photo', err instanceof Error ? err.message : 'Please try again.');
+      Alert.alert(
+        'Could not save photo',
+        err instanceof Error ? err.message : 'Please try again.',
+      );
     } finally {
       setIsSaving(false);
     }
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+    <View style={styles.container}>
+      <ScrollView
+        contentContainerStyle={[
+          styles.scrollContent,
+          {
+            paddingTop: Math.max(insets.top, 16),
+            paddingBottom: Math.max(insets.bottom, 24) + 20,
+          },
+        ]}
+        showsVerticalScrollIndicator={false}>
         {/* Top row */}
         <View style={styles.topRow}>
-          <Pressable onPress={onBack} style={styles.backBtn} hitSlop={12}>
-            <Text style={styles.backArrow}>←</Text>
+          <Pressable
+            onPress={onBack}
+            style={({ pressed }) => [styles.backBtn, pressed && styles.btnPressed]}
+            hitSlop={12}
+            accessibilityRole="button"
+            accessibilityLabel="Go back">
+            <Ionicons name="arrow-back" size={20} color="#172B3A" />
           </Pressable>
-          <View style={styles.stepCounterBadge}>
-            <Text style={styles.stepCounterText}>6 of 6</Text>
+          <View style={styles.stepBadge}>
+            <View style={styles.stepDot} />
+            <Text style={styles.stepBadgeText}>Step 6 of 6</Text>
           </View>
         </View>
 
-        {/* Progress Bar */}
-        <View style={styles.progressBarBg}>
-          <View style={[styles.progressBarFill, { width: '100%' }]} />
+        {/* 6-Step Segmented Progress Bar */}
+        <View style={styles.progressContainer}>
+          {[1, 2, 3, 4, 5, 6].map((s) => (
+            <View key={s} style={[styles.progressSegment, styles.progressSegmentActive]} />
+          ))}
         </View>
 
-        <Text style={styles.heading}>Take your profile photo</Text>
+        <Text style={styles.heading}>Profile photo</Text>
         <Text style={styles.subheading}>
-          Your live selfie helps riders identify you at pickup and builds trust.
+          Your profile photo helps riders recognize you at pickup and is reviewed during onboarding.
         </Text>
 
         {/* Camera / Frame View */}
         <View style={styles.cameraFrameBox}>
-          <View style={[styles.avatarOval, photoTaken && styles.avatarOvalSuccess]}>
+          <View
+            style={[
+              styles.avatarOval,
+              hasPhoto && (isSavedOnServer ? styles.avatarOvalSuccess : styles.avatarOvalPending),
+            ]}>
             {photoUri ? (
               <Image
                 source={{ uri: photoUri }}
                 style={{ width: '100%', height: '100%', borderRadius: 100 }}
               />
             ) : (
-              <Text style={styles.avatarFace}>👤</Text>
+              <Ionicons name="person-outline" size={56} color="#53616C" />
             )}
-            {photoTaken ? (
-              <View style={styles.verifiedCheckBadge}>
-                <Text style={styles.verifiedCheckText}>✓</Text>
+            {hasPhoto ? (
+              <View
+                style={[
+                  styles.statusBadge,
+                  isSavedOnServer ? styles.statusBadgeSaved : styles.statusBadgePending,
+                ]}>
+                <Ionicons
+                  name={isSavedOnServer ? 'checkmark' : 'cloud-upload-outline'}
+                  size={16}
+                  color="#FFFFFF"
+                />
               </View>
             ) : null}
           </View>
           <Text style={styles.frameLabel}>
-            {photoTaken ? '✓ Selfie Captured' : 'Position your face within the frame'}
+            {!hasPhoto
+              ? 'Add a clear, front-facing photo of yourself'
+              : isSavedOnServer
+                ? 'Photo saved for review'
+                : 'Photo selected · Tap Save & Review to upload'}
           </Text>
         </View>
 
         {/* Quality Checklist */}
         <View style={styles.checklistCard}>
-          <Text style={styles.checklistTitle}>Selfie tips for quick approval:</Text>
+          <Text style={styles.checklistTitle}>Photo guidelines for quick approval:</Text>
           <View style={styles.checkItem}>
             <Text style={styles.checkIcon}>✓</Text>
             <Text style={styles.checkText}>Face clearly visible and centered</Text>
@@ -131,48 +180,66 @@ export function StepProfilePhoto({ draft, onUpdate, onNext, onBack }: StepProfil
         </View>
 
         {/* Capture / Actions */}
-        {!photoTaken ? (
-          <Pressable
-            style={({ pressed }) => [styles.captureBtn, pressed && styles.btnPressed]}
-            onPress={handleTakePhoto}
-          >
-            <Text style={styles.captureBtnText}>📷 Take Photo</Text>
-          </Pressable>
+        {!hasPhoto ? (
+          <View style={styles.captureOptionsCol}>
+            <Pressable
+              style={({ pressed }) => [styles.captureBtn, pressed && styles.btnPressed]}
+              onPress={() => void handleChoosePhoto(true)()}
+              accessibilityRole="button"
+              accessibilityLabel="Take profile photo with camera">
+              <Ionicons name="camera-outline" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
+              <Text style={styles.captureBtnText}>Take Photo</Text>
+            </Pressable>
+            <Pressable
+              style={({ pressed }) => [styles.galleryBtn, pressed && styles.btnPressed]}
+              onPress={() => void handleChoosePhoto(false)()}
+              accessibilityRole="button"
+              accessibilityLabel="Choose profile photo from gallery">
+              <Ionicons name="images-outline" size={18} color="#172B3A" style={{ marginRight: 8 }} />
+              <Text style={styles.galleryBtnText}>Choose from Gallery</Text>
+            </Pressable>
+          </View>
         ) : (
           <View style={styles.actionRow}>
             <Pressable
               style={({ pressed }) => [styles.retakeBtn, pressed && styles.btnPressed]}
-              onPress={handleRetake}
-            >
-              <Text style={styles.retakeBtnText}>Retake</Text>
+              onPress={handlePromptSource}
+              disabled={isSaving}
+              accessibilityRole="button"
+              accessibilityLabel="Replace profile photo">
+              <Text style={styles.retakeBtnText}>Replace</Text>
             </Pressable>
             <Pressable
               style={({ pressed }) => [styles.usePhotoBtn, pressed && styles.btnPressed]}
-              onPress={handleContinue}
-            >
+              onPress={() => void handleContinue()}
+              disabled={isSaving}
+              accessibilityRole="button"
+              accessibilityLabel={
+                photoDataUrl ? 'Save photo and review application' : 'Continue to review application'
+              }>
               {isSaving ? (
                 <ActivityIndicator color="#FFFFFF" />
               ) : (
-                <Text style={styles.usePhotoBtnText}>Review Application →</Text>
+                <Text style={styles.usePhotoBtnText}>
+                  {photoDataUrl ? 'Save & Review →' : 'Review Application →'}
+                </Text>
               )}
             </Pressable>
           </View>
         )}
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F7F7F5',
+    backgroundColor: colors.background,
   },
   scrollContent: {
     flexGrow: 1,
-    paddingHorizontal: 24,
-    paddingTop: 20,
-    paddingBottom: 40,
+    paddingHorizontal: 20,
   },
   topRow: {
     flexDirection: 'row',
@@ -181,75 +248,88 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   backBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    shadowColor: colors.darkNavy,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  backArrow: {
-    fontSize: 18,
-    color: '#111827',
-    fontWeight: '700',
-  },
-  stepCounterBadge: {
-    backgroundColor: '#FFFFFF',
+  stepBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.lightBlue,
     paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: '#FDE68A',
   },
-  stepCounterText: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#4B5563',
-  },
-  progressBarBg: {
+  stepDot: {
+    width: 6,
     height: 6,
-    backgroundColor: '#E5E7EB',
     borderRadius: 3,
-    marginBottom: 28,
-    overflow: 'hidden',
+    backgroundColor: colors.darkNavy,
+    marginRight: 6,
   },
-  progressBarFill: {
-    height: '100%',
-    backgroundColor: '#002451',
+  stepBadgeText: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: colors.darkNavy,
+  },
+  progressContainer: {
+    flexDirection: 'row',
+    gap: 6,
+    marginBottom: 22,
+  },
+  progressSegment: {
+    flex: 1,
+    height: 5,
     borderRadius: 3,
+  },
+  progressSegmentActive: {
+    backgroundColor: colors.darkNavy,
   },
   heading: {
-    fontSize: 28,
-    fontWeight: '900',
-    color: '#111827',
+    fontSize: typography.sizes.xxl,
+    fontWeight: '800',
+    color: colors.text,
     marginBottom: 6,
-    letterSpacing: -0.4,
+    letterSpacing: -0.6,
+    lineHeight: 33,
   },
   subheading: {
-    fontSize: 14,
-    color: '#6B7280',
+    fontSize: typography.sizes.label,
+    color: colors.secondary,
     lineHeight: 20,
     marginBottom: 24,
+    fontWeight: '500',
   },
   cameraFrameBox: {
     backgroundColor: '#FFFFFF',
     borderRadius: 24,
     paddingVertical: 32,
+    paddingHorizontal: 20,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1.5,
-    borderColor: '#E5E7EB',
+    borderColor: colors.border,
     marginBottom: 24,
   },
   avatarOval: {
-    width: 120,
-    height: 150,
-    borderRadius: 60,
-    backgroundColor: '#F3F4F6',
+    width: 128,
+    height: 156,
+    borderRadius: 64,
+    backgroundColor: colors.lightBlue,
     borderWidth: 3,
-    borderColor: '#D1D5DB',
+    borderColor: colors.border,
     borderStyle: 'dashed',
     alignItems: 'center',
     justifyContent: 'center',
@@ -257,49 +337,52 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   avatarOvalSuccess: {
-    borderColor: '#10B981',
+    borderColor: '#16A34A',
     borderStyle: 'solid',
     backgroundColor: '#ECFDF5',
   },
-  avatarFace: {
-    fontSize: 64,
+  avatarOvalPending: {
+    borderColor: '#D97706',
+    borderStyle: 'solid',
+    backgroundColor: '#FFFBEB',
   },
-  verifiedCheckBadge: {
+  statusBadge: {
     position: 'absolute',
     bottom: 6,
     right: 6,
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#10B981',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
     borderColor: '#FFFFFF',
   },
-  verifiedCheckText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '900',
+  statusBadgeSaved: {
+    backgroundColor: '#16A34A',
+  },
+  statusBadgePending: {
+    backgroundColor: '#D97706',
   },
   frameLabel: {
-    fontSize: 13,
+    fontSize: typography.sizes.sm,
     fontWeight: '600',
-    color: '#4B5563',
+    color: colors.secondary,
+    textAlign: 'center',
   },
   checklistCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#FFFBEB',
     borderRadius: 18,
     padding: 18,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderWidth: 1.2,
+    borderColor: '#FDE68A',
     marginBottom: 24,
     gap: 10,
   },
   checklistTitle: {
-    fontSize: 14,
+    fontSize: typography.sizes.label,
     fontWeight: '800',
-    color: '#111827',
+    color: colors.text,
     marginBottom: 2,
   },
   checkItem: {
@@ -308,30 +391,50 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   checkIcon: {
-    fontSize: 14,
-    fontWeight: '900',
-    color: '#16A34A',
+    fontSize: typography.sizes.label,
+    fontWeight: '800',
+    color: '#15803D',
   },
   checkText: {
-    fontSize: 13,
-    color: '#4B5563',
+    fontSize: typography.sizes.sm,
+    color: colors.secondary,
+    fontWeight: '500',
+  },
+  captureOptionsCol: {
+    gap: 12,
   },
   captureBtn: {
-    backgroundColor: '#002451',
+    flexDirection: 'row',
+    backgroundColor: colors.darkNavy,
     borderRadius: 18,
     height: 56,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#002451',
+    shadowColor: colors.darkNavy,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 10,
     elevation: 3,
   },
   captureBtnText: {
-    color: '#C8FF00',
-    fontSize: 16,
+    color: colors.white,
+    fontSize: typography.sizes.base,
     fontWeight: '800',
+  },
+  galleryBtn: {
+    flexDirection: 'row',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    height: 52,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: colors.border,
+  },
+  galleryBtnText: {
+    color: colors.text,
+    fontSize: typography.sizes.base,
+    fontWeight: '700',
   },
   actionRow: {
     flexDirection: 'row',
@@ -345,29 +448,29 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1.5,
-    borderColor: '#E5E7EB',
+    borderColor: colors.border,
   },
   retakeBtnText: {
-    color: '#4B5563',
-    fontSize: 15,
+    color: colors.text,
+    fontSize: typography.sizes.base,
     fontWeight: '700',
   },
   usePhotoBtn: {
     flex: 2,
-    backgroundColor: '#002451',
+    backgroundColor: colors.darkNavy,
     borderRadius: 18,
     height: 56,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#002451',
+    shadowColor: colors.darkNavy,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 10,
     elevation: 3,
   },
   usePhotoBtnText: {
-    color: '#C8FF00',
-    fontSize: 15,
+    color: colors.white,
+    fontSize: typography.sizes.base,
     fontWeight: '800',
   },
   btnPressed: {

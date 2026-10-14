@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { colors } from '@/design-system';
 import {
   Animated,
   Easing,
@@ -265,7 +266,7 @@ export function SignupStep({ onBack }: SignupStepProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFDF4',
+    backgroundColor: colors.background,
     position: 'relative',
     overflow: 'hidden',
   },

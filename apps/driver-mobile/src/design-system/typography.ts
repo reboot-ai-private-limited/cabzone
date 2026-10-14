@@ -13,7 +13,8 @@ export const typography = {
   sizes: {
     xs: 12,
     sm: 13,
-    base: 15,
+    label: 14,
+    base: 16,
     lg: 18,
     xl: 22,
     xxl: 28,

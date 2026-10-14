@@ -1,3 +1,4 @@
+import { colors, typography } from '@/design-system';
 import React, { useMemo, useState } from 'react';
 import {
   KeyboardAvoidingView,
@@ -96,10 +97,19 @@ export function StepOperatingCity({
   onBack,
 }: StepOperatingCityProps) {
   const insets = useSafeAreaInsets();
-  const [selectedCity, setSelectedCity] = useState(draft.city || 'Siliguri');
+  const [selectedCity, setSelectedCity] = useState(draft.city || '');
   const [searchQuery, setSearchQuery] = useState('');
   const [customCity, setCustomCity] = useState('');
   const [isAddingCustom, setIsAddingCustom] = useState(false);
+
+  const isSupportedHub = useMemo(
+    () =>
+      Boolean(
+        selectedCity &&
+          SUPPORTED_CITIES.some((c) => c.name.toLowerCase() === selectedCity.trim().toLowerCase()),
+      ),
+    [selectedCity],
+  );
 
   // Filter cities based on search
   const filteredCities = useMemo(() => {
@@ -115,24 +125,37 @@ export function StepOperatingCity({
 
   const handleSelectCity = (name: string) => {
     setSelectedCity(name);
+    setCustomCity('');
     setIsAddingCustom(false);
+    onUpdate({ city: name, isCustomCity: false });
   };
 
   const handleApplyCustomCity = () => {
     const trimmed = customCity.trim();
     if (trimmed.length >= 3) {
-      setSelectedCity(trimmed);
+      const matchedHub = SUPPORTED_CITIES.find(
+        (c) => c.name.toLowerCase() === trimmed.toLowerCase(),
+      );
+      const finalName = matchedHub ? matchedHub.name : trimmed;
+      setSelectedCity(finalName);
+      setCustomCity('');
       setIsAddingCustom(false);
+      onUpdate({ city: finalName, isCustomCity: !matchedHub });
     }
   };
 
+  const hasUnappliedCustomText = isAddingCustom && customCity.trim().length > 0;
+  const isSelectedValid =
+    Boolean(selectedCity && selectedCity.trim().length >= 2) && !hasUnappliedCustomText;
+
   const handleContinue = () => {
-    if (!selectedCity) return;
-    onUpdate({ city: selectedCity });
+    if (!isSelectedValid) return;
+    onUpdate({
+      city: selectedCity.trim(),
+      isCustomCity: !isSupportedHub,
+    });
     onNext();
   };
-
-  const isSelectedValid = Boolean(selectedCity && selectedCity.trim().length >= 2);
 
   return (
     <KeyboardAvoidingView
@@ -157,17 +180,17 @@ export function StepOperatingCity({
             hitSlop={12}
             accessibilityRole="button"
             accessibilityLabel="Go back to personal information">
-            <Ionicons name="arrow-back" size={20} color="#2C1810" />
+            <Ionicons name="arrow-back" size={20} color="#172B3A" />
           </Pressable>
 
-          <View style={styles.stepBadge}>
+          <View style={styles.stepBadge} accessibilityLabel="Step 2 of 6">
             <View style={styles.stepDot} />
             <Text style={styles.stepBadgeText}>Step 2 of 6</Text>
           </View>
         </View>
 
         {/* 6-Step Segmented Progress Bar */}
-        <View style={styles.progressContainer}>
+        <View style={styles.progressContainer} importantForAccessibility="no-hide-descendants">
           {[1, 2, 3, 4, 5, 6].map((s) => (
             <View
               key={s}
@@ -183,7 +206,7 @@ export function StepOperatingCity({
         <View style={styles.titleSection}>
           <Text style={styles.heading}>Where do you drive?</Text>
           <Text style={styles.subheading}>
-            Select your primary operating base. You will automatically receive local and outstation trip requests in this region.
+            Select an active Cabzon hub, or request a new operating area for upcoming launch.
           </Text>
         </View>
 
@@ -193,21 +216,26 @@ export function StepOperatingCity({
           <TextInput
             style={styles.searchInput}
             placeholder="Search city, area or district..."
-            placeholderTextColor="#A89A88"
+            placeholderTextColor="#53616C"
             value={searchQuery}
             onChangeText={setSearchQuery}
             autoCorrect={false}
             returnKeyType="search"
+            accessibilityLabel="Search operating city"
           />
           {searchQuery.length > 0 && (
-            <Pressable onPress={() => setSearchQuery('')} hitSlop={8}>
+            <Pressable
+              onPress={() => setSearchQuery('')}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Clear city search">
               <Ionicons name="close-circle" size={18} color="#C4B5A5" />
             </Pressable>
           )}
         </View>
 
         {/* City Options List */}
-        <View style={styles.cityList}>
+        <View style={styles.cityList} accessibilityRole="radiogroup">
           {filteredCities.map((city) => {
             const isSelected = selectedCity.toLowerCase() === city.name.toLowerCase();
             return (
@@ -220,13 +248,14 @@ export function StepOperatingCity({
                 ]}
                 onPress={() => handleSelectCity(city.name)}
                 accessibilityRole="radio"
+                accessibilityLabel={`${city.name}, ${city.subtitle}`}
                 accessibilityState={{ selected: isSelected }}>
                 {/* Left Icon */}
                 <View style={[styles.cityIconBox, isSelected && styles.cityIconBoxSelected]}>
                   <Ionicons
                     name={city.icon}
                     size={22}
-                    color={isSelected ? '#3D2314' : '#8C4A1B'}
+                    color={isSelected ? colors.darkNavy : colors.darkNavy}
                   />
                 </View>
 
@@ -261,40 +290,45 @@ export function StepOperatingCity({
           {filteredCities.length === 0 && (
             <View style={styles.noResultsCard}>
               <Ionicons name="location-outline" size={32} color="#D97706" style={{ marginBottom: 6 }} />
-              <Text style={styles.noResultsTitle}>No matching city found</Text>
+              <Text style={styles.noResultsTitle}>No active hub matches your search</Text>
               <Text style={styles.noResultsSub}>
-                You can add your own city below to operate in your preferred location.
+                You can request a new operating area below. Dispatch in requested areas opens once Cabzon activates service in that region.
               </Text>
             </View>
           )}
         </View>
 
-        {/* Custom City Entry Section */}
+        {/* Custom City Request Section */}
         {!isAddingCustom ? (
           <Pressable
             style={({ pressed }) => [styles.addCustomCityBtn, pressed && styles.btnPressed]}
-            onPress={() => setIsAddingCustom(true)}>
+            onPress={() => setIsAddingCustom(true)}
+            accessibilityRole="button"
+            accessibilityLabel="Request a new operating area">
             <View style={styles.addCustomIconCircle}>
-              <Ionicons name="add" size={18} color="#8C4A1B" />
+              <Ionicons name="add" size={18} color="#12304A" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.addCustomTitle}>Operating in another city?</Text>
-              <Text style={styles.addCustomSub}>Enter your district or town name</Text>
+              <Text style={styles.addCustomTitle}>Request a new area</Text>
+              <Text style={styles.addCustomSub}>
+                Register interest for a town or district not yet in the active hub list
+              </Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color="#C4B5A5" />
           </Pressable>
         ) : (
           <View style={styles.customCityInputCard}>
-            <Text style={styles.customInputLabel}>Enter your operating city name:</Text>
+            <Text style={styles.customInputLabel}>Request a new operating area:</Text>
             <View style={styles.customInputRow}>
               <TextInput
                 style={styles.customTextInput}
                 placeholder="e.g. Raiganj, Islampur, Birpara"
-                placeholderTextColor="#A89A88"
+                placeholderTextColor="#53616C"
                 value={customCity}
                 onChangeText={setCustomCity}
                 autoFocus
                 autoCapitalize="words"
+                accessibilityLabel="New operating area name"
               />
               <Pressable
                 onPress={handleApplyCustomCity}
@@ -302,35 +336,47 @@ export function StepOperatingCity({
                   styles.customApplyBtn,
                   customCity.trim().length < 3 && styles.customApplyBtnDisabled,
                 ]}
-                disabled={customCity.trim().length < 3}>
-                <Text style={styles.customApplyBtnText}>Select</Text>
+                disabled={customCity.trim().length < 3}
+                accessibilityRole="button"
+                accessibilityLabel="Apply requested area">
+                <Text style={styles.customApplyBtnText}>Apply</Text>
               </Pressable>
             </View>
+            <Text style={{ fontSize: 11.5, color: colors.secondary, marginTop: 6 }}>
+              Note: Requested areas are recorded on your profile; live ride dispatch begins once Cabzon activates your zone.
+            </Text>
             <Pressable
-              onPress={() => setIsAddingCustom(false)}
+              onPress={() => {
+                setCustomCity('');
+                setIsAddingCustom(false);
+              }}
               style={styles.cancelCustomBtn}
-              hitSlop={8}>
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Cancel custom area request">
               <Text style={styles.cancelCustomText}>Cancel</Text>
             </Pressable>
           </View>
         )}
 
         {/* Selected City Confirmation Banner */}
-        {selectedCity && (
+        {selectedCity ? (
           <View style={styles.selectedBanner}>
             <Ionicons name="location" size={18} color="#065F46" />
             <Text style={styles.selectedBannerText}>
-              Selected: <Text style={{ fontWeight: '800' }}>{selectedCity}</Text>
+              {isSupportedHub ? 'Active Hub: ' : 'Requested Area: '}
+              <Text style={{ fontWeight: '800' }}>{selectedCity}</Text>
+              {!isSupportedHub ? ' (Pending zone activation)' : ''}
             </Text>
           </View>
-        )}
+        ) : null}
 
         {/* Smart GPS Telemetry Note */}
         <View style={styles.noteBox}>
           <Ionicons name="flash" size={18} color="#D97706" style={{ marginRight: 10, marginTop: 1 }} />
           <Text style={styles.noteText}>
-            <Text style={{ fontWeight: '700', color: '#2C1810' }}>Smart Dispatch: </Text>
-            You are never restricted to strict borders. When on duty, Cabzon matches you with incoming trip requests based on your live GPS location.
+            <Text style={{ fontWeight: '700', color: colors.text }}>Zone Dispatch Policy: </Text>
+            Active hubs receive live trip offers immediately after KYC approval. Requested areas will be notified when local service launches.
           </Text>
         </View>
 
@@ -341,13 +387,19 @@ export function StepOperatingCity({
             onPress={handleContinue}
             disabled={!isSelectedValid}
             variant={isSelectedValid ? 'espresso' : 'muted'}
-            icon={<Ionicons name="arrow-forward" size={18} color={isSelectedValid ? '#FFFFFF' : '#B3A48C'} />}
+            icon={<Ionicons name="arrow-forward" size={18} color={isSelectedValid ? '#FFFFFF' : colors.secondary} />}
             style={{ width: '100%' }}
           />
 
-          {!isSelectedValid && (
-            <Text style={styles.validationPrompt}>• Please select an operating city to continue</Text>
-          )}
+          {hasUnappliedCustomText ? (
+            <Text style={styles.validationPrompt} accessibilityRole="alert">
+              • Tap &quot;Apply&quot; to use your typed area or &quot;Cancel&quot; to keep {selectedCity || 'choosing a hub'}
+            </Text>
+          ) : !selectedCity ? (
+            <Text style={styles.validationPrompt}>
+              • Select an operating hub or apply a new area request to continue
+            </Text>
+          ) : null}
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -357,7 +409,7 @@ export function StepOperatingCity({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFDF7',
+    backgroundColor: colors.background,
   },
   scrollContent: {
     flexGrow: 1,
@@ -377,8 +429,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1.5,
-    borderColor: '#ECE0CE',
-    shadowColor: '#3D2314',
+    borderColor: colors.border,
+    shadowColor: colors.darkNavy,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 4,
@@ -391,7 +443,7 @@ const styles = StyleSheet.create({
   stepBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FEF3C7',
+    backgroundColor: colors.lightBlue,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 20,
@@ -402,13 +454,13 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#D97706',
+    backgroundColor: colors.darkNavy,
     marginRight: 6,
   },
   stepBadgeText: {
     fontSize: 12.5,
     fontWeight: '800',
-    color: '#92400E',
+    color: colors.darkNavy,
   },
   progressContainer: {
     flexDirection: 'row',
@@ -421,26 +473,26 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   progressSegmentActive: {
-    backgroundColor: '#3D2314',
+    backgroundColor: colors.darkNavy,
   },
   progressSegmentInactive: {
-    backgroundColor: '#EADBCA',
+    backgroundColor: colors.border,
   },
   titleSection: {
     marginBottom: 18,
   },
   heading: {
-    fontSize: 27,
-    fontWeight: '900',
-    color: '#2C1810',
+    fontSize: typography.sizes.xxl,
+    fontWeight: '800',
+    color: colors.text,
     letterSpacing: -0.6,
     lineHeight: 33,
     marginBottom: 6,
   },
   subheading: {
-    fontSize: 14,
+    fontSize: typography.sizes.label,
     lineHeight: 20,
-    color: '#705746',
+    color: colors.secondary,
     fontWeight: '500',
   },
   searchWrapper: {
@@ -449,11 +501,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
     borderWidth: 1.5,
-    borderColor: '#ECE0CE',
+    borderColor: colors.border,
     paddingHorizontal: 14,
     height: 50,
     marginBottom: 16,
-    shadowColor: '#3D2314',
+    shadowColor: colors.darkNavy,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.03,
     shadowRadius: 5,
@@ -466,7 +518,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 14.5,
     fontWeight: '600',
-    color: '#2C1810',
+    color: colors.text,
     paddingVertical: 0,
   },
   cityList: {
@@ -480,17 +532,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1.5,
-    borderColor: '#ECE0CE',
-    shadowColor: '#3D2314',
+    borderColor: colors.border,
+    shadowColor: colors.darkNavy,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.04,
     shadowRadius: 6,
     elevation: 2,
   },
   cityCardSelected: {
-    borderColor: '#8C4A1B',
-    backgroundColor: '#FFFDF9',
-    shadowColor: '#8C4A1B',
+    borderColor: colors.darkNavy,
+    backgroundColor: colors.surface,
+    shadowColor: colors.darkNavy,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.12,
     shadowRadius: 10,
@@ -519,12 +571,12 @@ const styles = StyleSheet.create({
     marginBottom: 3,
   },
   cityName: {
-    fontSize: 16,
+    fontSize: typography.sizes.base,
     fontWeight: '800',
-    color: '#2C1810',
+    color: colors.text,
   },
   cityNameSelected: {
-    color: '#3D2314',
+    color: colors.darkNavy,
   },
   tagBadge: {
     backgroundColor: '#FFFBEB',
@@ -540,7 +592,7 @@ const styles = StyleSheet.create({
   },
   citySubtitle: {
     fontSize: 12.5,
-    color: '#705746',
+    color: colors.secondary,
     fontWeight: '500',
     lineHeight: 16,
   },
@@ -555,8 +607,8 @@ const styles = StyleSheet.create({
     marginLeft: 10,
   },
   radioCircleActive: {
-    borderColor: '#3D2314',
-    backgroundColor: '#3D2314',
+    borderColor: colors.darkNavy,
+    backgroundColor: colors.darkNavy,
   },
   noResultsCard: {
     backgroundColor: '#FFFFFF',
@@ -564,18 +616,18 @@ const styles = StyleSheet.create({
     padding: 24,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#ECE0CE',
+    borderColor: colors.border,
     marginVertical: 6,
   },
   noResultsTitle: {
-    fontSize: 15,
+    fontSize: typography.sizes.base,
     fontWeight: '800',
-    color: '#2C1810',
+    color: colors.text,
     marginBottom: 4,
   },
   noResultsSub: {
-    fontSize: 13,
-    color: '#705746',
+    fontSize: typography.sizes.sm,
+    color: colors.secondary,
     textAlign: 'center',
     lineHeight: 18,
   },
@@ -586,7 +638,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     padding: 14,
     borderWidth: 1.2,
-    borderColor: '#ECE0CE',
+    borderColor: colors.border,
     borderStyle: 'dashed',
     marginBottom: 16,
   },
@@ -600,13 +652,13 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   addCustomTitle: {
-    fontSize: 14,
+    fontSize: typography.sizes.label,
     fontWeight: '800',
-    color: '#2C1810',
+    color: colors.text,
   },
   addCustomSub: {
-    fontSize: 12,
-    color: '#705746',
+    fontSize: typography.sizes.xs,
+    color: colors.secondary,
     fontWeight: '500',
   },
   customCityInputCard: {
@@ -614,13 +666,13 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     padding: 16,
     borderWidth: 1.5,
-    borderColor: '#8C4A1B',
+    borderColor: colors.darkNavy,
     marginBottom: 16,
   },
   customInputLabel: {
-    fontSize: 13,
+    fontSize: typography.sizes.sm,
     fontWeight: '700',
-    color: '#2C1810',
+    color: colors.text,
     marginBottom: 8,
   },
   customInputRow: {
@@ -631,17 +683,17 @@ const styles = StyleSheet.create({
   customTextInput: {
     flex: 1,
     height: 48,
-    backgroundColor: '#FFFDF9',
+    backgroundColor: colors.surface,
     borderRadius: 14,
     borderWidth: 1.2,
-    borderColor: '#ECE0CE',
+    borderColor: colors.border,
     paddingHorizontal: 14,
     fontSize: 14.5,
     fontWeight: '600',
-    color: '#2C1810',
+    color: colors.text,
   },
   customApplyBtn: {
-    backgroundColor: '#3D2314',
+    backgroundColor: colors.darkNavy,
     paddingHorizontal: 16,
     height: 48,
     borderRadius: 14,
@@ -654,7 +706,7 @@ const styles = StyleSheet.create({
   customApplyBtnText: {
     color: '#FFFFFF',
     fontWeight: '800',
-    fontSize: 14,
+    fontSize: typography.sizes.label,
   },
   cancelCustomBtn: {
     alignSelf: 'flex-start',
@@ -663,7 +715,7 @@ const styles = StyleSheet.create({
   },
   cancelCustomText: {
     fontSize: 12.5,
-    color: '#8C4A1B',
+    color: colors.darkNavy,
     fontWeight: '700',
   },
   selectedBanner: {
@@ -695,7 +747,7 @@ const styles = StyleSheet.create({
   noteText: {
     flex: 1,
     fontSize: 12.5,
-    color: '#705746',
+    color: colors.secondary,
     lineHeight: 18,
     fontWeight: '500',
   },
@@ -705,7 +757,7 @@ const styles = StyleSheet.create({
   },
   validationPrompt: {
     fontSize: 12.5,
-    color: '#8C4A1B',
+    color: colors.darkNavy,
     fontWeight: '600',
     marginTop: 10,
     textAlign: 'center',

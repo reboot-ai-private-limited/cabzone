@@ -1,3 +1,4 @@
+import { colors, typography } from '@/design-system';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Animated,
@@ -192,7 +193,7 @@ export function LoginFormLayer({
               onPress={() => phoneInputRef.current?.focus()}
               style={[styles.phoneInputCard, isPhoneFocused && styles.phoneInputCardFocused]}>
               <View style={styles.phoneIconBox}>
-                <Ionicons name="call" size={17} color="#8C4A1B" />
+                <Ionicons name="call" size={17} color="#12304A" />
               </View>
 
               <View style={styles.verticalDivider} />
@@ -232,7 +233,7 @@ export function LoginFormLayer({
               variant="primary"
               icon={
                 !sendingOtp && (
-                  <Ionicons name="arrow-forward" size={18} color="#5A3416" style={{ marginLeft: 2 }} />
+                  <Ionicons name="arrow-forward" size={18} color="#12304A" style={{ marginLeft: 2 }} />
                 )
               }
               style={styles.sendOtpBtn}
@@ -244,7 +245,7 @@ export function LoginFormLayer({
             {/* Fixed Mobile Number Card with Edit Option */}
             <View style={styles.fixedPhoneCard}>
               <View style={styles.phoneIconBox}>
-                <Ionicons name="call" size={17} color="#8C4A1B" />
+                <Ionicons name="call" size={17} color="#12304A" />
               </View>
 
               <View style={styles.verticalDivider} />
@@ -257,7 +258,7 @@ export function LoginFormLayer({
                 style={({ pressed }) => [styles.editBtn, pressed && styles.editBtnPressed]}
                 accessibilityRole="button"
                 accessibilityLabel="Edit mobile number">
-                <Ionicons name="pencil" size={13} color="#8C4A1B" />
+                <Ionicons name="pencil" size={13} color="#12304A" />
                 <Text style={styles.editText}>Edit</Text>
               </Pressable>
             </View>
@@ -334,7 +335,7 @@ export function LoginFormLayer({
                   <Ionicons
                     name="arrow-forward"
                     size={18}
-                    color={isOtpComplete ? '#5A3416' : '#B3A48C'}
+                    color={isOtpComplete ? colors.darkNavy : colors.secondary}
                     style={{ marginLeft: 2 }}
                   />
                 )
@@ -384,16 +385,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   welcomeTitle: {
-    fontSize: 26,
+    fontSize: typography.sizes.xxl,
     fontWeight: '800',
-    color: '#2C1810',
+    color: colors.text,
     letterSpacing: -0.5,
     marginBottom: 8,
     textAlign: 'center',
   },
   welcomeSubtitle: {
-    fontSize: 15,
-    color: '#705746',
+    fontSize: typography.sizes.base,
+    color: colors.secondary,
     fontWeight: '500',
     lineHeight: 22,
     textAlign: 'center',
@@ -412,7 +413,7 @@ const styles = StyleSheet.create({
   },
   errorText: {
     flex: 1,
-    fontSize: 13,
+    fontSize: typography.sizes.sm,
     color: '#991B1B',
     fontWeight: '500',
   },
@@ -487,7 +488,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16.5,
     fontWeight: '700',
-    color: '#2C1810',
+    color: colors.text,
     letterSpacing: 0.5,
   },
   editBtn: {
@@ -506,7 +507,7 @@ const styles = StyleSheet.create({
   editText: {
     fontSize: 12.5,
     fontWeight: '700',
-    color: '#8C4A1B',
+    color: colors.darkNavy,
   },
   phoneIconBox: {
     width: 38,
@@ -524,9 +525,9 @@ const styles = StyleSheet.create({
   },
   phoneTextInput: {
     flex: 1,
-    fontSize: 16,
+    fontSize: typography.sizes.base,
     fontWeight: '600',
-    color: '#2C1810',
+    color: colors.text,
     paddingVertical: 0,
   },
   clearBtn: {
@@ -546,7 +547,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
     borderWidth: 1.2,
-    borderColor: '#ECE0CE',
+    borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#8C5A20',
@@ -556,9 +557,9 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   otpBoxCurrent: {
-    borderColor: '#8C4A1B',
+    borderColor: colors.darkNavy,
     borderWidth: 1.6,
-    backgroundColor: '#FFFDF9',
+    backgroundColor: colors.surface,
   },
   otpBoxFilled: {
     borderColor: '#CCA67B',
@@ -567,7 +568,7 @@ const styles = StyleSheet.create({
   otpDigitText: {
     fontSize: 21,
     fontWeight: '700',
-    color: '#2C1810',
+    color: colors.text,
   },
   hiddenOtpInput: {
     position: 'absolute',
@@ -585,16 +586,16 @@ const styles = StyleSheet.create({
   timerText: {
     fontSize: 13.5,
     fontWeight: '500',
-    color: '#8C7B68',
+    color: colors.secondary,
   },
   timerCount: {
     fontWeight: '700',
-    color: '#8C4A1B',
+    color: colors.darkNavy,
   },
   resendLinkText: {
-    fontSize: 14,
+    fontSize: typography.sizes.label,
     fontWeight: '700',
-    color: '#8C4A1B',
+    color: colors.darkNavy,
     textDecorationLine: 'underline',
   },
   continueBtn: {
