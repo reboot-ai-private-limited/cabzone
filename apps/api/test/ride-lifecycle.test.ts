@@ -117,39 +117,44 @@ describe('Ride Lifecycle: Curbside Arrival & En-Route Progression', () => {
     const walletRepo = new MemoryWalletRepository();
     walletRepo.save(driverWallet);
 
-    const createRideUseCase = new CreateRideUseCase({
+    const createRideUseCase = new CreateRideUseCase({ unitOfWork, rideEventRepo,
       rideRepo,
       pricingConfigRepo,
       tokenSecret: TEST_SECRET,
     });
 
-    const acceptRideUseCase = new AcceptRideUseCase({
+    const acceptRideUseCase = new AcceptRideUseCase({ unitOfWork, rideEventRepo,
+      requireDriverEligibility: async () => 'test-vehicle',
       rideRepo,
       walletRepo,
       otpTtlMinutes: 20,
     });
 
     const driverEnRouteUseCase = new DriverEnRouteUseCase({
+      unitOfWork,
       rideRepo,
       rideEventRepo,
     });
 
     const driverArrivedUseCase = new DriverArrivedUseCase({
+      unitOfWork,
       rideRepo,
       rideEventRepo,
     });
 
-    const startRideUseCase = new StartRideUseCase({
+    const startRideUseCase = new StartRideUseCase({ unitOfWork, rideEventRepo,
       rideRepo,
     });
 
     const completeRideUseCase = new CompleteRideUseCase({
+      unitOfWork,
       rideRepo,
       walletRepo,
       rideEventRepo,
     });
 
     const cancelRideUseCase = new CancelRideUseCase({
+      unitOfWork,
       rideRepo,
       walletRepo,
       rideEventRepo,
@@ -242,8 +247,9 @@ describe('Ride Lifecycle: Curbside Arrival & En-Route Progression', () => {
 
       // Verify event was logged immutably
       const events = await fixture.rideEventRepo.findByRideId(ride.id);
-      expect(events).toHaveLength(1);
-      expect(events[0]).toMatchObject({
+      expect(events).toHaveLength(3);
+      expect(events.map((e) => e.eventType)).toEqual(['RIDE_CREATED', 'DRIVER_ASSIGNED', 'DRIVER_EN_ROUTE']);
+      expect(events.find((e) => e.eventType === 'DRIVER_EN_ROUTE')).toMatchObject({
         rideId: ride.id,
         eventType: 'DRIVER_EN_ROUTE',
         actorType: 'DRIVER',
@@ -269,9 +275,10 @@ describe('Ride Lifecycle: Curbside Arrival & En-Route Progression', () => {
       const current = await fixture.rideRepo.findById(ride.id);
       expect(current?.status).toBe('DRIVER_ASSIGNED');
 
-      // No events logged
+      // Unauthorized progression leaves the creation and assignment events untouched.
       const events = await fixture.rideEventRepo.findByRideId(ride.id);
-      expect(events).toHaveLength(0);
+      expect(events).toHaveLength(2);
+      expect(events.map((e) => e.eventType)).toEqual(['RIDE_CREATED', 'DRIVER_ASSIGNED']);
     });
 
     it('rejects progression when ride does not exist', async () => {
@@ -342,7 +349,7 @@ describe('Ride Lifecycle: Curbside Arrival & En-Route Progression', () => {
 
       // Verify immutable event log
       const events = await fixture.rideEventRepo.findByRideId(ride.id);
-      expect(events).toHaveLength(2);
+      expect(events).toHaveLength(4);
 
       const arrivedEvent = events.find((e) => e.eventType === 'DRIVER_ARRIVED');
       expect(arrivedEvent).toBeDefined();
@@ -484,38 +491,43 @@ describe('Ride Lifecycle: Curbside Arrival & En-Route Progression', () => {
 
       // Audit trail confirms orderly progression
       const events = await fixture.rideEventRepo.findByRideId(ride.id);
-      expect(events).toHaveLength(2);
-      expect(events.map((e) => e.eventType)).toEqual(['DRIVER_EN_ROUTE', 'DRIVER_ARRIVED']);
+      expect(events).toHaveLength(5);
+      expect(events.map((e) => e.eventType)).toEqual(['RIDE_CREATED', 'DRIVER_ASSIGNED', 'DRIVER_EN_ROUTE', 'DRIVER_ARRIVED', 'TRIP_STARTED']);
     });
   });
 
   describe('CompleteRideUseCase: Trip Completion & Commission Settlement', () => {
-    it('calculates 10% commission, debits driver wallet via double-entry transaction, sets completedAt/settledAt, and logs TRIP_COMPLETED & RIDE_SETTLED events', async () => {
+    it('waits for payment confirmation before debiting 8% commission and records both phases', async () => {
       const fixture = setupFixture();
       const { ride } = await createStartedRide(fixture);
 
       expect(ride.status).toBe('TRIP_STARTED');
 
       const completedTime = new Date('2026-09-26T10:45:00.000Z');
-      const result = await fixture.completeRideUseCase.execute({
+      const pending = await fixture.completeRideUseCase.execute({
         rideId: ride.id,
         driverId: DRIVER_ID_1,
         completedAt: completedTime,
         metadata: { dropOffConfirmed: true },
       });
 
-      // 1. Direct cash / personal UPI model: transitions immediately to SETTLED
+      expect(pending.ride.status).toBe('PAYMENT_PENDING');
+      expect(pending.driverWallet.balancePaise).toBe(250000);
+      expect(await fixture.walletRepo.findTransactionsByWalletId(driverWallet.id)).toHaveLength(0);
+      const result = await fixture.completeRideUseCase.confirmPayment({ rideId: ride.id, driverId: DRIVER_ID_1, completedAt: completedTime });
+
+      // 1. Explicit payment confirmation settles the completed trip.
       expect(result.ride.status).toBe('SETTLED');
       expect(result.ride.completedAt).toEqual(completedTime);
       expect(result.ride.settledAt).toEqual(completedTime);
-      expect(result.ride.version).toBe(ride.version + 1);
+      expect(result.ride.version).toBe(ride.version + 2);
 
       // 2. Exact 8% commission calculation
       const expectedCommission = Math.round((result.farePaise * 8) / 100);
       expect(result.commissionPaise).toBe(expectedCommission);
       expect(result.commissionPaise).toBeGreaterThan(0);
 
-      // 3. Double-entry transaction recorded in driver wallet ledger
+      // 3. Commission debit recorded in driver wallet ledger
       const transactions = await fixture.walletRepo.findTransactionsByWalletId(driverWallet.id);
       expect(transactions).toHaveLength(1);
       expect(transactions[0]).toMatchObject({
@@ -537,7 +549,8 @@ describe('Ride Lifecycle: Curbside Arrival & En-Route Progression', () => {
 
       // 5. Immutable events: TRIP_COMPLETED and RIDE_SETTLED
       const events = await fixture.rideEventRepo.findByRideId(ride.id);
-      expect(events).toHaveLength(4); // EN_ROUTE, ARRIVED, TRIP_COMPLETED, RIDE_SETTLED
+      expect(events).toHaveLength(8);
+      expect(events.map((e) => e.eventType)).toEqual(['RIDE_CREATED', 'DRIVER_ASSIGNED', 'DRIVER_EN_ROUTE', 'DRIVER_ARRIVED', 'TRIP_STARTED', 'TRIP_COMPLETED', 'PAYMENT_CONFIRMED', 'RIDE_SETTLED']);
 
       const completedEvent = events.find((e) => e.eventType === 'TRIP_COMPLETED');
       expect(completedEvent).toMatchObject({
@@ -546,7 +559,7 @@ describe('Ride Lifecycle: Curbside Arrival & En-Route Progression', () => {
         actorType: 'DRIVER',
         actorId: DRIVER_ID_1,
         previousStatus: 'TRIP_STARTED',
-        newStatus: 'TRIP_COMPLETED',
+        newStatus: 'PAYMENT_PENDING',
         metadata: {
           farePaise: result.farePaise,
           completedAt: completedTime.toISOString(),
@@ -555,12 +568,18 @@ describe('Ride Lifecycle: Curbside Arrival & En-Route Progression', () => {
       });
 
       const settledEvent = events.find((e) => e.eventType === 'RIDE_SETTLED');
+      expect(events.find((e) => e.eventType === 'PAYMENT_CONFIRMED')).toMatchObject({
+        actorType: 'DRIVER',
+        actorId: DRIVER_ID_1,
+        previousStatus: 'PAYMENT_PENDING',
+        newStatus: 'SETTLED',
+      });
       expect(settledEvent).toMatchObject({
         rideId: ride.id,
         eventType: 'RIDE_SETTLED',
-        actorType: 'SYSTEM',
-        actorId: null,
-        previousStatus: 'TRIP_COMPLETED',
+        actorType: 'DRIVER',
+        actorId: DRIVER_ID_1,
+        previousStatus: 'PAYMENT_PENDING',
         newStatus: 'SETTLED',
         metadata: {
           settledAt: completedTime.toISOString(),
@@ -585,12 +604,16 @@ describe('Ride Lifecycle: Curbside Arrival & En-Route Progression', () => {
       expect(ride.status).toBe('TRIP_STARTED');
 
       // Completing the trip incurs 8% commission (approx Rs. 8 - 12 / 800 - 1200 paise)
-      const result = await fixture.completeRideUseCase.execute({
+      const pending = await fixture.completeRideUseCase.execute({
         rideId: ride.id,
         driverId: DRIVER_ID_1,
       });
 
-      // Active trip completes normally and settles
+      expect(pending.ride.status).toBe('PAYMENT_PENDING');
+      expect(pending.driverWallet.balancePaise).toBe(500);
+      const result = await fixture.completeRideUseCase.confirmPayment({ rideId: ride.id, driverId: DRIVER_ID_1 });
+
+      // Payment confirmation settles even when commission exhausts the wallet.
       expect(result.ride.status).toBe('SETTLED');
 
       // Balance goes strictly negative (500 - commission < 0)
@@ -1079,6 +1102,10 @@ describe('Ride Lifecycle: Curbside Arrival & En-Route Progression', () => {
         rideId: ride.id,
         driverId: DRIVER_ID_1,
       });
+      await fixture.completeRideUseCase.confirmPayment({
+        rideId: ride.id,
+        driverId: DRIVER_ID_1,
+      });
 
       // SETTLED cannot be cancelled
       await expect(
@@ -1107,3 +1134,4 @@ describe('Ride Lifecycle: Curbside Arrival & En-Route Progression', () => {
 });
 
 
+import { unitOfWork } from './helpers/unitOfWork.js';

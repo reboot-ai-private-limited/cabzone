@@ -77,6 +77,7 @@ function createTestApp() {
     buildAdminDriverRouter: () => Router(),
     authenticate,
     requireRole,
+    requireAdminScope: () => requireRole('SUPER_ADMIN'),
     requireZoneAccess: makeRequireZoneAccess({
       adminRepo: {
         findByUserId: async () => null,

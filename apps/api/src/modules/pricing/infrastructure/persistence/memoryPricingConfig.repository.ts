@@ -1,4 +1,5 @@
 import type { PricingConfigLevel, VehicleCategory } from '@cabzone/contracts';
+import { AppError } from '../../../../shared/errors/AppError.js';
 import type {
   EffectivePricingTarget,
   PricingConfigEntity,
@@ -20,7 +21,7 @@ export class MemoryPricingConfigRepository implements PricingConfigRepositoryPor
 
     // 1. City Zone level override
     if (cityZoneId) {
-      for (const config of this.configs.values()) {
+      for (const config of [...this.configs.values()].sort((a, b) => b.version - a.version)) {
         if (
           config.cityZoneId === cityZoneId &&
           config.vehicleType === vehicleCategory &&
@@ -33,7 +34,7 @@ export class MemoryPricingConfigRepository implements PricingConfigRepositoryPor
 
     // 2. State level pricing
     if (stateCode) {
-      for (const config of this.configs.values()) {
+      for (const config of [...this.configs.values()].sort((a, b) => b.version - a.version)) {
         if (
           config.level === 'STATE' &&
           config.stateCode?.toUpperCase() === stateCode.toUpperCase() &&
@@ -46,7 +47,7 @@ export class MemoryPricingConfigRepository implements PricingConfigRepositoryPor
     }
 
     // 3. Global baseline pricing
-    for (const config of this.configs.values()) {
+    for (const config of [...this.configs.values()].sort((a, b) => b.version - a.version)) {
       if (
         config.level === 'GLOBAL' &&
         config.vehicleType === vehicleCategory &&
@@ -65,7 +66,7 @@ export class MemoryPricingConfigRepository implements PricingConfigRepositoryPor
     now: Date = new Date(),
   ): Promise<PricingConfigEntity | null> {
     // 1. State level
-    for (const config of this.configs.values()) {
+    for (const config of [...this.configs.values()].sort((a, b) => b.version - a.version)) {
       if (
         config.level === 'STATE' &&
         config.stateCode?.toUpperCase() === stateCode.toUpperCase() &&
@@ -77,7 +78,7 @@ export class MemoryPricingConfigRepository implements PricingConfigRepositoryPor
     }
 
     // 2. Global fallback
-    for (const config of this.configs.values()) {
+    for (const config of [...this.configs.values()].sort((a, b) => b.version - a.version)) {
       if (
         config.level === 'GLOBAL' &&
         config.vehicleType === vehicleCategory &&
@@ -95,7 +96,8 @@ export class MemoryPricingConfigRepository implements PricingConfigRepositoryPor
     return config ? { ...config } : null;
   }
 
-  async save(config: PricingConfigEntity): Promise<PricingConfigEntity> {
+  async save(config: PricingConfigEntity, expectedVersion?: number): Promise<PricingConfigEntity> {
+    if (expectedVersion !== undefined && this.configs.get(config.id)?.version !== expectedVersion) throw AppError.conflict('PRICING_CHANGED: Refresh pricing before retrying.');
     this.configs.set(config.id, { ...config });
     return { ...config };
   }
@@ -104,6 +106,7 @@ export class MemoryPricingConfigRepository implements PricingConfigRepositoryPor
     const list = Array.from(this.configs.values());
     return list
       .filter((c) => {
+        if (filter?.allowedCityZoneIds && (c.level !== 'CITY' || !c.cityZoneId || !filter.allowedCityZoneIds.includes(c.cityZoneId))) return false;
         if (filter?.level && c.level !== filter.level) return false;
         if (filter?.cityZoneId && c.cityZoneId !== filter.cityZoneId) return false;
         if (filter?.stateCode && c.stateCode?.toUpperCase() !== filter.stateCode.toUpperCase()) return false;
@@ -123,7 +126,7 @@ export class MemoryPricingConfigRepository implements PricingConfigRepositoryPor
     const level = typeof target === 'object' ? target.level : undefined;
 
     let max = 0;
-    for (const config of this.configs.values()) {
+    for (const config of [...this.configs.values()].sort((a, b) => b.version - a.version)) {
       if (config.vehicleType !== vehicleCategory) continue;
 
       if (level === 'GLOBAL') {

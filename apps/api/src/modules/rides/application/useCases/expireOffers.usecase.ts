@@ -1,4 +1,5 @@
 import { newUuid } from '../../../../shared/ids.js';
+import type { UnitOfWorkPort } from '../../../../shared/db/unitOfWork.port.js';
 import type {
   RideEntity,
   RideEventRepositoryPort,
@@ -7,6 +8,7 @@ import type {
 } from '../../domain/index.js';
 
 export interface ExpireOffersDeps {
+  unitOfWork: UnitOfWorkPort;
   rideRepo: RideRepositoryPort;
   rideEventRepo?: RideEventRepositoryPort | undefined;
   notifier?: RideNotifierPort | undefined;
@@ -22,28 +24,43 @@ export class ExpireOffersUseCase {
     const expired: RideEntity[] = [];
 
     for (const ride of stale) {
-      // Re-read guard: a driver may have claimed the ride since the scan.
-      const current = await this.deps.rideRepo.findById(ride.id);
-      if (!current || current.status !== 'OFFERING') continue;
+      const saved = await this.deps.unitOfWork.run(async () => {
+        const current = await this.deps.rideRepo.findById(ride.id);
+        if (
+          !current ||
+          current.status !== 'OFFERING' ||
+          !current.offeringExpiresAt ||
+          current.offeringExpiresAt >= now
+        ) {
+          return null;
+        }
 
-      const saved = await this.deps.rideRepo.save({
-        ...current,
-        status: 'EXPIRED',
-        cancellationReason: 'TIMEOUT_EXPIRED',
-        updatedAt: now,
-        version: current.version + 1,
+        const updated = await this.deps.rideRepo.update(
+          {
+            ...current,
+            status: 'EXPIRED',
+            cancellationReason: 'TIMEOUT_EXPIRED',
+            updatedAt: now,
+            version: current.version + 1,
+          },
+          current.version,
+        );
+        if (!updated) return null;
+
+        await this.deps.rideEventRepo?.save({
+          id: newUuid(),
+          rideId: updated.id,
+          eventType: 'OFFER_EXPIRED',
+          actorType: 'SYSTEM',
+          actorId: null,
+          previousStatus: 'OFFERING',
+          newStatus: 'EXPIRED',
+          metadata: {},
+          createdAt: now,
+        });
+        return updated;
       });
-      await this.deps.rideEventRepo?.save({
-        id: newUuid(),
-        rideId: saved.id,
-        eventType: 'OFFER_EXPIRED',
-        actorType: 'SYSTEM',
-        actorId: null,
-        previousStatus: 'OFFERING',
-        newStatus: 'EXPIRED',
-        metadata: {},
-        createdAt: now,
-      });
+      if (!saved) continue;
       await this.deps.notifier?.rideUpdated(saved, 'ride.offer.expired');
       expired.push(saved);
     }

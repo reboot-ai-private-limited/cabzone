@@ -135,6 +135,7 @@ export interface ListTransactionsQueryDto {
 }
 
 export interface AdjustWalletRequestDto {
+  idempotencyKey?: string | undefined;
   walletId?: string | undefined;
   driverId?: string | undefined;
   riderId?: string | undefined;

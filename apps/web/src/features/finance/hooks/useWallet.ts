@@ -22,7 +22,7 @@ export function useWallet(driverId: string | null) {
 
 export function useAdjustWallet(onDone?: () => void) {
   return useApiMutation<AdjustWalletBody, unknown>({
-    call: (token, body) => walletsApi.adjust(body, token),
+    call: (token, body, idempotencyKey) => walletsApi.adjust({ ...body, idempotencyKey }, token),
     invalidates: [keys.wallets.all()],
     ...(onDone === undefined ? {} : { onSuccess: onDone }),
   });

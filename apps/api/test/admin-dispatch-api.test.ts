@@ -64,6 +64,7 @@ async function buildTestEnv() {
     buildAdminDriverRouter: () => Router(),
     authenticate,
     requireRole,
+    requireAdminScope: () => requireRole('SUPER_ADMIN'),
     requireZoneAccess: makeRequireZoneAccess({ adminRepo: { findByUserId: async () => null } }),
   };
 
@@ -112,7 +113,7 @@ async function buildTestEnv() {
     dispatch,
   });
 
-  return { app, makeToken, presence, rideRepo };
+  return { app, makeToken, presence, rideRepo, simulateFleet: dispatch.simulateFleetUseCase };
 }
 
 describe('Admin Dispatch & Fleet Radar API', () => {
@@ -130,7 +131,7 @@ describe('Admin Dispatch & Fleet Radar API', () => {
   });
 
   it('allows admins to simulate fleet in Siliguri and inspect live fleet radar', async () => {
-    const { app, makeToken, rideRepo } = await buildTestEnv();
+    const { app, makeToken, rideRepo, simulateFleet } = await buildTestEnv();
     const adminToken = await makeToken(ADMIN_USER, 'SUPER_ADMIN');
 
     // 1. Initial fleet is empty
@@ -145,9 +146,10 @@ describe('Admin Dispatch & Fleet Radar API', () => {
       .post('/api/v1/admin/dispatch/simulate-fleet')
       .set('Authorization', `Bearer ${adminToken}`)
       .send({ enabled: true });
-    expect(simRes.status).toBe(200);
-    expect(simRes.body.data.simulated).toBe(true);
-    expect(simRes.body.data.count).toBe(6);
+    expect(simRes.status).toBe(404);
+    const simulated = await simulateFleet.execute({ enabled: true });
+    expect(simulated.simulated).toBe(true);
+    expect(simulated.count).toBe(6);
 
     // 3. Inspect fleet
     const fleetRes = await request(app)
@@ -210,8 +212,9 @@ describe('Admin Dispatch & Fleet Radar API', () => {
       .post('/api/v1/admin/dispatch/simulate-fleet')
       .set('Authorization', `Bearer ${adminToken}`)
       .send({ enabled: false });
-    expect(clearRes.status).toBe(200);
-    expect(clearRes.body.data.simulated).toBe(false);
+    expect(clearRes.status).toBe(404);
+    const cleared = await simulateFleet.execute({ enabled: false });
+    expect(cleared.simulated).toBe(false);
 
     const emptyAgain = await request(app)
       .get('/api/v1/admin/dispatch/fleet')

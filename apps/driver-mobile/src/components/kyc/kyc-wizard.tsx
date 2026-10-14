@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '@/context/auth-context';
 import { driverApi } from '@/services/api';
+import { personalInfoPayload, toBackendDate, toDisplayDate } from '@/services/profile';
 import { INITIAL_DRAFT, type OnboardingDraft } from './types';
 import { StepPersonalInfo } from './step-personal-info';
 import { StepOperatingCity } from './step-operating-city';
@@ -12,17 +13,27 @@ import { StepReview } from './step-review';
 import { StepSubmitted } from './step-submitted';
 
 export function KycWizard() {
-  const { token, driver, vehicle, refreshProfile, logout } = useAuth();
+  const { token, driver, vehicle, documents, refreshProfile, logout } = useAuth();
 
   const [draft, setDraft] = useState<OnboardingDraft>(() => ({
     ...INITIAL_DRAFT,
     firstName: driver?.name?.split(' ')[0] || '',
     lastName: driver?.name?.split(' ').slice(1).join(' ') || '',
-    dateOfBirth: driver?.dateOfBirth || '',
+    dateOfBirth: toDisplayDate(driver?.dateOfBirth || ''),
+    gender: driver?.gender === 'FEMALE' || driver?.gender === 'OTHER' ? driver.gender : 'MALE',
+    profilePhotoUri: driver?.profilePhotoUrl || undefined,
+    selfieTaken: Boolean(driver?.profilePhotoUrl),
     dlNumber: driver?.dlNumber || '',
+    dlExpiry: documents.find((document) => document.type === 'DRIVING_LICENSE')?.expiresAt?.slice(0, 10) || driver?.dlExpiry || '',
+    dlUploaded: documents.some((document) => document.type === 'DRIVING_LICENSE' && !document.storageKey.startsWith('mock/')),
+    govtIdUploaded: documents.some((document) => document.type === 'GOVERNMENT_ID' && !document.storageKey.startsWith('mock/')),
+    rcUploaded: documents.some((document) => document.type === 'REGISTRATION_CERTIFICATE' && !document.storageKey.startsWith('mock/')),
+    insuranceUploaded: documents.some((document) => document.type === 'INSURANCE' && !document.storageKey.startsWith('mock/')),
+    permitUploaded: documents.some((document) => document.type === 'PERMIT' && !document.storageKey.startsWith('mock/')),
     city: driver?.address || 'Siliguri',
     vehicleType: vehicle?.vehicleType || 'CAB',
     registrationNumber: vehicle?.registrationNumber || '',
+    make: vehicle?.make || INITIAL_DRAFT.make,
     model: vehicle?.model || 'Maruti Dzire Tour',
     color: vehicle?.color || 'White',
   }));
@@ -33,6 +44,18 @@ export function KycWizard() {
     setDraft((prev) => ({ ...prev, ...partial }));
   };
 
+  const savePersonalInfo = async (values: OnboardingDraft) => {
+    if (!token) throw new Error('Please sign in before saving your profile.');
+    const saved = await driverApi.saveProfile(token, personalInfoPayload(values));
+    setDraft({
+      ...values,
+      profilePhotoUri: saved.profilePhotoUrl || undefined,
+      profilePhotoDataUrl: undefined,
+    });
+    await refreshProfile();
+    setStep(2);
+  };
+
   const handleSubmitApplication = async () => {
     if (!token) return;
 
@@ -40,7 +63,7 @@ export function KycWizard() {
     await driverApi.saveProfile(token, {
       name: `${draft.firstName} ${draft.lastName}`.trim(),
       gender: draft.gender,
-      dateOfBirth: draft.dateOfBirth,
+      dateOfBirth: toBackendDate(draft.dateOfBirth),
       address: draft.city,
       dlNumber: draft.dlNumber,
     });
@@ -58,28 +81,13 @@ export function KycWizard() {
       manufactureYear: draft.manufactureYear,
     });
 
-    // 4. Upload mandatory compliance documents (Govt ID + DL)
-    await driverApi.uploadDocument(token, {
-      type: 'GOVERNMENT_ID',
-      storageKey: 'mock/aadhaar_rc.jpg',
-      documentHash: 'a'.repeat(64),
-      documentNumberMasked: draft.registrationNumber || 'WB74AB1234',
-    });
-
-    await driverApi.uploadDocument(token, {
-      type: 'DRIVING_LICENSE',
-      storageKey: 'mock/dl.jpg',
-      documentHash: 'b'.repeat(64),
-      documentNumberMasked: draft.dlNumber || 'WB7420220012345',
-    });
-
-    // 5. Submit application for compliance review
+    // 4. Submit the documents already uploaded during onboarding for review.
     await driverApi.submitApplication(token);
 
-    // 6. Refresh authoritative profile from backend
+    // 5. Refresh authoritative profile from backend
     await refreshProfile();
 
-    // 7. Advance to Flow 12 (Application Submitted)
+    // 6. Advance to Flow 12 (Application Submitted)
     setStep(8);
   };
 
@@ -89,7 +97,7 @@ export function KycWizard() {
         <StepPersonalInfo
           draft={draft}
           onUpdate={updateDraft}
-          onNext={() => setStep(2)}
+          onNext={savePersonalInfo}
           onClose={logout}
         />
       );

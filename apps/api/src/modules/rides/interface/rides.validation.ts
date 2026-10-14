@@ -16,10 +16,7 @@ export const locationPointSchema = z.object({
 export const passengerSchema = z.object({
   riderId: z.string().uuid().nullable().optional(),
   name: z.string().trim().min(1, 'Passenger name is required').max(100),
-  phoneE164: z
-    .string()
-    .trim()
-    .regex(E164_PHONE_REGEX, 'Must be a valid E.164 phone number'),
+  phoneE164: z.string().trim().regex(E164_PHONE_REGEX, 'Must be a valid E.164 phone number'),
 });
 
 export const requestRideSchema = z.object({
@@ -58,11 +55,20 @@ export const createRideRequestSchema = z.object({
 });
 
 export const startRideRequestSchema = z.object({
-  otp: z.string().trim().regex(/^\d{4}$/, 'OTP must be 4 digits'),
+  otp: z
+    .string()
+    .trim()
+    .regex(/^\d{4}$/, 'OTP must be 4 digits'),
   driverId: z.string().uuid().optional(),
 });
 
 export const rideIdParamSchema = z.object({ id: z.string().uuid() });
+
+export const paymentDisputeSchema = z.object({ reason: z.string().trim().min(10).max(1000) });
+export const paymentDisputeResolutionSchema = z.object({
+  outcome: z.enum(['RIDER_WINS', 'DRIVER_WINS']),
+  reason: z.string().trim().min(10).max(1000),
+});
 
 export const listRidesQuerySchema = z.object({
   status: z

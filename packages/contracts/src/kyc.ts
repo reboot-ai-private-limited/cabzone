@@ -36,7 +36,7 @@ export interface DriverApplicationDto {
   updatedAt: string;
 }
 
-export const DOCUMENT_TYPES = ['GOVERNMENT_ID', 'DRIVING_LICENSE'] as const;
+export const DOCUMENT_TYPES = ['GOVERNMENT_ID', 'DRIVING_LICENSE', 'REGISTRATION_CERTIFICATE', 'INSURANCE', 'PERMIT'] as const;
 export type DocumentType = (typeof DOCUMENT_TYPES)[number];
 
 import type { DriverDto } from './identity.js';

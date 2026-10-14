@@ -20,14 +20,19 @@ export interface OnboardingDraft {
 
   // Flow 8: Step 4 of 6 (Driving licence)
   dlNumber: string;
+  dlExpiry: string; // YYYY-MM-DD
   dlUploaded: boolean;
+  govtIdUploaded: boolean;
 
   // Flow 9: Step 5 of 6 (Vehicle documents)
   rcUploaded: boolean;
   insuranceUploaded: boolean;
+  permitUploaded: boolean;
 
   // Flow 10: Step 6 of 6 (Selfie / Profile photo)
   selfieTaken: boolean;
+  profilePhotoUri?: string;
+  profilePhotoDataUrl?: string | null;
 }
 
 export const INITIAL_DRAFT: OnboardingDraft = {
@@ -39,12 +44,15 @@ export const INITIAL_DRAFT: OnboardingDraft = {
   city: 'Siliguri',
   registrationNumber: '',
   make: 'Maruti Suzuki',
-  model: 'Dzire Tour',
+  model: 'Maruti Dzire Tour',
   color: 'White',
   manufactureYear: 2022,
   dlNumber: '',
+  dlExpiry: '',
   dlUploaded: false,
+  govtIdUploaded: false,
   rcUploaded: false,
   insuranceUploaded: false,
+  permitUploaded: false,
   selfieTaken: false,
 };

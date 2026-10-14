@@ -129,6 +129,7 @@ export interface DriverDto {
   id: string;
   userId: string;
   name?: string | null | undefined;
+  profilePhotoUrl?: string | null | undefined;
   gender?: string | null | undefined;
   dateOfBirth?: string | null | undefined;
   address?: string | null | undefined;
@@ -147,6 +148,18 @@ export interface DriverDto {
   trustScoreBreakdown?: TrustScoreBreakdownDto | undefined;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface SaveDriverProfileRequestDto {
+  name?: string | null;
+  gender?: 'MALE' | 'FEMALE' | 'OTHER' | null;
+  dateOfBirth?: string | null;
+  profilePhotoDataUrl?: string | null;
+  address?: string | null;
+  dlNumber?: string | null;
+  dlExpiry?: string | null;
+  alternatePhone?: string | null;
+  emergencyContact?: string | null;
 }
 
 export const ADMIN_ROLES = ['SUPER_ADMIN', 'CITY_ADMIN', 'SUPPORT_ADMIN', 'FINANCE_ADMIN'] as const;
@@ -321,4 +334,3 @@ export interface RefreshTokenResponseDto {
 export interface LogoutResponseDto {
   message: string;
 }
-

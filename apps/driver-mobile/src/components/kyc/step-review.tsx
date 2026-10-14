@@ -107,16 +107,24 @@ export function StepReview({
           </View>
 
           <View style={styles.docItem}>
-            <Text style={styles.checkIcon}>✓</Text>
-            <Text style={styles.docName}>Driving licence ({draft.dlNumber || 'WB7420220012345'})</Text>
+            <Text style={styles.checkIcon}>{draft.dlUploaded && draft.dlExpiry ? '✓' : '!'}</Text>
+            <Text style={styles.docName}>Driving licence ({draft.dlNumber}){draft.dlExpiry ? ` · expires ${draft.dlExpiry}` : ' — expiry missing'}</Text>
           </View>
           <View style={styles.docItem}>
-            <Text style={styles.checkIcon}>✓</Text>
-            <Text style={styles.docName}>Registration Certificate (RC)</Text>
+            <Text style={styles.checkIcon}>{draft.govtIdUploaded ? '✓' : '!'}</Text>
+            <Text style={styles.docName}>Government ID{draft.govtIdUploaded ? '' : ' — missing'}</Text>
           </View>
           <View style={styles.docItem}>
-            <Text style={styles.checkIcon}>✓</Text>
-            <Text style={styles.docName}>Vehicle insurance policy</Text>
+            <Text style={styles.checkIcon}>{draft.rcUploaded ? '✓' : '!'}</Text>
+            <Text style={styles.docName}>Registration Certificate (RC){draft.rcUploaded ? '' : ' — missing'}</Text>
+          </View>
+          <View style={styles.docItem}>
+            <Text style={styles.checkIcon}>{draft.insuranceUploaded ? '✓' : '!'}</Text>
+            <Text style={styles.docName}>Vehicle insurance policy{draft.insuranceUploaded ? '' : ' — missing'}</Text>
+          </View>
+          <View style={styles.docItem}>
+            <Text style={styles.checkIcon}>{draft.permitUploaded ? '✓' : '!'}</Text>
+            <Text style={styles.docName}>Commercial permit{draft.permitUploaded ? '' : ' — missing'}</Text>
           </View>
           <View style={styles.docItem}>
             <Text style={styles.checkIcon}>✓</Text>

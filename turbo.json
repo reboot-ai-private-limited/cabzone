@@ -26,7 +26,8 @@
     },
     "dev": {
       "cache": false,
-      "persistent": true
+      "persistent": true,
+      "passThroughEnv": ["EXPO_PORT"]
     },
     "dev:worker": {
       "cache": false,

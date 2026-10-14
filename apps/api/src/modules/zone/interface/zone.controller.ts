@@ -76,11 +76,12 @@ export function makeGetZoneController(useCase: GetZoneUseCase): RequestHandler {
 export function makeListZonesController(useCase: ListZonesUseCase): RequestHandler {
   return asyncHandler(async (req: Request, res: Response) => {
     const filter = listZonesQuerySchema.parse(req.query);
+    const scopedFilter = { ...filter, allowedCityZoneIds: req.adminCityZoneIds };
     if (filter.page !== undefined || filter.limit !== undefined) {
-      const result = await useCase.executePaginated(filter);
+      const result = await useCase.executePaginated(scopedFilter);
       sendSuccess(req, res, result, 'Zones retrieved successfully', 200);
     } else {
-      const result = await useCase.execute(filter);
+      const result = await useCase.execute(scopedFilter);
       sendSuccess(req, res, result, 'Zones retrieved successfully', 200);
     }
   });

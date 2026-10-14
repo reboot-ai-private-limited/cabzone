@@ -1,6 +1,5 @@
 import React, { useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -9,6 +8,8 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { CandyButton } from '@/components/buttons/candy-button';
 import { useAuth } from '@/context/auth-context';
 
 export function OtpStep() {
@@ -114,16 +115,24 @@ export function OtpStep() {
         </View>
 
         {/* Verify CTA */}
-        <Pressable
-          style={[styles.button, (otp.length !== 6 || isLoading) && styles.buttonDisabled]}
+        <CandyButton
+          title={isLoading ? 'Verifying...' : 'Verify & Login'}
+          onPress={handleSubmit}
           disabled={otp.length !== 6 || isLoading}
-          onPress={handleSubmit}>
-          {isLoading ? (
-            <ActivityIndicator color="#ffffff" />
-          ) : (
-            <Text style={styles.buttonText}>Verify & Login →</Text>
-          )}
-        </Pressable>
+          loading={isLoading}
+          variant={otp.length === 6 ? 'primary' : 'muted'}
+          icon={
+            !isLoading && (
+              <Ionicons
+                name="arrow-forward"
+                size={18}
+                color={otp.length === 6 ? '#5A3416' : '#B3A48C'}
+                style={{ marginLeft: 2 }}
+              />
+            )
+          }
+          style={{ width: '100%', marginTop: 8 }}
+        />
 
         {/* Resend Timer */}
         <View style={styles.resendContainer}>

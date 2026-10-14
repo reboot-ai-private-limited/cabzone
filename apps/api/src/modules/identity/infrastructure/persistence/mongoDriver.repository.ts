@@ -19,6 +19,7 @@ export class MongoDriverRepository implements DriverRepositoryPort {
       _id: driver.id,
       user_id: driver.userId,
       name: driver.name ?? null,
+      profile_photo_url: driver.profilePhotoUrl ?? null,
       alternate_phone: driver.alternatePhone ?? null,
       gender: driver.gender ?? null,
       date_of_birth: driver.dateOfBirth ?? null,
@@ -41,10 +42,11 @@ export class MongoDriverRepository implements DriverRepositoryPort {
   }
 
   async update(driver: DriverEntity): Promise<DriverEntity> {
-    const updated = await DriverModel.findByIdAndUpdate(
-      driver.id,
+    const updated = await DriverModel.findOneAndUpdate(
+      { _id: driver.id, version: driver.version },
       {
         name: driver.name ?? null,
+        profile_photo_url: driver.profilePhotoUrl ?? null,
         alternate_phone: driver.alternatePhone ?? null,
         gender: driver.gender ?? null,
         date_of_birth: driver.dateOfBirth ?? null,
@@ -76,6 +78,7 @@ export class MongoDriverRepository implements DriverRepositoryPort {
       id: doc._id,
       userId: doc.user_id,
       name: doc.name ?? null,
+      profilePhotoUrl: doc.profile_photo_url ?? null,
       alternatePhone: doc.alternate_phone ?? null,
       gender: doc.gender ?? null,
       dateOfBirth: doc.date_of_birth ?? null,

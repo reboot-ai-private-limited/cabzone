@@ -1,6 +1,9 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { AppError } from '../../../../shared/errors/AppError.js';
-import type { RideEntity, RideRepositoryPort } from '../../domain/index.js';
+import type { RideEntity, RideRepositoryPort, RideEventRepositoryPort } from '../../domain/index.js';
+import type { UnitOfWorkPort } from '../../../../shared/db/unitOfWork.port.js';
+import { newUuid } from '../../../../shared/ids.js';
+import { saveRideTransition } from '../rideTransition.js';
 
 export interface StartRideInput {
   rideId: string;
@@ -9,6 +12,8 @@ export interface StartRideInput {
 }
 
 export interface StartRideDeps {
+  unitOfWork: UnitOfWorkPort;
+  rideEventRepo: RideEventRepositoryPort;
   rideRepo: RideRepositoryPort;
 }
 
@@ -65,8 +70,15 @@ export class StartRideUseCase {
 
     if (!isMatch) {
       const newAttempts = currentAttempts + 1;
-      ride.passenger.otpAttempts = newAttempts;
-      await this.deps.rideRepo.save(ride);
+      await saveRideTransition(
+        this.deps.rideRepo,
+        {
+          ...ride,
+          passenger: { ...ride.passenger, otpAttempts: newAttempts },
+          version: ride.version + 1,
+        },
+        ride.version,
+      );
 
       if (newAttempts >= maxAttempts) {
         throw AppError.forbidden(
@@ -84,6 +96,13 @@ export class StartRideUseCase {
       version: ride.version + 1,
     };
 
-    return this.deps.rideRepo.save(updatedRide);
+    return this.deps.unitOfWork.run(async () => {
+      const saved = await saveRideTransition(this.deps.rideRepo, updatedRide, ride.version);
+      await this.deps.rideEventRepo.save({
+        id: newUuid(), rideId: ride.id, eventType: 'TRIP_STARTED', actorType: 'DRIVER', actorId: input.driverId,
+        previousStatus: ride.status, newStatus: saved.status, metadata: {}, createdAt: now,
+      });
+      return saved;
+    });
   }
 }

@@ -28,10 +28,10 @@ const SLIDE_MS = 1100;
 const SLIDE_EASING = Easing.bezier(0.65, 0, 0.35, 1);
 
 const PILOT_COPY = {
-  headline: 'Drive, Earn & Grow',
-  body: '0% commission on your first 14 days.',
+  headlineMain: 'Drive, Earn & Grow',
+  headlineHighlight: 'With Every Trip',
+  body: 'Quick verification, 0% commission for your first 14 days, and flexible shifts that fit your life.',
 };
-
 // Pages 2 & 3 of the swipeable hero (page 1 is the animated pilot orbit)
 const EXTRA_SLIDES: {
   key: string;
@@ -93,44 +93,7 @@ export function EntryStep({ onBecomeDriver, onLogin }: EntryStepProps) {
   const dragReady = useRef(false);
   const userDragging = useRef(false);
 
-  // Sticky slider bar animation values (elastic stretch & sticky spring)
-  const [trackWidth, setTrackWidth] = useState(0);
-  const [barPos] = useState(() => new Animated.Value(0));
-  const [barStretch] = useState(() => new Animated.Value(1));
 
-  useEffect(() => {
-    if (reducedMotion) {
-      barPos.setValue(page);
-      barStretch.setValue(1);
-      return;
-    }
-    Animated.parallel([
-      Animated.spring(barPos, {
-        toValue: page,
-        tension: 190,
-        friction: 14,
-        useNativeDriver: true,
-      }),
-      Animated.sequence([
-        Animated.timing(barStretch, {
-          toValue: 1.25,
-          duration: 120,
-          easing: Easing.out(Easing.ease),
-          useNativeDriver: true,
-        }),
-        Animated.spring(barStretch, {
-          toValue: 1.0,
-          tension: 220,
-          friction: 11,
-          useNativeDriver: true,
-        }),
-      ]),
-    ]).start();
-  }, [page, reducedMotion, barPos, barStretch]);
-
-  const barGap = 8;
-  const segmentWidth = trackWidth > 0 ? (trackWidth - 2 * barGap) / 3 : 0;
-  const barStep = segmentWidth + barGap;
 
   const slideTo = (i: number, duration = SLIDE_MS) => {
     idx.current = i;
@@ -157,7 +120,7 @@ export function EntryStep({ onBecomeDriver, onLogin }: EntryStepProps) {
     });
   };
 
-  const goToPage = (i: number) => slideTo(i);
+
 
   // Finger drag: follows the finger, then eases to the nearest page (flick-aware)
   const pan = useMemo(
@@ -436,122 +399,153 @@ export function EntryStep({ onBecomeDriver, onLogin }: EntryStepProps) {
     transform: [{ scale: scaleVal }],
   });
 
-  const renderCopy = (headline: string, body: string) => (
+  // Slide whoop in / whoop out transform (scale: 0.72 -> 1.0 -> 0.72, opacity: 0 -> 1.0 -> 0, slight 8px vertical settle)
+  const getSlideWhoopStyle = (pageIndex: number) => {
+    if (reducedMotion) {
+      return {
+        opacity: 1,
+        transform: [{ scale: 1 }, { translateY: 0 }],
+      };
+    }
+
+    const centerPos = -pageIndex * pageWidth;
+    const prevPos = -(pageIndex - 1) * pageWidth;
+    const nextPos = -(pageIndex + 1) * pageWidth;
+
+    const scale = tx.interpolate({
+      inputRange: [
+        nextPos,
+        nextPos + pageWidth * 0.5,
+        centerPos,
+        prevPos - pageWidth * 0.5,
+        prevPos,
+      ],
+      outputRange: [0.72, 0.88, 1.0, 0.88, 0.72],
+      extrapolate: 'clamp',
+    });
+
+    const opacity = tx.interpolate({
+      inputRange: [
+        nextPos,
+        nextPos + pageWidth * 0.5,
+        centerPos,
+        prevPos - pageWidth * 0.5,
+        prevPos,
+      ],
+      outputRange: [0, 0.75, 1.0, 0.75, 0],
+      extrapolate: 'clamp',
+    });
+
+    const translateY = tx.interpolate({
+      inputRange: [nextPos, centerPos, prevPos],
+      outputRange: [8, 0, 8],
+      extrapolate: 'clamp',
+    });
+
+    return {
+      opacity,
+      transform: [{ scale }, { translateY }],
+    };
+  };
+
+  const renderCopy = (headline: string, body: string, highlight?: string) => (
     <View style={styles.copySection}>
-      <Text style={styles.headline} numberOfLines={1} adjustsFontSizeToFit>{headline}</Text>
-      <Text style={styles.bodyText} numberOfLines={1} adjustsFontSizeToFit>{body}</Text>
+      <Text style={styles.headline} numberOfLines={2} adjustsFontSizeToFit>
+        {headline}
+        {highlight ? <Text style={{ color: '#B43E00' }}>{'\n'}{highlight}</Text> : null}
+      </Text>
+      <Text style={styles.bodyText} numberOfLines={3} adjustsFontSizeToFit>{body}</Text>
     </View>
   );
 
-  const pilotPage = (key: string) => (
-    <View key={key} style={{ width: pageWidth, paddingHorizontal: 20, alignItems: 'center' }}>
-      <View style={styles.orbitalContainer}>
-        {/* Soft Warm Circular Backdrop Spotlight */}
-        <BlobBackground />
+  const pilotPage = (key: string, pageIndex: number) => {
+    const whoopStyle = getSlideWhoopStyle(pageIndex);
+    return (
+      <View key={key} style={{ width: pageWidth, paddingHorizontal: 20, alignItems: 'center' }}>
+        <Animated.View style={[{ width: '100%', alignItems: 'center' }, whoopStyle]}>
+          <View style={styles.orbitalContainer}>
+            {/* Dashed Golden Elliptical Orbit Ring */}
+            <View style={styles.dashedOrbit} />
 
-        {/* Dashed Golden Elliptical Orbit Ring */}
-        <View style={styles.dashedOrbit} />
+            {/* Top Row: Avatar & Earnings Pill */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 12, zIndex: 10 }}>
+              {/* Central Pilot Avatar with Glowing Golden Ring & Star Badge */}
+              <Animated.View
+                style={[
+                  styles.avatarGlowRing,
+                  { position: 'relative', top: 0, alignSelf: 'auto', marginRight: 16 },
+                  getPopStyle(avatarScale),
+                ]}>
+                <Animated.View style={{ transform: [{ scale: avatarPulse }] }}>
+                  <Image
+                    source={require('@/assets/images/driverAvatar.png')}
+                    style={styles.avatarImage}
+                    resizeMode="cover"
+                  />
+                  {/* Star Badge */}
+                  <View style={styles.starBadge}>
+                    <Ionicons name="star" size={13} color="#FBBF24" />
+                  </View>
+                </Animated.View>
+              </Animated.View>
 
-        {/* Central Pilot Avatar with Glowing Golden Ring */}
-        <Animated.View
-          style={[
-            styles.avatarGlowRing,
-            getPopStyle(avatarScale),
-          ]}>
-          <Animated.View style={{ transform: [{ scale: avatarPulse }] }}>
-            <Image
-              source={require('@/assets/images/driverAvatar.png')}
-              style={styles.avatarImage}
-              resizeMode="cover"
-            />
-          </Animated.View>
-        </Animated.View>
-
-        {/* Pill 1: Top-Right (Avg. Daily) */}
-        <Animated.View
-          style={[
-            styles.pillAvgDaily,
-            getPopStyle(pill1Scale),
-          ]}>
-          <Animated.View style={[styles.pillInnerRow, { transform: [{ translateY: floatYRight }] }]}>
-            <View style={styles.walletIconBox}>
-              <Ionicons name="receipt-outline" size={17} color="#92400E" />
+              {/* Pill 1: Top-Right (Avg. Daily Earnings) */}
+              <Animated.View
+                style={[
+                  styles.pillAvgDaily,
+                  { position: 'relative', top: 0, right: 0 },
+                  getPopStyle(pill1Scale),
+                ]}>
+                <Animated.View style={[styles.pillInnerRow, { transform: [{ translateY: floatYRight }] }]}>
+                  <View style={styles.walletIconBox}>
+                    <Ionicons name="wallet" size={18} color="#92400E" />
+                  </View>
+                  <View style={{ marginLeft: 6 }}>
+                    <Text style={styles.avgDailyLabel}>Avg. daily{'\n'}earnings</Text>
+                    <Text style={styles.avgDailyValue}>₹1,250</Text>
+                  </View>
+                </Animated.View>
+              </Animated.View>
             </View>
-            <View>
-              <Text style={styles.avgDailyLabel}>Avg. Daily</Text>
-              <Text style={styles.avgDailyValue}>₹250</Text>
-            </View>
-          </Animated.View>
-        </Animated.View>
 
-        {/* Pill 2: Mid-Left (Online Now) */}
-        <Animated.View
-          style={[
-            styles.pillOnlineNow,
-            getPopStyle(pill2Scale),
-          ]}>
-          <Animated.View style={[styles.pillInnerRow, { transform: [{ translateY: floatYLeft }] }]}>
-            <Animated.View
-              style={[
-                styles.greenBeaconOuter,
-                {
-                  transform: [{ scale: beaconPulse }],
-                  opacity: beaconOpacity,
-                },
-              ]}>
-              <View style={styles.greenBeaconDot} />
-            </Animated.View>
-            <Text style={styles.onlineNowText}>Online{'\n'}Now</Text>
-          </Animated.View>
-        </Animated.View>
+            {/* Bottom Row: Daily Payouts & 24/7 Support */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 16, zIndex: 10 }}>
+              {/* Pill 2: Bottom-Left (Daily Payouts) */}
+              <Animated.View
+                style={[
+                  styles.pillSupport,
+                  { position: 'relative', top: 0, left: 0, marginRight: 12 },
+                  getPopStyle(pill2Scale),
+                ]}>
+                <Animated.View style={[styles.pillInnerRow, { transform: [{ translateY: floatYLeft }] }]}>
+                  <View style={styles.amberIconBox}>
+                    <Text style={{ fontSize: 16, fontWeight: '700', color: '#92400E' }}>₹</Text>
+                  </View>
+                  <Text style={[styles.pillSmallText, { marginLeft: 6 }]}>Daily payouts</Text>
+                </Animated.View>
+              </Animated.View>
 
-        {/* Pill 3: Center Banner (Drive, Earn & Keep 100% Tips) */}
-        <Animated.View
-          style={[
-            styles.pillCenterBanner,
-            getPopStyle(pill3Scale),
-          ]}>
-          <Animated.View style={[styles.pillInnerRow, { transform: [{ scale: bannerPulse }], width: '100%' }]}>
-            <View style={styles.checkBadge}>
-              <Ionicons name="checkmark" size={14} color="#FFFFFF" />
+              {/* Pill 3: Bottom-Right (24/7 Support) */}
+              <Animated.View
+                style={[
+                  styles.pillDispatch,
+                  { position: 'relative', top: 0, right: 0 },
+                  getPopStyle(pill3Scale),
+                ]}>
+                <Animated.View style={[styles.pillInnerRow, { transform: [{ translateY: floatYRight }] }]}>
+                  <View style={styles.amberIconBox}>
+                    <Ionicons name="headset" size={16} color="#92400E" />
+                  </View>
+                  <Text style={[styles.pillSmallText, { marginLeft: 6 }]}>24/7 support</Text>
+                </Animated.View>
+              </Animated.View>
             </View>
-            <Text style={styles.centerBannerText}>
-              Drive, Earn & Keep 100%{'\n'}Tips
-            </Text>
-          </Animated.View>
-        </Animated.View>
-
-        {/* Pill 4: Bottom-Left (24/7 Support) */}
-        <Animated.View
-          style={[
-            styles.pillSupport,
-            getPopStyle(pill4Scale),
-          ]}>
-          <Animated.View style={[styles.pillInnerRow, { transform: [{ translateY: floatYLeft }] }]}>
-            <View style={styles.amberIconBox}>
-              <Ionicons name="shield-checkmark" size={15} color="#D97706" />
-            </View>
-            <Text style={styles.pillSmallText}>24/7{'\n'}Support</Text>
-          </Animated.View>
-        </Animated.View>
-
-        {/* Pill 5: Bottom-Right (Smart Dispatch) */}
-        <Animated.View
-          style={[
-            styles.pillDispatch,
-            getPopStyle(pill5Scale),
-          ]}>
-          <Animated.View style={[styles.pillInnerRow, { transform: [{ translateY: floatYRight }] }]}>
-            <View style={styles.amberIconBox}>
-              <Ionicons name="car-sport" size={16} color="#D97706" />
-            </View>
-            <Text style={styles.pillSmallText}>Smart{'\n'}Dispatch</Text>
-          </Animated.View>
+          </View>
+          {renderCopy(PILOT_COPY.headlineMain, PILOT_COPY.body, PILOT_COPY.headlineHighlight)}
         </Animated.View>
       </View>
-      {renderCopy(PILOT_COPY.headline, PILOT_COPY.body)}
-    </View>
-  );
+    );
+  };
 
   return (
     <View style={styles.outerContainer}>
@@ -567,44 +561,14 @@ export function EntryStep({ onBecomeDriver, onLogin }: EntryStepProps) {
           ]}
           showsVerticalScrollIndicator={false}
           bounces={false}>
-          {/* Top Story / Progress Indicators with Sticky Spring Animation */}
-          <View
-            style={styles.storyBarsContainer}
-            onLayout={(e) => setTrackWidth(e.nativeEvent.layout.width)}>
-            {[0, 1, 2].map((i) => (
-              <Pressable
-                key={i}
-                hitSlop={{ top: 14, bottom: 14, left: 6, right: 6 }}
-                style={styles.storyBarHit}
-                onPress={() => goToPage(i)}>
-                <View style={styles.storyBar} />
-              </Pressable>
-            ))}
 
-            {/* Active Sticky Animated Bar */}
-            {segmentWidth > 0 && (
-              <Animated.View
-                pointerEvents="none"
-                style={[
-                  styles.storyBarActiveSticky,
-                  {
-                    width: segmentWidth,
-                    transform: [
-                      {
-                        translateX: barPos.interpolate({
-                          inputRange: [0, 1, 2],
-                          outputRange: [0, barStep, barStep * 2],
-                        }),
-                      },
-                      { scaleX: barStretch },
-                    ],
-                  },
-                ]}
-              />
-            )}
-          </View>
 
           <View style={styles.mainStack}>
+            {/* Single fixed stationary blob anchored behind the slider */}
+            <View pointerEvents="none" style={styles.fixedBlobAnchor}>
+              <BlobBackground />
+            </View>
+
             {/* Swipeable hero pager: top-centered native-driven translateX track */}
             <View
               style={{
@@ -621,42 +585,46 @@ export function EntryStep({ onBecomeDriver, onLogin }: EntryStepProps) {
                   width: pageWidth * (PAGE_COUNT + 1),
                   transform: [{ translateX: tx }],
                 }}>
-                {pilotPage('p0')}
+                {pilotPage('p0', 0)}
 
-                {EXTRA_SLIDES.map((slide) => (
-                  <View key={slide.key} style={{ width: pageWidth, paddingHorizontal: 20, alignItems: 'center' }}>
-                    <View style={styles.orbitalContainer}>
-                      <BlobBackground />
-                      <View style={styles.dashedOrbit} />
+                {EXTRA_SLIDES.map((slide, sIdx) => {
+                  const whoopStyle = getSlideWhoopStyle(sIdx + 1);
+                  return (
+                    <View key={slide.key} style={{ width: pageWidth, paddingHorizontal: 20, alignItems: 'center' }}>
+                      <Animated.View style={[{ width: '100%', alignItems: 'center' }, whoopStyle]}>
+                        <View style={styles.orbitalContainer}>
+                          <View style={styles.dashedOrbit} />
 
-                      <Animated.View style={[styles.avatarGlowRing, { transform: [{ scale: avatarPulse }] }]}>
-                        <View style={styles.slideHeroIcon}>
-                          <Ionicons name={slide.heroIcon} size={40} color="#D97706" />
-                        </View>
-                      </Animated.View>
-
-                      {slide.pills.map((pill, i) => (
-                        <Animated.View
-                          key={pill.label}
-                          style={[
-                            styles.pillBase,
-                            SLIDE_PILL_POSITIONS[i],
-                            { transform: [{ translateY: i % 2 === 0 ? floatYLeft : floatYRight }] },
-                          ]}>
-                          <View style={styles.pillInnerRow}>
-                            <View style={styles.amberIconBox}>
-                              <Ionicons name={pill.icon} size={15} color="#D97706" />
+                          <Animated.View style={[styles.avatarGlowRing, { transform: [{ scale: avatarPulse }] }]}>
+                            <View style={styles.slideHeroIcon}>
+                              <Ionicons name={slide.heroIcon} size={40} color="#D97706" />
                             </View>
-                            <Text style={styles.pillSmallText}>{pill.label}</Text>
-                          </View>
-                        </Animated.View>
-                      ))}
+                          </Animated.View>
+
+                          {slide.pills.map((pill, i) => (
+                            <Animated.View
+                              key={pill.label}
+                              style={[
+                                styles.pillBase,
+                                SLIDE_PILL_POSITIONS[i],
+                                { transform: [{ translateY: i % 2 === 0 ? floatYLeft : floatYRight }] },
+                              ]}>
+                              <View style={styles.pillInnerRow}>
+                                <View style={styles.amberIconBox}>
+                                  <Ionicons name={pill.icon} size={15} color="#D97706" />
+                                </View>
+                                <Text style={styles.pillSmallText}>{pill.label}</Text>
+                              </View>
+                            </Animated.View>
+                          ))}
+                        </View>
+                        {renderCopy(slide.headline, slide.body)}
+                      </Animated.View>
                     </View>
-                    {renderCopy(slide.headline, slide.body)}
-                  </View>
-                ))}
+                  );
+                })}
                 {/* Clone of page 1 so the loop wraps seamlessly */}
-                {pilotPage('p0-clone')}
+                {pilotPage('p0-clone', 3)}
               </Animated.View>
             </View>
 
@@ -668,7 +636,7 @@ export function EntryStep({ onBecomeDriver, onLogin }: EntryStepProps) {
               <CandyButton
                 title="Get Started as Driver"
                 onPress={onBecomeDriver}
-                icon={<Ionicons name="arrow-forward" size={19} color="#FFFFFF" />}
+                icon={<Ionicons name="arrow-forward" size={19} color="#5A3416" />}
                 style={{ width: '100%', maxWidth: 360, alignSelf: 'center' }}
               />
 
@@ -690,10 +658,7 @@ export function EntryStep({ onBecomeDriver, onLogin }: EntryStepProps) {
 }
 
 const styles = StyleSheet.create({
-  storyBarHit: {
-    flex: 1,
-    justifyContent: 'center',
-  },
+
   pillBase: {
     position: 'absolute',
     backgroundColor: '#FFFFFF',
@@ -743,6 +708,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     width: '100%',
     paddingTop: 10,
+    position: 'relative',
+  },
+  fixedBlobAnchor: {
+    position: 'absolute',
+    top: 2,
+    alignSelf: 'center',
+    width: 400,
+    height: 400,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 0,
   },
   midSpacer: {
     flex: 1,
@@ -754,30 +730,7 @@ const styles = StyleSheet.create({
     minHeight: 8,
     maxHeight: 24,
   },
-  storyBarsContainer: {
-    zIndex: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 4,
-    height: 16,
-    marginBottom: 18,
-    position: 'relative',
-  },
-  storyBar: {
-    width: '100%',
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: '#E5DECB',
-  },
-  storyBarActiveSticky: {
-    position: 'absolute',
-    left: 4,
-    top: 6,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: '#111827',
-  },
+
   orbitalContainer: {
     height: 350,
     position: 'relative',
@@ -812,29 +765,52 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 8,
     alignSelf: 'center',
-    width: 90,
-    height: 90,
-    borderRadius: 45,
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 3,
+    borderColor: '#FBBF24',
     shadowColor: '#F59E0B',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.3,
     shadowRadius: 14,
     elevation: 6,
     zIndex: 5,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   avatarImage: {
     width: 90,
     height: 90,
     borderRadius: 45,
   },
+  starBadge: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#1E293B',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
+    elevation: 3,
+  },
   pillAvgDaily: {
     position: 'absolute',
     top: 36,
     right: 14,
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
+    borderRadius: 30,
     paddingVertical: 7,
-    paddingHorizontal: 13,
+    paddingHorizontal: 16,
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.07,
@@ -849,98 +825,29 @@ const styles = StyleSheet.create({
   walletIconBox: {
     width: 32,
     height: 32,
-    borderRadius: 9,
-    backgroundColor: '#FDF2E9',
+    borderRadius: 16,
+    backgroundColor: '#FEF3C7',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 8,
   },
   avgDailyLabel: {
-    fontSize: 10,
-    color: '#6B7280',
+    fontSize: 10.5,
+    color: '#4B5563',
     fontWeight: '600',
   },
   avgDailyValue: {
-    fontSize: 13.5,
-    color: '#111827',
-    fontWeight: '800',
-  },
-  pillOnlineNow: {
-    position: 'absolute',
-    top: 96,
-    left: 14,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.07,
-    shadowRadius: 10,
-    elevation: 3,
-    zIndex: 6,
-  },
-  greenBeaconOuter: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: '#A7F3D0',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 7,
-  },
-  greenBeaconDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
-    backgroundColor: '#059669',
-  },
-  onlineNowText: {
-    fontSize: 11,
-    color: '#111827',
-    fontWeight: '800',
-    lineHeight: 13,
-  },
-  pillCenterBanner: {
-    position: 'absolute',
-    top: 144,
-    alignSelf: 'center',
-    width: '90%',
-    maxWidth: 320,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 24,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 5,
-    zIndex: 10,
-  },
-  checkBadge: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: '#0F172A',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 10,
-  },
-  centerBannerText: {
-    fontSize: 12.5,
-    fontWeight: '800',
-    color: '#0F172A',
-    lineHeight: 16,
+    fontSize: 16,
+    color: '#2C1810',
+    fontWeight: '900',
+    lineHeight: 18,
   },
   pillSupport: {
     position: 'absolute',
-    top: 232,
-    left: 16,
     backgroundColor: '#FFFFFF',
-    borderRadius: 18,
-    paddingVertical: 7,
-    paddingHorizontal: 13,
+    borderRadius: 30,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.06,
@@ -950,12 +857,10 @@ const styles = StyleSheet.create({
   },
   pillDispatch: {
     position: 'absolute',
-    top: 232,
-    right: 14,
     backgroundColor: '#FFFFFF',
-    borderRadius: 18,
-    paddingVertical: 7,
-    paddingHorizontal: 13,
+    borderRadius: 30,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.06,
@@ -966,17 +871,17 @@ const styles = StyleSheet.create({
   amberIconBox: {
     width: 28,
     height: 28,
-    borderRadius: 9,
+    borderRadius: 14,
     backgroundColor: '#FEF3C7',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 8,
   },
   pillSmallText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#111827',
-    lineHeight: 13,
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#2C1810',
+    lineHeight: 14,
   },
   copySection: {
     marginTop: 36,
@@ -984,21 +889,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   headline: {
-    fontSize: 27,
+    fontSize: 29,
     fontWeight: '900',
-    color: '#0F172A',
+    color: '#2C1810',
     textAlign: 'center',
     letterSpacing: -0.6,
-    lineHeight: 33,
+    lineHeight: 35,
   },
   bodyText: {
-    marginTop: 6,
+    marginTop: 10,
     fontSize: 13.5,
     lineHeight: 20,
-    color: '#4B5563',
+    color: '#705746',
     textAlign: 'center',
     maxWidth: '92%',
-    fontWeight: '400',
+    fontWeight: '500',
   },
   ctaSection: {
     alignItems: 'center',

@@ -81,6 +81,9 @@ docker compose -f docker-compose.dev.yml up -d
 ### 3. Running Applications
 
 ```bash
+# Run API, Admin Web, and Driver app together (Expo Go QR prints here)
+pnpm dev
+
 # Run API and Admin Web concurrently with hot reload
 pnpm dev:web
 

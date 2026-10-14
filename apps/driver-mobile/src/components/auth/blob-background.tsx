@@ -1,18 +1,18 @@
 import React, { memo, useEffect, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
-import Svg, { Path } from 'react-native-svg';
+import { StyleProp, StyleSheet, View, ViewStyle } from 'react-native';
+import Svg, { Circle, Defs, Path, RadialGradient, Stop } from 'react-native-svg';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 
-const SIZE = 380;
+const SIZE = 400;
 const CENTER = SIZE / 2;
-const BASE_R = 166;
-const POINTS = 8;
+const BASE_R = 178;
+const POINTS = 10;
 const AMPLITUDE = 14;
-const FRAME_MS = 50; // 20fps: slow blob, keeps the JS thread free for the pager
+const FRAME_MS = 50; // 20fps: smooth slow organic drift, keeps the JS thread free
 
-// Each control point drifts on its own slow sine -> organic, never-repeating feel
-const SPEEDS = [0.55, 0.7, 0.45, 0.8, 0.6, 0.5, 0.75, 0.65];
-const PHASES = [0, 1.3, 2.6, 3.9, 5.2, 0.7, 2.0, 3.3];
+// 10 control points with gentle differential frequencies for a living, cloud-like feel
+const SPEEDS = [0.38, 0.52, 0.42, 0.60, 0.46, 0.54, 0.36, 0.58, 0.44, 0.50];
+const PHASES = [0, 1.25, 2.5, 3.75, 5.0, 0.62, 1.88, 3.14, 4.4, 5.6];
 
 function blobPath(t: number): string {
   const pts: [number, number][] = [];
@@ -22,7 +22,7 @@ function blobPath(t: number): string {
     pts.push([CENTER + r * Math.cos(angle), CENTER + r * Math.sin(angle)]);
   }
 
-  // Closed Catmull-Rom spline -> cubic Beziers (smooth, no corners)
+  // Closed Catmull-Rom spline -> cubic Beziers (smooth, continuous curvature)
   let d = `M ${pts[0][0].toFixed(2)} ${pts[0][1].toFixed(2)}`;
   for (let i = 0; i < POINTS; i++) {
     const p0 = pts[(i - 1 + POINTS) % POINTS];
@@ -38,8 +38,22 @@ function blobPath(t: number): string {
   return d + ' Z';
 }
 
-/** Soft warm blob that slowly morphs behind the hero. Static when reduced motion is on. */
-function BlobBackgroundBase() {
+export interface BlobBackgroundProps {
+  showOrbits?: boolean;
+  style?: StyleProp<ViewStyle>;
+  fill?: string;
+  fillOpacity?: number;
+  size?: number;
+}
+
+/** Fuller, rich warm sun halo blob that slowly morphs behind the hero. Static when reduced motion is on. */
+function BlobBackgroundBase({
+  showOrbits = false,
+  style,
+  fill,
+  fillOpacity = 1,
+  size = SIZE,
+}: BlobBackgroundProps) {
   const reducedMotion = useReducedMotion();
   const [d, setD] = useState(() => blobPath(0));
 
@@ -53,9 +67,74 @@ function BlobBackgroundBase() {
   }, [reducedMotion]);
 
   return (
-    <View pointerEvents="none" style={styles.wrap}>
-      <Svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`}>
-        <Path d={d} fill="#FFF0BA" fillOpacity={0.78} />
+    <View pointerEvents="none" style={[styles.wrap, { width: size, height: size }, style]}>
+      <Svg width={size} height={size} viewBox={`0 0 ${SIZE} ${SIZE}`}>
+        <Defs>
+          {/* Creamy glow: cream -> peach -> light caramel -> soft orange-brown rim (CandyButton-themed, light) */}
+          <RadialGradient id="blobSunGlow" cx="42%" cy="38%" rx="62%" ry="62%">
+            <Stop offset="0%" stopColor="#FFFBF2" stopOpacity={0.95} />
+            <Stop offset="35%" stopColor="#FFF0D6" stopOpacity={0.9} />
+            <Stop offset="68%" stopColor="#F9DDB8" stopOpacity={0.8} />
+            <Stop offset="100%" stopColor="#EDBA8A" stopOpacity={0.62} />
+          </RadialGradient>
+
+          {/* Very soft warm aura */}
+          <RadialGradient id="blobAtmosphere" cx="50%" cy="50%" rx="50%" ry="50%">
+            <Stop offset="0%" stopColor="#F6D9B4" stopOpacity={0.3} />
+            <Stop offset="70%" stopColor="#F0C79A" stopOpacity={0.12} />
+            <Stop offset="100%" stopColor="#E8B07C" stopOpacity={0} />
+          </RadialGradient>
+        </Defs>
+
+        {/* Layer 1: Atmospheric aura feathering out from behind the blob */}
+        <Circle cx={CENTER} cy={CENTER} r={BASE_R + 14} fill="url(#blobAtmosphere)" />
+
+        {/* Layer 2: Main organic morphing Catmull-Rom spline blob */}
+        <Path d={d} fill={fill ?? 'url(#blobSunGlow)'} fillOpacity={fillOpacity} />
+
+        {/* Layer 3: Concentric orbit rings and satellite node accents */}
+        {showOrbits && (
+          <>
+            {/* Inner dashed orbit ring */}
+            <Circle
+              cx={CENTER}
+              cy={CENTER}
+              r={148}
+              fill="none"
+              stroke="#D9A978"
+              strokeWidth={1.4}
+              strokeDasharray="6, 8"
+              opacity={0.5}
+            />
+
+            {/* Outer dashed orbit ring */}
+            <Circle
+              cx={CENTER}
+              cy={CENTER}
+              r={186}
+              fill="none"
+              stroke="#C9976B"
+              strokeWidth={1.1}
+              strokeDasharray="6, 10"
+              opacity={0.3}
+            />
+
+            {/* Orbital node accents */}
+            <Circle cx={313} cy={294} r={3.5} fill="#C9976B" opacity={0.6} />
+            <Circle cx={35} cy={115} r={2.5} fill="#C9976B" opacity={0.5} />
+            <Circle cx={275} cy={95} r={2} fill="#D9A978" opacity={0.5} />
+
+            {/* Swooping dashed trail curving toward road */}
+            <Path
+              d={`M ${CENTER} 350 C ${CENTER} 375, 175 395, 140 400`}
+              fill="none"
+              stroke="#D9A978"
+              strokeWidth={1.3}
+              strokeDasharray="5, 7"
+              opacity={0.45}
+            />
+          </>
+        )}
       </Svg>
     </View>
   );
@@ -65,10 +144,7 @@ export const BlobBackground = memo(BlobBackgroundBase);
 
 const styles = StyleSheet.create({
   wrap: {
-    position: 'absolute',
-    top: -8,
-    alignSelf: 'center',
-    width: SIZE,
-    height: SIZE,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

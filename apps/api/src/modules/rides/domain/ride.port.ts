@@ -20,6 +20,8 @@ export interface RideListFilter {
 
 export interface RideRepositoryPort {
   save(ride: RideEntity): Promise<RideEntity>;
+  /** Updates an existing ride only when its version still matches. Never upserts. */
+  update(ride: RideEntity, expectedVersion: number): Promise<RideEntity | null>;
   findById(id: string): Promise<RideEntity | null>;
   /** Newest first. */
   list(filter: RideListFilter): Promise<RideEntity[]>;
@@ -28,6 +30,7 @@ export interface RideRepositoryPort {
   atomicClaimRide(opts: {
     rideId: string;
     driverId: string;
+    vehicleId?: string | undefined;
     agreedFarePaise: number;
     pickupOtpHash: string;
     pickupOtpExpiresAt: Date;
@@ -45,5 +48,5 @@ export interface RideRepositoryPort {
   }>;
   getRiderTripCountsBatch(
     riderIds: string[],
-  ): Promise<Map<string, { totalRides: number; completedRides: number }>>;
+  ): Promise<Map<string, { totalRides: number; completedRides: number; cancelledRides: number }>>;
 }

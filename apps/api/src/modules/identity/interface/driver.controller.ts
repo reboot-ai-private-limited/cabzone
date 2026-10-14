@@ -21,18 +21,21 @@ import type {
   VehicleRepositoryPort,
 } from '../domain/index.js';
 import {
+  createDriverProfileRequestSchema,
   registerVehicleRequestSchema,
   listDriverApplicationsQuerySchema,
   reviewApplicationRequestSchema,
-  uploadDriverDocumentRequestSchema,
+  uploadDriverLicenseFileRequestSchema,
+  uploadVehicleDocumentFileRequestSchema,
+  uploadIdentityDocumentFileRequestSchema,
 } from './kyc.validation.js';
 
 export function makeCreateDriverProfileController(useCase: CreateDriverProfileUseCase): RequestHandler {
   return asyncHandler(async (req: Request, res: Response) => {
     if (!req.auth) throw AppError.unauthenticated();
     const result = await useCase.execute({
+      ...createDriverProfileRequestSchema.parse(req.body ?? {}),
       userId: req.auth.userId,
-      ...(req.body || {}),
     });
     sendSuccess(req, res, result, 'Driver profile saved', 201);
   });
@@ -54,15 +57,37 @@ export function makeCreateDriverApplicationController(useCase: CreateDriverAppli
   });
 }
 
-export function makeUploadDriverDocumentController(useCase: UploadDriverDocumentUseCase): RequestHandler {
+export function makeUploadDriverDocumentController(_useCase: UploadDriverDocumentUseCase): RequestHandler {
+  return asyncHandler(async (req: Request, _res: Response) => {
+    if (!req.auth) throw AppError.unauthenticated();
+    throw AppError.badRequest('Upload document files through their dedicated file endpoint.');
+  });
+}
+
+export function makeUploadDriverLicenseFileController(useCase: UploadDriverDocumentUseCase): RequestHandler {
   return asyncHandler(async (req: Request, res: Response) => {
     if (!req.auth) throw AppError.unauthenticated();
-    const parsed = uploadDriverDocumentRequestSchema.parse(req.body);
-    const result = await useCase.execute({
-      userId: req.auth.userId,
-      ...parsed,
-    });
-    sendSuccess(req, res, result, 'Driver document uploaded', 201);
+    const parsed = uploadDriverLicenseFileRequestSchema.parse(req.body);
+    const result = await useCase.executeLicenseFile({ userId: req.auth.userId, ...parsed });
+    sendSuccess(req, res, result, 'Driving licence uploaded', 201);
+  });
+}
+
+export function makeUploadVehicleDocumentFileController(useCase: UploadDriverDocumentUseCase): RequestHandler {
+  return asyncHandler(async (req: Request, res: Response) => {
+    if (!req.auth) throw AppError.unauthenticated();
+    const parsed = uploadVehicleDocumentFileRequestSchema.parse(req.body);
+    const result = await useCase.executeVehicleFile({ userId: req.auth.userId, ...parsed });
+    sendSuccess(req, res, result, 'Vehicle document uploaded', 201);
+  });
+}
+
+export function makeUploadIdentityDocumentFileController(useCase: UploadDriverDocumentUseCase): RequestHandler {
+  return asyncHandler(async (req: Request, res: Response) => {
+    if (!req.auth) throw AppError.unauthenticated();
+    const parsed = uploadIdentityDocumentFileRequestSchema.parse(req.body);
+    const result = await useCase.executeIdentityFile({ userId: req.auth.userId, ...parsed });
+    sendSuccess(req, res, result, 'Government ID uploaded', 201);
   });
 }
 

@@ -1,5 +1,7 @@
 import { AppError } from '../../../../shared/errors/AppError.js';
 import { newUuid } from '../../../../shared/ids.js';
+import type { UnitOfWorkPort } from '../../../../shared/db/unitOfWork.port.js';
+import { saveRideTransition } from '../rideTransition.js';
 import type {
   RideEntity,
   RideEventRepositoryPort,
@@ -14,6 +16,7 @@ export interface DriverArrivedInput {
 }
 
 export interface DriverArrivedDeps {
+  unitOfWork: UnitOfWorkPort;
   rideRepo: RideRepositoryPort;
   rideEventRepo?: RideEventRepositoryPort;
 }
@@ -22,6 +25,10 @@ export class DriverArrivedUseCase {
   constructor(private readonly deps: DriverArrivedDeps) {}
 
   async execute(input: DriverArrivedInput): Promise<RideEntity> {
+    return this.deps.unitOfWork.run(() => this.arrive(input));
+  }
+
+  private async arrive(input: DriverArrivedInput): Promise<RideEntity> {
     const ride = await this.deps.rideRepo.findById(input.rideId);
     if (!ride) {
       throw AppError.notFound('RIDE_NOT_FOUND: The requested ride was not found.');
@@ -48,7 +55,7 @@ export class DriverArrivedUseCase {
       version: ride.version + 1,
     };
 
-    const savedRide = await this.deps.rideRepo.save(updatedRide);
+    const savedRide = await saveRideTransition(this.deps.rideRepo, updatedRide, ride.version);
 
     if (this.deps.rideEventRepo) {
       await this.deps.rideEventRepo.save({

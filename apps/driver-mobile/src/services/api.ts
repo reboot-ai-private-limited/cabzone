@@ -5,6 +5,10 @@ import type {
   VerifyOtpResponseDto,
   RequestOtpResponseDto,
   DriverProfileDetailDto,
+  DriverDto,
+  SaveDriverProfileRequestDto,
+  RefreshTokenResponseDto,
+  DriverDocumentDto,
 } from '@cabzone/contracts';
 
 export type { DriverProfileDetailDto };
@@ -75,7 +79,8 @@ async function request<T>(
     const json = (await res.json()) as ApiResponse<T>;
 
     if (!res.ok || json.success === false) {
-      const errMsg = json.message || json.error?.message || `Request failed with status ${res.status}`;
+      const errMsg =
+        json.message || json.error?.message || `Request failed with status ${res.status}`;
       throw new Error(errMsg);
     }
 
@@ -103,8 +108,8 @@ export const authApi = {
     });
   },
 
-  async refreshToken(refreshToken: string, deviceId: string): Promise<VerifyOtpResponseDto> {
-    return request<VerifyOtpResponseDto>('/api/v1/auth/refresh', {
+  async refreshToken(refreshToken: string, deviceId: string): Promise<RefreshTokenResponseDto> {
+    return request<RefreshTokenResponseDto>('/api/v1/auth/refresh', {
       method: 'POST',
       body: JSON.stringify({ refreshToken, deviceId }),
     });
@@ -121,24 +126,11 @@ export const authApi = {
   },
 
   async getDriverProfile(token: string): Promise<DriverProfileDetailDto | null> {
-    try {
-      return await request<DriverProfileDetailDto>('/api/v1/driver/profile/me', { method: 'GET' }, token);
-    } catch {
-      return null;
-    }
+    return request<DriverProfileDetailDto>('/api/v1/driver/profile/me', { method: 'GET' }, token);
   },
 };
 
-export interface CreateDriverProfilePayload {
-  name?: string;
-  gender?: string;
-  dateOfBirth?: string;
-  address?: string;
-  dlNumber?: string;
-  dlExpiry?: string;
-  alternatePhone?: string;
-  emergencyContact?: string;
-}
+export type CreateDriverProfilePayload = SaveDriverProfileRequestDto;
 
 export interface RegisterVehiclePayload {
   vehicleType: 'CAB' | 'E_RICKSHAW';
@@ -149,26 +141,13 @@ export interface RegisterVehiclePayload {
   manufactureYear?: number | null;
 }
 
-export interface UploadDocumentPayload {
-  type: 'GOVERNMENT_ID' | 'DRIVING_LICENSE';
-  storageKey: string;
-  documentHash: string;
-  documentNumberMasked?: string | null;
-  issuedAt?: string | null;
-  expiresAt?: string | null;
-}
-
 export const driverApi = {
   async getProfile(token: string): Promise<DriverProfileDetailDto | null> {
-    try {
-      return await request<DriverProfileDetailDto>('/api/v1/driver/profile/me', { method: 'GET' }, token);
-    } catch {
-      return null;
-    }
+    return request<DriverProfileDetailDto>('/api/v1/driver/profile/me', { method: 'GET' }, token);
   },
 
-  async saveProfile(token: string, payload: CreateDriverProfilePayload): Promise<any> {
-    return request<any>(
+  async saveProfile(token: string, payload: CreateDriverProfilePayload): Promise<DriverDto> {
+    return request<DriverDto>(
       '/api/v1/driver/profile',
       {
         method: 'POST',
@@ -200,13 +179,36 @@ export const driverApi = {
     );
   },
 
-  async uploadDocument(token: string, payload: UploadDocumentPayload): Promise<any> {
-    return request<any>(
-      '/api/v1/driver/documents',
-      {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      },
+  async uploadLicenseFile(
+    token: string,
+    payload: { fileDataUrl?: string; dlNumber: string; expiresAt: string },
+  ): Promise<DriverDocumentDto> {
+    return request<DriverDocumentDto>(
+      '/api/v1/driver/documents/license',
+      { method: 'POST', body: JSON.stringify(payload) },
+      token,
+    );
+  },
+
+  async uploadVehicleDocumentFile(
+    token: string,
+    payload: {
+      type: 'REGISTRATION_CERTIFICATE' | 'INSURANCE' | 'PERMIT';
+      fileDataUrl: string;
+      expiresAt: string;
+    },
+  ): Promise<DriverDocumentDto> {
+    return request<DriverDocumentDto>(
+      '/api/v1/driver/documents/vehicle',
+      { method: 'POST', body: JSON.stringify(payload) },
+      token,
+    );
+  },
+
+  async uploadIdentityDocumentFile(token: string, fileDataUrl: string): Promise<DriverDocumentDto> {
+    return request<DriverDocumentDto>(
+      '/api/v1/driver/documents/identity',
+      { method: 'POST', body: JSON.stringify({ fileDataUrl }) },
       token,
     );
   },

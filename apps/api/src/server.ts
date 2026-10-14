@@ -1,7 +1,7 @@
 import { createApp } from './app.js';
 import { env, loadEnv } from '@/config/env.js';
 import { connectMongo, disconnectMongo } from '@/shared/db/mongo.js';
-import { disconnectRedis } from '@/shared/queue/redis.js';
+import { disconnectRedis, getRedis, redisHealth } from '@/shared/queue/redis.js';
 import { closeQueues } from '@/shared/queue/queues.js';
 import { logger } from '@/shared/logging/logger.js';
 import { getRealtimeHub } from '@/shared/realtime/index.js';
@@ -13,6 +13,16 @@ async function main(): Promise<void> {
   loadEnv();
 
   await connectMongo();
+  try {
+    const health = await redisHealth();
+    if (health.ok) {
+      await getRealtimeHub().enableSharedDelivery(getRedis());
+    } else {
+      logger.warn({ state: health.state }, 'Redis unavailable; realtime hub running in local mode');
+    }
+  } catch (err: unknown) {
+    logger.warn({ err: String(err) }, 'Redis shared delivery skipped');
+  }
 
   const app = createApp();
   const containers = app.locals.containers as AppContainers;

@@ -4,10 +4,8 @@ import type {
   PricingConfigLevel,
 } from '@cabzone/contracts';
 import { newUuid } from '../../../../shared/ids.js';
-import type {
-  PricingConfigEntity,
-  PricingConfigRepositoryPort,
-} from '../../domain/index.js';
+import type { UnitOfWorkPort } from '../../../../shared/db/unitOfWork.port.js';
+import type { PricingConfigEntity, PricingConfigRepositoryPort } from '../../domain/index.js';
 import { getStateNameFromCode } from '@cabzone/geo';
 
 export function toPricingConfigDto(entity: PricingConfigEntity): PricingConfigDto {
@@ -16,7 +14,8 @@ export function toPricingConfigDto(entity: PricingConfigEntity): PricingConfigDt
     level: entity.level,
     cityZoneId: entity.cityZoneId,
     stateCode: entity.stateCode,
-    stateName: entity.stateName ?? (entity.stateCode ? getStateNameFromCode(entity.stateCode) : null),
+    stateName:
+      entity.stateName ?? (entity.stateCode ? getStateNameFromCode(entity.stateCode) : null),
     version: entity.version,
     vehicleType: entity.vehicleType,
     baseFarePaise: entity.baseFarePaise,
@@ -39,12 +38,21 @@ export function toPricingConfigDto(entity: PricingConfigEntity): PricingConfigDt
 }
 
 export class CreatePricingConfigUseCase {
-  constructor(private readonly pricingConfigRepo: PricingConfigRepositoryPort) {}
+  constructor(
+    private readonly pricingConfigRepo: PricingConfigRepositoryPort,
+    private readonly unitOfWork: UnitOfWorkPort,
+  ) {}
 
   async execute(input: CreatePricingConfigRequest, adminId: string): Promise<PricingConfigDto> {
+    return this.unitOfWork.run(() => this.create(input, adminId));
+  }
+
+  private async create(
+    input: CreatePricingConfigRequest,
+    adminId: string,
+  ): Promise<PricingConfigDto> {
     const level: PricingConfigLevel =
-      input.level ??
-      (input.stateCode ? 'STATE' : input.cityZoneId ? 'CITY' : 'GLOBAL');
+      input.level ?? (input.stateCode ? 'STATE' : input.cityZoneId ? 'CITY' : 'GLOBAL');
 
     const stateCode = level === 'STATE' && input.stateCode ? input.stateCode.toUpperCase() : null;
     const stateName = stateCode ? getStateNameFromCode(stateCode) : null;
@@ -64,10 +72,11 @@ export class CreatePricingConfigUseCase {
         input.vehicleType,
         now,
       );
-      if (activeExisting) {
+      if (activeExisting && activeExisting.level === level) {
         activeExisting.status = 'RETIRED';
         activeExisting.effectiveTo = now;
-        await this.pricingConfigRepo.save(activeExisting);
+        activeExisting.version += 1;
+        await this.pricingConfigRepo.save(activeExisting, activeExisting.version - 1);
       }
     }
 
@@ -105,4 +114,3 @@ export class CreatePricingConfigUseCase {
     return toPricingConfigDto(saved);
   }
 }
-

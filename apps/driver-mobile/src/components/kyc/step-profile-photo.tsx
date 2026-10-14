@@ -6,8 +6,14 @@ import {
   StyleSheet,
   Text,
   View,
+  Image,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import type { OnboardingDraft } from './types';
+import { pickProfilePhoto } from '@/services/profile-photo';
+import { driverApi } from '@/services/api';
+import { useAuth } from '@/context/auth-context';
 
 interface StepProfilePhotoProps {
   draft: OnboardingDraft;
@@ -16,25 +22,46 @@ interface StepProfilePhotoProps {
   onBack: () => void;
 }
 
-export function StepProfilePhoto({
-  draft,
-  onUpdate,
-  onNext,
-  onBack,
-}: StepProfilePhotoProps) {
-  const [photoTaken, setPhotoTaken] = useState(draft.selfieTaken || false);
+export function StepProfilePhoto({ draft, onUpdate, onNext, onBack }: StepProfilePhotoProps) {
+  const { token, refreshProfile } = useAuth();
+  const [photoUri, setPhotoUri] = useState(draft.profilePhotoUri);
+  const [photoDataUrl, setPhotoDataUrl] = useState<string | undefined>();
+  const [isSaving, setIsSaving] = useState(false);
+  const photoTaken = Boolean(photoUri);
 
-  const handleTakePhoto = () => {
-    setPhotoTaken(true);
+  const handleTakePhoto = async () => {
+    try {
+      const photo = await pickProfilePhoto(true);
+      if (photo) {
+        setPhotoUri(photo.uri);
+        setPhotoDataUrl(photo.dataUrl);
+      }
+    } catch (err) {
+      Alert.alert('Photo unavailable', err instanceof Error ? err.message : 'Please try again.');
+    }
   };
 
   const handleRetake = () => {
-    setPhotoTaken(false);
+    void handleTakePhoto();
   };
 
-  const handleContinue = () => {
-    onUpdate({ selfieTaken: true });
-    onNext();
+  const handleContinue = async () => {
+    if (!photoUri || !token || isSaving) return;
+    setIsSaving(true);
+    try {
+      let storedUrl = photoUri;
+      if (photoDataUrl) {
+        const saved = await driverApi.saveProfile(token, { profilePhotoDataUrl: photoDataUrl });
+        storedUrl = saved.profilePhotoUrl || photoUri;
+        await refreshProfile();
+      }
+      onUpdate({ selfieTaken: true, profilePhotoUri: storedUrl, profilePhotoDataUrl: undefined });
+      onNext();
+    } catch (err) {
+      Alert.alert('Could not save photo', err instanceof Error ? err.message : 'Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -63,7 +90,14 @@ export function StepProfilePhoto({
         {/* Camera / Frame View */}
         <View style={styles.cameraFrameBox}>
           <View style={[styles.avatarOval, photoTaken && styles.avatarOvalSuccess]}>
-            <Text style={styles.avatarFace}>{photoTaken ? '👨‍✈️' : '👤'}</Text>
+            {photoUri ? (
+              <Image
+                source={{ uri: photoUri }}
+                style={{ width: '100%', height: '100%', borderRadius: 100 }}
+              />
+            ) : (
+              <Text style={styles.avatarFace}>👤</Text>
+            )}
             {photoTaken ? (
               <View style={styles.verifiedCheckBadge}>
                 <Text style={styles.verifiedCheckText}>✓</Text>
@@ -100,20 +134,27 @@ export function StepProfilePhoto({
         {!photoTaken ? (
           <Pressable
             style={({ pressed }) => [styles.captureBtn, pressed && styles.btnPressed]}
-            onPress={handleTakePhoto}>
+            onPress={handleTakePhoto}
+          >
             <Text style={styles.captureBtnText}>📷 Take Photo</Text>
           </Pressable>
         ) : (
           <View style={styles.actionRow}>
             <Pressable
               style={({ pressed }) => [styles.retakeBtn, pressed && styles.btnPressed]}
-              onPress={handleRetake}>
+              onPress={handleRetake}
+            >
               <Text style={styles.retakeBtnText}>Retake</Text>
             </Pressable>
             <Pressable
               style={({ pressed }) => [styles.usePhotoBtn, pressed && styles.btnPressed]}
-              onPress={handleContinue}>
-              <Text style={styles.usePhotoBtnText}>Review Application →</Text>
+              onPress={handleContinue}
+            >
+              {isSaving ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <Text style={styles.usePhotoBtnText}>Review Application →</Text>
+              )}
             </Pressable>
           </View>
         )}

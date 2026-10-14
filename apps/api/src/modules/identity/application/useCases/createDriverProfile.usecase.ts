@@ -1,13 +1,17 @@
 import { newUuid } from '../../../../shared/ids.js';
 import type { DriverEntity, DriverRepositoryPort } from '../../domain/index.js';
+import type { DriverPhotoStoragePort } from '../../domain/driverPhoto.port.js';
+import { AppError } from '../../../../shared/errors/AppError.js';
 
 export interface CreateDriverProfileDeps {
   driverRepo: DriverRepositoryPort;
+  photoStorage?: DriverPhotoStoragePort;
 }
 
 export interface CreateDriverProfileInput {
   userId: string;
   name?: string | null | undefined;
+  profilePhotoDataUrl?: string | null | undefined;
   gender?: string | null | undefined;
   dateOfBirth?: string | null | undefined;
   address?: string | null | undefined;
@@ -23,10 +27,17 @@ export class CreateDriverProfileUseCase {
   async execute(input: string | CreateDriverProfileInput): Promise<DriverEntity> {
     const data: CreateDriverProfileInput = typeof input === 'string' ? { userId: input } : input;
     const existing = await this.deps.driverRepo.findByUserId(data.userId);
+    let profilePhotoUrl = existing?.profilePhotoUrl ?? null;
+    if (data.profilePhotoDataUrl === null) profilePhotoUrl = null;
+    if (data.profilePhotoDataUrl) {
+      if (!this.deps.photoStorage) throw AppError.internal();
+      profilePhotoUrl = await this.deps.photoStorage.upload(data.profilePhotoDataUrl);
+    }
     if (existing) {
       const updated: DriverEntity = {
         ...existing,
         name: data.name !== undefined ? data.name : existing.name,
+        profilePhotoUrl,
         gender: data.gender !== undefined ? data.gender : existing.gender,
         dateOfBirth: data.dateOfBirth !== undefined ? data.dateOfBirth : existing.dateOfBirth,
         address: data.address !== undefined ? data.address : existing.address,
@@ -46,6 +57,7 @@ export class CreateDriverProfileUseCase {
       id: newUuid(),
       userId: data.userId,
       name: data.name ?? null,
+      profilePhotoUrl,
       gender: data.gender ?? null,
       dateOfBirth: data.dateOfBirth ?? null,
       address: data.address ?? null,

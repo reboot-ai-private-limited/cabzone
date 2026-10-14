@@ -18,6 +18,22 @@ export function errorHandler(
   res: Response,
   _next: NextFunction,
 ): void {
+  if (
+    err !== null &&
+    typeof err === 'object' &&
+    'type' in err &&
+    err.type === 'entity.parse.failed'
+  ) {
+    res.status(400).json(
+      buildErrorBody(req, {
+        statusCode: 400,
+        code: 'VALIDATION_FAILED',
+        message: 'Request body must be valid JSON.',
+      }),
+    );
+    return;
+  }
+
   if (err instanceof AppError) {
     logger[err.isExpected ? 'info' : 'error'](
       {

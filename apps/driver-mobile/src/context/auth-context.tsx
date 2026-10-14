@@ -13,6 +13,8 @@ import {
   getOrCreateDeviceId,
   getRefreshToken,
   saveAuthTokens,
+  saveAuthUser,
+  getAuthUser,
 } from '@/services/storage';
 
 export interface AuthUser {
@@ -78,8 +80,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         const storedToken = await getAccessToken();
         const storedRefreshToken = await getRefreshToken();
+        const storedUser = await getAuthUser();
 
-        if (!storedToken || !storedRefreshToken) {
+        if (!storedToken || !storedRefreshToken || !storedUser) {
+          await clearAuthTokens();
           setIsLoading(false);
           return;
         }
@@ -91,7 +95,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const refreshRes = await authApi.refreshToken(storedRefreshToken, deviceId);
           await saveAuthTokens(refreshRes.accessToken, refreshRes.refreshToken);
           setToken(refreshRes.accessToken);
-          setUser(refreshRes.user);
+          setUser(storedUser);
 
           // Fetch driver profile
           const profile = await authApi.getDriverProfile(refreshRes.accessToken);
@@ -102,6 +106,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             const profile = await authApi.getDriverProfile(storedToken);
             if (profile) {
               setToken(storedToken);
+              setUser(storedUser);
               setDriverProfile(profile);
             } else {
               await clearAuthTokens();
@@ -144,20 +149,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       const formatted = formatE164(targetPhone);
       setError(null);
-      setIsLoading(true);
 
       try {
         const res = await authApi.requestOtp(formatted);
         setPhone(formatted);
-        setStep('otp');
+        // Do NOT set step to 'otp' here since SignupStep handles the OTP UI now
+        // setStep('otp');
         setOtpCooldown(res.retryAfterSeconds || 60);
         return true;
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : 'Failed to send OTP';
         setError(message);
         return false;
-      } finally {
-        setIsLoading(false);
       }
     },
     [phone],
@@ -177,7 +180,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       setError(null);
-      setIsLoading(true);
 
       try {
         const deviceId = await getOrCreateDeviceId();
@@ -188,6 +190,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         });
 
         await saveAuthTokens(res.accessToken, res.refreshToken);
+        await saveAuthUser(res.user);
         setToken(res.accessToken);
         setUser(res.user);
 
@@ -200,8 +203,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const message = err instanceof Error ? err.message : 'Invalid OTP code';
         setError(message);
         return false;
-      } finally {
-        setIsLoading(false);
       }
     },
     [phone],
@@ -286,7 +287,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         logout,
         refreshProfile,
         testApprove,
-      }}>
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

@@ -39,8 +39,8 @@ export class MongoVehicleRepository implements VehicleRepositoryPort {
   }
 
   async update(vehicle: VehicleEntity): Promise<VehicleEntity> {
-    const updated = await VehicleModel.findByIdAndUpdate(
-      vehicle.id,
+    const updated = await VehicleModel.findOneAndUpdate(
+      { _id: vehicle.id, version: vehicle.version },
       {
         make: vehicle.make,
         model: vehicle.model,

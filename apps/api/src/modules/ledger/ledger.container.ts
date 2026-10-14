@@ -1,5 +1,6 @@
 import type { RequestHandler, Router } from 'express';
 import type { AuthRole } from '@cabzone/contracts';
+import type { UnitOfWorkPort } from '../../shared/db/unitOfWork.port.js';
 import { AdminAdjustWalletUseCase } from './application/useCases/adminAdjustWallet.usecase.js';
 import { GetFinanceStatsUseCase } from './application/useCases/getFinanceStats.usecase.js';
 import { GetWalletUseCase } from './application/useCases/getWallet.usecase.js';
@@ -22,6 +23,7 @@ export interface LedgerLookups {
 }
 
 export interface LedgerContainerDeps {
+  unitOfWork: UnitOfWorkPort;
   walletRepo: WalletRepositoryPort;
   resolveDriverId: (userId: string) => Promise<string | null>;
   lookups?: LedgerLookups;
@@ -44,7 +46,7 @@ export interface LedgerContainer {
 }
 
 export function buildLedgerContainer(deps: LedgerContainerDeps): LedgerContainer {
-  const adminAdjustWalletUseCase = new AdminAdjustWalletUseCase(deps.walletRepo);
+  const adminAdjustWalletUseCase = new AdminAdjustWalletUseCase(deps.walletRepo, deps.unitOfWork);
   const getWalletUseCase = new GetWalletUseCase(deps.walletRepo);
   const listWalletsUseCase = new ListWalletsUseCase(deps.walletRepo, deps.lookups);
   const listTransactionsUseCase = new ListTransactionsUseCase(deps.walletRepo);

@@ -6,6 +6,9 @@ export interface DriverRouterDeps {
   getProfile: RequestHandler;
   createApplication: RequestHandler;
   uploadDocument: RequestHandler;
+  uploadLicenseFile: RequestHandler;
+  uploadVehicleDocumentFile: RequestHandler;
+  uploadIdentityDocumentFile: RequestHandler;
   registerVehicle: RequestHandler;
   submitApplication: RequestHandler;
   testApproveApplication?: RequestHandler | undefined;
@@ -20,6 +23,9 @@ export function buildDriverRouter(deps: DriverRouterDeps): Router {
   router.get('/profile/me', deps.getProfile);
   router.post('/application', deps.createApplication);
   router.post('/documents', deps.uploadDocument);
+  router.post('/documents/license', deps.uploadLicenseFile);
+  router.post('/documents/vehicle', deps.uploadVehicleDocumentFile);
+  router.post('/documents/identity', deps.uploadIdentityDocumentFile);
   router.post('/vehicles', deps.registerVehicle);
   router.post('/application/submit', deps.submitApplication);
   if (deps.testApproveApplication) {
@@ -39,13 +45,9 @@ export interface AdminDriverRouterDeps {
 
 export function buildAdminDriverRouter(deps: AdminDriverRouterDeps): Router {
   const router = Router();
-
-  router.use(deps.authenticate);
-  router.use(deps.requireAdminRole);
-
-  router.get('/driver-applications', deps.listApplications);
-  router.get('/driver-applications/:id', deps.getApplication);
-  router.post('/driver-applications/:id/review', deps.reviewApplication);
+  router.get('/driver-applications', deps.authenticate, deps.requireAdminRole, deps.listApplications);
+  router.get('/driver-applications/:id', deps.authenticate, deps.requireAdminRole, deps.getApplication);
+  router.post('/driver-applications/:id/review', deps.authenticate, deps.requireAdminRole, deps.reviewApplication);
 
   return router;
 }

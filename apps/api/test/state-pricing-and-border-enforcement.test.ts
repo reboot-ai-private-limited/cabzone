@@ -24,8 +24,8 @@ describe('State Pricing Architecture & Sovereign Border Enforcement', () => {
       coordinates: [
         [
           [88.35, 26.65],
-          [88.50, 26.65],
-          [88.50, 26.78],
+          [88.5, 26.65],
+          [88.5, 26.78],
           [88.35, 26.78],
           [88.35, 26.65],
         ],
@@ -196,7 +196,7 @@ describe('State Pricing Architecture & Sovereign Border Enforcement', () => {
       await expect(
         createQuoteUseCase.execute({
           pickup: { lat: 26.7141, lng: 88.4334 }, // Siliguri, India
-          drop: { lat: 27.7172, lng: 85.3240 }, // Kathmandu, Nepal
+          drop: { lat: 27.7172, lng: 85.324 }, // Kathmandu, Nepal
           vehicleCategory: 'CAB',
         }),
       ).rejects.toThrow(/OUTSIDE_INDIA/);
@@ -226,7 +226,7 @@ describe('State Pricing Architecture & Sovereign Border Enforcement', () => {
       await expect(
         createQuoteUseCase.execute({
           pickup: { lat: 31.5497, lng: 74.3436 }, // Lahore, Pakistan
-          drop: { lat: 31.6340, lng: 74.8723 }, // Amritsar, India
+          drop: { lat: 31.634, lng: 74.8723 }, // Amritsar, India
           vehicleCategory: 'CAB',
         }),
       ).rejects.toThrow(/OUTSIDE_INDIA/);
@@ -235,7 +235,7 @@ describe('State Pricing Architecture & Sovereign Border Enforcement', () => {
     it('rejects foreign coordinates outside subcontinent (New York, London, Singapore)', async () => {
       await expect(
         createQuoteUseCase.execute({
-          pickup: { lat: 40.7128, lng: -74.0060 }, // New York
+          pickup: { lat: 40.7128, lng: -74.006 }, // New York
           drop: { lat: 26.7141, lng: 88.4334 },
           vehicleCategory: 'CAB',
         }),
@@ -259,7 +259,7 @@ describe('State Pricing Architecture & Sovereign Border Enforcement', () => {
 
       const quote = await createQuoteUseCase.execute({
         pickup: { lat: 26.7141, lng: 88.4334 }, // Siliguri center
-        drop: { lat: 26.7250, lng: 88.4200 }, // Inside Siliguri
+        drop: { lat: 26.725, lng: 88.42 }, // Inside Siliguri
         vehicleCategory: 'CAB',
       });
 
@@ -272,7 +272,7 @@ describe('State Pricing Architecture & Sovereign Border Enforcement', () => {
 
       // Matigara (~4km outside Siliguri boundary, inside 20km buffer)
       const quote = await createQuoteUseCase.execute({
-        pickup: { lat: 26.7271, lng: 88.3200 },
+        pickup: { lat: 26.7271, lng: 88.32 },
         drop: { lat: 26.7141, lng: 88.4334 },
         vehicleCategory: 'CAB',
       });
@@ -315,7 +315,10 @@ describe('State Pricing Architecture & Sovereign Border Enforcement', () => {
     });
 
     it('pickup in a state without manual state pricing falls back to Global Pricing', async () => {
-      const { createQuoteUseCase } = setupEngine({ withoutCityConfig: true, withoutStateConfigs: true });
+      const { createQuoteUseCase } = setupEngine({
+        withoutCityConfig: true,
+        withoutStateConfigs: true,
+      });
 
       // Bihar (Patna to Gaya) when no Bihar state config exists
       const quote = await createQuoteUseCase.execute({
@@ -356,6 +359,20 @@ describe('State Pricing Architecture & Sovereign Border Enforcement', () => {
         expect(seg.ratePerKmPaise).toBeGreaterThan(0);
         expect(seg.distanceFarePaise).toBeGreaterThan(0);
       }
+      const wb = quote.stateBreakdown!.find((segment) => segment.stateCode === 'WB')!;
+      const br = quote.stateBreakdown!.find((segment) => segment.stateCode === 'BR')!;
+      expect(wb.ratePerKmPaise).toBe(wbStateConfig.outstationRatePerKmPaise);
+      expect(br.ratePerKmPaise).toBe(globalConfig.outstationRatePerKmPaise);
+      const expectedFare = Math.max(
+        siliguriCityConfig.outstationMinimumFarePaise,
+        siliguriCityConfig.outstationBaseFarePaise +
+          quote.stateBreakdown!.reduce(
+            (total, segment) =>
+              total + Math.round((segment.distanceM * segment.ratePerKmPaise) / 1000),
+            0,
+          ),
+      );
+      expect(quote.suggestedFarePaise).toBe(expectedFare);
     });
   });
 });

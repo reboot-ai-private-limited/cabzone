@@ -1,6 +1,7 @@
 import type { WalletOwnerType, WalletTransactionType } from '@cabzone/contracts';
 import { AppError } from '../../../../shared/errors/AppError.js';
 import { newUuid } from '../../../../shared/ids.js';
+import type { UnitOfWorkPort } from '../../../../shared/db/unitOfWork.port.js';
 import {
   calculateNewBalance,
   type WalletEntity,
@@ -27,9 +28,43 @@ export interface AdminAdjustWalletResult {
 
 /** Manual credit/debit by finance staff. Creates the driver or rider wallet on first use. */
 export class AdminAdjustWalletUseCase {
-  constructor(private readonly walletRepo: WalletRepositoryPort) {}
+  constructor(
+    private readonly walletRepo: WalletRepositoryPort,
+    private readonly unitOfWork: UnitOfWorkPort,
+  ) {}
 
   async execute(input: AdminAdjustWalletInput): Promise<AdminAdjustWalletResult> {
+    if (!Number.isSafeInteger(input.amountPaise) || input.amountPaise <= 0) throw AppError.badRequest('Amount must be a positive safe integer.');
+    try {
+      return await this.unitOfWork.run(() => this.adjust(input));
+    } catch (error) {
+      if (input.idempotencyKey && error && typeof error === 'object' && 'code' in error && error.code === 11000) {
+        const replay = await this.replay(input);
+        if (replay) return replay;
+      }
+      throw error;
+    }
+  }
+
+  private async replay(input: AdminAdjustWalletInput): Promise<AdminAdjustWalletResult | null> {
+    if (!input.idempotencyKey) return null;
+    const transaction = await this.walletRepo.findTransactionByIdempotencyKey(input.idempotencyKey);
+    if (!transaction) return null;
+    if (transaction.referenceType !== 'ADMIN_ADJUSTMENT' || transaction.amountPaise !== input.amountPaise ||
+      transaction.type !== input.type || transaction.note !== input.reason || transaction.createdBy !== input.adminId ||
+      (input.walletId && transaction.walletId !== input.walletId) ||
+      (input.driverId && transaction.driverId !== input.driverId) ||
+      (input.riderId && transaction.riderId !== input.riderId)) {
+      throw AppError.conflict('IDEMPOTENCY_KEY_REUSED: Key belongs to a different adjustment.');
+    }
+    const wallet = await this.walletRepo.findById(transaction.walletId);
+    if (!wallet) throw AppError.conflict('WALLET_NOT_FOUND: Adjustment wallet is unavailable.');
+    return { wallet, transaction };
+  }
+
+  private async adjust(input: AdminAdjustWalletInput): Promise<AdminAdjustWalletResult> {
+    const replay = await this.replay(input);
+    if (replay) return replay;
     const now = new Date();
     let wallet: WalletEntity | null = null;
 

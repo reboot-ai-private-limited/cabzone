@@ -39,6 +39,7 @@ describe('Admin Routing HTTP API', () => {
   const dummyIdentity = {
     authenticate,
     requireRole,
+    requireAdminScope: () => requireRole('SUPER_ADMIN'),
     requireZoneAccess: () => (_req: any, _res: any, next: any) => next(),
     buildAuthRouter: () => Router(),
     buildDriverRouter: () => Router(),

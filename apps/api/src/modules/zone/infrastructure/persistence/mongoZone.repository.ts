@@ -222,6 +222,10 @@ export class MongoZoneRepository implements ZoneRepositoryPort {
 
   private buildFilterQuery(filter?: ZoneFilter): Record<string, unknown> {
     const query: Record<string, unknown> = {};
+    if (filter?.allowedCityZoneIds) query.$and = [{ $or: [
+      { zone_type: 'CITY', _id: { $in: filter.allowedCityZoneIds } },
+      { parent_city_zone_id: { $in: filter.allowedCityZoneIds } },
+    ] }];
     if (filter?.status) query['status'] = filter.status;
     const targetType = filter?.type ?? filter?.zoneType;
     if (targetType) query['zone_type'] = targetType;

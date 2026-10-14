@@ -8,11 +8,7 @@ import type {
   WalletSummaryDto,
   WalletTransactionDto,
 } from '@cabzone/contracts';
-import {
-  walletsApi,
-  type AdjustWalletBody,
-  type WalletViewDto,
-} from '@/lib/api/endpoints/wallets';
+import { walletsApi, type AdjustWalletBody, type WalletViewDto } from '@/lib/api/endpoints/wallets';
 import { authedQueryOptions } from '@/lib/query/factory';
 import { keys, staleTime } from '@/lib/query/keys';
 import { useApiMutation } from '@/lib/query/mutation';
@@ -63,7 +59,7 @@ export function useWalletDetail(id: string | null) {
 
 export function useAdjustWallet(onDone?: () => void) {
   return useApiMutation<AdjustWalletBody, unknown>({
-    call: (token, body) => walletsApi.adjust(body, token),
+    call: (token, body, idempotencyKey) => walletsApi.adjust({ ...body, idempotencyKey }, token),
     invalidates: [keys.wallets.all()],
     ...(onDone === undefined ? {} : { onSuccess: onDone }),
   });

@@ -2,6 +2,7 @@ import type { GeoPoint, ZoneStatus, ZoneType } from '@cabzone/contracts';
 import type { ZoneEntity } from './zone.entity.js';
 
 export interface ZoneFilter {
+  allowedCityZoneIds?: string[] | undefined;
   status?: ZoneStatus | undefined;
   zoneType?: ZoneType | undefined;
   type?: ZoneType | undefined;

@@ -1,3 +1,4 @@
+import type { StateDistanceBreakdown } from './pricing.js';
 import type { VehicleCategory } from './vehicles.js';
 
 /**
@@ -65,29 +66,60 @@ export interface RidePricingSnapshot {
   commissionPercent: number;
   zoneType: ZoneClassificationType;
   stateSegments?: StateSegmentDto[];
+  stateBreakdown?: StateDistanceBreakdown[];
 }
 
 export interface RideDto {
   id: string;
-  riderId: string;
+  bookerRiderId: string;
+  passenger: {
+    riderId: string | null;
+    name: string;
+    phoneE164: string;
+    pickupOtpExpiresAt?: string | null;
+  };
   driverId: string | null;
+  vehicleId: string | null;
   status: RideStatus;
   vehicleCategory: VehicleCategory;
   pickup: {
     lat: number;
     lng: number;
-    address?: string;
+    address: string | null;
   };
-  destination: {
+  drop: {
     lat: number;
     lng: number;
-    address?: string;
+    address: string | null;
+  };
+  routeSnapshot: {
+    provider: string;
+    distanceM: number;
+    durationSeconds: number;
+    polyline: string;
+    calculatedAt: string;
+  };
+  zoneSnapshot: {
+    classification: ZoneClassificationType;
+    cityZoneId: string | null;
+    routeScope?: 'INTRA_STATE' | 'INTERSTATE' | null;
+    destinationStateCode?: string | null;
   };
   suggestedFarePaise: number;
+  proposedFarePaise: number | null;
   agreedFarePaise: number | null;
   pricingSnapshot: RidePricingSnapshot;
-  createdAt: string | Date;
-  updatedAt: string | Date;
+  cancellationReason: CancellationReason | null;
+  offeringExpiresAt: string | null;
+  acceptedAt: string | null;
+  arrivedAt: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  settledAt: string | null;
+  cancelledAt: string | null;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export const NEGOTIATION_ACTIONS = ['PROPOSED', 'REJECTED', 'ACCEPTED', 'EXPIRED'] as const;
@@ -144,4 +176,3 @@ export interface RideExtensionDto {
   requestedAt: string;
   respondedAt: string | null;
 }
-

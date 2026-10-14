@@ -140,6 +140,14 @@ Display:
 
 Editing is controlled by backend permissions and product rules.
 
+Implementation note (2026-10-13): personal-information Continue saves through authenticated `POST /api/v1/driver/profile` before advancing. First and last names become the existing `name` field; display DOB `DD/MM/YYYY` becomes `dateOfBirth` in `YYYY-MM-DD`; `gender` is `MALE`, `FEMALE` or `OTHER`. These values reload from `GET /api/v1/driver/profile/me`.
+
+Profile photos use `profilePhotoDataUrl` as upload input (JPEG/PNG, at most 600 KB). The server signs an upload using its existing Cloudinary credentials and stores the returned `profilePhotoUrl` in Mongo. Client file URIs and arbitrary remote photo URLs are rejected. Omitted photo input preserves the photo; `null` clears the reference. Camera/library selection follows the [Expo SDK 57 ImagePicker API](https://docs.expo.dev/versions/v57.0.0/sdk/imagepicker/); server authentication follows [Cloudinary signed uploads](https://cloudinary.com/documentation/upload_images#generating_authentication_signatures). The final photo step also captures and saves a real image. Replaced or removed image assets currently require storage cleanup; document verification and face verification are separate capabilities.
+
+Driving licences are selected with the [Expo SDK 57 DocumentPicker API](https://docs.expo.dev/versions/v57.0.0/sdk/document-picker/) and must be PDF, JPG or JPEG, at most 500 KB. The client checks the file before sending; `POST /api/v1/driver/documents/license` checks decoded size, MIME type and file signature again, computes SHA-256 on the server, uploads to Cloudinary as an authenticated raw asset and saves the storage key on the driver's draft application. The older metadata-only document endpoint rejects driving licences. The development app fills a sample DL number only when no saved number exists; users still must select a real file. Admin document preview, expiry capture, and storage cleanup for replaced files remain separate work.
+
+OTP login always uses the backend, including development fixed OTPs; fabricated local tokens are removed. Authenticated-user details are stored with the session because the backend refresh response contains tokens only. Existing installations without the stored user must sign in once again.
+
 ## 8. Home / Availability
 
 ### OFFLINE
@@ -182,13 +190,7 @@ A location update conceptually contains:
 
 ```ts
 {
-  driverId,
-  latitude,
-  longitude,
-  accuracy,
-  heading,
-  speed,
-  timestamp
+  (driverId, latitude, longitude, accuracy, heading, speed, timestamp);
 }
 ```
 

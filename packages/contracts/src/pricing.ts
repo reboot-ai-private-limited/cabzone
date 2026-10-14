@@ -72,7 +72,7 @@ export interface QuoteDto {
   suggestedFarePaise: number;
   pricingConfigId: string;
   pricingConfigVersion: number;
-  /** Display-only label — pricing is uniform regardless of states crossed. */
+  /** Route label; state segment rates are recorded in stateBreakdown. */
   routeScope?: 'INTRA_STATE' | 'INTERSTATE' | null | undefined;
   originStateCode?: string | null | undefined;
   destinationStateCode?: string | null | undefined;
@@ -89,7 +89,6 @@ export interface QuoteDto {
   expiresAt: string;
   quoteToken: string;
 }
-
 
 export interface CreateQuoteResponseDto {
   quotes: QuoteDto[];
@@ -183,7 +182,7 @@ export interface CreatePricingConfigRequest {
   effectiveFrom?: string | undefined;
 }
 
-/** Patch-style update, only permitted while the config is still DRAFT. */
+/** Patch-style update; live changes increment the config version. */
 export interface UpdatePricingConfigRequest {
   stateCode?: string | null | undefined;
   baseFarePaise?: number | undefined;

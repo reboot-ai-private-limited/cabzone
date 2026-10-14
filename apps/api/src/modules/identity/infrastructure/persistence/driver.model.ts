@@ -12,6 +12,7 @@ export interface DriverDocument extends Document<string> {
   _id: string;
   user_id: string;
   name?: string | null;
+  profile_photo_url?: string | null;
   alternate_phone?: string | null;
   gender?: string | null;
   date_of_birth?: string | null;
@@ -38,6 +39,7 @@ const driverSchema = new Schema<DriverDocument>(
     _id: { type: String, required: true },
     user_id: { type: String, required: true, unique: true },
     name: { type: String, default: null },
+    profile_photo_url: { type: String, default: null },
     alternate_phone: { type: String, default: null },
     gender: { type: String, default: null },
     date_of_birth: { type: String, default: null },
@@ -73,7 +75,7 @@ const driverSchema = new Schema<DriverDocument>(
     timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' },
     _id: false,
     versionKey: false,
-  }
+  },
 );
 
 driverSchema.index({ status: 1, kyc_status: 1, operational_status: 1 });

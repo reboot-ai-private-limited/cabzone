@@ -20,6 +20,7 @@ import {
 } from '../src/modules/pricing/index.js';
 import { MemoryRideEventRepository, MemoryRideRepository } from '../src/modules/rides/index.js';
 import { buildRidesContainer } from '../src/modules/rides/rides.container.js';
+import { rideViewSchema } from '../src/modules/rides/interface/rides.swagger.js';
 import {
   MemoryZoneRepository,
   ResolveZonesUseCase,
@@ -126,6 +127,7 @@ async function setup() {
   const tokenAdapter = new JoseTokenAdapter(JWT_SECRET);
   const authenticate = makeAuthenticate({ tokenVerifier: tokenAdapter, sessionRepo });
   const identity: IdentityContainer = {
+    requireAdminScope: () => requireRole('SUPER_ADMIN'),
     buildAuthRouter: () => Router(),
     buildDriverRouter: () => Router(),
     buildAdminDriverRouter: () => Router(),
@@ -169,13 +171,16 @@ async function setup() {
   });
 
   const rides = buildRidesContainer({
+    requireDriverEligibility: async () => 'test-vehicle',
+    unitOfWork,
     rideRepo,
     rideEventRepo: new MemoryRideEventRepository(),
     walletRepo,
     pricingConfigRepo,
     tokenSecret: QUOTE_SECRET,
     pickupOtpSecret: QUOTE_SECRET,
-    resolveRiderId: async (u) => (u === RIDER_USER || u === OTHER_RIDER_USER ? profileIds[u]! : null),
+    resolveRiderId: async (u) =>
+      u === RIDER_USER || u === OTHER_RIDER_USER ? profileIds[u]! : null,
     resolveDriverId: async (u) =>
       u === DRIVER_USER || u === OTHER_DRIVER_USER ? profileIds[u]! : null,
   });
@@ -250,6 +255,7 @@ describe('Rides API', () => {
     const { res, quote } = await s.requestRide();
 
     expect(res.status).toBe(201);
+    expect(rideViewSchema.safeParse(res.body.data).success).toBe(true);
     expect(res.body.data.status).toBe('OFFERING');
     expect(res.body.data.bookerRiderId).toBe(RIDER_ID);
     expect(res.body.data.proposedFarePaise).toBe(quote.suggestedFarePaise);
@@ -260,10 +266,16 @@ describe('Rides API', () => {
     const s = await setup();
     const { quote } = await s.requestRide();
 
-    const asDriver = await request(s.app).post('/api/v1/rides').set('Authorization', s.driverAuth).send({});
+    const asDriver = await request(s.app)
+      .post('/api/v1/rides')
+      .set('Authorization', s.driverAuth)
+      .send({});
     expect(asDriver.status).toBe(403);
 
-    const invalid = await request(s.app).post('/api/v1/rides').set('Authorization', s.riderAuth).send({});
+    const invalid = await request(s.app)
+      .post('/api/v1/rides')
+      .set('Authorization', s.riderAuth)
+      .send({});
     expect(invalid.status).toBe(400);
 
     const mismatch = await request(s.app)
@@ -285,7 +297,10 @@ describe('Rides API', () => {
     const { res } = await s.requestRide();
     const id = res.body.data.id as string;
     const post = (path: string, auth: string, body?: object) =>
-      request(s.app).post(`/api/v1/rides/${id}/${path}`).set('Authorization', auth).send(body ?? {});
+      request(s.app)
+        .post(`/api/v1/rides/${id}/${path}`)
+        .set('Authorization', auth)
+        .send(body ?? {});
 
     const accepted = await post('accept', s.driverAuth);
     expect(accepted.status).toBe(200);
@@ -313,16 +328,88 @@ describe('Rides API', () => {
 
     const completed = await post('complete', s.driverAuth);
     expect(completed.status).toBe(200);
-    expect(completed.body.data.ride.status).toBe('SETTLED');
-    expect(completed.body.data.commissionPaise).toBeGreaterThan(0);
-    expect(completed.body.data.walletBalancePaise).toBe(250_000 - completed.body.data.commissionPaise);
+    expect(completed.body.data.ride.status).toBe('PAYMENT_PENDING');
+    expect(completed.body.data.commissionPaise).toBe(0);
+    expect(completed.body.data.walletBalancePaise).toBe(250_000);
+    const confirmed = await post('payment/confirm', s.driverAuth);
+    expect(confirmed.status).toBe(200);
+    expect(confirmed.body.data.ride.status).toBe('SETTLED');
+    expect(confirmed.body.data.commissionPaise).toBeGreaterThan(0);
+    expect(confirmed.body.data.walletBalancePaise).toBe(
+      250_000 - confirmed.body.data.commissionPaise,
+    );
+  });
+
+  it('lets only the rider file and support resolve a confirmed-payment dispute', async () => {
+    const s = await setup();
+    const id = (await s.requestRide()).res.body.data.id as string;
+    const post = (path: string, auth: string, body?: object) =>
+      request(s.app)
+        .post(`/api/v1/rides/${id}/${path}`)
+        .set('Authorization', auth)
+        .send(body ?? {});
+    await post('accept', s.driverAuth);
+    await post('en-route', s.driverAuth);
+    await post('arrived', s.driverAuth);
+    const ride = (await s.rideRepo.findById(id))!;
+    await s.rideRepo.save({
+      ...ride,
+      passenger: {
+        ...ride.passenger,
+        pickupOtpHash: createHash('sha256').update('4321').digest('hex'),
+      },
+    });
+    await post('start', s.driverAuth, { otp: '4321' });
+    await post('complete', s.driverAuth);
+    await post('payment/confirm', s.driverAuth);
+    expect(
+      (await post('payment/dispute', s.otherRiderAuth, { reason: 'The fare was overcharged' }))
+        .status,
+    ).toBe(403);
+    expect(
+      (await post('payment/dispute', s.driverAuth, { reason: 'The fare was overcharged' })).status,
+    ).toBe(403);
+    const filed = await post('payment/dispute', s.riderAuth, {
+      reason: 'The fare was overcharged',
+    });
+    expect(filed.status).toBe(200);
+    expect(filed.body.data.status).toBe('PAYMENT_DISPUTED');
+    const open = await request(s.app)
+      .get('/api/v1/rides/payment/disputes')
+      .set('Authorization', s.adminAuth);
+    expect(open.status).toBe(200);
+    expect(open.body.data[0].ticket.metadata.reason).toBe('The fare was overcharged');
+    expect(
+      (await request(s.app).get('/api/v1/rides/payment/disputes').set('Authorization', s.riderAuth))
+        .status,
+    ).toBe(403);
+    expect(
+      (
+        await post('payment/dispute/resolve', s.riderAuth, {
+          outcome: 'RIDER_WINS',
+          reason: 'Verified refund decision',
+        })
+      ).status,
+    ).toBe(403);
+    const resolved = await post('payment/dispute/resolve', s.adminAuth, {
+      outcome: 'RIDER_WINS',
+      reason: 'Verified refund decision',
+    });
+    expect(resolved.status).toBe(200);
+    expect(resolved.body.data.status).toBe('SETTLED');
+    expect(
+      (await request(s.app).get('/api/v1/rides/payment/disputes').set('Authorization', s.adminAuth))
+        .body.data,
+    ).toHaveLength(0);
   });
 
   it('only one of two competing drivers wins the ride', async () => {
     const s = await setup();
     const id = (await s.requestRide()).res.body.data.id as string;
 
-    const first = await request(s.app).post(`/api/v1/rides/${id}/accept`).set('Authorization', s.driverAuth);
+    const first = await request(s.app)
+      .post(`/api/v1/rides/${id}/accept`)
+      .set('Authorization', s.driverAuth);
     const second = await request(s.app)
       .post(`/api/v1/rides/${id}/accept`)
       .set('Authorization', s.otherDriverAuth);
@@ -352,7 +439,8 @@ describe('Rides API', () => {
     const id = (await s.requestRide()).res.body.data.id as string;
     await request(s.app).post(`/api/v1/rides/${id}/accept`).set('Authorization', s.driverAuth);
 
-    const get = (auth: string) => request(s.app).get(`/api/v1/rides/${id}`).set('Authorization', auth);
+    const get = (auth: string) =>
+      request(s.app).get(`/api/v1/rides/${id}`).set('Authorization', auth);
     expect((await get(s.riderAuth)).status).toBe(200);
     expect((await get(s.driverAuth)).status).toBe(200);
     expect((await get(s.adminAuth)).status).toBe(200);
@@ -404,6 +492,8 @@ describe('Rides API', () => {
     const admin = await events(s.adminAuth);
     expect(admin.status).toBe(200);
     expect(admin.body.data.map((e: { eventType: string }) => e.eventType)).toEqual([
+      'RIDE_CREATED',
+      'DRIVER_ASSIGNED',
       'DRIVER_EN_ROUTE',
       'DRIVER_ARRIVED',
     ]);
@@ -411,7 +501,7 @@ describe('Rides API', () => {
     expect((await events(s.otherRiderAuth)).status).toBe(404);
   });
 
-  it('admin can create a ride from quote, simulate driver acceptance, inspect OTP, and drive lifecycle', async () => {
+  it('admin cannot impersonate a rider to create a ride', async () => {
     const s = await setup();
     const quote = await s.requestRide().then((r) => r.quote);
 
@@ -429,58 +519,7 @@ describe('Rides API', () => {
         riderId: RIDER_ID,
       });
 
-    expect(createRes.status).toBe(201);
-    const rideId = createRes.body.data.id as string;
-    expect(createRes.body.data.status).toBe('OFFERING');
-
-    // Admin simulates driver acceptance
-    const acceptRes = await request(s.app)
-      .post(`/api/v1/rides/${rideId}/accept`)
-      .set('Authorization', s.adminAuth)
-      .send({ driverId: DRIVER_ID });
-
-    expect(acceptRes.status).toBe(200);
-    expect(acceptRes.body.data.status).toBe('DRIVER_ASSIGNED');
-    expect(acceptRes.body.data.pickupOtp).toBeDefined();
-    const otp = acceptRes.body.data.pickupOtp as string;
-    expect(otp).toMatch(/^\d{4}$/);
-
-    // Driver goes en route and arrives
-    const enRouteRes = await request(s.app)
-      .post(`/api/v1/rides/${rideId}/en-route`)
-      .set('Authorization', s.adminAuth)
-      .send({ driverId: DRIVER_ID });
-    expect(enRouteRes.status).toBe(200);
-    expect(enRouteRes.body.data.status).toBe('DRIVER_EN_ROUTE');
-
-    const arrivedRes = await request(s.app)
-      .post(`/api/v1/rides/${rideId}/arrived`)
-      .set('Authorization', s.adminAuth)
-      .send({ driverId: DRIVER_ID });
-    expect(arrivedRes.status).toBe(200);
-    expect(arrivedRes.body.data.status).toBe('DRIVER_ARRIVED');
-
-    // Admin fetches ride and inspects OTP
-    const getRes = await request(s.app)
-      .get(`/api/v1/rides/${rideId}`)
-      .set('Authorization', s.adminAuth);
-    expect(getRes.status).toBe(200);
-    expect(getRes.body.data.pickupOtp).toBe(otp);
-
-    // Start ride with valid OTP
-    const startRes = await request(s.app)
-      .post(`/api/v1/rides/${rideId}/start`)
-      .set('Authorization', s.adminAuth)
-      .send({ otp, driverId: DRIVER_ID });
-    expect(startRes.status).toBe(200);
-    expect(startRes.body.data.status).toBe('TRIP_STARTED');
-
-    // Complete ride
-    const completeRes = await request(s.app)
-      .post(`/api/v1/rides/${rideId}/complete`)
-      .set('Authorization', s.adminAuth)
-      .send({ driverId: DRIVER_ID });
-    expect(completeRes.status).toBe(200);
-    expect(completeRes.body.data.ride.status).toBe('SETTLED');
+    expect(createRes.status).toBe(403);
   });
 });
+import { unitOfWork } from './helpers/unitOfWork.js';

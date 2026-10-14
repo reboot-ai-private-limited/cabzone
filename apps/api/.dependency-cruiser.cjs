@@ -3,7 +3,10 @@
  */
 
 const MODULE_TIERS = [
-  ['health'],
+  ['health', 'ledger', 'zone', 'routing'],
+  ['pricing'],
+  ['rides'],
+  ['identity', 'dispatch'],
 ];
 
 const layeringRules = MODULE_TIERS.map((tier, index) => {

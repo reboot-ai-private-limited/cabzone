@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import {
+  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -9,6 +10,12 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import { CandyButton } from '@/components/buttons/candy-button';
+import { useAuth } from '@/context/auth-context';
+import { driverApi } from '@/services/api';
+import { pickDriverLicense, type SelectedDriverLicense } from '@/services/driver-license';
 import type { OnboardingDraft } from './types';
 
 interface StepDrivingLicenceProps {
@@ -24,8 +31,14 @@ export function StepDrivingLicence({
   onNext,
   onBack,
 }: StepDrivingLicenceProps) {
-  const [dlNumber, setDlNumber] = useState(draft.dlNumber || '');
-  const [isUploaded, setIsUploaded] = useState(draft.dlUploaded || false);
+  const insets = useSafeAreaInsets();
+  const { token, documents, refreshProfile } = useAuth();
+  const [dlNumber, setDlNumber] = useState(draft.dlNumber || (__DEV__ ? 'WB7420220012345' : ''));
+  const [expiryDate, setExpiryDate] = useState(draft.dlExpiry);
+  const [isUploaded, setIsUploaded] = useState(draft.dlUploaded);
+  const [selectedFile, setSelectedFile] = useState<SelectedDriverLicense | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
 
   const handleDlChange = (text: string) => {
     // Uppercase and strip invalid characters
@@ -33,64 +46,129 @@ export function StepDrivingLicence({
     setDlNumber(cleaned);
   };
 
-  const handleToggleUpload = () => {
-    setIsUploaded(!isUploaded);
+  const handlePickFile = async () => {
+    try {
+      const file = await pickDriverLicense();
+      if (file) setSelectedFile(file);
+    } catch (err) {
+      Alert.alert('Licence file unavailable', err instanceof Error ? err.message : 'Please try again.');
+    }
   };
 
-  const handleContinue = () => {
-    onUpdate({
-      dlNumber: dlNumber || 'WB7420220012345',
-      dlUploaded: true,
-    });
-    onNext();
+  const handleContinue = async () => {
+    if (!token || isSaving || !isValid) return;
+    setIsSaving(true);
+    try {
+      const expiry = new Date(`${expiryDate}T23:59:59.999Z`);
+      await driverApi.saveProfile(token, { dlNumber: dlNumber.trim(), dlExpiry: expiryDate });
+      await driverApi.createApplication(token);
+      if (selectedFile || !savedLicence?.expiresAt || savedLicence.expiresAt.slice(0, 10) !== expiryDate) {
+        await driverApi.uploadLicenseFile(token, {
+          ...(selectedFile ? { fileDataUrl: selectedFile.dataUrl } : {}),
+          dlNumber: dlNumber.trim(),
+          expiresAt: expiry.toISOString(),
+        });
+      }
+      setIsUploaded(true);
+      setSelectedFile(null);
+      onUpdate({ dlNumber: dlNumber.trim(), dlExpiry: expiryDate, dlUploaded: true });
+      await refreshProfile();
+      onNext();
+    } catch (err) {
+      Alert.alert('Could not save licence', err instanceof Error ? err.message : 'Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  const isValid = dlNumber.trim().length >= 8 || isUploaded;
+  const savedNumberMatches = isUploaded && draft.dlNumber.trim() === dlNumber.trim();
+  const savedLicence = documents.find((document) => document.type === 'DRIVING_LICENSE');
+  const expiry = /^\d{4}-\d{2}-\d{2}$/.test(expiryDate) ? new Date(`${expiryDate}T23:59:59.999Z`) : new Date(NaN);
+  const expiryValid = !Number.isNaN(expiry.getTime()) && expiry.toISOString().slice(0, 10) === expiryDate && expiry > new Date();
+  const isValid = dlNumber.trim().length >= 8 && expiryValid && (selectedFile !== null || (savedNumberMatches && !!savedLicence));
 
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Top row */}
-        <View style={styles.topRow}>
-          <Pressable onPress={onBack} style={styles.backBtn} hitSlop={12}>
-            <Text style={styles.backArrow}>←</Text>
+      <ScrollView
+        contentContainerStyle={[
+          styles.scrollContent,
+          {
+            paddingTop: Math.max(insets.top, 16),
+            paddingBottom: Math.max(insets.bottom, 24) + 20,
+          },
+        ]}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}>
+        
+        {/* Top Header Bar */}
+        <View style={styles.topBar}>
+          <Pressable
+            onPress={onBack}
+            style={({ pressed }) => [styles.closeBtn, pressed && styles.btnPressed]}
+            hitSlop={12}
+            accessibilityRole="button"
+            accessibilityLabel="Go back">
+            <Ionicons name="chevron-back" size={20} color="#2C1810" />
           </Pressable>
-          <View style={styles.stepCounterBadge}>
-            <Text style={styles.stepCounterText}>4 of 6</Text>
+
+          <View style={styles.stepBadge}>
+            <View style={styles.stepDot} />
+            <Text style={styles.stepBadgeText}>Step 4 of 6</Text>
           </View>
         </View>
 
-        {/* Progress Bar */}
-        <View style={styles.progressBarBg}>
-          <View style={[styles.progressBarFill, { width: '66.6%' }]} />
+        {/* 6-Step Segmented Progress Bar */}
+        <View style={styles.progressContainer}>
+          {[1, 2, 3, 4, 5, 6].map((s) => (
+            <View
+              key={s}
+              style={[
+                styles.progressSegment,
+                s <= 4 ? styles.progressSegmentActive : styles.progressSegmentInactive,
+              ]}
+            />
+          ))}
         </View>
 
-        <Text style={styles.heading}>Driving licence</Text>
-        <Text style={styles.subheading}>
-          Upload your valid commercial or transport category Indian driving licence.
-        </Text>
+        {/* Headline & Subhead */}
+        <View style={styles.titleSection}>
+          <Text style={styles.heading}>Driving licence</Text>
+          <Text style={styles.subheading}>
+            Upload your valid commercial or transport category Indian driving licence.
+          </Text>
+        </View>
 
         {/* Upload Box Card */}
         <Pressable
-          style={[styles.uploadBox, isUploaded && styles.uploadBoxDone]}
-          onPress={handleToggleUpload}>
-          {isUploaded ? (
+          style={({ pressed }) => [
+            styles.uploadBox,
+            (selectedFile || isUploaded) && styles.uploadBoxDone,
+            pressed && styles.btnPressed,
+          ]}
+          onPress={() => void handlePickFile()}
+          disabled={isSaving}
+          accessibilityRole="button"
+          accessibilityLabel="Select driving licence PDF or JPEG">
+          {selectedFile || isUploaded ? (
             <View style={styles.uploadedState}>
               <View style={styles.checkCircle}>
-                <Text style={styles.checkIcon}>✓</Text>
+                <Ionicons name="checkmark" size={26} color="#166534" />
               </View>
-              <Text style={styles.uploadedTitle}>Licence photo uploaded</Text>
-              <Text style={styles.uploadedSub}>Tap to replace or re-capture document</Text>
+              <Text style={styles.uploadedTitle}>{selectedFile?.name || 'Licence saved'}</Text>
+              <Text style={styles.uploadedSub}>
+                {selectedFile ? 'Selected. Continue to upload securely.' :
+                  savedNumberMatches ? 'Tap to replace document' : 'Select a file for this licence number'}
+              </Text>
             </View>
           ) : (
             <View style={styles.emptyState}>
               <View style={styles.uploadPlusCircle}>
-                <Text style={styles.plusIcon}>+</Text>
+                <Ionicons name="add" size={28} color="#705746" />
               </View>
-              <Text style={styles.uploadTitle}>Upload licence photo</Text>
-              <Text style={styles.uploadSub}>Take a clear picture of the front side</Text>
+              <Text style={styles.uploadTitle}>Select driving licence</Text>
+              <Text style={styles.uploadSub}>PDF, JPG or JPEG · up to 500 KB</Text>
             </View>
           )}
         </Pressable>
@@ -98,38 +176,70 @@ export function StepDrivingLicence({
         {/* Licence Number Input */}
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Licence number *</Text>
-          <TextInput
-            style={[styles.input, styles.dlInput]}
-            placeholder="e.g. WB7420220012345"
-            placeholderTextColor="#9CA3AF"
-            value={dlNumber}
-            onChangeText={handleDlChange}
-            autoCapitalize="characters"
-            maxLength={16}
-          />
+          <View style={[styles.inputWrapper, isFocused && styles.inputWrapperFocused]}>
+            <Ionicons name="card-outline" size={20} color="#8C7B68" style={styles.inputIcon} />
+            <TextInput
+              style={[styles.textInput, styles.dlInput]}
+              placeholder="e.g. WB7420220012345"
+              placeholderTextColor="#B3A48C"
+              value={dlNumber}
+              onChangeText={handleDlChange}
+              autoCapitalize="characters"
+              maxLength={16}
+              onFocus={() => setIsFocused(true)}
+              onBlur={() => setIsFocused(false)}
+            />
+          </View>
           <Text style={styles.helperText}>
             Enter without spaces or hyphens as printed on your Smart Card DL.
           </Text>
         </View>
 
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Licence expiry date *</Text>
+          <View style={styles.inputWrapper}>
+            <Ionicons name="calendar-outline" size={20} color="#8C7B68" style={styles.inputIcon} />
+            <TextInput
+              style={styles.textInput}
+              placeholder="YYYY-MM-DD"
+              placeholderTextColor="#B3A48C"
+              value={expiryDate}
+              onChangeText={setExpiryDate}
+              keyboardType="numbers-and-punctuation"
+              maxLength={10}
+              accessibilityLabel="Driving licence expiry date"
+            />
+          </View>
+          <Text style={styles.helperText}>Enter the expiry date printed on your licence.</Text>
+        </View>
+
         <View style={styles.tipsBox}>
-          <Text style={styles.tipsTitle}>Document guidelines:</Text>
+          <View style={styles.tipsHeaderRow}>
+            <Ionicons name="information-circle" size={18} color="#8C5A20" />
+            <Text style={styles.tipsTitle}>Document guidelines:</Text>
+          </View>
+          <Text style={styles.tipItem}>PDF, JPG or JPEG only; maximum 500 KB.</Text>
           <Text style={styles.tipItem}>• All 4 corners of the licence must be visible.</Text>
           <Text style={styles.tipItem}>• Avoid camera flash reflections or dark shadows.</Text>
           <Text style={styles.tipItem}>• Must be valid and not expired.</Text>
         </View>
 
-        {/* Next Button */}
-        <Pressable
-          style={({ pressed }) => [
-            styles.nextBtn,
-            !isValid && styles.btnDisabled,
-            pressed && styles.btnPressed,
-          ]}
+        <CandyButton
+          title="Continue"
           onPress={handleContinue}
-          disabled={!isValid}>
-          <Text style={styles.nextBtnText}>Next →</Text>
-        </Pressable>
+          disabled={!isValid}
+          loading={isSaving}
+          variant={isValid ? 'primary' : 'muted'}
+          icon={
+            <Ionicons
+              name="arrow-forward"
+              size={18}
+              color={isValid ? '#5A3416' : '#B3A48C'}
+              style={{ marginLeft: 2 }}
+            />
+          }
+          style={styles.actionBtn}
+        />
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -138,78 +248,97 @@ export function StepDrivingLicence({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F7F7F5',
+    backgroundColor: '#FFFDF7',
   },
   scrollContent: {
     flexGrow: 1,
-    paddingHorizontal: 24,
-    paddingTop: 20,
-    paddingBottom: 40,
+    paddingHorizontal: 20,
   },
-  topRow: {
+  topBar: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: 16,
   },
-  backBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+  closeBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderWidth: 1.5,
+    borderColor: '#ECE0CE',
+    shadowColor: '#3D2314',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  backArrow: {
-    fontSize: 18,
-    color: '#111827',
-    fontWeight: '700',
+  btnPressed: {
+    opacity: 0.85,
+    transform: [{ scale: 0.98 }],
   },
-  stepCounterBadge: {
-    backgroundColor: '#FFFFFF',
+  stepBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF3C7',
     paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: '#FDE68A',
   },
-  stepCounterText: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#4B5563',
-  },
-  progressBarBg: {
+  stepDot: {
+    width: 6,
     height: 6,
-    backgroundColor: '#E5E7EB',
     borderRadius: 3,
-    marginBottom: 28,
-    overflow: 'hidden',
+    backgroundColor: '#D97706',
+    marginRight: 6,
   },
-  progressBarFill: {
-    height: '100%',
-    backgroundColor: '#002451',
+  stepBadgeText: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: '#92400E',
+  },
+  progressContainer: {
+    flexDirection: 'row',
+    gap: 6,
+    marginBottom: 22,
+  },
+  progressSegment: {
+    flex: 1,
+    height: 5,
     borderRadius: 3,
+  },
+  progressSegmentActive: {
+    backgroundColor: '#3D2314',
+  },
+  progressSegmentInactive: {
+    backgroundColor: '#EADBCA',
+  },
+  titleSection: {
+    marginBottom: 20,
   },
   heading: {
-    fontSize: 28,
+    fontSize: 27,
     fontWeight: '900',
-    color: '#111827',
+    color: '#2C1810',
+    letterSpacing: -0.6,
+    lineHeight: 33,
     marginBottom: 6,
-    letterSpacing: -0.4,
   },
   subheading: {
     fontSize: 14,
-    color: '#6B7280',
     lineHeight: 20,
-    marginBottom: 24,
+    color: '#705746',
+    fontWeight: '500',
   },
   uploadBox: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 22,
-    borderWidth: 2,
-    borderColor: '#E5E7EB',
+    backgroundColor: '#FFFDF9',
+    borderRadius: 24,
+    borderWidth: 1.5,
+    borderColor: '#D4C5B0',
     borderStyle: 'dashed',
     padding: 28,
     alignItems: 'center',
@@ -217,7 +346,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   uploadBoxDone: {
-    borderColor: '#10B981',
+    borderColor: '#16A34A',
     borderStyle: 'solid',
     backgroundColor: '#F0FDF4',
   },
@@ -225,128 +354,128 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   uploadPlusCircle: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#F3F4F6',
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#F5EFE6',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 12,
-  },
-  plusIcon: {
-    fontSize: 28,
-    color: '#6B7280',
-    fontWeight: '300',
+    marginBottom: 16,
   },
   uploadTitle: {
     fontSize: 16,
     fontWeight: '800',
-    color: '#111827',
-    marginBottom: 4,
+    color: '#2C1810',
+    marginBottom: 6,
   },
   uploadSub: {
-    fontSize: 12,
-    color: '#6B7280',
+    fontSize: 13,
+    color: '#8C7B68',
+    fontWeight: '500',
   },
   uploadedState: {
     alignItems: 'center',
   },
   checkCircle: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     backgroundColor: '#DCFCE7',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 12,
-  },
-  checkIcon: {
-    fontSize: 26,
-    fontWeight: '900',
-    color: '#16A34A',
+    marginBottom: 16,
+    shadowColor: '#16A34A',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 3,
   },
   uploadedTitle: {
     fontSize: 16,
     fontWeight: '800',
-    color: '#166534',
-    marginBottom: 4,
+    color: '#14532D',
+    marginBottom: 6,
   },
   uploadedSub: {
-    fontSize: 12,
+    fontSize: 13,
     color: '#15803D',
+    fontWeight: '500',
   },
   inputGroup: {
     marginBottom: 24,
   },
   label: {
-    fontSize: 13,
+    fontSize: 13.5,
     fontWeight: '700',
-    color: '#374151',
+    color: '#3D2314',
     marginBottom: 8,
   },
-  input: {
-    backgroundColor: '#FFFFFF',
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFDF9',
     borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    borderWidth: 1.5,
+    borderColor: '#ECE0CE',
+    paddingHorizontal: 14,
+    height: 52,
+  },
+  inputWrapperFocused: {
+    borderColor: '#8C4A1B',
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#8C4A1B',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  inputIcon: {
+    marginRight: 10,
+  },
+  textInput: {
+    flex: 1,
     fontSize: 15,
-    color: '#111827',
+    fontWeight: '600',
+    color: '#2C1810',
+    paddingVertical: 0,
   },
   dlInput: {
     fontWeight: '800',
     letterSpacing: 1.5,
   },
   helperText: {
-    fontSize: 11,
-    color: '#6B7280',
-    marginTop: 6,
+    fontSize: 11.5,
+    color: '#8C7B68',
+    marginTop: 8,
+    fontWeight: '500',
   },
   tipsBox: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#FFFDF4',
     borderRadius: 16,
     padding: 16,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderWidth: 1.5,
+    borderColor: '#FDE68A',
     marginBottom: 24,
-    gap: 4,
+    gap: 6,
+  },
+  tipsHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
   },
   tipsTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#111827',
-    marginBottom: 4,
+    fontSize: 13.5,
+    fontWeight: '800',
+    color: '#8C5A20',
+    marginLeft: 6,
   },
   tipItem: {
-    fontSize: 12,
-    color: '#6B7280',
+    fontSize: 12.5,
+    color: '#92400E',
     lineHeight: 18,
+    fontWeight: '500',
   },
-  nextBtn: {
-    backgroundColor: '#002451',
-    borderRadius: 18,
-    height: 56,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#002451',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
-    elevation: 3,
-  },
-  btnDisabled: {
-    backgroundColor: '#9CA3AF',
-    shadowOpacity: 0,
-    elevation: 0,
-  },
-  btnPressed: {
-    opacity: 0.88,
-    transform: [{ scale: 0.99 }],
-  },
-  nextBtnText: {
-    color: '#C8FF00',
-    fontSize: 16,
-    fontWeight: '800',
+  actionBtn: {
+    marginTop: 8,
   },
 });
