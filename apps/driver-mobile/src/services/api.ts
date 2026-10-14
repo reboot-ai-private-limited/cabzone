@@ -1,14 +1,22 @@
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
+import { getAccessToken, getOrCreateDeviceId, getRefreshToken, saveAuthTokens } from './storage';
 import type {
+  CancellationReason,
+  DriverDocumentDto,
+  DriverDto,
+  DriverProfileDetailDto,
+  RefreshTokenResponseDto,
+  RequestOtpResponseDto,
+  RideDto,
+  RideEventDto,
+  RideStatus,
+  SaveDriverProfileRequestDto,
+  VehicleCategory,
   VerifyOtpRequestDto,
   VerifyOtpResponseDto,
-  RequestOtpResponseDto,
-  DriverProfileDetailDto,
-  DriverDto,
-  SaveDriverProfileRequestDto,
-  RefreshTokenResponseDto,
-  DriverDocumentDto,
+  WalletDto,
+  WalletTransactionDto,
 } from '@cabzone/contracts';
 
 export type { DriverProfileDetailDto };
@@ -51,7 +59,80 @@ interface ApiResponse<T> {
   error?: {
     code?: string;
     message: string;
+    details?: unknown;
   };
+}
+
+export class ApiError extends Error {
+  readonly status: number | undefined;
+  readonly code: string | undefined;
+  readonly isNetworkError: boolean;
+  readonly details: unknown;
+
+  constructor(
+    message: string,
+    opts?: {
+      status?: number;
+      code?: string;
+      isNetworkError?: boolean;
+      details?: unknown;
+    },
+  ) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = opts?.status;
+    this.code = opts?.code;
+    this.isNetworkError = Boolean(opts?.isNetworkError);
+    this.details = opts?.details;
+  }
+
+  get isUnauthorized(): boolean {
+    return this.status === 401 || this.status === 403;
+  }
+}
+
+export function isApiError(err: unknown): err is ApiError {
+  return err instanceof ApiError;
+}
+
+const accessTokenListeners = new Set<(token: string | null) => void>();
+let refreshInFlight: Promise<string> | null = null;
+
+export function subscribeAccessToken(listener: (token: string | null) => void): () => void {
+  accessTokenListeners.add(listener);
+  return () => { accessTokenListeners.delete(listener); };
+}
+
+function publishAccessToken(token: string | null): void {
+  for (const listener of accessTokenListeners) listener(token);
+}
+
+async function recoverAccessToken(failedToken: string): Promise<string> {
+  const storedToken = await getAccessToken();
+  if (storedToken && storedToken !== failedToken) {
+    // A background refresh or account switch changed credentials; never replay an old request as another user.
+    publishAccessToken(storedToken);
+    throw new ApiError('Session changed. Retry the action.', { status: 401 });
+  }
+  if (!refreshInFlight) {
+    refreshInFlight = (async () => {
+      const refreshToken = await getRefreshToken();
+      if (!refreshToken) throw new ApiError('Session expired. Please sign in again.', { status: 401 });
+      const refreshed = await authApi.refreshToken(refreshToken, await getOrCreateDeviceId());
+      if (await getRefreshToken() !== refreshToken) {
+        throw new ApiError('Session changed. Retry the action.', { status: 401 });
+      }
+      await saveAuthTokens(refreshed.accessToken, refreshed.refreshToken);
+      publishAccessToken(refreshed.accessToken);
+      return refreshed.accessToken;
+    })().catch(async (error: unknown) => {
+      if (isApiError(error) && error.isUnauthorized && await getAccessToken() === failedToken) {
+        publishAccessToken(null);
+      }
+      throw error;
+    }).finally(() => { refreshInFlight = null; });
+  }
+  return refreshInFlight;
 }
 
 async function request<T>(
@@ -66,31 +147,44 @@ async function request<T>(
     ...(options.headers as Record<string, string>),
   };
 
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
-  }
-
+  let res: Response;
+  let currentToken = token;
   try {
-    const res = await fetch(url, {
-      ...options,
-      headers,
-    });
-
-    const json = (await res.json()) as ApiResponse<T>;
-
-    if (!res.ok || json.success === false) {
-      const errMsg =
-        json.message || json.error?.message || `Request failed with status ${res.status}`;
-      throw new Error(errMsg);
+    for (let attempt = 0; ; attempt++) {
+      if (currentToken) headers.Authorization = `Bearer ${currentToken}`;
+      res = await fetch(url, { ...options, headers });
+      if (res.status !== 401 || !currentToken || attempt >= 1) break;
+      currentToken = await recoverAccessToken(currentToken);
     }
-
-    return json.data;
   } catch (err: unknown) {
-    if (err instanceof Error) {
-      throw err;
-    }
-    throw new Error('An unexpected network error occurred');
+    if (isApiError(err)) throw err;
+    const msg = err instanceof Error ? err.message : 'Unable to reach Cabzone server';
+    throw new ApiError(msg, { isNetworkError: true });
   }
+
+  let json: ApiResponse<T> | null = null;
+  try {
+    json = (await res.json()) as ApiResponse<T>;
+  } catch {
+    if (!res.ok) {
+      throw new ApiError(`Request failed with status ${res.status}`, {
+        status: res.status,
+      });
+    }
+    return undefined as T;
+  }
+
+  if (!res.ok || json.success === false) {
+    const errMsg =
+      json.message || json.error?.message || `Request failed with status ${res.status}`;
+    throw new ApiError(errMsg, {
+      status: res.status,
+      code: json.error?.code,
+      details: json.error?.details,
+    });
+  }
+
+  return json.data;
 }
 
 export const authApi = {
@@ -129,7 +223,6 @@ export const authApi = {
     return request<DriverProfileDetailDto>('/api/v1/driver/profile/me', { method: 'GET' }, token);
   },
 };
-
 export type CreateDriverProfilePayload = SaveDriverProfileRequestDto;
 
 export interface RegisterVehiclePayload {
@@ -235,7 +328,6 @@ export const driverApi = {
     );
   },
 };
-
 export interface UpdateLocationPayload {
   lat: number;
   lng: number;
@@ -243,7 +335,45 @@ export interface UpdateLocationPayload {
   speedMps?: number | null | undefined;
 }
 
+export interface RideOfferDto {
+  rideId: string;
+  vehicleCategory: VehicleCategory;
+  pickup: {
+    lat: number;
+    lng: number;
+    address: string | null;
+  };
+  drop: {
+    lat: number;
+    lng: number;
+    address: string | null;
+  };
+  proposedFarePaise: number;
+  distanceToPickupM: number;
+  expiresAt: string | null;
+  negotiation?: { floorPaise: number; ceilingPaise: number };
+}
+
+export interface CompleteRideResultDto {
+  ride: RideDto;
+  farePaise: number;
+  commissionPaise: number;
+  walletBalancePaise: number;
+}
+
+export interface CancelRideResultDto {
+  ride: RideDto;
+  feeBreakdown?: {
+    totalFeePaise: number;
+    driverSharePaise: number;
+    platformSharePaise: number;
+  };
+}
+
 export const dispatchApi = {
+  async getStatus(token: string): Promise<{ status: 'ONLINE' | 'OFFLINE' }> {
+    return request<{ status: 'ONLINE' | 'OFFLINE' }>('/api/v1/driver/status', { method: 'GET' }, token);
+  },
   async setStatus(
     token: string,
     status: 'ONLINE' | 'OFFLINE',
@@ -273,18 +403,152 @@ export const dispatchApi = {
       token,
     );
   },
+
+  async listOffers(token: string): Promise<RideOfferDto[]> {
+    return request<RideOfferDto[]>('/api/v1/driver/offers', { method: 'GET' }, token);
+  },
+
+  async registerPushToken(token: string, pushToken: string, installationId: string): Promise<{ ok: boolean }> {
+    return request<{ ok: boolean }>(
+      '/api/v1/driver/push-token',
+      { method: 'POST', body: JSON.stringify({ token: pushToken, installationId }) },
+      token,
+    );
+  },
+
+  async unregisterPushToken(token: string, installationId: string): Promise<{ ok: boolean }> {
+    return request<{ ok: boolean }>(
+      '/api/v1/driver/push-token',
+      { method: 'DELETE', body: JSON.stringify({ installationId }) },
+      token,
+    );
+  },
 };
 
+export const ridesApi = {
+  async listMyRides(
+    token: string,
+    params?: { status?: RideStatus | RideStatus[]; limit?: number; offset?: number },
+  ): Promise<RideDto[]> {
+    const query = new URLSearchParams();
+    if (params?.status) {
+      const statusList = Array.isArray(params.status) ? params.status.join(',') : params.status;
+      query.set('status', statusList);
+    }
+    if (params?.limit != null) {
+      query.set('limit', String(params.limit));
+    }
+    if (params?.offset != null) {
+      query.set('offset', String(params.offset));
+    }
+    const qs = query.toString();
+    return request<RideDto[]>(`/api/v1/rides${qs ? `?${qs}` : ''}`, { method: 'GET' }, token);
+  },
+
+  async getRide(token: string, rideId: string): Promise<RideDto> {
+    return request<RideDto>(
+      `/api/v1/rides/${encodeURIComponent(rideId)}`,
+      { method: 'GET' },
+      token,
+    );
+  },
+
+  async getRideEvents(token: string, rideId: string): Promise<RideEventDto[]> {
+    return request<RideEventDto[]>(
+      `/api/v1/rides/${encodeURIComponent(rideId)}/events`,
+      { method: 'GET' },
+      token,
+    );
+  },
+
+  async acceptRide(token: string, rideId: string): Promise<RideDto> {
+    return request<RideDto>(
+      `/api/v1/rides/${encodeURIComponent(rideId)}/accept`,
+      { method: 'POST', body: JSON.stringify({}) },
+      token,
+    );
+  },
+
+  async counterOffer(
+    token: string,
+    rideId: string,
+    proposedFarePaise: number,
+  ): Promise<{ driverId: string; proposedFarePaise: number }> {
+    return request<{ driverId: string; proposedFarePaise: number }>(
+      `/api/v1/rides/${encodeURIComponent(rideId)}/counter`,
+      { method: 'POST', body: JSON.stringify({ proposedFarePaise }) },
+      token,
+    );
+  },
+
+  async markEnRoute(token: string, rideId: string): Promise<RideDto> {
+    return request<RideDto>(
+      `/api/v1/rides/${encodeURIComponent(rideId)}/en-route`,
+      { method: 'POST', body: JSON.stringify({}) },
+      token,
+    );
+  },
+
+  async markArrived(token: string, rideId: string): Promise<RideDto> {
+    return request<RideDto>(
+      `/api/v1/rides/${encodeURIComponent(rideId)}/arrived`,
+      { method: 'POST', body: JSON.stringify({}) },
+      token,
+    );
+  },
+
+  async startRide(token: string, rideId: string, otp: string): Promise<RideDto> {
+    return request<RideDto>(
+      `/api/v1/rides/${encodeURIComponent(rideId)}/start`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ otp }),
+      },
+      token,
+    );
+  },
+
+  async completeRide(token: string, rideId: string): Promise<CompleteRideResultDto> {
+    return request<CompleteRideResultDto>(
+      `/api/v1/rides/${encodeURIComponent(rideId)}/complete`,
+      { method: 'POST', body: JSON.stringify({}) },
+      token,
+    );
+  },
+
+  async confirmPayment(token: string, rideId: string): Promise<CompleteRideResultDto> {
+    return request<CompleteRideResultDto>(
+      `/api/v1/rides/${encodeURIComponent(rideId)}/payment/confirm`,
+      { method: 'POST', body: JSON.stringify({}) },
+      token,
+    );
+  },
+
+  async cancelRide(
+    token: string,
+    rideId: string,
+    reason: CancellationReason,
+  ): Promise<CancelRideResultDto> {
+    return request<CancelRideResultDto>(
+      `/api/v1/rides/${encodeURIComponent(rideId)}/cancel`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ reason }),
+      },
+      token,
+    );
+  },
+};
+
+export interface WalletViewDto {
+  wallet: WalletDto | null;
+  transactions: WalletTransactionDto[];
+}
+
 export const walletApi = {
-  async getMyWallet(token: string): Promise<{
-    wallet: { id: string; balancePaise: number } | null;
-    transactions: any[];
-  } | null> {
+  async getMyWallet(token: string): Promise<WalletViewDto | null> {
     try {
-      return await request<{
-        wallet: { id: string; balancePaise: number } | null;
-        transactions: any[];
-      }>('/api/v1/driver/wallet/me', { method: 'GET' }, token);
+      return await request<WalletViewDto>('/api/v1/driver/wallet/me', { method: 'GET' }, token);
     } catch {
       return null;
     }

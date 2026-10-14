@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { AppError } from '../../../shared/errors/AppError.js';
 import { asyncHandler } from '../../../shared/http/asyncHandler.js';
 import { sendSuccess } from '../../../shared/http/response.util.js';
+import type { ExpoPushService } from '../application/expoPush.service.js';
 import type { ListDriverOffersUseCase } from '../application/useCases/listDriverOffers.usecase.js';
 import type { SetDriverStatusUseCase } from '../application/useCases/setDriverStatus.usecase.js';
 import type { UpdateDriverLocationUseCase } from '../application/useCases/updateDriverLocation.usecase.js';
@@ -36,6 +37,12 @@ export function makeSetStatusController(useCase: SetDriverStatusUseCase): Reques
   });
 }
 
+export function makeGetStatusController(useCase: SetDriverStatusUseCase): RequestHandler {
+  return asyncHandler(async (req: Request, res: Response) => {
+    sendSuccess(req, res, await useCase.get(userId(req)), 'Driver availability retrieved');
+  });
+}
+
 export function makeUpdateLocationController(useCase: UpdateDriverLocationUseCase): RequestHandler {
   return asyncHandler(async (req: Request, res: Response) => {
     const body = updateLocationSchema.parse(req.body);
@@ -47,5 +54,29 @@ export function makeUpdateLocationController(useCase: UpdateDriverLocationUseCas
 export function makeListOffersController(useCase: ListDriverOffersUseCase): RequestHandler {
   return asyncHandler(async (req: Request, res: Response) => {
     sendSuccess(req, res, await useCase.execute(userId(req)), 'Offers retrieved successfully');
+  });
+}
+
+export const pushTokenSchema = z.object({
+  token: z.string().trim().min(1).max(200),
+  installationId: z.string().trim().min(8).max(128),
+});
+export const removePushTokenSchema = pushTokenSchema.pick({ installationId: true });
+
+export function makeRegisterPushTokenController(push: ExpoPushService): RequestHandler {
+  return asyncHandler(async (req: Request, res: Response) => {
+    const { token, installationId } = pushTokenSchema.parse(req.body);
+    if (!await push.register(userId(req), installationId, token)) {
+      throw AppError.badRequest('INVALID_PUSH_TOKEN: Expected an Expo push token.');
+    }
+    sendSuccess(req, res, { ok: true }, 'Push token registered');
+  });
+}
+
+export function makeUnregisterPushTokenController(push: ExpoPushService): RequestHandler {
+  return asyncHandler(async (req: Request, res: Response) => {
+    const { installationId } = removePushTokenSchema.parse(req.body);
+    await push.unregister(userId(req), installationId);
+    sendSuccess(req, res, { ok: true }, 'Push token removed');
   });
 }

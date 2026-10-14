@@ -9,12 +9,15 @@ import type { CreateRideUseCase } from '../application/useCases/createRide.useca
 import type { DriverArrivedUseCase } from '../application/useCases/driverArrived.usecase.js';
 import type { DriverEnRouteUseCase } from '../application/useCases/driverEnRoute.usecase.js';
 import type { StartRideUseCase } from '../application/useCases/startRide.usecase.js';
+import type { NegotiateFareUseCase } from '../application/useCases/negotiateFare.usecase.js';
 import type { RideEntity, RideEventRepositoryPort, RideRepositoryPort } from '../domain/index.js';
 import { logger } from '../../../shared/logging/logger.js';
 import { derivePickupOtp, type RideNotifierPort } from '../domain/index.js';
 import { toRideView } from './rides.presenter.js';
 import {
   cancelRideSchema,
+  counterResponseSchema,
+  driverCounterSchema,
   createRideRequestSchema,
   listRidesQuerySchema,
   paymentDisputeSchema,
@@ -151,7 +154,11 @@ export function makeRideEventsController(
   return asyncHandler(async (req: Request, res: Response) => {
     const { id } = rideIdParamSchema.parse(req.params);
     const ride = await rideRepo.findById(id);
-    if (!ride || !(await canView(req, ride, actors))) {
+    const isOfferingDriver =
+      ride?.status === 'OFFERING' &&
+      req.auth?.role === 'DRIVER' &&
+      (await actors.resolveDriverId(req.auth.userId)) !== null;
+    if (!ride || (!(await canView(req, ride, actors)) && !isOfferingDriver)) {
       throw AppError.notFound('RIDE_NOT_FOUND: The requested ride was not found.');
     }
     const events = await rideEventRepo.findByRideId(id);
@@ -208,6 +215,45 @@ export function makeAcceptRideController(
     );
     const view = toRideView(ride);
     sendSuccess(req, res, view, 'Ride accepted successfully');
+  });
+}
+
+/** Driver: answer an offer with a different fare. The rider is notified in realtime. */
+export function makeDriverCounterController(
+  useCase: NegotiateFareUseCase,
+  actors: RideHttpContext,
+): RequestHandler {
+  return asyncHandler(async (req: Request, res: Response) => {
+    const { id } = rideIdParamSchema.parse(req.params);
+    const { proposedFarePaise } = driverCounterSchema.parse(req.body);
+    const driverId = await requireDriverId(req, actors);
+    const { ride, counter } = await useCase.counter({ rideId: id, driverId, proposedFarePaise });
+    await notify(actors.notifier?.fareNegotiation(ride, 'ride.fare.countered', counter));
+    sendSuccess(req, res, counter, 'Counter-offer sent to rider', 201);
+  });
+}
+
+/** Rider: take or decline a driver's counter. Taking it assigns that driver at the countered fare. */
+export function makeRespondCounterController(
+  useCase: NegotiateFareUseCase,
+  actors: RideHttpContext,
+): RequestHandler {
+  return asyncHandler(async (req: Request, res: Response) => {
+    const { id } = rideIdParamSchema.parse(req.params);
+    const { driverId, action } = counterResponseSchema.parse(req.body);
+    const riderId = await requireRiderId(req, actors);
+    const result = await useCase.respond({ rideId: id, riderId, driverId, action });
+    if (action === 'ACCEPTED' && result.accepted) {
+      await notify(
+        actors.notifier?.rideUpdated(result.ride, 'ride.driver.assigned', {
+          pickupOtp: result.accepted._riderPickupOtp,
+          viaCounter: true,
+        }),
+      );
+    } else {
+      await notify(actors.notifier?.fareNegotiation(result.ride, 'ride.fare.counter_rejected', result.counter));
+    }
+    sendSuccess(req, res, toRideView(result.ride), `Counter-offer ${action.toLowerCase()}`);
   });
 }
 

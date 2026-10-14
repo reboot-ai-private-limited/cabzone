@@ -1,7 +1,7 @@
 import type { AddressInfo } from 'node:net';
 import { Router } from 'express';
 import request from 'supertest';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { WebSocket } from 'ws';
 import type { AuthRole, VehicleCategory } from '@cabzone/contracts';
 import { createApp } from '../src/app.js';
@@ -54,6 +54,7 @@ const RIDER_USER = id(0xa1);
 const RIDER_ID = id(0x201);
 const drivers: Record<string, DriverFixture> = {
   near: { userId: id(0xb1), driverId: id(0x101), category: 'CAB', balancePaise: 250_000, lat: 26.712, lng: 88.421 },
+  near2: { userId: id(0xb6), driverId: id(0x106), category: 'CAB', balancePaise: 250_000, lat: 26.713, lng: 88.422 },
   broke: { userId: id(0xb2), driverId: id(0x102), category: 'CAB', balancePaise: 0, lat: 26.713, lng: 88.421 },
   far: { userId: id(0xb3), driverId: id(0x103), category: 'CAB', balancePaise: 250_000, lat: 27.5, lng: 88.4 },
   rickshaw: { userId: id(0xb4), driverId: id(0x104), category: 'E_RICKSHAW', balancePaise: 250_000, lat: 26.712, lng: 88.422 },
@@ -327,6 +328,8 @@ async function setup() {
     app,
     wsUrl,
     rideRepo,
+    presence: dispatch.presence,
+    push: dispatch.push,
     rides,
     tokens,
     riderToken,
@@ -363,6 +366,22 @@ describe('Realtime gateway', () => {
 });
 
 describe('Driver presence', () => {
+  it('reports current server availability for app restart recovery', async () => {
+    const s = await setup();
+    const status = () => request(s.app)
+      .get('/api/v1/driver/status')
+      .set('Authorization', s.bearer(s.tokens['near']!));
+    expect((await status()).body.data.status).toBe('OFFLINE');
+    await s.goOnline('near');
+    expect((await status()).body.data.status).toBe('ONLINE');
+    const presence = (await s.presence.get(drivers['near']!.driverId))!;
+    await s.presence.set({ ...presence, locationUpdatedAt: new Date(Date.now() - 61_000) });
+    expect((await status()).body.data.status).toBe('OFFLINE');
+    await request(s.app).post('/api/v1/driver/status')
+      .set('Authorization', s.bearer(s.tokens['near']!)).send({ status: 'OFFLINE' });
+    expect((await status()).body.data.status).toBe('OFFLINE');
+  });
+
   it('needs a location to go online, and refuses ineligible drivers', async () => {
     const s = await setup();
     const noLoc = await request(s.app)
@@ -386,6 +405,36 @@ describe('Driver presence', () => {
 });
 
 describe('Dispatch: offers', () => {
+  it('sends fallback push only to candidates without a foreground socket', async () => {
+    const s = await setup();
+    await s.goOnline('near');
+    await s.goOnline('near2');
+    await s.listen(s.tokens['near']!);
+    const notify = vi.spyOn(s.push, 'notify').mockResolvedValue();
+    await s.requestRide();
+    expect(notify).toHaveBeenCalledWith([drivers['near2']!.userId], expect.objectContaining({
+      data: expect.objectContaining({ type: 'ride.offer.created' }),
+    }));
+  });
+
+  it('removes a claimed offer from the other candidate immediately', async () => {
+    const s = await setup();
+    await s.goOnline('near');
+    await s.goOnline('near2');
+    const winner = await s.listen(s.tokens['near']!);
+    const loser = await s.listen(s.tokens['near2']!);
+    const rideId = (await s.requestRide()).body.data.id as string;
+    await winner.waitFor('ride.offer.created');
+    await loser.waitFor('ride.offer.created');
+
+    const accept = await request(s.app)
+      .post(`/api/v1/rides/${rideId}/accept`)
+      .set('Authorization', s.bearer(s.tokens['near']!));
+    expect(accept.status).toBe(200);
+    expect(await loser.waitFor('ride.offer.taken')).toMatchObject({ rideId, reason: 'TAKEN' });
+    await winner.expectNone('ride.offer.taken');
+  });
+
   it('pushes the offer only to nearby, eligible, matching-category drivers', async () => {
     const s = await setup();
     for (const name of ['near', 'broke', 'far', 'rickshaw']) await s.goOnline(name);
@@ -553,6 +602,23 @@ describe('Dispatch: full trip with realtime', () => {
 });
 
 describe('Dispatch: offer expiry', () => {
+  it('notifies every original candidate when an offer expires', async () => {
+    const s = await setup();
+    await s.goOnline('near');
+    await s.goOnline('near2');
+    const first = await s.listen(s.tokens['near']!);
+    const second = await s.listen(s.tokens['near2']!);
+    const rideId = (await s.requestRide()).body.data.id as string;
+    await first.waitFor('ride.offer.created');
+    await second.waitFor('ride.offer.created');
+    const stored = (await s.rideRepo.findById(rideId))!;
+    await s.rideRepo.save({ ...stored, offeringExpiresAt: new Date(Date.now() - 1000) });
+
+    await s.rides.expireOffersUseCase.execute();
+    expect(await first.waitFor('ride.offer.expired')).toMatchObject({ rideId, reason: 'EXPIRED' });
+    expect(await second.waitFor('ride.offer.expired')).toMatchObject({ rideId, reason: 'EXPIRED' });
+  });
+
   it('expires stale offers, tells the rider, and blocks late acceptance', async () => {
     const s = await setup();
     await s.goOnline('near');

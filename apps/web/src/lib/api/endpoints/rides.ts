@@ -66,9 +66,101 @@ export const ACTIVE_RIDE_STATUSES: RideStatus[] = [
   'TRIP_STARTED',
 ];
 
+let cachedRiderSession: { phoneE164: string; accessToken: string; expiresAt: number } | null = null;
+
+/**
+ * Authenticates a dedicated test Customer (RIDER) session in memory so Customer Simulator actions
+ * (creating a ride, reading the rider-only 4-digit pickupOtp, cancelling, or disputing payment)
+ * work against real backend role guards without overwriting the Admin token in localStorage.
+ */
+export async function ensureSimRiderToken(phoneE164 = '+919000000003'): Promise<string> {
+  const cleaned = phoneE164.trim();
+  if (
+    cachedRiderSession &&
+    cachedRiderSession.phoneE164 === cleaned &&
+    cachedRiderSession.expiresAt > Date.now() + 30_000
+  ) {
+    return cachedRiderSession.accessToken;
+  }
+
+  await request<{ retryAfterSeconds?: number }>('/v1/auth/otp/request', {
+    method: 'POST',
+    body: { phoneE164: cleaned },
+  });
+
+  const verified = await request<{
+    accessToken: string;
+    expiresIn?: number;
+    user?: { role: string };
+  }>('/v1/auth/otp/verify', {
+    method: 'POST',
+    body: {
+      phoneE164: cleaned,
+      otp: '123456',
+      deviceId: 'web-customer-simulator',
+    },
+  });
+
+  cachedRiderSession = {
+    phoneE164: cleaned,
+    accessToken: verified.accessToken,
+    expiresAt: Date.now() + (verified.expiresIn ?? 900) * 1000,
+  };
+  return verified.accessToken;
+}
+
+export function clearSimRiderToken(): void {
+  cachedRiderSession = null;
+}
+
+const cachedDriverSessions = new Map<string, { accessToken: string; expiresAt: number }>();
+
+/**
+ * Authenticates a dedicated test Driver session in memory by phoneE164 so Simulator Driver Mirror
+ * actions (Go Online, Accept Offer, Counter Offer, En Route, Arrived, Start with OTP, Complete,
+ * Confirm Payment) work directly against real DRIVER role guards without touching Admin localStorage.
+ */
+export async function ensureSimDriverToken(phoneE164 = '+919000000002'): Promise<string> {
+  const cleaned = phoneE164.trim();
+  const existing = cachedDriverSessions.get(cleaned);
+  if (existing && existing.expiresAt > Date.now() + 30_000) {
+    return existing.accessToken;
+  }
+
+  await request<{ retryAfterSeconds?: number }>('/v1/auth/otp/request', {
+    method: 'POST',
+    body: { phoneE164: cleaned },
+  });
+
+  const verified = await request<{
+    accessToken: string;
+    expiresIn?: number;
+    user?: { role: string };
+  }>('/v1/auth/otp/verify', {
+    method: 'POST',
+    body: {
+      phoneE164: cleaned,
+      otp: '123456',
+      deviceId: `web-driver-simulator-${cleaned.slice(-4)}`,
+    },
+  });
+
+  cachedDriverSessions.set(cleaned, {
+    accessToken: verified.accessToken,
+    expiresAt: Date.now() + (verified.expiresIn ?? 900) * 1000,
+  });
+  return verified.accessToken;
+}
+
 export const ridesApi = {
   list: (
-    query: { statuses?: RideStatus[]; limit: number; offset?: number; riderId?: string },
+    query: {
+      statuses?: RideStatus[];
+      limit: number;
+      offset?: number;
+      riderId?: string;
+      driverId?: string;
+    },
     token?: string,
     signal?: AbortSignal,
   ) =>
@@ -76,6 +168,7 @@ export const ridesApi = {
       method: 'GET',
       query: {
         riderId: query.riderId,
+        driverId: query.driverId,
         status: query.statuses?.join(','),
         limit: query.limit,
         offset: query.offset ?? 0,
@@ -89,6 +182,19 @@ export const ridesApi = {
 
   events: (rideId: string, token?: string, signal?: AbortSignal) =>
     request<RideEventDto[]>(`/v1/rides/${rideId}/events`, { method: 'GET', token, signal }),
+
+  counter: (rideId: string, proposedFarePaise: number, token?: string) =>
+    request<{ driverId: string; proposedFarePaise: number }>(`/v1/rides/${rideId}/counter`, {
+      method: 'POST',
+      body: { proposedFarePaise },
+      token,
+    }),
+
+  respondCounter: (
+    rideId: string,
+    body: { driverId: string; action: 'ACCEPTED' | 'REJECTED' },
+    token?: string,
+  ) => request<AdminRideDto>(`/v1/rides/${rideId}/counter/respond`, { method: 'POST', body, token }),
 
   create: (body: CreateRidePayload, token?: string) =>
     request<AdminRideDto>('/v1/rides', { method: 'POST', body, token }),
@@ -128,10 +234,54 @@ export const ridesApi = {
       token,
     }),
 
+  confirmPayment: (rideId: string, token?: string) =>
+    request<CompleteRideResultDto>(`/v1/rides/${rideId}/payment/confirm`, {
+      method: 'POST',
+      body: {},
+      token,
+    }),
+
+  disputePayment: (rideId: string, reason: string, token?: string) =>
+    request<AdminRideDto>(`/v1/rides/${rideId}/payment/dispute`, {
+      method: 'POST',
+      body: { reason },
+      token,
+    }),
+
+  resolvePaymentDispute: (
+    rideId: string,
+    outcome: 'RIDER_WINS' | 'DRIVER_WINS',
+    reason: string,
+    token?: string,
+  ) =>
+    request<AdminRideDto>(`/v1/rides/${rideId}/payment/dispute/resolve`, {
+      method: 'POST',
+      body: { outcome, reason },
+      token,
+    }),
+
   cancel: (rideId: string, reason: string, token?: string) =>
     request<{ ride: AdminRideDto }>(`/v1/rides/${rideId}/cancel`, {
       method: 'POST',
       body: { reason },
       token,
     }),
+
+  setDriverStatus: (
+    body: { status: 'ONLINE' | 'OFFLINE'; lat?: number; lng?: number },
+    token: string,
+  ) =>
+    request<{ status: 'ONLINE' | 'OFFLINE' }>('/v1/driver/status', {
+      method: 'POST',
+      body,
+      token,
+    }),
+
+  testApproveDriver: (token: string) =>
+    request<unknown>('/v1/driver/application/test-approve', {
+      method: 'POST',
+      body: {},
+      token,
+    }),
 };
+

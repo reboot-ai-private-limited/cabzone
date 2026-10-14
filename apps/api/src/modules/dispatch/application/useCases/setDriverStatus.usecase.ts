@@ -1,6 +1,7 @@
 import { AppError } from '../../../../shared/errors/AppError.js';
 import type { DriverPresencePort } from '../../domain/presence.port.js';
 import type { DispatchLookups } from '../dispatch.types.js';
+import { DEFAULT_DISPATCH_CONFIG } from '../dispatch.types.js';
 
 export interface SetDriverStatusInput {
   userId: string;
@@ -14,6 +15,18 @@ export class SetDriverStatusUseCase {
     private readonly presence: DriverPresencePort,
     private readonly lookups: DispatchLookups,
   ) {}
+
+  async get(userId: string): Promise<{ status: 'ONLINE' | 'OFFLINE' }> {
+    const profile = await this.lookups.getDriverProfileByUserId(userId);
+    if (!profile) throw AppError.forbidden('DRIVER_PROFILE_REQUIRED: No driver profile for this account.');
+    const presence = await this.presence.get(profile.driverId);
+    const ageMs = presence ? Date.now() - presence.locationUpdatedAt.getTime() : Infinity;
+    return {
+      status: presence && presence.userId === userId && profile.eligibleToGoOnline &&
+        presence.vehicleCategory === profile.vehicleCategory && ageMs >= 0 &&
+        ageMs <= DEFAULT_DISPATCH_CONFIG.locationMaxAgeMs ? 'ONLINE' : 'OFFLINE',
+    };
+  }
 
   async execute(input: SetDriverStatusInput): Promise<{ status: 'ONLINE' | 'OFFLINE' }> {
     const profile = await this.lookups.getDriverProfileByUserId(input.userId);

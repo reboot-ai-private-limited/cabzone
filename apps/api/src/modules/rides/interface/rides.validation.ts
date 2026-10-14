@@ -36,6 +36,15 @@ export const respondNegotiationSchema = z.object({
   reasonCode: z.string().trim().max(100).nullable().optional(),
 });
 
+export const driverCounterSchema = z.object({
+  proposedFarePaise: z.number().int().positive('Counter fare must be positive'),
+});
+
+export const counterResponseSchema = z.object({
+  driverId: z.string().uuid(),
+  action: z.enum(['ACCEPTED', 'REJECTED'] as const),
+});
+
 export const cancelRideSchema = z.object({
   reason: z.enum(CANCELLATION_REASONS),
 });

@@ -19,6 +19,7 @@ import {
 import { getStoredToken } from '@/features/auth/lib/authApi.js';
 import { ApiError } from '@/lib/api/ApiError.js';
 import {
+  ensureSimRiderToken,
   ridesApi,
   type AdminRideDto,
   type CompleteRideResultDto,
@@ -76,25 +77,49 @@ export function LiveRideSimulator({ quote }: LiveRideSimulatorProps) {
     return () => clearInterval(interval);
   }, [activeRide?.id, activeRide?.status]);
 
+  // Poll ride status as Rider so Driver App actions & 4-digit pickupOtp appear automatically
+  useEffect(() => {
+    if (!activeRide?.id || activeRide.status === 'SETTLED' || activeRide.status === 'CANCELLED') {
+      return;
+    }
+    const interval = setInterval(async () => {
+      try {
+        const riderToken = await ensureSimRiderToken(
+          passengerPhone.trim() || DEFAULT_PASSENGER_PHONE,
+        );
+        const fresh = await ridesApi.get(activeRide.id, riderToken);
+        setActiveRide((prev) => ({
+          ...fresh,
+          pickupOtp: fresh.pickupOtp ?? prev?.pickupOtp,
+        }));
+      } catch {
+        // ignore transient poll error
+      }
+    }, 2500);
+    return () => clearInterval(interval);
+  }, [activeRide?.id, activeRide?.status, passengerPhone]);
+
   const token = getStoredToken() ?? undefined;
 
   const handleCreateRide = async () => {
     setLoading(true);
     setErrorMsg(null);
     try {
+      const targetPhone = passengerPhone.trim() || DEFAULT_PASSENGER_PHONE;
+      const riderToken = await ensureSimRiderToken(targetPhone);
       const created = await ridesApi.create(
         {
           quoteToken: quote.quoteToken,
           proposedFarePaise,
           passenger: {
             name: passengerName.trim() || DEFAULT_PASSENGER_NAME,
-            phoneE164: passengerPhone.trim() || DEFAULT_PASSENGER_PHONE,
+            phoneE164: targetPhone,
           },
           vehicleCategory: quote.vehicleCategory,
           pickup: quote.pickup,
           drop: quote.drop,
         },
-        token,
+        riderToken,
       );
       setActiveRide(created);
       setSettlement(null);
@@ -195,7 +220,10 @@ export function LiveRideSimulator({ quote }: LiveRideSimulatorProps) {
     setLoading(true);
     setErrorMsg(null);
     try {
-      const result = await ridesApi.cancel(activeRide.id, 'RIDER_CHANGED_MIND', token);
+      const riderToken = await ensureSimRiderToken(
+        passengerPhone.trim() || DEFAULT_PASSENGER_PHONE,
+      );
+      const result = await ridesApi.cancel(activeRide.id, 'RIDER_CHANGED_MIND', riderToken);
       setActiveRide(result.ride);
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : 'Ride cancellation failed.');

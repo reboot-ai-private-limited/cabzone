@@ -9,12 +9,12 @@ export interface RealtimeEnvelope<T = unknown> {
 /** Transport-agnostic publisher. Delivery is best effort; the database stays authoritative. */
 export interface RealtimePublisherPort {
   publishToUser(userId: string, event: string, data: unknown): void;
-  isConnected(userId: string): boolean;
+  isConnected(userId: string): Promise<boolean>;
 }
 
 export class NoopRealtimePublisher implements RealtimePublisherPort {
   publishToUser(): void {}
-  isConnected(): boolean {
+  async isConnected(): Promise<boolean> {
     return false;
   }
 }

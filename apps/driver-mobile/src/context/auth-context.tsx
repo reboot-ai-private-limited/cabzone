@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { AppState } from 'react-native';
 import type {
   DriverDto,
   VehicleDto,
@@ -6,7 +7,7 @@ import type {
   DriverDocumentDto,
   DriverProfileDetailDto,
 } from '@cabzone/contracts';
-import { authApi, driverApi } from '@/services/api';
+import { authApi, dispatchApi, driverApi, isApiError, subscribeAccessToken } from '@/services/api';
 import {
   clearAuthTokens,
   getAccessToken,
@@ -39,6 +40,7 @@ interface AuthContextType {
   token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  bootstrapError: string | null;
   error: string | null;
   phone: string;
   step: AuthStep;
@@ -46,6 +48,7 @@ interface AuthContextType {
   setPhone: (phone: string) => void;
   setStep: (step: AuthStep) => void;
   clearError: () => void;
+  retryBootstrap: () => Promise<void>;
   sendOtp: (rawPhone?: string) => Promise<boolean>;
   verifyOtp: (otpCode: string) => Promise<boolean>;
   logout: () => Promise<void>;
@@ -60,6 +63,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [driverProfile, setDriverProfile] = useState<DriverProfileDetailDto | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [bootstrapError, setBootstrapError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [phone, setPhone] = useState<string>('');
   const [step, setStep] = useState<AuthStep>('phone');
@@ -74,56 +78,103 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => clearInterval(timer);
   }, [otpCooldown]);
 
-  // Initial session restoration
-  useEffect(() => {
-    async function restoreSession() {
+  const restoreSession = useCallback(async () => {
+    setIsLoading(true);
+    setBootstrapError(null);
+    try {
+      const storedToken = await getAccessToken();
+      const storedRefreshToken = await getRefreshToken();
+      const storedUser = await getAuthUser();
+
+      if (!storedToken || !storedRefreshToken || !storedUser) {
+        await clearAuthTokens();
+        setUser(null);
+        setToken(null);
+        setDriverProfile(null);
+        setIsLoading(false);
+        return;
+      }
+
+      const deviceId = await getOrCreateDeviceId();
+
       try {
-        const storedToken = await getAccessToken();
-        const storedRefreshToken = await getRefreshToken();
-        const storedUser = await getAuthUser();
+        // Attempt refreshing token to verify validity
+        const refreshRes = await authApi.refreshToken(storedRefreshToken, deviceId);
+        await saveAuthTokens(refreshRes.accessToken, refreshRes.refreshToken);
+        setToken(refreshRes.accessToken);
+        setUser(storedUser);
 
-        if (!storedToken || !storedRefreshToken || !storedUser) {
-          await clearAuthTokens();
-          setIsLoading(false);
-          return;
-        }
-
-        const deviceId = await getOrCreateDeviceId();
-
+        // Fetch driver profile
+        const profile = await authApi.getDriverProfile(refreshRes.accessToken);
+        setDriverProfile(profile);
+      } catch (refreshErr: unknown) {
+        // If refresh explicitly returned 401/403 (revoked/expired refresh token), try stored access token once
         try {
-          // Attempt refreshing token to verify validity
-          const refreshRes = await authApi.refreshToken(storedRefreshToken, deviceId);
-          await saveAuthTokens(refreshRes.accessToken, refreshRes.refreshToken);
-          setToken(refreshRes.accessToken);
+          const profile = await authApi.getDriverProfile(storedToken);
+          setToken(storedToken);
           setUser(storedUser);
-
-          // Fetch driver profile
-          const profile = await authApi.getDriverProfile(refreshRes.accessToken);
           setDriverProfile(profile);
-        } catch {
-          // If refresh fails, try using existing access token for profile check
-          try {
-            const profile = await authApi.getDriverProfile(storedToken);
-            if (profile) {
-              setToken(storedToken);
-              setUser(storedUser);
-              setDriverProfile(profile);
-            } else {
-              await clearAuthTokens();
-            }
-          } catch {
+        } catch (profileErr: unknown) {
+          const isAuthRevoked =
+            (isApiError(refreshErr) && refreshErr.isUnauthorized) &&
+            (isApiError(profileErr) && profileErr.isUnauthorized);
+
+          if (isAuthRevoked) {
             await clearAuthTokens();
+            setUser(null);
+            setToken(null);
+            setDriverProfile(null);
+          } else {
+            // Network / server failure: preserve tokens & user identity and show retryable bootstrap state
+            setToken(storedToken);
+            setUser(storedUser);
+            const errMsg =
+              profileErr instanceof Error
+                ? profileErr.message
+                : 'Unable to reach Cabzone server. Check your internet connection and retry.';
+            setBootstrapError(errMsg);
           }
         }
-      } catch (err: unknown) {
-        console.warn('Session restoration failed:', err);
-      } finally {
-        setIsLoading(false);
       }
+    } catch (err: unknown) {
+      console.warn('Session restoration failed:', err);
+      setBootstrapError(
+        err instanceof Error ? err.message : 'Unable to restore session. Please retry.',
+      );
+    } finally {
+      setIsLoading(false);
     }
-
-    restoreSession();
   }, []);
+
+  // Initial session restoration
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void restoreSession();
+  }, [restoreSession]);
+
+  useEffect(() => {
+    if (!user || !token) return;
+    let active = true;
+    const listener = AppState.addEventListener('change', (state) => {
+      if (state !== 'active') return;
+      void getAccessToken().then((stored) => {
+        if (active && stored) setToken((current) => current === stored ? current : stored);
+      });
+    });
+    return () => { active = false; listener.remove(); };
+  }, [user, token]);
+
+  useEffect(() => subscribeAccessToken((freshToken) => {
+    if (freshToken) {
+      setToken(freshToken);
+    } else {
+      void clearAuthTokens();
+      setToken(null);
+      setUser(null);
+      setDriverProfile(null);
+      setBootstrapError('Session expired. Please sign in again.');
+    }
+  }), []);
 
   const formatE164 = (raw: string): string => {
     const cleaned = raw.replace(/\D/g, '');
@@ -212,6 +263,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(true);
     try {
       if (token) {
+        await dispatchApi.unregisterPushToken(token, await getOrCreateDeviceId()).catch(() => {});
         await authApi.logout(token).catch(() => {});
       }
     } finally {
@@ -222,6 +274,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setStep('phone');
       setPhone('');
       setError(null);
+      setBootstrapError(null);
       setIsLoading(false);
     }
   }, [token]);
@@ -231,6 +284,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const profile = await authApi.getDriverProfile(token);
       setDriverProfile(profile);
+      setBootstrapError(null);
     } catch (err) {
       console.warn('Failed to refresh driver profile:', err);
     }
@@ -275,6 +329,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         token,
         isAuthenticated: !!token && !!user,
         isLoading,
+        bootstrapError,
         error,
         phone,
         step,
@@ -282,6 +337,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setPhone,
         setStep,
         clearError: () => setError(null),
+        retryBootstrap: restoreSession,
         sendOtp,
         verifyOtp,
         logout,
