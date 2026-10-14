@@ -1,9 +1,30 @@
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
+import type { AuthenticatedUserSummary } from '@cabzone/contracts';
 
 const ACCESS_TOKEN_KEY = 'cabzone_driver_access_token';
 const REFRESH_TOKEN_KEY = 'cabzone_driver_refresh_token';
 const DEVICE_ID_KEY = 'cabzone_driver_device_id';
+const AUTH_USER_KEY = 'cabzone_driver_auth_user';
+
+export async function saveAuthUser(user: AuthenticatedUserSummary): Promise<void> {
+  await setItem(AUTH_USER_KEY, JSON.stringify(user));
+}
+
+export async function getAuthUser(): Promise<AuthenticatedUserSummary | null> {
+  const value = await getItem(AUTH_USER_KEY);
+  if (!value) return null;
+  try {
+    const user = JSON.parse(value) as AuthenticatedUserSummary;
+    return typeof user.id === 'string' &&
+      typeof user.phoneE164 === 'string' &&
+      typeof user.role === 'string'
+      ? user
+      : null;
+  } catch {
+    return null;
+  }
+}
 
 export async function setItem(key: string, value: string): Promise<void> {
   if (Platform.OS === 'web') {
@@ -59,13 +80,15 @@ export async function clearAuthTokens(): Promise<void> {
   await Promise.all([
     removeItem(ACCESS_TOKEN_KEY),
     removeItem(REFRESH_TOKEN_KEY),
+    removeItem(AUTH_USER_KEY),
   ]);
 }
 
 export async function getOrCreateDeviceId(): Promise<string> {
   let deviceId = await getItem(DEVICE_ID_KEY);
   if (!deviceId) {
-    deviceId = 'dev-device-' + Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
+    deviceId =
+      'dev-device-' + Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
     await setItem(DEVICE_ID_KEY, deviceId);
   }
   return deviceId;

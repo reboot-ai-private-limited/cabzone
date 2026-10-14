@@ -13,6 +13,8 @@ import {
   getOrCreateDeviceId,
   getRefreshToken,
   saveAuthTokens,
+  saveAuthUser,
+  getAuthUser,
 } from '@/services/storage';
 
 export interface AuthUser {
@@ -78,8 +80,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         const storedToken = await getAccessToken();
         const storedRefreshToken = await getRefreshToken();
+        const storedUser = await getAuthUser();
 
-        if (!storedToken || !storedRefreshToken) {
+        if (!storedToken || !storedRefreshToken || !storedUser) {
+          await clearAuthTokens();
           setIsLoading(false);
           return;
         }
@@ -91,7 +95,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const refreshRes = await authApi.refreshToken(storedRefreshToken, deviceId);
           await saveAuthTokens(refreshRes.accessToken, refreshRes.refreshToken);
           setToken(refreshRes.accessToken);
-          setUser(refreshRes.user);
+          setUser(storedUser);
 
           // Fetch driver profile
           const profile = await authApi.getDriverProfile(refreshRes.accessToken);
@@ -102,6 +106,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             const profile = await authApi.getDriverProfile(storedToken);
             if (profile) {
               setToken(storedToken);
+              setUser(storedUser);
               setDriverProfile(profile);
             } else {
               await clearAuthTokens();
@@ -146,20 +151,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setError(null);
 
       try {
-        let res;
-        try {
-          res = await authApi.requestOtp(formatted);
-        } catch (err) {
-          if (__DEV__) {
-            console.warn('API Failed, mocking OTP success for DEV');
-            res = { retryAfterSeconds: 60 };
-          } else {
-            throw err;
-          }
-        }
+        const res = await authApi.requestOtp(formatted);
         setPhone(formatted);
         // Do NOT set step to 'otp' here since SignupStep handles the OTP UI now
-        // setStep('otp'); 
+        // setStep('otp');
         setOtpCooldown(res.retryAfterSeconds || 60);
         return true;
       } catch (err: unknown) {
@@ -188,39 +183,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       try {
         const deviceId = await getOrCreateDeviceId();
-        let res;
-        
-        if (__DEV__ && otpCode === '000000') {
-          console.warn('DEV mode: 000000 entered, mocking verify success');
-          res = {
-            accessToken: 'mock-access-token',
-            refreshToken: 'mock-refresh-token',
-            user: {
-              id: '1',
-              phoneE164: phone,
-              role: 'DRIVER',
-              isNewUser: false,
-            },
-          };
-        } else {
-          res = await authApi.verifyOtp({
-            phoneE164: phone,
-            otp: otpCode,
-            deviceId,
-          });
-        }
+        const res = await authApi.verifyOtp({
+          phoneE164: phone,
+          otp: otpCode,
+          deviceId,
+        });
 
         await saveAuthTokens(res.accessToken, res.refreshToken);
+        await saveAuthUser(res.user);
         setToken(res.accessToken);
         setUser(res.user);
 
         // Fetch driver profile
-        if (__DEV__ && otpCode === '000000') {
-          setDriverProfile(null);
-        } else {
-          const profile = await authApi.getDriverProfile(res.accessToken);
-          setDriverProfile(profile);
-        }
+        const profile = await authApi.getDriverProfile(res.accessToken);
+        setDriverProfile(profile);
 
         return true;
       } catch (err: unknown) {
@@ -311,7 +287,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         logout,
         refreshProfile,
         testApprove,
-      }}>
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

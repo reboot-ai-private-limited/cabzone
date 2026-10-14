@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import {
+  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -12,6 +13,9 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { CandyButton } from '@/components/buttons/candy-button';
+import { useAuth } from '@/context/auth-context';
+import { driverApi } from '@/services/api';
+import { pickDriverLicense, type SelectedDriverLicense } from '@/services/driver-license';
 import type { OnboardingDraft } from './types';
 
 interface StepDrivingLicenceProps {
@@ -28,8 +32,12 @@ export function StepDrivingLicence({
   onBack,
 }: StepDrivingLicenceProps) {
   const insets = useSafeAreaInsets();
-  const [dlNumber, setDlNumber] = useState(draft.dlNumber || '');
-  const [isUploaded, setIsUploaded] = useState(draft.dlUploaded || false);
+  const { token, documents, refreshProfile } = useAuth();
+  const [dlNumber, setDlNumber] = useState(draft.dlNumber || (__DEV__ ? 'WB7420220012345' : ''));
+  const [expiryDate, setExpiryDate] = useState(draft.dlExpiry);
+  const [isUploaded, setIsUploaded] = useState(draft.dlUploaded);
+  const [selectedFile, setSelectedFile] = useState<SelectedDriverLicense | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
 
   const handleDlChange = (text: string) => {
@@ -38,19 +46,46 @@ export function StepDrivingLicence({
     setDlNumber(cleaned);
   };
 
-  const handleToggleUpload = () => {
-    setIsUploaded(!isUploaded);
+  const handlePickFile = async () => {
+    try {
+      const file = await pickDriverLicense();
+      if (file) setSelectedFile(file);
+    } catch (err) {
+      Alert.alert('Licence file unavailable', err instanceof Error ? err.message : 'Please try again.');
+    }
   };
 
-  const handleContinue = () => {
-    onUpdate({
-      dlNumber: dlNumber || 'WB7420220012345',
-      dlUploaded: true,
-    });
-    onNext();
+  const handleContinue = async () => {
+    if (!token || isSaving || !isValid) return;
+    setIsSaving(true);
+    try {
+      const expiry = new Date(`${expiryDate}T23:59:59.999Z`);
+      await driverApi.saveProfile(token, { dlNumber: dlNumber.trim(), dlExpiry: expiryDate });
+      await driverApi.createApplication(token);
+      if (selectedFile || !savedLicence?.expiresAt || savedLicence.expiresAt.slice(0, 10) !== expiryDate) {
+        await driverApi.uploadLicenseFile(token, {
+          ...(selectedFile ? { fileDataUrl: selectedFile.dataUrl } : {}),
+          dlNumber: dlNumber.trim(),
+          expiresAt: expiry.toISOString(),
+        });
+      }
+      setIsUploaded(true);
+      setSelectedFile(null);
+      onUpdate({ dlNumber: dlNumber.trim(), dlExpiry: expiryDate, dlUploaded: true });
+      await refreshProfile();
+      onNext();
+    } catch (err) {
+      Alert.alert('Could not save licence', err instanceof Error ? err.message : 'Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  const isValid = dlNumber.trim().length >= 8 || isUploaded;
+  const savedNumberMatches = isUploaded && draft.dlNumber.trim() === dlNumber.trim();
+  const savedLicence = documents.find((document) => document.type === 'DRIVING_LICENSE');
+  const expiry = /^\d{4}-\d{2}-\d{2}$/.test(expiryDate) ? new Date(`${expiryDate}T23:59:59.999Z`) : new Date(NaN);
+  const expiryValid = !Number.isNaN(expiry.getTime()) && expiry.toISOString().slice(0, 10) === expiryDate && expiry > new Date();
+  const isValid = dlNumber.trim().length >= 8 && expiryValid && (selectedFile !== null || (savedNumberMatches && !!savedLicence));
 
   return (
     <KeyboardAvoidingView
@@ -109,25 +144,31 @@ export function StepDrivingLicence({
         <Pressable
           style={({ pressed }) => [
             styles.uploadBox,
-            isUploaded && styles.uploadBoxDone,
+            (selectedFile || isUploaded) && styles.uploadBoxDone,
             pressed && styles.btnPressed,
           ]}
-          onPress={handleToggleUpload}>
-          {isUploaded ? (
+          onPress={() => void handlePickFile()}
+          disabled={isSaving}
+          accessibilityRole="button"
+          accessibilityLabel="Select driving licence PDF or JPEG">
+          {selectedFile || isUploaded ? (
             <View style={styles.uploadedState}>
               <View style={styles.checkCircle}>
                 <Ionicons name="checkmark" size={26} color="#166534" />
               </View>
-              <Text style={styles.uploadedTitle}>Licence photo uploaded</Text>
-              <Text style={styles.uploadedSub}>Tap to replace or re-capture document</Text>
+              <Text style={styles.uploadedTitle}>{selectedFile?.name || 'Licence saved'}</Text>
+              <Text style={styles.uploadedSub}>
+                {selectedFile ? 'Selected. Continue to upload securely.' :
+                  savedNumberMatches ? 'Tap to replace document' : 'Select a file for this licence number'}
+              </Text>
             </View>
           ) : (
             <View style={styles.emptyState}>
               <View style={styles.uploadPlusCircle}>
                 <Ionicons name="add" size={28} color="#705746" />
               </View>
-              <Text style={styles.uploadTitle}>Upload licence photo</Text>
-              <Text style={styles.uploadSub}>Take a clear picture of the front side</Text>
+              <Text style={styles.uploadTitle}>Select driving licence</Text>
+              <Text style={styles.uploadSub}>PDF, JPG or JPEG · up to 500 KB</Text>
             </View>
           )}
         </Pressable>
@@ -154,11 +195,30 @@ export function StepDrivingLicence({
           </Text>
         </View>
 
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Licence expiry date *</Text>
+          <View style={styles.inputWrapper}>
+            <Ionicons name="calendar-outline" size={20} color="#8C7B68" style={styles.inputIcon} />
+            <TextInput
+              style={styles.textInput}
+              placeholder="YYYY-MM-DD"
+              placeholderTextColor="#B3A48C"
+              value={expiryDate}
+              onChangeText={setExpiryDate}
+              keyboardType="numbers-and-punctuation"
+              maxLength={10}
+              accessibilityLabel="Driving licence expiry date"
+            />
+          </View>
+          <Text style={styles.helperText}>Enter the expiry date printed on your licence.</Text>
+        </View>
+
         <View style={styles.tipsBox}>
           <View style={styles.tipsHeaderRow}>
             <Ionicons name="information-circle" size={18} color="#8C5A20" />
             <Text style={styles.tipsTitle}>Document guidelines:</Text>
           </View>
+          <Text style={styles.tipItem}>PDF, JPG or JPEG only; maximum 500 KB.</Text>
           <Text style={styles.tipItem}>• All 4 corners of the licence must be visible.</Text>
           <Text style={styles.tipItem}>• Avoid camera flash reflections or dark shadows.</Text>
           <Text style={styles.tipItem}>• Must be valid and not expired.</Text>
@@ -168,6 +228,7 @@ export function StepDrivingLicence({
           title="Continue"
           onPress={handleContinue}
           disabled={!isValid}
+          loading={isSaving}
           variant={isValid ? 'primary' : 'muted'}
           icon={
             <Ionicons

@@ -24,6 +24,17 @@ interface StepVehicleInfoProps {
 
 const CAB_MODELS = ['Maruti Dzire Tour', 'Hyundai Aura', 'Tata Tigor', 'Toyota Etios', 'Maruti WagonR'];
 const ERICKSHAW_MODELS = ['Mahindra Treo', 'Piaggio Ape E-City', 'Saarthi Star', 'Yatri EV'];
+const MODEL_MAKES: Record<string, string> = {
+  'Maruti Dzire Tour': 'Maruti Suzuki',
+  'Hyundai Aura': 'Hyundai',
+  'Tata Tigor': 'Tata',
+  'Toyota Etios': 'Toyota',
+  'Maruti WagonR': 'Maruti Suzuki',
+  'Mahindra Treo': 'Mahindra',
+  'Piaggio Ape E-City': 'Piaggio',
+  'Saarthi Star': 'Saarthi',
+  'Yatri EV': 'Yatri',
+};
 const COLORS = ['White', 'Silver', 'Grey', 'Red', 'Yellow'];
 
 export function StepVehicleInfo({
@@ -37,9 +48,8 @@ export function StepVehicleInfo({
   const [vehicleType, setVehicleType] = useState(draft.vehicleType);
   const [regNumber, setRegNumber] = useState(draft.registrationNumber || '');
   const [model, setModel] = useState(draft.model || (draft.vehicleType === 'CAB' ? 'Maruti Dzire Tour' : 'Mahindra Treo'));
+  const [make, setMake] = useState(draft.make || '');
   const [color, setColor] = useState(draft.color || 'White');
-
-  const [focusedField, setFocusedField] = useState<'regNumber' | null>(null);
 
   const modelsList = vehicleType === 'CAB' ? CAB_MODELS : ERICKSHAW_MODELS;
 
@@ -49,14 +59,15 @@ export function StepVehicleInfo({
   };
 
   const isRegValid = INDIAN_VEHICLE_REG_REGEX.test(regNumber);
+  const isValid = isRegValid && model.trim().length > 0 && make.trim().length > 0 && color.trim().length > 0;
 
   const handleContinue = () => {
     onUpdate({
       vehicleType,
       registrationNumber: regNumber,
-      model,
-      color,
-      make: vehicleType === 'CAB' ? 'Maruti Suzuki' : 'Mahindra',
+      model: model.trim(),
+      color: color.trim(),
+      make: make.trim(),
       manufactureYear: 2022,
     });
     onNext();
@@ -122,6 +133,7 @@ export function StepVehicleInfo({
             onPress={() => {
               setVehicleType('CAB');
               setModel('Maruti Dzire Tour');
+              setMake('Maruti Suzuki');
             }}>
             <Text style={styles.typeIcon}>🚕</Text>
             <Text style={[styles.typeLabel, vehicleType === 'CAB' && styles.typeLabelActive]}>
@@ -134,6 +146,7 @@ export function StepVehicleInfo({
             onPress={() => {
               setVehicleType('E_RICKSHAW');
               setModel('Mahindra Treo');
+              setMake('Mahindra');
             }}>
             <Text style={styles.typeIcon}>🛺</Text>
             <Text style={[styles.typeLabel, vehicleType === 'E_RICKSHAW' && styles.typeLabelActive]}>
@@ -169,18 +182,49 @@ export function StepVehicleInfo({
               <Pressable
                 key={m}
                 style={[styles.chip, model === m && styles.chipActive]}
-                onPress={() => setModel(m)}>
+                onPress={() => {
+                  setModel(m);
+                  setMake(MODEL_MAKES[m] ?? '');
+                }}>
                 <Text style={[styles.chipText, model === m && styles.chipTextActive]}>
                   {m}
                 </Text>
               </Pressable>
             ))}
           </View>
+          <Text style={styles.helperText}>Or enter your model manually</Text>
+          <TextInput
+            style={[styles.input, styles.manualInput]}
+            placeholder="Enter vehicle model"
+            placeholderTextColor="#9CA3AF"
+            value={model}
+            onChangeText={(value) => {
+              if (modelsList.includes(model)) setMake('');
+              setModel(value);
+            }}
+            autoCapitalize="words"
+            maxLength={50}
+            accessibilityLabel="Vehicle model"
+          />
+        </View>
+
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Manufacturer / make *</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="e.g. Maruti Suzuki"
+            placeholderTextColor="#9CA3AF"
+            value={make}
+            onChangeText={setMake}
+            autoCapitalize="words"
+            maxLength={50}
+            accessibilityLabel="Vehicle manufacturer"
+          />
         </View>
 
         {/* Color Chips */}
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Vehicle colour</Text>
+          <Text style={styles.label}>Vehicle colour *</Text>
           <View style={styles.chipsRow}>
             {COLORS.map((c) => (
               <Pressable
@@ -193,18 +237,29 @@ export function StepVehicleInfo({
               </Pressable>
             ))}
           </View>
+          <Text style={styles.helperText}>Or enter your vehicle colour manually</Text>
+          <TextInput
+            style={[styles.input, styles.manualInput]}
+            placeholder="Enter vehicle colour"
+            placeholderTextColor="#9CA3AF"
+            value={color}
+            onChangeText={setColor}
+            autoCapitalize="words"
+            maxLength={30}
+            accessibilityLabel="Vehicle colour"
+          />
         </View>
 
         <CandyButton
           title="Continue"
           onPress={handleContinue}
-          disabled={!isRegValid}
-          variant={isRegValid ? 'primary' : 'muted'}
+          disabled={!isValid}
+          variant={isValid ? 'primary' : 'muted'}
           icon={
             <Ionicons
               name="arrow-forward"
               size={18}
-              color={isRegValid ? '#5A3416' : '#B3A48C'}
+              color={isValid ? '#5A3416' : '#B3A48C'}
               style={{ marginLeft: 2 }}
             />
           }
@@ -371,6 +426,9 @@ const styles = StyleSheet.create({
     color: '#8C7B68',
     marginTop: 6,
     fontWeight: '500',
+  },
+  manualInput: {
+    marginTop: 8,
   },
   errorHint: {
     fontSize: 11.5,

@@ -15,14 +15,15 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import * as ImagePicker from 'expo-image-picker';
+import { pickProfilePhoto } from '@/services/profile-photo';
 import { CandyButton } from '@/components/buttons/candy-button';
 import type { OnboardingDraft } from './types';
+import { toBackendDate } from '@/services/profile';
 
 interface StepPersonalInfoProps {
   draft: OnboardingDraft;
   onUpdate: (partial: Partial<OnboardingDraft>) => void;
-  onNext: () => void;
+  onNext: (values: OnboardingDraft) => Promise<void>;
   onClose: () => void;
 }
 
@@ -52,6 +53,11 @@ function calculateAge(dobString: string): number | null {
   if (isNaN(day) || isNaN(month) || isNaN(year)) return null;
 
   const birthDate = new Date(year, month, day);
+  try {
+    toBackendDate(dobString);
+  } catch {
+    return null;
+  }
   const today = new Date();
   let age = today.getFullYear() - birthDate.getFullYear();
   const m = today.getMonth() - birthDate.getMonth();
@@ -76,6 +82,11 @@ export function StepPersonalInfo({ draft, onUpdate, onNext, onClose }: StepPerso
   const [dob, setDob] = useState(draft.dateOfBirth || '');
   const [gender, setGender] = useState<'MALE' | 'FEMALE' | 'OTHER'>(draft.gender || 'MALE');
   const [photoUri, setPhotoUri] = useState<string | undefined>(draft.profilePhotoUri);
+  const [photoDataUrl, setPhotoDataUrl] = useState<string | null | undefined>(
+    draft.profilePhotoDataUrl,
+  );
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   // Input refs for responsive focus
   const firstNameRef = useRef<TextInput>(null);
@@ -119,54 +130,30 @@ export function StepPersonalInfo({ draft, onUpdate, onNext, onClose }: StepPerso
   const handlePickImage = async (useCamera: boolean) => {
     setShowPhotoModal(false);
     try {
-      let result: ImagePicker.ImagePickerResult;
-      if (useCamera) {
-        const { granted } = await ImagePicker.requestCameraPermissionsAsync();
-        if (!granted) {
-          Alert.alert(
-            'Camera Permission Required',
-            'Please allow camera access in your device settings to take a selfie for your profile.',
-          );
-          return;
-        }
-        result = await ImagePicker.launchCameraAsync({
-          mediaTypes: ['images'],
-          allowsEditing: true,
-          aspect: [1, 1],
-          quality: 0.85,
+      const photo = await pickProfilePhoto(useCamera);
+      if (photo) {
+        setPhotoUri(photo.uri);
+        setPhotoDataUrl(photo.dataUrl);
+        onUpdate({
+          selfieTaken: true,
+          profilePhotoUri: photo.uri,
+          profilePhotoDataUrl: photo.dataUrl,
         });
-      } else {
-        const { granted } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (!granted) {
-          Alert.alert(
-            'Gallery Permission Required',
-            'Please allow photo library access in your device settings to select a profile photo.',
-          );
-          return;
-        }
-        result = await ImagePicker.launchImageLibraryAsync({
-          mediaTypes: ['images'],
-          allowsEditing: true,
-          aspect: [1, 1],
-          quality: 0.85,
-        });
-      }
-
-      if (!result.canceled && result.assets && result.assets.length > 0) {
-        const uri = result.assets[0].uri;
-        setPhotoUri(uri);
-        onUpdate({ selfieTaken: true, profilePhotoUri: uri });
       }
     } catch (err) {
       console.warn('Image picker error:', err);
-      Alert.alert('Notice', 'Could not open camera or gallery.');
+      Alert.alert(
+        'Photo unavailable',
+        err instanceof Error ? err.message : 'Could not open camera or gallery.',
+      );
     }
   };
 
   const handleRemovePhoto = () => {
     setShowPhotoModal(false);
     setPhotoUri(undefined);
-    onUpdate({ selfieTaken: false, profilePhotoUri: undefined });
+    setPhotoDataUrl(null);
+    onUpdate({ selfieTaken: false, profilePhotoUri: undefined, profilePhotoDataUrl: null });
   };
 
   // Handle manual typing of DOB with auto-formatting
@@ -201,17 +188,29 @@ export function StepPersonalInfo({ draft, onUpdate, onNext, onClose }: StepPerso
   };
 
   // Handle Continue
-  const handleContinue = () => {
-    if (!isValid) return;
-    onUpdate({
+  const handleContinue = async () => {
+    if (!isValid || isSaving) return;
+    const values = {
+      ...draft,
       firstName: firstName.trim(),
       lastName: lastName.trim(),
       dateOfBirth: dob.trim(),
       gender,
       selfieTaken: Boolean(photoUri),
       profilePhotoUri: photoUri,
-    });
-    onNext();
+      profilePhotoDataUrl: photoDataUrl,
+    };
+    setIsSaving(true);
+    setSaveError(null);
+    try {
+      await onNext(values);
+    } catch (err) {
+      setSaveError(
+        err instanceof Error ? err.message : 'Could not save your profile. Please try again.',
+      );
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const isSmallScreen = screenWidth < 360;
@@ -219,7 +218,8 @@ export function StepPersonalInfo({ draft, onUpdate, onNext, onClose }: StepPerso
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      style={styles.container}>
+      style={styles.container}
+    >
       <ScrollView
         contentContainerStyle={[
           styles.scrollContent,
@@ -229,8 +229,8 @@ export function StepPersonalInfo({ draft, onUpdate, onNext, onClose }: StepPerso
           },
         ]}
         keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}>
-        
+        showsVerticalScrollIndicator={false}
+      >
         {/* Top Header Bar */}
         <View style={styles.topBar}>
           <Pressable
@@ -238,7 +238,8 @@ export function StepPersonalInfo({ draft, onUpdate, onNext, onClose }: StepPerso
             style={({ pressed }) => [styles.closeBtn, pressed && styles.btnPressed]}
             hitSlop={12}
             accessibilityRole="button"
-            accessibilityLabel="Close onboarding">
+            accessibilityLabel="Close onboarding"
+          >
             <Ionicons name="close" size={20} color="#2C1810" />
           </Pressable>
 
@@ -275,7 +276,8 @@ export function StepPersonalInfo({ draft, onUpdate, onNext, onClose }: StepPerso
             onPress={() => setShowPhotoModal(true)}
             style={({ pressed }) => [styles.avatarTouchable, pressed && styles.btnPressed]}
             accessibilityRole="button"
-            accessibilityLabel="Upload driver profile photo">
+            accessibilityLabel="Upload driver profile photo"
+          >
             <View style={styles.avatarHaloRing}>
               {photoUri ? (
                 <Image source={{ uri: photoUri }} style={styles.avatarImage} resizeMode="cover" />
@@ -313,7 +315,8 @@ export function StepPersonalInfo({ draft, onUpdate, onNext, onClose }: StepPerso
               style={[
                 styles.inputWrapper,
                 focusedField === 'firstName' && styles.inputWrapperFocused,
-              ]}>
+              ]}
+            >
               <Ionicons name="person-outline" size={19} color="#8C5A20" style={styles.inputIcon} />
               <TextInput
                 ref={firstNameRef}
@@ -346,7 +349,8 @@ export function StepPersonalInfo({ draft, onUpdate, onNext, onClose }: StepPerso
               style={[
                 styles.inputWrapper,
                 focusedField === 'lastName' && styles.inputWrapperFocused,
-              ]}>
+              ]}
+            >
               <Ionicons name="person-outline" size={19} color="#8C5A20" style={styles.inputIcon} />
               <TextInput
                 ref={lastNameRef}
@@ -375,14 +379,21 @@ export function StepPersonalInfo({ draft, onUpdate, onNext, onClose }: StepPerso
             <View style={styles.labelRow}>
               <Text style={styles.label}>Date of birth *</Text>
               {age !== null && (
-                <View style={[styles.ageTag, isAgeValid ? styles.ageTagValid : styles.ageTagInvalid]}>
+                <View
+                  style={[styles.ageTag, isAgeValid ? styles.ageTagValid : styles.ageTagInvalid]}
+                >
                   <Ionicons
                     name={isAgeValid ? 'checkmark-circle' : 'alert-circle'}
                     size={12}
                     color={isAgeValid ? '#065F46' : '#991B1B'}
                     style={{ marginRight: 3 }}
                   />
-                  <Text style={[styles.ageTagText, isAgeValid ? styles.ageTagTextValid : styles.ageTagTextInvalid]}>
+                  <Text
+                    style={[
+                      styles.ageTagText,
+                      isAgeValid ? styles.ageTagTextValid : styles.ageTagTextInvalid,
+                    ]}
+                  >
                     {age} yrs {isAgeValid ? '(18+ eligible)' : '(Under 18)'}
                   </Text>
                 </View>
@@ -391,11 +402,14 @@ export function StepPersonalInfo({ draft, onUpdate, onNext, onClose }: StepPerso
 
             <Pressable
               onPress={handleOpenDatePicker}
-              style={[
-                styles.inputWrapper,
-                focusedField === 'dob' && styles.inputWrapperFocused,
-              ]}>
-              <Ionicons name="calendar-outline" size={19} color="#8C5A20" style={styles.inputIcon} />
+              style={[styles.inputWrapper, focusedField === 'dob' && styles.inputWrapperFocused]}
+            >
+              <Ionicons
+                name="calendar-outline"
+                size={19}
+                color="#8C5A20"
+                style={styles.inputIcon}
+              />
               <TextInput
                 style={[styles.textInput, { flex: 1 }]}
                 placeholder="DD / MM / YYYY"
@@ -410,7 +424,8 @@ export function StepPersonalInfo({ draft, onUpdate, onNext, onClose }: StepPerso
               <Pressable
                 onPress={handleOpenDatePicker}
                 style={styles.datePickerTriggerBtn}
-                hitSlop={8}>
+                hitSlop={8}
+              >
                 <Ionicons name="options-outline" size={18} color="#8C4A1B" />
                 <Text style={styles.datePickerTriggerText}>Select</Text>
               </Pressable>
@@ -445,7 +460,8 @@ export function StepPersonalInfo({ draft, onUpdate, onNext, onClose }: StepPerso
                       pressed && styles.btnPressed,
                     ]}
                     accessibilityRole="radio"
-                    accessibilityState={{ selected: isSelected }}>
+                    accessibilityState={{ selected: isSelected }}
+                  >
                     <Ionicons
                       name={item.icon}
                       size={17}
@@ -453,10 +469,8 @@ export function StepPersonalInfo({ draft, onUpdate, onNext, onClose }: StepPerso
                       style={{ marginRight: 6 }}
                     />
                     <Text
-                      style={[
-                        styles.genderChipText,
-                        isSelected && styles.genderChipTextActive,
-                      ]}>
+                      style={[styles.genderChipText, isSelected && styles.genderChipTextActive]}
+                    >
                       {item.label}
                     </Text>
                   </Pressable>
@@ -471,21 +485,30 @@ export function StepPersonalInfo({ draft, onUpdate, onNext, onClose }: StepPerso
           <CandyButton
             title="Continue to City Selection"
             onPress={handleContinue}
-            disabled={!isValid}
+            disabled={!isValid || isSaving}
+            loading={isSaving}
             variant={isValid ? 'espresso' : 'muted'}
-            icon={<Ionicons name="arrow-forward" size={18} color={isValid ? '#FFFFFF' : '#B3A48C'} />}
+            icon={
+              <Ionicons name="arrow-forward" size={18} color={isValid ? '#FFFFFF' : '#B3A48C'} />
+            }
             style={{ width: '100%' }}
           />
+
+          {saveError && (
+            <Text accessibilityRole="alert" style={styles.validationPrompt}>
+              {saveError}
+            </Text>
+          )}
 
           {!isValid && (
             <Text style={styles.validationPrompt}>
               {!isFirstNameValid
                 ? '• Enter your first name to continue'
                 : !dob
-                ? '• Enter your date of birth'
-                : !isAgeValid
-                ? '• Must be at least 18 years old'
-                : '• Fill required fields'}
+                  ? '• Enter your date of birth'
+                  : !isAgeValid
+                    ? '• Must be at least 18 years old'
+                    : '• Fill required fields'}
             </Text>
           )}
         </View>
@@ -499,67 +522,69 @@ export function StepPersonalInfo({ draft, onUpdate, onNext, onClose }: StepPerso
           visible={showPhotoModal}
           transparent
           animationType="fade"
-          onRequestClose={() => setShowPhotoModal(false)}>
-        <Pressable style={styles.modalOverlay} onPress={() => setShowPhotoModal(false)}>
-          <View style={styles.modalCard}>
-            <View style={styles.modalHandle} />
-            <Text style={styles.modalTitle}>Upload Profile Photo</Text>
-            <Text style={styles.modalSubtitle}>
-              Take a clear selfie or select an existing photo from your library.
-            </Text>
+          onRequestClose={() => setShowPhotoModal(false)}
+        >
+          <Pressable style={styles.modalOverlay} onPress={() => setShowPhotoModal(false)}>
+            <View style={styles.modalCard}>
+              <View style={styles.modalHandle} />
+              <Text style={styles.modalTitle}>Upload Profile Photo</Text>
+              <Text style={styles.modalSubtitle}>
+                Take a clear selfie or select an existing photo from your library.
+              </Text>
 
-            <Pressable
-              style={({ pressed }) => [styles.modalActionItem, pressed && styles.btnPressed]}
-              onPress={() => handlePickImage(true)}>
-              <View style={styles.actionIconBox}>
-                <Ionicons name="camera" size={20} color="#8C4A1B" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.actionItemTitle}>Take a Selfie (Camera)</Text>
-                <Text style={styles.actionItemSub}>Use your front camera right now</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color="#C4B5A5" />
-            </Pressable>
-
-            <Pressable
-              style={({ pressed }) => [styles.modalActionItem, pressed && styles.btnPressed]}
-              onPress={() => handlePickImage(false)}>
-              <View style={styles.actionIconBox}>
-                <Ionicons name="images" size={20} color="#8C4A1B" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.actionItemTitle}>Choose from Gallery</Text>
-                <Text style={styles.actionItemSub}>Select an existing image from phone</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color="#C4B5A5" />
-            </Pressable>
-
-            {photoUri && (
               <Pressable
-                style={({ pressed }) => [
-                  styles.modalActionItem,
-                  { borderBottomWidth: 0 },
-                  pressed && styles.btnPressed,
-                ]}
-                onPress={handleRemovePhoto}>
-                <View style={[styles.actionIconBox, { backgroundColor: '#FEE2E2' }]}>
-                  <Ionicons name="trash-outline" size={20} color="#DC2626" />
+                style={({ pressed }) => [styles.modalActionItem, pressed && styles.btnPressed]}
+                onPress={() => handlePickImage(true)}
+              >
+                <View style={styles.actionIconBox}>
+                  <Ionicons name="camera" size={20} color="#8C4A1B" />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={[styles.actionItemTitle, { color: '#DC2626' }]}>Remove Photo</Text>
-                  <Text style={styles.actionItemSub}>Reset to default avatar</Text>
+                  <Text style={styles.actionItemTitle}>Take a Selfie (Camera)</Text>
+                  <Text style={styles.actionItemSub}>Use your front camera right now</Text>
                 </View>
+                <Ionicons name="chevron-forward" size={18} color="#C4B5A5" />
               </Pressable>
-            )}
 
-            <Pressable
-              onPress={() => setShowPhotoModal(false)}
-              style={styles.modalCancelBtn}>
-              <Text style={styles.modalCancelText}>Cancel</Text>
-            </Pressable>
-          </View>
-        </Pressable>
-      </Modal>
+              <Pressable
+                style={({ pressed }) => [styles.modalActionItem, pressed && styles.btnPressed]}
+                onPress={() => handlePickImage(false)}
+              >
+                <View style={styles.actionIconBox}>
+                  <Ionicons name="images" size={20} color="#8C4A1B" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.actionItemTitle}>Choose from Gallery</Text>
+                  <Text style={styles.actionItemSub}>Select an existing image from phone</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color="#C4B5A5" />
+              </Pressable>
+
+              {photoUri && (
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.modalActionItem,
+                    { borderBottomWidth: 0 },
+                    pressed && styles.btnPressed,
+                  ]}
+                  onPress={handleRemovePhoto}
+                >
+                  <View style={[styles.actionIconBox, { backgroundColor: '#FEE2E2' }]}>
+                    <Ionicons name="trash-outline" size={20} color="#DC2626" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.actionItemTitle, { color: '#DC2626' }]}>Remove Photo</Text>
+                    <Text style={styles.actionItemSub}>Reset to default avatar</Text>
+                  </View>
+                </Pressable>
+              )}
+
+              <Pressable onPress={() => setShowPhotoModal(false)} style={styles.modalCancelBtn}>
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Modal>
       )}
 
       {/* ============================================================== */}
@@ -570,127 +595,134 @@ export function StepPersonalInfo({ draft, onUpdate, onNext, onClose }: StepPerso
           visible={showDatePicker}
           transparent
           animationType="slide"
-          onRequestClose={() => setShowDatePicker(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.dateModalCard, { paddingBottom: Math.max(insets.bottom, 20) + 12 }]}>
-            <View style={styles.modalHandle} />
+          onRequestClose={() => setShowDatePicker(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View
+              style={[styles.dateModalCard, { paddingBottom: Math.max(insets.bottom, 20) + 12 }]}
+            >
+              <View style={styles.modalHandle} />
 
-            <View style={styles.dateModalHeader}>
-              <View>
-                <Text style={styles.modalTitle}>Select Date of Birth</Text>
-                <Text style={styles.modalSubtitle}>Must be 18+ to be an eligible driver partner</Text>
+              <View style={styles.dateModalHeader}>
+                <View>
+                  <Text style={styles.modalTitle}>Select Date of Birth</Text>
+                  <Text style={styles.modalSubtitle}>
+                    Must be 18+ to be an eligible driver partner
+                  </Text>
+                </View>
+                <Pressable
+                  onPress={() => setShowDatePicker(false)}
+                  hitSlop={10}
+                  style={styles.modalCloseIconBtn}
+                >
+                  <Ionicons name="close" size={20} color="#705746" />
+                </Pressable>
               </View>
-              <Pressable onPress={() => setShowDatePicker(false)} hitSlop={10} style={styles.modalCloseIconBtn}>
-                <Ionicons name="close" size={20} color="#705746" />
+
+              {/* Live Date Preview Pill */}
+              <View style={styles.datePreviewBox}>
+                <Ionicons name="calendar" size={18} color="#8C4A1B" />
+                <Text style={styles.datePreviewText}>
+                  {String(Math.min(pickerDay, daysInMonth)).padStart(2, '0')}{' '}
+                  {MONTHS.find((m) => m.val === pickerMonth)?.full} {pickerYear}
+                </Text>
+                <View style={styles.datePreviewAgeTag}>
+                  <Text style={styles.datePreviewAgeText}>Age: {CURRENT_YEAR - pickerYear}</Text>
+                </View>
+              </View>
+
+              {/* Three Side-by-Side Columns: Day | Month | Year */}
+              <View style={styles.pickerColumnsRow}>
+                {/* Column 1: Day */}
+                <View style={styles.pickerColumn}>
+                  <Text style={styles.columnHeader}>DAY</Text>
+                  <ScrollView style={styles.columnScroll} showsVerticalScrollIndicator={false}>
+                    {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((d) => {
+                      const isSelected = pickerDay === d;
+                      return (
+                        <Pressable
+                          key={d}
+                          onPress={() => setPickerDay(d)}
+                          style={[styles.pickerItem, isSelected && styles.pickerItemSelected]}
+                        >
+                          <Text
+                            style={[
+                              styles.pickerItemText,
+                              isSelected && styles.pickerItemTextSelected,
+                            ]}
+                          >
+                            {String(d).padStart(2, '0')}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </ScrollView>
+                </View>
+
+                {/* Column 2: Month */}
+                <View style={styles.pickerColumn}>
+                  <Text style={styles.columnHeader}>MONTH</Text>
+                  <ScrollView style={styles.columnScroll} showsVerticalScrollIndicator={false}>
+                    {MONTHS.map((m) => {
+                      const isSelected = pickerMonth === m.val;
+                      return (
+                        <Pressable
+                          key={m.val}
+                          onPress={() => setPickerMonth(m.val)}
+                          style={[styles.pickerItem, isSelected && styles.pickerItemSelected]}
+                        >
+                          <Text
+                            style={[
+                              styles.pickerItemText,
+                              isSelected && styles.pickerItemTextSelected,
+                            ]}
+                          >
+                            {m.label}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </ScrollView>
+                </View>
+
+                {/* Column 3: Year */}
+                <View style={styles.pickerColumn}>
+                  <Text style={styles.columnHeader}>YEAR</Text>
+                  <ScrollView style={styles.columnScroll} showsVerticalScrollIndicator={false}>
+                    {YEARS.map((y) => {
+                      const isSelected = pickerYear === y;
+                      return (
+                        <Pressable
+                          key={y}
+                          onPress={() => setPickerYear(y)}
+                          style={[styles.pickerItem, isSelected && styles.pickerItemSelected]}
+                        >
+                          <Text
+                            style={[
+                              styles.pickerItemText,
+                              isSelected && styles.pickerItemTextSelected,
+                            ]}
+                          >
+                            {y}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </ScrollView>
+                </View>
+              </View>
+
+              {/* Confirm Button */}
+              <Pressable
+                onPress={handleConfirmDate}
+                style={({ pressed }) => [styles.confirmDateBtn, pressed && styles.btnPressed]}
+              >
+                <Text style={styles.confirmDateBtnText}>Apply Date of Birth</Text>
+                <Ionicons name="checkmark" size={18} color="#FFFFFF" style={{ marginLeft: 6 }} />
               </Pressable>
             </View>
-
-            {/* Live Date Preview Pill */}
-            <View style={styles.datePreviewBox}>
-              <Ionicons name="calendar" size={18} color="#8C4A1B" />
-              <Text style={styles.datePreviewText}>
-                {String(Math.min(pickerDay, daysInMonth)).padStart(2, '0')}{' '}
-                {MONTHS.find((m) => m.val === pickerMonth)?.full}{' '}
-                {pickerYear}
-              </Text>
-              <View style={styles.datePreviewAgeTag}>
-                <Text style={styles.datePreviewAgeText}>
-                  Age: {CURRENT_YEAR - pickerYear}
-                </Text>
-              </View>
-            </View>
-
-            {/* Three Side-by-Side Columns: Day | Month | Year */}
-            <View style={styles.pickerColumnsRow}>
-              {/* Column 1: Day */}
-              <View style={styles.pickerColumn}>
-                <Text style={styles.columnHeader}>DAY</Text>
-                <ScrollView
-                  style={styles.columnScroll}
-                  showsVerticalScrollIndicator={false}>
-                  {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((d) => {
-                    const isSelected = pickerDay === d;
-                    return (
-                      <Pressable
-                        key={d}
-                        onPress={() => setPickerDay(d)}
-                        style={[styles.pickerItem, isSelected && styles.pickerItemSelected]}>
-                        <Text
-                          style={[
-                            styles.pickerItemText,
-                            isSelected && styles.pickerItemTextSelected,
-                          ]}>
-                          {String(d).padStart(2, '0')}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </ScrollView>
-              </View>
-
-              {/* Column 2: Month */}
-              <View style={styles.pickerColumn}>
-                <Text style={styles.columnHeader}>MONTH</Text>
-                <ScrollView
-                  style={styles.columnScroll}
-                  showsVerticalScrollIndicator={false}>
-                  {MONTHS.map((m) => {
-                    const isSelected = pickerMonth === m.val;
-                    return (
-                      <Pressable
-                        key={m.val}
-                        onPress={() => setPickerMonth(m.val)}
-                        style={[styles.pickerItem, isSelected && styles.pickerItemSelected]}>
-                        <Text
-                          style={[
-                            styles.pickerItemText,
-                            isSelected && styles.pickerItemTextSelected,
-                          ]}>
-                          {m.label}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </ScrollView>
-              </View>
-
-              {/* Column 3: Year */}
-              <View style={styles.pickerColumn}>
-                <Text style={styles.columnHeader}>YEAR</Text>
-                <ScrollView
-                  style={styles.columnScroll}
-                  showsVerticalScrollIndicator={false}>
-                  {YEARS.map((y) => {
-                    const isSelected = pickerYear === y;
-                    return (
-                      <Pressable
-                        key={y}
-                        onPress={() => setPickerYear(y)}
-                        style={[styles.pickerItem, isSelected && styles.pickerItemSelected]}>
-                        <Text
-                          style={[
-                            styles.pickerItemText,
-                            isSelected && styles.pickerItemTextSelected,
-                          ]}>
-                          {y}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </ScrollView>
-              </View>
-            </View>
-
-            {/* Confirm Button */}
-            <Pressable
-              onPress={handleConfirmDate}
-              style={({ pressed }) => [styles.confirmDateBtn, pressed && styles.btnPressed]}>
-              <Text style={styles.confirmDateBtnText}>Apply Date of Birth</Text>
-              <Ionicons name="checkmark" size={18} color="#FFFFFF" style={{ marginLeft: 6 }} />
-            </Pressable>
           </View>
-        </View>
-      </Modal>
+        </Modal>
       )}
     </KeyboardAvoidingView>
   );
