@@ -117,7 +117,7 @@ export const env: Env = parsed.success
         ROUTING_CACHE_TTL_S: z.coerce.number().default(600),
         ROUTING_TRAFFIC_AWARE: z.boolean().default(false),
       })
-      .parse({});
+      .parse({ NODE_ENV: process.env.NODE_ENV });
 
 export type { Env };
 
