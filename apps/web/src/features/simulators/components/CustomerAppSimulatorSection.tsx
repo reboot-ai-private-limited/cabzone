@@ -22,7 +22,6 @@ import {
 } from '@cabzone/design-system';
 import {
   AlertCircle,
-  ArrowRight,
   Car,
   CheckCircle2,
   Clock,
@@ -30,16 +29,13 @@ import {
   History,
   Key,
   MapPin,
-  Navigation,
   PlusCircle,
   Radio,
   Receipt,
   RefreshCw,
   ShieldAlert,
-  ShieldCheck,
   Smartphone,
   Sparkles,
-  User,
   Wallet,
   XCircle,
   Zap,
@@ -1194,29 +1190,31 @@ export function CustomerAppSimulatorSection() {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
             <div>
-              <label className="text-[11px] text-text-subtle font-medium block mb-1">
+              <span className="text-[11px] text-text-subtle font-medium block mb-1">
                 Customer Name
-              </label>
+              </span>
               <Input
+                aria-label="Customer Name"
                 value={customerName}
                 onChange={(e) => setCustomerName(e.target.value)}
                 className="h-8 text-xs"
               />
             </div>
             <div>
-              <label className="text-[11px] text-text-subtle font-medium block mb-1">
+              <span className="text-[11px] text-text-subtle font-medium block mb-1">
                 Customer Phone (E.164)
-              </label>
+              </span>
               <Input
+                aria-label="Customer Phone (E.164)"
                 value={customerPhone}
                 onChange={(e) => setCustomerPhone(e.target.value)}
                 className="h-8 text-xs font-mono"
               />
             </div>
             <div>
-              <label className="text-[11px] text-text-subtle font-medium block mb-1">
+              <span className="text-[11px] text-text-subtle font-medium block mb-1">
                 Vehicle Category
-              </label>
+              </span>
               <Select
                 value={vehicleCategory}
                 onValueChange={(val) => {
