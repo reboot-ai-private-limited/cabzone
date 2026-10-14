@@ -2,24 +2,25 @@
 
 import { useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Navigation, Tag, Zap } from 'lucide-react';
+import { Navigation, Smartphone, Tag, Zap } from 'lucide-react';
 import { PageHeader, SegmentedControl } from '@cabzone/design-system';
 import { TripSimulatorScreen } from '@/features/quotes/components/TripSimulatorScreen';
 import { FareSimulatorSection } from '@/features/pricing/components/FareSimulatorSection';
 import { FleetSimulatorSection } from './FleetSimulatorSection';
+import { CustomerAppSimulatorSection } from './CustomerAppSimulatorSection';
 
-export type SimulatorTab = 'trip' | 'fare' | 'fleet';
+export type SimulatorTab = 'customer' | 'trip' | 'fare' | 'fleet';
 
 export interface SimulatorsScreenProps {
   defaultTab?: SimulatorTab;
 }
 
-export function SimulatorsScreen({ defaultTab = 'trip' }: SimulatorsScreenProps = {}) {
+export function SimulatorsScreen({ defaultTab = 'customer' }: SimulatorsScreenProps = {}) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
   const urlTab = searchParams.get('tab') as SimulatorTab | null;
-  const initialTab: SimulatorTab = urlTab && ['trip', 'fare', 'fleet'].includes(urlTab)
+  const initialTab: SimulatorTab = urlTab && ['customer', 'trip', 'fare', 'fleet'].includes(urlTab)
     ? urlTab
     : defaultTab;
 
@@ -34,6 +35,8 @@ export function SimulatorsScreen({ defaultTab = 'trip' }: SimulatorsScreenProps 
 
   const tabTitle = useMemo(() => {
     switch (activeTab) {
+      case 'customer':
+        return 'Customer App (Driver App E2E Tester)';
       case 'trip':
         return 'Trip & Route Simulator';
       case 'fare':
@@ -57,7 +60,7 @@ export function SimulatorsScreen({ defaultTab = 'trip' }: SimulatorsScreenProps 
           ]}
         />
         <p className="text-xs text-text-subtle">
-          Sandbox environments for testing quote generation, tariff pricing calculation, and live dispatch fleet simulation without touching production data.
+          Sandbox environments for testing Customer → Driver App E2E workflows, quote generation, tariff pricing calculation, and live dispatch fleet simulation.
         </p>
       </div>
 
@@ -68,6 +71,11 @@ export function SimulatorsScreen({ defaultTab = 'trip' }: SimulatorsScreenProps 
           value={activeTab}
           onValueChange={handleTabChange}
           segments={[
+            {
+              value: 'customer',
+              label: 'Customer App (Driver Tester)',
+              icon: <Smartphone className="size-3.5" />,
+            },
             {
               value: 'trip',
               label: 'Trip & Route',
@@ -93,6 +101,7 @@ export function SimulatorsScreen({ defaultTab = 'trip' }: SimulatorsScreenProps 
 
       {/* Active Simulator Content */}
       <div className="pt-1">
+        {activeTab === 'customer' && <CustomerAppSimulatorSection />}
         {activeTab === 'trip' && <TripSimulatorScreen showHeader={false} />}
         {activeTab === 'fare' && <FareSimulatorSection />}
         {activeTab === 'fleet' && <FleetSimulatorSection />}

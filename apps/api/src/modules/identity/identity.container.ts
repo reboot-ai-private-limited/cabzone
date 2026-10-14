@@ -129,6 +129,7 @@ export interface IdentityContainerDeps {
   tokenAdapter?: JoseTokenAdapter;
   otpStore?: OtpStorePort;
   smsGateway?: SmsGatewayPort;
+  ensureDriverWallet?: (driverId: string) => Promise<void>;
 }
 
 export function buildIdentityContainer(deps?: IdentityContainerDeps): IdentityContainer {
@@ -318,6 +319,7 @@ export function buildIdentityContainer(deps?: IdentityContainerDeps): IdentityCo
               createDriverApplicationUseCase,
               registerDriverVehicleUseCase,
               uploadDriverDocumentUseCase,
+              ensureDriverWallet: deps?.ensureDriverWallet,
             })
           : undefined,
       }),

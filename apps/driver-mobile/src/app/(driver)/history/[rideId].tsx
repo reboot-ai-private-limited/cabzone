@@ -1,0 +1,406 @@
+import React, { useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import type { RideDto, RideEventDto } from '@cabzone/contracts';
+import { useRide } from '@/context/ride-context';
+import { computeRideEarningsBreakdown } from '@/context/duty-context';
+import { colors, typography } from '@/design-system';
+
+export default function RideHistoryDetailScreen() {
+  const router = useRouter();
+  const { rideId } = useLocalSearchParams<{ rideId: string }>();
+  const { fetchRideDetail } = useRide();
+
+  const [ride, setRide] = useState<RideDto | null>(null);
+  const [events, setEvents] = useState<RideEventDto[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    if (!rideId) return;
+    let cancelled = false;
+    fetchRideDetail(rideId)
+      .then((res) => {
+        if (cancelled || !res) return;
+        setRide(res.ride);
+        setEvents(res.events);
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [rideId, fetchRideDetail]);
+
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.centered}>
+        <ActivityIndicator size="large" color={colors.deepBrown} />
+        <Text style={styles.loadingText}>Loading trip receipt...</Text>
+      </SafeAreaView>
+    );
+  }
+
+  if (!ride) {
+    return (
+      <SafeAreaView style={styles.centered}>
+        <Ionicons name="receipt-outline" size={44} color={colors.deepBrown} />
+        <Text style={styles.emptyTitle}>Ride Record Not Found</Text>
+        <Pressable style={styles.backButton} onPress={() => router.back()}>
+          <Text style={styles.backButtonText}>Go Back</Text>
+        </Pressable>
+      </SafeAreaView>
+    );
+  }
+
+  const breakdown = computeRideEarningsBreakdown(ride);
+  const distanceKm = Number(((ride.routeSnapshot?.distanceM ?? 0) / 1000).toFixed(1));
+  const durationMin = Math.max(1, Math.round((ride.routeSnapshot?.durationSeconds ?? 0) / 60));
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <View style={styles.topBar}>
+        <Pressable
+          style={styles.topBackBtn}
+          onPress={() => router.back()}
+          accessibilityRole="button"
+          accessibilityLabel="Back">
+          <Ionicons name="arrow-back" size={20} color={colors.deepBrown} />
+          <Text style={styles.topBackText}>Rides</Text>
+        </Pressable>
+        <Text style={styles.topTitle}>Trip Receipt</Text>
+        <View style={{ width: 60 }} />
+      </View>
+
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        {/* Summary Header Card */}
+        <View style={styles.summaryCard}>
+          <Text style={styles.statusLabel}>{ride.status.replace(/_/g, ' ')}</Text>
+          <Text style={styles.netAmount}>₹{(breakdown.netPaise / 100).toFixed(2)}</Text>
+          <Text style={styles.netCaption}>Net Driver Earnings</Text>
+
+          <View style={styles.metaStrip}>
+            <View style={styles.metaCol}>
+              <Text style={styles.metaKey}>Category</Text>
+              <Text style={styles.metaVal}>{ride.vehicleCategory}</Text>
+            </View>
+            <View style={styles.metaCol}>
+              <Text style={styles.metaKey}>Distance</Text>
+              <Text style={styles.metaVal}>{distanceKm} km</Text>
+            </View>
+            <View style={styles.metaCol}>
+              <Text style={styles.metaKey}>Est. Time</Text>
+              <Text style={styles.metaVal}>{durationMin} mins</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Route Details */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Route</Text>
+          <View style={styles.pointRow}>
+            <View style={[styles.dot, { backgroundColor: colors.success }]} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.pointLabel}>PICKUP</Text>
+              <Text style={styles.pointAddress}>
+                {ride.pickup.address || `${ride.pickup.lat.toFixed(4)}, ${ride.pickup.lng.toFixed(4)}`}
+              </Text>
+            </View>
+          </View>
+          <View style={styles.pointRow}>
+            <View style={[styles.dot, { backgroundColor: colors.error }]} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.pointLabel}>DESTINATION</Text>
+              <Text style={styles.pointAddress}>
+                {ride.drop.address || `${ride.drop.lat.toFixed(4)}, ${ride.drop.lng.toFixed(4)}`}
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Fare Breakdown */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Financial Breakdown</Text>
+          <View style={styles.row}>
+            <Text style={styles.rowLabel}>Suggested Base Fare</Text>
+            <Text style={styles.rowVal}>₹{(ride.suggestedFarePaise / 100).toFixed(2)}</Text>
+          </View>
+          <View style={styles.row}>
+            <Text style={styles.rowLabel}>Agreed Passenger Fare (Gross)</Text>
+            <Text style={styles.rowVal}>₹{(breakdown.grossPaise / 100).toFixed(2)}</Text>
+          </View>
+          <View style={styles.row}>
+            <Text style={styles.rowLabel}>
+              Platform Commission ({ride.pricingSnapshot?.commissionPercent ?? 8}%)
+            </Text>
+            <Text style={styles.rowDebit}>-₹{(breakdown.commissionPaise / 100).toFixed(2)}</Text>
+          </View>
+          <View style={[styles.row, styles.rowTotal]}>
+            <Text style={styles.rowTotalLabel}>Net Driver Earnings</Text>
+            <Text style={styles.rowTotalVal}>₹{(breakdown.netPaise / 100).toFixed(2)}</Text>
+          </View>
+        </View>
+
+        {/* Audit Event Timeline */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Trip Timeline</Text>
+          {events.length === 0 ? (
+            <Text style={styles.rowLabel}>
+              Created {new Date(ride.createdAt).toLocaleString('en-IN')}
+            </Text>
+          ) : (
+            events.map((ev) => (
+              <View key={ev.id} style={styles.eventRow}>
+                <View style={styles.eventDot} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.eventType}>{ev.eventType.replace(/_/g, ' ')}</Text>
+                  <Text style={styles.eventTime}>
+                    {new Date(ev.createdAt).toLocaleString('en-IN')}
+                  </Text>
+                </View>
+              </View>
+            ))
+          )}
+        </View>
+
+        {/* Support Shortcut */}
+        <Pressable
+          style={styles.helpButton}
+          onPress={() => router.push('/(driver)/account/help')}>
+          <Ionicons name="help-buoy-outline" size={18} color={colors.deepBrown} />
+          <Text style={styles.helpButtonText}>Need help with this trip?</Text>
+        </Pressable>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  centered: {
+    flex: 1,
+    backgroundColor: colors.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+    gap: 12,
+  },
+  loadingText: {
+    fontSize: typography.sizes.sm,
+    color: colors.secondary,
+    fontWeight: '600',
+  },
+  emptyTitle: {
+    fontSize: typography.sizes.lg,
+    fontWeight: '800',
+    color: colors.deepBrown,
+  },
+  backButton: {
+    backgroundColor: colors.amber,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 12,
+  },
+  backButtonText: {
+    fontSize: typography.sizes.sm,
+    fontWeight: '800',
+    color: colors.deepBrown,
+  },
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  topBackBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  topBackText: {
+    fontSize: typography.sizes.sm,
+    fontWeight: '700',
+    color: colors.deepBrown,
+  },
+  topTitle: {
+    fontSize: typography.sizes.base,
+    fontWeight: '800',
+    color: colors.deepBrown,
+  },
+  scrollContent: {
+    padding: 20,
+    paddingBottom: 44,
+    gap: 16,
+  },
+  summaryCard: {
+    backgroundColor: colors.cream,
+    borderRadius: 20,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+  },
+  statusLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: colors.brandBrown,
+    letterSpacing: 0.6,
+    marginBottom: 4,
+  },
+  netAmount: {
+    fontSize: 32,
+    fontWeight: '800',
+    color: colors.deepBrown,
+  },
+  netCaption: {
+    fontSize: typography.sizes.xs,
+    color: colors.secondary,
+    fontWeight: '600',
+    marginTop: 2,
+    marginBottom: 16,
+  },
+  metaStrip: {
+    flexDirection: 'row',
+    width: '100%',
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    paddingTop: 14,
+  },
+  metaCol: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  metaKey: {
+    fontSize: 11,
+    color: colors.secondary,
+    fontWeight: '600',
+  },
+  metaVal: {
+    fontSize: typography.sizes.sm,
+    fontWeight: '800',
+    color: colors.deepBrown,
+    marginTop: 2,
+  },
+  card: {
+    backgroundColor: colors.white,
+    borderRadius: 18,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: 12,
+  },
+  cardTitle: {
+    fontSize: typography.sizes.base,
+    fontWeight: '800',
+    color: colors.deepBrown,
+  },
+  pointRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginTop: 5,
+  },
+  pointLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: colors.secondary,
+  },
+  pointAddress: {
+    fontSize: typography.sizes.xs,
+    fontWeight: '600',
+    color: colors.deepBrown,
+    marginTop: 2,
+  },
+  row: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  rowLabel: {
+    fontSize: typography.sizes.xs,
+    color: colors.secondary,
+    fontWeight: '600',
+  },
+  rowVal: {
+    fontSize: typography.sizes.xs,
+    fontWeight: '700',
+    color: colors.deepBrown,
+  },
+  rowDebit: {
+    fontSize: typography.sizes.xs,
+    fontWeight: '700',
+    color: colors.brandBrown,
+  },
+  rowTotal: {
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    paddingTop: 10,
+    marginTop: 4,
+  },
+  rowTotalLabel: {
+    fontSize: typography.sizes.sm,
+    fontWeight: '800',
+    color: colors.deepBrown,
+  },
+  rowTotalVal: {
+    fontSize: typography.sizes.base,
+    fontWeight: '800',
+    color: colors.success,
+  },
+  eventRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  eventDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: colors.amber,
+  },
+  eventType: {
+    fontSize: typography.sizes.xs,
+    fontWeight: '700',
+    color: colors.deepBrown,
+  },
+  eventTime: {
+    fontSize: 11,
+    color: colors.secondary,
+  },
+  helpButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 14,
+    backgroundColor: colors.lightCream,
+    borderWidth: 1,
+    borderColor: colors.warmBeige,
+  },
+  helpButtonText: {
+    fontSize: typography.sizes.xs,
+    fontWeight: '800',
+    color: colors.deepBrown,
+  },
+});

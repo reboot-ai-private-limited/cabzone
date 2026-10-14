@@ -42,4 +42,5 @@ export interface RideOfferDto {
   proposedFarePaise: number;
   distanceToPickupM: number;
   expiresAt: string;
+  negotiation: { floorPaise: number; ceilingPaise: number };
 }

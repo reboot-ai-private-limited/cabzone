@@ -151,12 +151,15 @@ export interface TestApproveDriverDeps {
   createDriverApplicationUseCase: CreateDriverApplicationUseCase;
   registerDriverVehicleUseCase: RegisterDriverVehicleUseCase;
   uploadDriverDocumentUseCase: UploadDriverDocumentUseCase;
+  ensureDriverWallet?: ((driverId: string) => Promise<void>) | undefined;
 }
 
 export function makeTestApproveDriverController(deps: TestApproveDriverDeps): RequestHandler {
   return asyncHandler(async (req: Request, res: Response) => {
     if (!req.auth) throw AppError.unauthenticated();
     const userId = req.auth.userId;
+    const now = new Date();
+    const futureExpiry = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000);
 
     let driver = await deps.driverRepo.findByUserId(userId);
     if (!driver) {
@@ -188,27 +191,50 @@ export function makeTestApproveDriverController(deps: TestApproveDriverDeps): Re
       });
     }
 
-    const docs = await deps.documentRepo.findByApplicationId(application.id);
-    if (!docs.some((d: DriverDocumentEntity) => d.type === 'GOVERNMENT_ID')) {
-      await deps.uploadDriverDocumentUseCase.execute({
-        userId,
-        type: 'GOVERNMENT_ID',
-        storageKey: 'mock/aadhaar.jpg',
-        documentHash: 'a'.repeat(64),
-        documentNumberMasked: 'XXXX-XXXX-1234',
-      });
-    }
-    if (!docs.some((d: DriverDocumentEntity) => d.type === 'DRIVING_LICENSE')) {
-      await deps.uploadDriverDocumentUseCase.execute({
-        userId,
-        type: 'DRIVING_LICENSE',
-        storageKey: 'mock/dl.jpg',
-        documentHash: 'b'.repeat(64),
-        documentNumberMasked: 'WB7420220012345',
-      });
+    const requiredDocs: {
+      type: DriverDocumentEntity['type'];
+      storageKey: string;
+      hashChar: string;
+      masked: string | null;
+      needsExpiry: boolean;
+    }[] = [
+      { type: 'GOVERNMENT_ID', storageKey: 'mock/aadhaar.jpg', hashChar: 'a', masked: 'XXXX-XXXX-1234', needsExpiry: false },
+      { type: 'DRIVING_LICENSE', storageKey: 'mock/dl.jpg', hashChar: 'b', masked: 'WB7420220012345', needsExpiry: true },
+      { type: 'REGISTRATION_CERTIFICATE', storageKey: 'mock/rc.jpg', hashChar: 'c', masked: 'WB74AB1234', needsExpiry: true },
+      { type: 'INSURANCE', storageKey: 'mock/ins.jpg', hashChar: 'd', masked: 'POL-998877', needsExpiry: true },
+      { type: 'PERMIT', storageKey: 'mock/permit.jpg', hashChar: 'e', masked: 'PRM-112233', needsExpiry: true },
+    ];
+
+    const existingDocs = await deps.documentRepo.findByApplicationId(application.id);
+    for (const spec of requiredDocs) {
+      const found = existingDocs.find((d: DriverDocumentEntity) => d.type === spec.type);
+      if (!found) {
+        await deps.documentRepo.create({
+          id: crypto.randomUUID(),
+          driverId: driver.id,
+          applicationId: application.id,
+          type: spec.type,
+          storageKey: spec.storageKey,
+          documentHash: spec.hashChar.repeat(64),
+          documentNumberMasked: spec.masked,
+          issuedAt: now,
+          expiresAt: spec.needsExpiry ? futureExpiry : null,
+          verificationStatus: 'VERIFIED',
+          verifiedAt: now,
+          createdAt: now,
+          updatedAt: now,
+        });
+      } else {
+        await deps.documentRepo.update({
+          ...found,
+          expiresAt: spec.needsExpiry && (!found.expiresAt || found.expiresAt <= now) ? futureExpiry : found.expiresAt,
+          verificationStatus: 'VERIFIED',
+          verifiedAt: now,
+          updatedAt: now,
+        });
+      }
     }
 
-    const now = new Date();
     await deps.applicationRepo.update({
       ...application,
       status: 'APPROVED',
@@ -233,14 +259,11 @@ export function makeTestApproveDriverController(deps: TestApproveDriverDeps): Re
       updatedAt: now,
     });
 
-    const allDocs = await deps.documentRepo.findByApplicationId(application.id);
-    for (const d of allDocs) {
-      await deps.documentRepo.update({
-        ...d,
-        verificationStatus: 'VERIFIED',
-        verifiedAt: now,
-      });
+    if (deps.ensureDriverWallet) {
+      await deps.ensureDriverWallet(driver.id);
     }
+
+    const allDocs = await deps.documentRepo.findByApplicationId(application.id);
 
     sendSuccess(
       req,

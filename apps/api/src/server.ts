@@ -8,6 +8,7 @@ import { getRealtimeHub } from '@/shared/realtime/index.js';
 import type { AppContainers } from './container.js';
 
 const OFFER_SWEEP_MS = 15_000;
+const PUSH_RECEIPT_SWEEP_MS = 60_000;
 
 async function main(): Promise<void> {
   loadEnv();
@@ -41,6 +42,11 @@ async function main(): Promise<void> {
       .catch((err: unknown) => logger.warn({ err: String(err) }, 'offer expiry sweep failed'));
   }, OFFER_SWEEP_MS);
   sweep.unref();
+  const receiptSweep = setInterval(() => {
+    containers.dispatch.push.checkReceipts()
+      .catch((err: unknown) => logger.warn({ err: String(err) }, 'push receipt sweep failed'));
+  }, PUSH_RECEIPT_SWEEP_MS);
+  receiptSweep.unref();
 
   const shutdown = (signal: string) => {
     logger.info({ signal }, 'signal received, draining');
@@ -51,6 +57,7 @@ async function main(): Promise<void> {
     force.unref();
 
     clearInterval(sweep);
+    clearInterval(receiptSweep);
     hub.close();
     server.close(() => {
       void (async () => {

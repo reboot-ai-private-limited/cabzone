@@ -9,6 +9,13 @@ import {
   type DispatchLookups,
 } from './application/dispatch.types.js';
 import { RideRealtimeNotifier } from './application/rideRealtimeNotifier.js';
+import { ExpoPushService } from './application/expoPush.service.js';
+import type { OfferRecipientsPort } from './application/offerRecipients.port.js';
+import { MemoryOfferRecipientsRepository } from './infrastructure/offerRecipients.repository.js';
+import type { PushTokenPort } from './application/pushToken.port.js';
+import type { PushReceiptPort } from './application/pushReceipt.port.js';
+import { MemoryPushTokenRepository } from './infrastructure/pushToken.repository.js';
+import { MemoryPushReceiptRepository } from './infrastructure/pushReceipt.repository.js';
 import { DriverOfferEligibility } from './application/useCases/driverOfferEligibility.js';
 import { FindCandidateDriversUseCase } from './application/useCases/findCandidateDrivers.usecase.js';
 import { ListDriverOffersUseCase } from './application/useCases/listDriverOffers.usecase.js';
@@ -19,6 +26,9 @@ import { ListFleetDriversUseCase } from './application/useCases/listFleetDrivers
 import { SimulateFleetUseCase } from './application/useCases/simulateFleet.usecase.js';
 import {
   makeListOffersController,
+  makeGetStatusController,
+  makeRegisterPushTokenController,
+  makeUnregisterPushTokenController,
   makeSetStatusController,
   makeUpdateLocationController,
 } from './interface/dispatch.controller.js';
@@ -35,13 +45,18 @@ export interface DispatchContainerDeps {
   rideRepo: RideRepositoryPort;
   walletRepo: WalletRepositoryPort;
   lookups: DispatchLookups;
+  offerRecipients?: OfferRecipientsPort;
+  pushTokens?: PushTokenPort;
+  pushReceipts?: PushReceiptPort;
   config?: Partial<DispatchConfig> | undefined;
+  isDevMode?: boolean | undefined;
 }
 
 export interface DispatchContainer {
   presence: DriverPresencePort;
   /** Plug into the rides container so ride state changes reach clients in realtime. */
   notifier: RideRealtimeNotifier;
+  push: ExpoPushService;
   listDriverOffersUseCase: ListDriverOffersUseCase;
   listFleetDriversUseCase: ListFleetDriversUseCase;
   simulateFleetUseCase: SimulateFleetUseCase;
@@ -60,11 +75,17 @@ export function buildDispatchContainer(deps: DispatchContainerDeps): DispatchCon
   const eligibility = new DriverOfferEligibility(deps.walletRepo, deps.rideRepo);
   const findCandidates = new FindCandidateDriversUseCase(deps.presence, eligibility, config);
 
+  const push = new ExpoPushService(
+    deps.pushTokens ?? new MemoryPushTokenRepository(),
+    deps.pushReceipts ?? new MemoryPushReceiptRepository(),
+  );
   const notifier = new RideRealtimeNotifier(
     deps.publisher,
     findCandidates,
     deps.lookups,
     deps.rideRepo,
+    push,
+    deps.offerRecipients ?? new MemoryOfferRecipientsRepository(),
   );
   const setStatus = new SetDriverStatusUseCase(deps.presence, deps.lookups);
   const updateLocation = new UpdateDriverLocationUseCase(deps.presence, deps.lookups, notifier);
@@ -74,6 +95,7 @@ export function buildDispatchContainer(deps: DispatchContainerDeps): DispatchCon
     eligibility,
     deps.lookups,
     config,
+    Boolean(deps.isDevMode),
   );
 
   const listFleetDriversUseCase = new ListFleetDriversUseCase(
@@ -86,6 +108,7 @@ export function buildDispatchContainer(deps: DispatchContainerDeps): DispatchCon
   return {
     presence: deps.presence,
     notifier,
+    push,
     listDriverOffersUseCase,
     listFleetDriversUseCase,
     simulateFleetUseCase,
@@ -94,8 +117,11 @@ export function buildDispatchContainer(deps: DispatchContainerDeps): DispatchCon
         authenticate: auth.authenticate,
         requireDriver: auth.requireRole('DRIVER'),
         setStatus: makeSetStatusController(setStatus),
+        getStatus: makeGetStatusController(setStatus),
         updateLocation: makeUpdateLocationController(updateLocation),
         listOffers: makeListOffersController(listDriverOffersUseCase),
+        registerPushToken: makeRegisterPushTokenController(push),
+        unregisterPushToken: makeUnregisterPushTokenController(push),
       }),
     buildAdminDispatchRouter: (auth) =>
       buildAdminDispatchRouter({

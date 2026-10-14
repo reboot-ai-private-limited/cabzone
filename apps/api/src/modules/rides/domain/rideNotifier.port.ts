@@ -22,4 +22,10 @@ export interface RideNotifierPort {
     event: RideLifecycleEvent,
     extra?: Record<string, unknown>,
   ): Promise<void>;
+  /** Fare negotiation traffic: a counter goes to the rider, the answer goes back to that driver. */
+  fareNegotiation(
+    ride: RideEntity,
+    event: 'ride.fare.countered' | 'ride.fare.counter_rejected',
+    payload: { driverId: string; proposedFarePaise: number },
+  ): Promise<void>;
 }

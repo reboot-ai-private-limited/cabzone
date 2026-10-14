@@ -1,21 +1,29 @@
 import { SafeAreaView } from 'react-native-safe-area-context';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   View,
 } from 'react-native';
+import { useRouter } from 'expo-router';
 import { useAuth } from '@/context/auth-context';
 import { useDuty } from '@/context/duty-context';
+import { useRide } from '@/context/ride-context';
+import {
+  CabzonRideOffer,
+  mapRideOfferDtoToCardData,
+} from '@/components/cards/cabzon-ride-offer';
 import { colors, typography } from '@/design-system';
 import { Ionicons } from '@expo/vector-icons';
 
 export function DriverHome() {
-  const { user, driver, logout, isLoading: isAuthLoading } = useAuth();
+  const router = useRouter();
+  const { user, driver } = useAuth();
   const {
     status,
     isToggling,
@@ -23,16 +31,61 @@ export function DriverHome() {
     lastTransmittedAt,
     locationStatus,
     todayEarningsPaise,
+    todayGrossPaise,
     todayCompletedTrips,
     walletBalancePaise,
+    useDevSimulatedLocation,
+    setUseDevSimulatedLocation,
     error,
     clearError,
     goOnline,
     goOffline,
   } = useDuty();
 
+  const {
+    offers,
+    activeOffer,
+    activeRide,
+    isMutatingRide,
+    rideError,
+    clearRideError,
+    refreshOffers,
+     refreshActiveRide,
+    acceptOffer,
+    counters,
+    rejectedCounters,
+    counterOffer,
+    ignoreOffer,
+  } = useRide();
+
   const [timeAgo, setTimeAgo] = useState('just now');
   const [isVerifyingOnline, setIsVerifyingOnline] = useState(false);
+  const [isCheckingRequests, setIsCheckingRequests] = useState(false);
+  const lastNavigatedRideIdRef = React.useRef<string | null>(null);
+
+  const handleCheckRideRequests = async () => {
+    setIsCheckingRequests(true);
+    try {
+      await Promise.all([refreshOffers(true), refreshActiveRide()]);
+    } finally {
+      setIsCheckingRequests(false);
+    }
+  };
+
+  // Auto-open active ride screen when a new ride (or accepted counter-offer) is assigned
+  useEffect(() => {
+    if (
+      activeRide &&
+      activeRide.status === 'DRIVER_ASSIGNED' &&
+      lastNavigatedRideIdRef.current !== activeRide.id
+    ) {
+      lastNavigatedRideIdRef.current = activeRide.id;
+      router.push({
+        pathname: '/(driver)/ride/[rideId]',
+        params: { rideId: activeRide.id },
+      });
+    }
+  }, [activeRide, router]);
 
   // Update telemetry freshness label every second
   useEffect(() => {
@@ -54,6 +107,11 @@ export function DriverHome() {
   const hasVehicle = !!driver?.currentVehicleId;
   const driverName = driver?.name || phone || 'Driver Partner';
 
+  const offerCardData = useMemo(
+    () => (activeOffer ? mapRideOfferDtoToCardData(activeOffer) : null),
+    [activeOffer],
+  );
+
   const handleGoOnline = async () => {
     setIsVerifyingOnline(true);
     try {
@@ -61,7 +119,18 @@ export function DriverHome() {
     } finally {
       setTimeout(() => {
         setIsVerifyingOnline(false);
-      }, 600);
+      }, 450);
+    }
+  };
+
+  const handleAcceptOffer = async (rideId: string) => {
+    const accepted = await acceptOffer(rideId);
+    if (accepted) {
+      lastNavigatedRideIdRef.current = accepted.id;
+      router.push({
+        pathname: '/(driver)/ride/[rideId]',
+        params: { rideId: accepted.id },
+      });
     }
   };
 
@@ -71,9 +140,14 @@ export function DriverHome() {
         {/* Top App Bar */}
         <View style={styles.topBar}>
           <View>
-            <Image source={require('@/assets/brand/cabzone-horizontal.png')} style={styles.brandLogo} resizeMode="contain" accessibilityLabel="Cabzone" />
+            <Image
+              source={require('@/assets/brand/cabzone-horizontal.png')}
+              style={styles.brandLogo}
+              resizeMode="contain"
+              accessibilityLabel="Cabzone"
+            />
             <Text style={styles.driverSub}>
-              {driver?.status === 'ACTIVE' ? 'Verified Driver' : 'Driver Partner'}
+              {driver?.status === 'ACTIVE' ? `Verified · ${driverName}` : driverName}
             </Text>
           </View>
           <View style={[styles.statusBadge, isOnline ? styles.statusOnline : styles.statusOffline]}>
@@ -86,21 +160,58 @@ export function DriverHome() {
           </View>
         </View>
 
-        {/* Today's KPI Metrics Strip (Section 8) */}
-        <View style={styles.kpiContainer}>
-          <View style={[styles.kpiCard, styles.earningsCard]}>
-            <Text style={styles.kpiLabel}>Today&apos;s Earnings</Text>
-            <Text style={styles.kpiValue}>₹{(todayEarningsPaise / 100).toFixed(0)}</Text>
-            <Text style={styles.kpiSub}>Cash and UPI rides</Text>
-          </View>
+        {/* Active Ride Recovery Banner */}
+        {activeRide ? (
+          <Pressable
+            style={styles.activeRideBanner}
+            onPress={() =>
+              router.push({
+                pathname: '/(driver)/ride/[rideId]',
+                params: { rideId: activeRide.id },
+              })
+            }
+            accessibilityRole="button"
+            accessibilityLabel="Resume active ride">
+            <View style={styles.activeRideLeft}>
+              <View style={styles.activeRidePulseDot} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.activeRideLabel}>
+                  ACTIVE RIDE · {activeRide.status.replace(/_/g, ' ')}
+                </Text>
+                <Text style={styles.activeRideRoute} numberOfLines={1}>
+                  {activeRide.pickup.address || 'Pickup'} → {activeRide.drop.address || 'Destination'}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.activeRideCta}>
+              <Text style={styles.activeRideCtaText}>Open →</Text>
+            </View>
+          </Pressable>
+        ) : null}
 
-          <View style={styles.kpiCard}>
+        {/* Today's KPI Metrics Strip */}
+        <View style={styles.kpiContainer}>
+          <Pressable
+            style={[styles.kpiCard, styles.earningsCard]}
+            onPress={() => router.push('/(driver)/(tabs)/earnings')}>
+            <Text style={styles.kpiLabel}>Today&apos;s Net Earnings</Text>
+            <Text style={styles.kpiValue}>₹{(todayEarningsPaise / 100).toFixed(0)}</Text>
+            <Text style={styles.kpiSub}>
+              Gross ₹{(todayGrossPaise / 100).toFixed(0)} · Direct Cash / UPI
+            </Text>
+          </Pressable>
+
+          <Pressable
+            style={styles.kpiCard}
+            onPress={() => router.push('/(driver)/(tabs)/rides')}>
             <Text style={styles.kpiLabel}>Completed Rides</Text>
             <Text style={styles.kpiValue}>{todayCompletedTrips}</Text>
             <Text style={styles.kpiSub}>Trips today</Text>
-          </View>
+          </Pressable>
 
-          <View style={styles.kpiCard}>
+          <Pressable
+            style={styles.kpiCard}
+            onPress={() => router.push('/(driver)/wallet')}>
             <Text style={styles.kpiLabel}>Wallet balance</Text>
             <Text
               style={[
@@ -110,49 +221,79 @@ export function DriverHome() {
               ₹{walletBalancePaise != null ? (walletBalancePaise / 100).toFixed(0) : '0'}
             </Text>
             <Text style={styles.kpiSub}>
-              {walletBalancePaise != null && walletBalancePaise < 0 ? 'Amount due' : 'Available'}
+              {walletBalancePaise != null && walletBalancePaise < 0 ? 'Commission due' : 'Available'}
             </Text>
-          </View>
+          </Pressable>
         </View>
 
-        {/* Backend Ineligibility / Error Banner */}
+        {/* Backend Ineligibility / Duty Error Banner */}
         {error ? (
           <View style={styles.errorBanner}>
             <View style={styles.errorIconBox}>
               <Ionicons name="alert-circle-outline" size={24} color={colors.error} />
             </View>
             <View style={styles.errorContent}>
-              <Text style={styles.errorTitle}>Cannot Go Online</Text>
+              <Text style={styles.errorTitle}>Availability Notice</Text>
               <Text style={styles.errorMessage}>{error}</Text>
             </View>
-            <Pressable onPress={clearError} style={styles.errorClose} accessibilityRole="button" accessibilityLabel="Dismiss error" hitSlop={12}>
+            <Pressable
+              onPress={clearError}
+              style={styles.errorClose}
+              accessibilityRole="button"
+              accessibilityLabel="Dismiss error"
+              hitSlop={12}>
               <Text style={styles.errorCloseText}>✕</Text>
             </Pressable>
           </View>
         ) : null}
 
-        {/* Main Availability Canvas (Section 8) */}
+        {/* Ride Conflict / Offer Notice Banner */}
+        {rideError ? (
+          <View style={styles.errorBanner}>
+            <View style={styles.errorIconBox}>
+              <Ionicons name="information-circle-outline" size={24} color={colors.brandBrown} />
+            </View>
+            <View style={styles.errorContent}>
+              <Text style={styles.errorTitle}>Ride Update</Text>
+              <Text style={styles.errorMessage}>{rideError}</Text>
+            </View>
+            <Pressable
+              onPress={clearRideError}
+              style={styles.errorClose}
+              accessibilityRole="button"
+              accessibilityLabel="Dismiss ride notice"
+              hitSlop={12}>
+              <Text style={styles.errorCloseText}>✕</Text>
+            </Pressable>
+          </View>
+        ) : null}
+
+        {/* Main Availability Canvas */}
         <View style={[styles.canvasCard, isOnline ? styles.canvasOnline : styles.canvasOffline]}>
           {isOnline ? (
             /* ONLINE VIEW */
             <View style={styles.onlineSection}>
               <View style={styles.radarRing}>
                 <View style={styles.radarPulse}>
-                  <Ionicons name="radio-outline" size={48} color={colors.darkNavy} />
+                  <Ionicons name="radio-outline" size={44} color={colors.white} />
                 </View>
               </View>
 
-              <Text style={styles.onlineTitle}>Searching for rides...</Text>
+              <Text style={styles.onlineTitle}>
+                {offers.length > 0
+                  ? `${offers.length} Active Ride Request${offers.length > 1 ? 's' : ''} Nearby!`
+                  : 'Searching for rides...'}
+              </Text>
               <Text style={styles.onlineSub}>
-                Stay in your service zone to receive ride offers. You will be alerted with sound when a request arrives.
+                Stay in your service zone to receive ride offers. You will see pickup distance and fare before accepting.
               </Text>
 
               {/* Keep the duty location state readable at a glance. */}
               <View style={styles.telemetryBox}>
                 <View style={styles.telemetryRow}>
-                  <Text style={styles.telemetryLabel}>Location</Text>
+                  <Text style={styles.telemetryLabel}>GPS Telemetry</Text>
                   <Text style={styles.telemetryVal}>
-                    {coords ? 'Connected' : 'Connecting'}
+                    {coords ? 'Connected · Live' : 'Acquiring GPS'}
                   </Text>
                 </View>
                 {__DEV__ ? (
@@ -163,6 +304,27 @@ export function DriverHome() {
                 ) : null}
               </View>
 
+              {/* Manual Check for Active Ride Requests Button */}
+              <Pressable
+                style={[styles.checkRequestsButton, isCheckingRequests && styles.buttonDisabled]}
+                disabled={isCheckingRequests}
+                accessibilityRole="button"
+                accessibilityLabel="Check for active ride requests"
+                onPress={handleCheckRideRequests}>
+                {isCheckingRequests ? (
+                  <ActivityIndicator size="small" color={colors.deepBrown} />
+                ) : (
+                  <>
+                    <Ionicons name="refresh-circle" size={20} color={colors.deepBrown} />
+                    <Text style={styles.checkRequestsButtonText}>
+                      {offers.length > 0
+                        ? `View Active Ride Requests (${offers.length})`
+                        : 'Check for Active Ride Requests'}
+                    </Text>
+                  </>
+                )}
+              </Pressable>
+
               {/* GO OFFLINE Action Button */}
               <Pressable
                 style={[styles.offlineButton, isToggling && styles.buttonDisabled]}
@@ -172,7 +334,7 @@ export function DriverHome() {
                 accessibilityState={{ disabled: isToggling, busy: isToggling }}
                 onPress={goOffline}>
                 {isToggling ? (
-                  <ActivityIndicator color="#dc2626" />
+                  <ActivityIndicator color={colors.deepBrown} />
                 ) : (
                   <Text style={styles.offlineButtonText}>GO OFFLINE</Text>
                 )}
@@ -182,7 +344,7 @@ export function DriverHome() {
             /* OFFLINE VIEW */
             <View style={styles.offlineSection}>
               <View style={styles.sleepIconCircle}>
-                <Ionicons name="car-sport-outline" size={48} color={colors.darkNavy} />
+                <Ionicons name="car-sport-outline" size={44} color={colors.deepBrown} />
               </View>
 
               <Text style={styles.offlineTitle}>You are currently OFFLINE</Text>
@@ -228,11 +390,11 @@ export function DriverHome() {
           )}
         </View>
 
-        {/* Flow 15: Going Online Verification Modal / State */}
+        {/* Going Online Verification Modal / State */}
         {isVerifyingOnline ? (
           <View style={styles.verifyingOverlay}>
             <View style={styles.verifyingCard}>
-              <ActivityIndicator size="large" color="#12304A" style={{ marginBottom: 16 }} />
+              <ActivityIndicator size="large" color={colors.deepBrown} style={{ marginBottom: 16 }} />
               <Text style={styles.verifyingTitle}>Getting you online...</Text>
               <View style={styles.verifyingList}>
                 <Text style={styles.verifyingItem}>Checking account, vehicle, location and wallet</Text>
@@ -241,30 +403,36 @@ export function DriverHome() {
           </View>
         ) : null}
 
-        {/* Driver Profile Footer */}
-        <View style={styles.profileFooter}>
-          <View style={styles.profileHeader}>
-            <View>
-              <Text style={styles.footerName}>{driverName}</Text>
-              <Text style={styles.footerPhone}>{phone}</Text>
-            </View>
-            <View style={styles.ratingPill}>
-              <Text style={styles.ratingText}>
-                {driver?.ratingAverage != null ? driver.ratingAverage.toFixed(1) : '5.0'} ⭐
+        {/* Dev Location Simulation Opt-In (Only in __DEV__) */}
+        {__DEV__ ? (
+          <View style={styles.devSimBox}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.devSimTitle}>Dev Mode: Simulate Siliguri GPS</Text>
+              <Text style={styles.devSimSub}>
+                Fallback to Siliguri center when running on emulator/web without hardware GPS.
               </Text>
             </View>
+            <Switch
+              value={useDevSimulatedLocation}
+              onValueChange={setUseDevSimulatedLocation}
+              trackColor={{ false: '#CBD5E1', true: colors.amber }}
+              thumbColor={colors.deepBrown}
+            />
           </View>
-
-          <Pressable
-            style={styles.logoutBtn}
-            onPress={logout}
-            accessibilityRole="button"
-            accessibilityLabel="Log out"
-            disabled={isAuthLoading || isToggling}>
-            <Text style={styles.logoutBtnText}>Log Out Account</Text>
-          </Pressable>
-        </View>
+        ) : null}
       </ScrollView>
+
+      {/* Incoming Ride Offer Sheet */}
+      <CabzonRideOffer
+        key={offerCardData?.rideId ?? 'no-offer'}
+        offer={offerCardData}
+        onAccept={handleAcceptOffer}
+        onDecline={ignoreOffer}
+        onCounter={counterOffer}
+        counteredFarePaise={activeOffer ? (counters[activeOffer.rideId] ?? null) : null}
+        rejectedFarePaise={activeOffer ? (rejectedCounters[activeOffer.rideId] ?? null) : null}
+        isAccepting={isMutatingRide}
+      />
     </SafeAreaView>
   );
 }
@@ -276,7 +444,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 20,
-    paddingBottom: 40,
+    paddingBottom: 120,
   },
   topBar: {
     flexDirection: 'row',
@@ -302,20 +470,20 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   statusOnline: {
-    backgroundColor: '#dcfce7',
+    backgroundColor: '#DCFCE7',
     borderWidth: 1,
-    borderColor: '#86efac',
+    borderColor: '#86EFAC',
   },
   statusOffline: {
-    backgroundColor: '#f1f5f9',
+    backgroundColor: colors.lightCream,
     borderWidth: 1,
-    borderColor: '#cbd5e1',
+    borderColor: colors.warmBeige,
   },
   statusDot: {
     fontSize: typography.sizes.xs,
   },
   statusDotOnline: {
-    color: '#16a34a',
+    color: '#16A34A',
   },
   statusDotOffline: {
     color: colors.secondary,
@@ -326,10 +494,55 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   statusTextOnline: {
-    color: '#15803d',
+    color: '#15803D',
   },
   statusTextOffline: {
-    color: '#475569',
+    color: colors.deepBrown,
+  },
+  activeRideBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.deepBrown,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    gap: 12,
+  },
+  activeRideLeft: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  activeRidePulseDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: colors.amber,
+  },
+  activeRideLabel: {
+    fontSize: typography.sizes.xs,
+    fontWeight: '800',
+    color: colors.amber,
+    letterSpacing: 0.5,
+  },
+  activeRideRoute: {
+    fontSize: typography.sizes.sm,
+    fontWeight: '700',
+    color: colors.white,
+    marginTop: 2,
+  },
+  activeRideCta: {
+    backgroundColor: colors.amber,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+  },
+  activeRideCtaText: {
+    fontSize: typography.sizes.xs,
+    fontWeight: '800',
+    color: colors.deepBrown,
   },
   kpiContainer: {
     flexDirection: 'row',
@@ -349,6 +562,7 @@ const styles = StyleSheet.create({
   earningsCard: {
     flexBasis: '100%',
     flexGrow: 0,
+    backgroundColor: colors.cream,
   },
   kpiLabel: {
     fontSize: typography.sizes.label,
@@ -360,10 +574,10 @@ const styles = StyleSheet.create({
   kpiValue: {
     fontSize: 24,
     fontWeight: '800',
-    color: colors.darkNavy,
+    color: colors.deepBrown,
   },
   kpiNegative: {
-    color: '#dc2626',
+    color: colors.error,
   },
   kpiSub: {
     fontSize: typography.sizes.xs,
@@ -373,9 +587,9 @@ const styles = StyleSheet.create({
   errorBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fef2f2',
+    backgroundColor: '#FEF2F2',
     borderWidth: 1,
-    borderColor: '#fca5a5',
+    borderColor: '#FCA5A5',
     borderRadius: 12,
     padding: 12,
     marginBottom: 16,
@@ -383,20 +597,17 @@ const styles = StyleSheet.create({
   errorIconBox: {
     marginRight: 10,
   },
-  errorIcon: {
-    fontSize: 20,
-  },
   errorContent: {
     flex: 1,
   },
   errorTitle: {
     fontSize: typography.sizes.sm,
     fontWeight: '700',
-    color: '#991b1b',
+    color: '#991B1B',
   },
   errorMessage: {
     fontSize: typography.sizes.xs,
-    color: '#b91c1c',
+    color: '#B91C1C',
     marginTop: 2,
     lineHeight: 16,
   },
@@ -405,27 +616,27 @@ const styles = StyleSheet.create({
   },
   errorCloseText: {
     fontSize: typography.sizes.label,
-    color: '#991b1b',
+    color: '#991B1B',
     fontWeight: '700',
   },
   canvasCard: {
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.white,
     borderRadius: 20,
     padding: 24,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: colors.border,
     marginBottom: 16,
-    shadowColor: colors.darkNavy,
+    shadowColor: colors.deepBrown,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.05,
     shadowRadius: 12,
   },
   canvasOnline: {
-    borderColor: '#86efac',
-    backgroundColor: '#f0fdf4',
+    borderColor: '#86EFAC',
+    backgroundColor: '#F0FDF4',
   },
   canvasOffline: {
-    borderColor: '#e2e8f0',
+    borderColor: colors.border,
   },
   onlineSection: {
     alignItems: 'center',
@@ -434,7 +645,7 @@ const styles = StyleSheet.create({
     width: 88,
     height: 88,
     borderRadius: 44,
-    backgroundColor: '#dcfce7',
+    backgroundColor: '#DCFCE7',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
@@ -443,33 +654,30 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: '#22c55e',
+    backgroundColor: '#16A34A',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  radarIcon: {
-    fontSize: typography.sizes.xxl,
   },
   onlineTitle: {
     fontSize: 19,
     fontWeight: '800',
-    color: '#15803d',
+    color: '#15803D',
     marginBottom: 6,
   },
   onlineSub: {
     fontSize: typography.sizes.sm,
-    color: '#475569',
+    color: colors.secondary,
     textAlign: 'center',
     lineHeight: 18,
     marginBottom: 20,
   },
   telemetryBox: {
     width: '100%',
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.white,
     borderRadius: 12,
     padding: 12,
     borderWidth: 1,
-    borderColor: '#bbf7d0',
+    borderColor: '#BBF7D0',
     marginBottom: 20,
     gap: 6,
   },
@@ -486,23 +694,40 @@ const styles = StyleSheet.create({
   telemetryVal: {
     fontSize: typography.sizes.xs,
     fontWeight: '700',
-    color: '#1e293b',
+    color: colors.deepBrown,
   },
-  telemetryLive: {
-    color: '#16a34a',
+  checkRequestsButton: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: colors.amber,
+    borderRadius: 14,
+    paddingVertical: 13,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: colors.deepBrown,
+  },
+  checkRequestsButtonText: {
+    fontSize: typography.sizes.sm,
+    fontWeight: '800',
+    color: colors.deepBrown,
   },
   offlineButton: {
     width: '100%',
-    backgroundColor: colors.lightBlue,
-    borderRadius: 16,
-    paddingVertical: 14,
+    backgroundColor: colors.warmBeige,
+    borderRadius: 14,
+    paddingVertical: 15,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.softAmber,
   },
   offlineButtonText: {
     fontSize: typography.sizes.base,
-    fontWeight: '600',
-    color: colors.darkNavy,
+    fontWeight: '800',
+    color: colors.deepBrown,
   },
   offlineSection: {
     alignItems: 'center',
@@ -511,18 +736,17 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: '#f1f5f9',
+    backgroundColor: colors.lightCream,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
-  },
-  sleepIcon: {
-    fontSize: 36,
+    borderWidth: 1,
+    borderColor: colors.warmBeige,
   },
   offlineTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#0f172a',
+    color: colors.deepBrown,
     marginBottom: 6,
   },
   offlineSub: {
@@ -534,11 +758,13 @@ const styles = StyleSheet.create({
   },
   checklist: {
     width: '100%',
-    backgroundColor: '#f8fafc',
-    borderRadius: 10,
+    backgroundColor: colors.cream,
+    borderRadius: 12,
     padding: 12,
     marginBottom: 20,
     gap: 6,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   checkItem: {
     flexDirection: 'row',
@@ -548,22 +774,25 @@ const styles = StyleSheet.create({
   checkOk: {
     fontSize: typography.sizes.sm,
     fontWeight: '800',
-    color: '#16a34a',
+    color: '#16A34A',
   },
   checkWait: {
     fontSize: typography.sizes.xs,
-    color: '#f59e0b',
+    color: '#F59E0B',
   },
   checkText: {
     fontSize: typography.sizes.xs,
-    color: '#334155',
-    fontWeight: '500',
+    color: colors.deepBrown,
+    fontWeight: '600',
   },
   onlineButton: {
     width: '100%',
-    borderRadius: 8,
-    overflow: 'hidden',
-    shadowColor: colors.darkNavy,
+    backgroundColor: colors.amber,
+    borderRadius: 14,
+    paddingVertical: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: colors.deepBrown,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.12,
     shadowRadius: 6,
@@ -571,65 +800,20 @@ const styles = StyleSheet.create({
   },
   onlineButtonText: {
     fontSize: typography.sizes.base,
-    fontWeight: '600',
+    fontWeight: '800',
     color: colors.deepBrown,
   },
   buttonDisabled: {
     opacity: 0.6,
   },
-  profileFooter: {
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-  },
-  profileHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  footerName: {
-    fontSize: typography.sizes.base,
-    fontWeight: '800',
-    color: '#0f172a',
-  },
-  footerPhone: {
-    fontSize: typography.sizes.xs,
-    color: colors.secondary,
-    marginTop: 2,
-  },
-  ratingPill: {
-    backgroundColor: '#fef3c7',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  ratingText: {
-    fontSize: typography.sizes.xs,
-    fontWeight: '800',
-    color: '#b45309',
-  },
-  logoutBtn: {
-    borderTopWidth: 1,
-    borderTopColor: '#f1f5f9',
-    paddingTop: 12,
-    alignItems: 'center',
-  },
-  logoutBtnText: {
-    fontSize: typography.sizes.sm,
-    fontWeight: '600',
-    color: '#94a3b8',
-  },
   verifyingOverlay: {
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.white,
     borderRadius: 20,
     padding: 24,
     borderWidth: 1.5,
-    borderColor: '#bbf7d0',
+    borderColor: '#BBF7D0',
     marginBottom: 20,
-    shadowColor: '#16a34a',
+    shadowColor: '#16A34A',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
     shadowRadius: 12,
@@ -641,7 +825,7 @@ const styles = StyleSheet.create({
   verifyingTitle: {
     fontSize: 17,
     fontWeight: '800',
-    color: colors.darkNavy,
+    color: colors.deepBrown,
     marginBottom: 14,
   },
   verifyingList: {
@@ -653,6 +837,27 @@ const styles = StyleSheet.create({
   verifyingItem: {
     fontSize: typography.sizes.label,
     fontWeight: '700',
-    color: '#15803d',
+    color: '#15803D',
+  },
+  devSimBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.cream,
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: 12,
+  },
+  devSimTitle: {
+    fontSize: typography.sizes.sm,
+    fontWeight: '800',
+    color: colors.deepBrown,
+  },
+  devSimSub: {
+    fontSize: typography.sizes.xs,
+    color: colors.secondary,
+    marginTop: 2,
   },
 });

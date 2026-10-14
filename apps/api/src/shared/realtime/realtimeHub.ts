@@ -12,6 +12,7 @@ export type VerifyToken = (token: string) => Promise<AuthContext>;
 export const WS_PATH = '/ws';
 const HEARTBEAT_MS = 30_000;
 const SHARED_CHANNEL = 'cabzone:realtime';
+const socketLeaseKey = (userId: string) => `cabzone:realtime:sockets:${userId}`;
 
 /**
  * In-process WebSocket hub keyed by user id. One user may hold several sockets (multiple devices).
@@ -20,6 +21,7 @@ const SHARED_CHANNEL = 'cabzone:realtime';
 export class RealtimeHub implements RealtimePublisherPort {
   private readonly wss = new WebSocketServer({ noServer: true });
   private readonly sockets = new Map<string, Set<WebSocket>>();
+  private readonly socketIds = new Map<WebSocket, string>();
   private heartbeat: NodeJS.Timeout | undefined;
   private readonly instanceId = newUuid();
   private publisher: Redis | undefined;
@@ -66,7 +68,7 @@ export class RealtimeHub implements RealtimePublisherPort {
     });
 
     this.heartbeat = setInterval(() => {
-      for (const set of this.sockets.values()) {
+      for (const [userId, set] of this.sockets) {
         for (const ws of set) {
           if ((ws as WebSocket & { alive?: boolean }).alive === false) {
             ws.terminate();
@@ -74,6 +76,7 @@ export class RealtimeHub implements RealtimePublisherPort {
           }
           (ws as WebSocket & { alive?: boolean }).alive = false;
           ws.ping();
+          this.refreshSocketLease(userId, ws);
         }
       }
     }, HEARTBEAT_MS);
@@ -93,6 +96,8 @@ export class RealtimeHub implements RealtimePublisherPort {
       this.sockets.set(auth.userId, set);
     }
     set.add(ws);
+    this.socketIds.set(ws, newUuid());
+    this.refreshSocketLease(auth.userId, ws);
 
     ws.on('message', (raw) => {
       // Clients only send pings; everything transactional goes through REST (contracts §12).
@@ -106,6 +111,12 @@ export class RealtimeHub implements RealtimePublisherPort {
     ws.on('close', () => {
       set.delete(ws);
       if (set.size === 0) this.sockets.delete(auth.userId);
+      const socketId = this.socketIds.get(ws);
+      this.socketIds.delete(ws);
+      if (socketId && this.publisher) {
+        void this.publisher.zrem(socketLeaseKey(auth.userId), socketId)
+          .catch((err: unknown) => logger.warn({ err: String(err) }, 'socket lease removal failed'));
+      }
     });
     ws.on('error', (err) => logger.debug({ err: String(err) }, 'ws error'));
 
@@ -144,8 +155,24 @@ export class RealtimeHub implements RealtimePublisherPort {
     }
   }
 
-  isConnected(userId: string): boolean {
-    return (this.sockets.get(userId)?.size ?? 0) > 0;
+  private refreshSocketLease(userId: string, ws: WebSocket): void {
+    const socketId = this.socketIds.get(ws);
+    if (!socketId || !this.publisher || ws.readyState !== WebSocket.OPEN) return;
+    const key = socketLeaseKey(userId);
+    void this.publisher.multi().zadd(key, Date.now() + HEARTBEAT_MS * 2, socketId)
+      .expire(key, Math.ceil(HEARTBEAT_MS * 3 / 1000)).exec()
+      .catch((err: unknown) => logger.warn({ err: String(err) }, 'socket lease refresh failed'));
+  }
+
+  async isConnected(userId: string): Promise<boolean> {
+    if ((this.sockets.get(userId)?.size ?? 0) > 0) return true;
+    if (!this.publisher) return false;
+    try {
+      return (await this.publisher.zcount(socketLeaseKey(userId), Date.now(), '+inf')) > 0;
+    } catch {
+      // shortcut: duplicate push is preferable to missing a background alert when Redis is down.
+      return false;
+    }
   }
 
   close(): void {

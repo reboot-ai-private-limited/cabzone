@@ -25,6 +25,31 @@ class RedisSubscriberFake extends EventEmitter {
 
 class RedisPubSubFake {
   readonly subscribers: RedisSubscriberFake[] = [];
+  readonly leases = new Map<string, Map<string, number>>();
+
+  multi() {
+    let key = '';
+    let member = '';
+    let expiresAt = 0;
+    return {
+      zadd: (nextKey: string, nextExpiry: number, nextMember: string) => {
+        key = nextKey; member = nextMember; expiresAt = nextExpiry;
+        return { expire: () => ({ exec: async () => {
+          const entries = this.leases.get(key) ?? new Map<string, number>();
+          entries.set(member, expiresAt);
+          this.leases.set(key, entries);
+        } }) };
+      },
+    };
+  }
+
+  async zrem(key: string, member: string): Promise<number> {
+    return this.leases.get(key)?.delete(member) ? 1 : 0;
+  }
+
+  async zcount(key: string, since: number): Promise<number> {
+    return [...(this.leases.get(key)?.values() ?? [])].filter((expiry) => expiry >= since).length;
+  }
 
   duplicate(): RedisSubscriberFake {
     const subscriber = new RedisSubscriberFake();
@@ -98,6 +123,7 @@ describe('Realtime delivery across API instances', () => {
     const localShared = await first.connect('shared-user');
     const remoteShared = await second.connect('shared-user');
     const unrelated = await second.connect('other-user');
+    expect(await first.hub.isConnected('remote-user')).toBe(true);
 
     first.hub.publishToUser('remote-user', 'ride.remote', { rideId: 'remote-ride' });
     expect(await remote.waitFor('ride.remote')).toMatchObject({ data: { rideId: 'remote-ride' } });

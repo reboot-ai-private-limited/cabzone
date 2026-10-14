@@ -12,6 +12,8 @@ export interface RidesRouterDeps {
   getRide: RequestHandler;
   getRideEvents: RequestHandler;
   acceptRide: RequestHandler;
+  driverCounter: RequestHandler;
+  respondCounter: RequestHandler;
   driverEnRoute: RequestHandler;
   driverArrived: RequestHandler;
   startRide: RequestHandler;
@@ -39,6 +41,8 @@ export function buildRidesRouter(deps: RidesRouterDeps): Router {
 
   // Driver
   router.post('/:id/accept', deps.requireDriver, deps.acceptRide);
+  router.post('/:id/counter', deps.requireDriver, deps.driverCounter);
+  router.post('/:id/counter/respond', deps.requireRider, deps.respondCounter);
   router.post('/:id/en-route', deps.requireDriver, deps.driverEnRoute);
   router.post('/:id/arrived', deps.requireDriver, deps.driverArrived);
   router.post('/:id/start', deps.requireDriver, deps.startRide);
