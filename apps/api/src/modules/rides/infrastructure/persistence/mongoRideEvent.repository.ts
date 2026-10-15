@@ -31,7 +31,7 @@ export class MongoRideEventRepository implements RideEventRepositoryPort {
       actorId: doc.actor_id,
       previousStatus: doc.previous_status,
       newStatus: doc.new_status,
-      metadata: doc.metadata,
+      metadata: doc.metadata ?? {},
       createdAt: doc.created_at,
     }));
   }

@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { pendingCounters } from '../src/modules/rides/application/useCases/negotiateFare.usecase.js';
+import type { RideEventEntity } from '../src/modules/rides/domain/rideEvent.entity.js';
 import {
   canCancelRide,
   canTransitionRide,
@@ -47,6 +49,14 @@ describe('Ride State Machine Invariants', () => {
 });
 
 describe('Fare Negotiation Invariants', () => {
+  it('ignores legacy events without metadata when deriving counters', () => {
+    const legacy = {
+      eventType: 'RIDE_CREATED',
+      metadata: undefined,
+      createdAt: new Date(),
+    } as unknown as RideEventEntity;
+    expect(pendingCounters([legacy])).toEqual([]);
+  });
   it('validates proposed fare against negotiation floor and ceiling bounds', () => {
     const bounds = { floorPaise: 8000, ceilingPaise: 15000 };
 

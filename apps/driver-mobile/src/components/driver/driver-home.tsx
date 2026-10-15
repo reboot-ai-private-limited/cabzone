@@ -1,5 +1,5 @@
 import { SafeAreaView } from 'react-native-safe-area-context';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -14,10 +14,6 @@ import { useRouter } from 'expo-router';
 import { useAuth } from '@/context/auth-context';
 import { useDuty } from '@/context/duty-context';
 import { useRide } from '@/context/ride-context';
-import {
-  CabzonRideOffer,
-  mapRideOfferDtoToCardData,
-} from '@/components/cards/cabzon-ride-offer';
 import { colors, typography } from '@/design-system';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -44,18 +40,11 @@ export function DriverHome() {
 
   const {
     offers,
-    activeOffer,
     activeRide,
-    isMutatingRide,
     rideError,
     clearRideError,
     refreshOffers,
-     refreshActiveRide,
-    acceptOffer,
-    counters,
-    rejectedCounters,
-    counterOffer,
-    ignoreOffer,
+    refreshActiveRide,
   } = useRide();
 
   const [timeAgo, setTimeAgo] = useState('just now');
@@ -107,11 +96,6 @@ export function DriverHome() {
   const hasVehicle = !!driver?.currentVehicleId;
   const driverName = driver?.name || phone || 'Driver Partner';
 
-  const offerCardData = useMemo(
-    () => (activeOffer ? mapRideOfferDtoToCardData(activeOffer) : null),
-    [activeOffer],
-  );
-
   const handleGoOnline = async () => {
     setIsVerifyingOnline(true);
     try {
@@ -120,17 +104,6 @@ export function DriverHome() {
       setTimeout(() => {
         setIsVerifyingOnline(false);
       }, 450);
-    }
-  };
-
-  const handleAcceptOffer = async (rideId: string) => {
-    const accepted = await acceptOffer(rideId);
-    if (accepted) {
-      lastNavigatedRideIdRef.current = accepted.id;
-      router.push({
-        pathname: '/(driver)/ride/[rideId]',
-        params: { rideId: accepted.id },
-      });
     }
   };
 
@@ -421,18 +394,6 @@ export function DriverHome() {
           </View>
         ) : null}
       </ScrollView>
-
-      {/* Incoming Ride Offer Sheet */}
-      <CabzonRideOffer
-        key={offerCardData?.rideId ?? 'no-offer'}
-        offer={offerCardData}
-        onAccept={handleAcceptOffer}
-        onDecline={ignoreOffer}
-        onCounter={counterOffer}
-        counteredFarePaise={activeOffer ? (counters[activeOffer.rideId] ?? null) : null}
-        rejectedFarePaise={activeOffer ? (rejectedCounters[activeOffer.rideId] ?? null) : null}
-        isAccepting={isMutatingRide}
-      />
     </SafeAreaView>
   );
 }

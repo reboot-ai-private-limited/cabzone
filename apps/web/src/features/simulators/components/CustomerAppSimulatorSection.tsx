@@ -11,6 +11,7 @@ import type {
   VehicleCategory,
   WalletSummaryDto,
 } from '@cabzone/contracts';
+import { haversineDistanceM } from '@cabzone/geo';
 import {
   Badge,
   Button,
@@ -53,6 +54,7 @@ import {
 import { walletsApi, type WalletViewDto } from '@/lib/api/endpoints/wallets';
 import { useZones } from '@/features/zones/hooks/useZones';
 import { formatPaise } from '@/lib/format';
+import { getPendingCounters } from '../lib/pendingCounters';
 
 const TripPointMap = dynamic(
   () => import('@/features/quotes/components/TripPointMap').then((m) => m.TripPointMap),
@@ -360,51 +362,6 @@ export function CustomerAppSimulatorSection() {
     }
   }, [selectedDriver?.driverId, selectedDriver?.livePresence?.vehicleCategory, selectedDriver?.vehicleCategory, vehicleCategory]);
 
-  // Put Selected Driver ONLINE at Customer Pickup GPS (1-click helper if mobile app is offline/disconnected)
-  const handleForceDriverOnline = async (silent = false): Promise<boolean> => {
-    if (!selectedDriver?.phone || selectedDriver.phone === '—') {
-      if (!silent) setBannerError('Select a registered driver with a valid phone number first.');
-      return false;
-    }
-    setDriverActionLoading(true);
-    if (!silent) setBannerError(null);
-    try {
-      const driverToken = await ensureSimDriverToken(selectedDriver.phone);
-      const targetLat = pickup?.lat ?? DEFAULT_SILIGURI_PICKUP.lat;
-      const targetLng = pickup?.lng ?? DEFAULT_SILIGURI_PICKUP.lng;
-      try {
-        await ridesApi.setDriverStatus(
-          { status: 'ONLINE', lat: targetLat, lng: targetLng },
-          driverToken,
-        );
-      } catch {
-        // Auto test-approve if driver profile isn't approved yet, then retry
-        await ridesApi.testApproveDriver(driverToken);
-        await ridesApi.setDriverStatus(
-          { status: 'ONLINE', lat: targetLat, lng: targetLng },
-          driverToken,
-        );
-      }
-      await refreshFleetAndDrivers();
-      if (selectedDriverId) await refreshSelectedDriverInspector(selectedDriverId);
-      if (!silent) {
-        setBannerSuccess(
-          `${selectedDriver.name} (${selectedDriver.phone}) is now ONLINE at (${targetLat.toFixed(4)}, ${targetLng.toFixed(4)}) and ready to receive offers!`,
-        );
-      }
-      return true;
-    } catch (err) {
-      if (!silent) {
-        setBannerError(
-          err instanceof Error ? err.message : 'Failed to put selected driver online',
-        );
-      }
-      return false;
-    } finally {
-      setDriverActionLoading(false);
-    }
-  };
-
   // Snap Customer Pickup right next to the selected online driver's GPS
   const handleSnapToDriver = () => {
     const live = selectedDriver?.livePresence;
@@ -415,7 +372,7 @@ export function CustomerAppSimulatorSection() {
       setDrop(DEFAULT_SILIGURI_DROP);
       setQuote(null);
       setBannerSuccess(
-        'Driver is currently offline; snapped pickup to Siliguri default coordinates (26.7271, 88.4334). Click "Put Driver Online Here" to bring them online!',
+        'Driver is currently offline; snapped pickup to Siliguri default coordinates (26.7271, 88.4334). Tap GO ONLINE in the Driver App before booking.',
       );
       return;
     }
@@ -469,26 +426,22 @@ export function CustomerAppSimulatorSection() {
     setBannerError(null);
     setBannerSuccess(null);
     try {
-      // Ensure selected driver is online & wallet-funded so the broadcast never lands on 0 drivers
-      if (selectedDriver && !selectedDriver.driverId.startsWith('sim-driver-')) {
-        if ((driverMetrics.balancePaise ?? 0) <= 0) {
-          await walletsApi
-            .adjust({
-              driverId: selectedDriver.driverId,
-              type: 'CREDIT',
-              amountPaise: 50000,
-              reason: 'Auto top-up (+₹500) before ride broadcast',
-              idempotencyKey: `sim_auto_topup_${selectedDriver.driverId}_${Date.now()}`,
-            })
-            .catch(() => null);
-        }
-        if (!selectedDriver.livePresence) {
-          await handleForceDriverOnline(true);
-        }
+      if (!selectedDriver || selectedDriver.driverId.startsWith('sim-driver-')) {
+        throw new Error('Select the registered driver account signed in on the phone before requesting a ride.');
+      }
+      // This simulator targets the selected phone; its own Go Online action must own duty state.
+      const presence = selectedDriver.livePresence;
+      if (!presence || presence.status !== 'ONLINE' || Date.now() - new Date(presence.locationUpdatedAt).getTime() > 60_000) {
+        throw new Error('Selected driver is offline or GPS is stale. Tap GO ONLINE in the Driver App, wait for live GPS, then book the ride.');
+      }
+      if (pickup && haversineDistanceM(pickup, presence) > 5_000) {
+        throw new Error('Pickup is more than 5 km from the selected driver. Use Snap Pickup to Driver GPS, then recalculate the quote.');
+      }
+      if ((driverMetrics.balancePaise ?? 0) <= 0) {
+        throw new Error('Selected driver wallet has no positive balance. Credit it in the simulator before booking.');
       }
 
-      const driverCat =
-        selectedDriver?.livePresence?.vehicleCategory ?? selectedDriver?.vehicleCategory;
+      const driverCat = presence.vehicleCategory;
       const effectiveCategory = driverCat ?? vehicleCategory;
       if (effectiveCategory !== vehicleCategory) {
         setVehicleCategory(effectiveCategory);
@@ -526,7 +479,7 @@ export function CustomerAppSimulatorSection() {
       const events = await ridesApi.events(created.id, riderToken).catch(() => []);
       setRideEvents(events);
       setBannerSuccess(
-        `Ride offer #${created.id.slice(0, 8)} broadcast for ${activeQuote.vehicleCategory} at ${formatPaise(fareToOffer)}! Accept or counter on your Driver App — or use the Driver Simulator buttons on the right.`,
+        `Ride #${created.id.slice(0, 8)} created for ${activeQuote.vehicleCategory} at ${formatPaise(fareToOffer)}. An offer appears only for an eligible online driver within 5 km of pickup, with matching vehicle and a funded wallet. Check the Driver App or dispatch log for the recipient count.`,
       );
     } catch (err) {
       const msg =
@@ -651,18 +604,7 @@ export function CustomerAppSimulatorSection() {
   };
 
   // Driver counter-offers still waiting for the customer's answer (latest per driver).
-  const pendingCounters = useMemo(() => {
-    const pending = new Map<string, number>();
-    for (const e of [...rideEvents].sort((a, b) => a.createdAt.localeCompare(b.createdAt))) {
-      const driverId = String(e.metadata['driverId'] ?? '');
-      if (e.eventType === 'FARE_COUNTER_PROPOSED') {
-        pending.set(driverId, Number(e.metadata['proposedFarePaise']));
-      } else if (e.eventType === 'FARE_COUNTER_ACCEPTED' || e.eventType === 'FARE_COUNTER_REJECTED') {
-        pending.delete(driverId);
-      }
-    }
-    return [...pending].map(([driverId, farePaise]) => ({ driverId, farePaise }));
-  }, [rideEvents]);
+  const pendingCounters = useMemo(() => getPendingCounters(rideEvents), [rideEvents]);
 
   const handleCounterResponse = async (driverId: string, action: 'ACCEPTED' | 'REJECTED') => {
     if (!activeRide) return;
@@ -900,18 +842,6 @@ export function CustomerAppSimulatorSection() {
                 }))}
               />
             </div>
-
-            <Button
-              variant="secondary"
-              size="sm"
-              loading={driverActionLoading}
-              disabled={!selectedDriver?.phone}
-              onClick={() => void handleForceDriverOnline(false)}
-              title="Put selected driver ONLINE at current customer pickup coordinates"
-            >
-              <Radio className="size-3.5 text-success" />
-              <span>Put Driver Online Here</span>
-            </Button>
 
             <Button
               variant="secondary"
@@ -1354,7 +1284,7 @@ export function CustomerAppSimulatorSection() {
               <Sparkles className="size-7 text-text-subtle" />
               <p className="text-sm font-medium text-text">Ready to Test Driver App Dispatch</p>
               <p className="text-xs text-text-subtle max-w-xs">
-                1. Go <strong>ONLINE</strong> on the Driver App (or click <strong>Put Driver Online Here</strong> above).<br />
+                1. Tap <strong>GO ONLINE</strong> on the Driver App and wait for live GPS.<br />
                 2. Click <strong>Broadcast Offer</strong> on the left.<br />
                 3. Accept the offer on the Driver App (or here) to reveal the <strong>4-digit Pickup OTP</strong>!
               </p>

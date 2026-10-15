@@ -63,6 +63,7 @@ interface RideContextType {
 }
 
 const RideContext = createContext<RideContextType | undefined>(undefined);
+const OFFER_CHECK_ERROR = 'Unable to check ride requests';
 
 export function isRideOfferValid(offer: RideOfferDto): boolean {
   if (!offer.expiresAt) return true;
@@ -203,6 +204,7 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
       try {
         const rawOffers = await dispatchApi.listOffers(token);
         const valid = rawOffers.filter(isRideOfferValid);
+        setRideError((previous) => previous?.startsWith(OFFER_CHECK_ERROR) ? null : previous);
 
         // Alert driver with sound/vibration/banner when a brand-new offer arrives
         for (const offer of valid) {
@@ -258,8 +260,8 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
             void notifyCounterResponseLocal(assigned.id, true, counters[assigned.id]!);
           }
         }
-      } catch {
-        // ignore transient offer polling error
+      } catch (err: unknown) {
+        setRideError(`${OFFER_CHECK_ERROR}: ${err instanceof Error ? err.message : 'Check your connection and try again.'}`);
       } finally {
         inFlightOffersRef.current = false;
       }

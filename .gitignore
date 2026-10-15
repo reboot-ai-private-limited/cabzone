@@ -20,6 +20,7 @@ out/
 coverage/
 
 .DS_Store
+.idea/
 *.log
 
 # Graphify internal cache and local machine config

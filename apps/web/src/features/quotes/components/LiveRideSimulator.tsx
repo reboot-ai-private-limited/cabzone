@@ -419,7 +419,7 @@ export function LiveRideSimulator({ quote }: LiveRideSimulatorProps) {
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-warning opacity-75" />
                     <span className="relative inline-flex rounded-full size-2.5 bg-warning" />
                   </span>
-                  <span>Broadcasting Offer to Nearby Drivers</span>
+                  <span>Waiting for Eligible Nearby Drivers</span>
                 </div>
                 <div className="flex items-center gap-1 text-[11px] text-text-subtle font-mono">
                   <Clock className="size-3" />
@@ -427,7 +427,7 @@ export function LiveRideSimulator({ quote }: LiveRideSimulatorProps) {
                 </div>
               </div>
               <p className="text-[11px] text-text-subtle">
-                The trip offer is currently being broadcast across the driver fleet. Click below to simulate instant acceptance by the verified driver.
+                A driver receives this offer only when online, eligible, within 5 km of pickup, and using the matching vehicle category. Check the dispatch log for the recipient count. You can also simulate acceptance below.
               </p>
 
               <Button
