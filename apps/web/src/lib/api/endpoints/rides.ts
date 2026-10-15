@@ -54,7 +54,7 @@ export interface RideEventDto {
   actorId: string | null;
   previousStatus: RideStatus | null;
   newStatus: RideStatus | null;
-  metadata: Record<string, unknown>;
+  metadata?: Record<string, unknown> | null;
   createdAt: string;
 }
 
@@ -67,6 +67,7 @@ export const ACTIVE_RIDE_STATUSES: RideStatus[] = [
 ];
 
 let cachedRiderSession: { phoneE164: string; accessToken: string; expiresAt: number } | null = null;
+const SIMULATOR_OTP = process.env.NEXT_PUBLIC_SIMULATOR_OTP ?? '000000';
 
 /**
  * Authenticates a dedicated test Customer (RIDER) session in memory so Customer Simulator actions
@@ -96,7 +97,7 @@ export async function ensureSimRiderToken(phoneE164 = '+919000000003'): Promise<
     method: 'POST',
     body: {
       phoneE164: cleaned,
-      otp: '123456',
+      otp: SIMULATOR_OTP,
       deviceId: 'web-customer-simulator',
     },
   });
@@ -140,7 +141,7 @@ export async function ensureSimDriverToken(phoneE164 = '+919000000002'): Promise
     method: 'POST',
     body: {
       phoneE164: cleaned,
-      otp: '123456',
+      otp: SIMULATOR_OTP,
       deviceId: `web-driver-simulator-${cleaned.slice(-4)}`,
     },
   });

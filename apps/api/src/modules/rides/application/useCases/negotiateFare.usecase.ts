@@ -31,11 +31,16 @@ export function pendingCounters(events: RideEventEntity[]): FareCounter[] {
   const sorted = [...events].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
   const pending = new Map<string, FareCounter>();
   for (const e of sorted) {
-    const driverId = String(e.metadata['driverId'] ?? '');
+    if (e.eventType !== COUNTER_PROPOSED && e.eventType !== COUNTER_ACCEPTED && e.eventType !== COUNTER_REJECTED) continue;
+    const metadata = e.metadata ?? {};
+    const driverId = String(metadata['driverId'] ?? '');
+    if (!driverId) continue;
     if (e.eventType === COUNTER_PROPOSED) {
+      const proposedFarePaise = Number(metadata['proposedFarePaise']);
+      if (!Number.isFinite(proposedFarePaise) || proposedFarePaise <= 0) continue;
       pending.set(driverId, {
         driverId,
-        proposedFarePaise: Number(e.metadata['proposedFarePaise']),
+        proposedFarePaise,
         createdAt: e.createdAt,
       });
     } else if (e.eventType === COUNTER_ACCEPTED || e.eventType === COUNTER_REJECTED) {
