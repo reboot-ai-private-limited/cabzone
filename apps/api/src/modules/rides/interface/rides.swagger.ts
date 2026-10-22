@@ -13,6 +13,7 @@ import {
   rideIdParamSchema,
   paymentDisputeSchema,
   paymentDisputeResolutionSchema,
+  proposeFareSchema,
 } from './rides.validation.js';
 
 export const rideViewSchema = z.object({
@@ -62,6 +63,22 @@ export const rideViewSchema = z.object({
 });
 
 export function registerRidesSwaggerPaths(): void {
+  registry.registerPath({
+    method: 'post',
+    path: '/v1/rides/{id}/fare/raise',
+    tags: ['Rides'],
+    summary: 'Raise the rider offer during the active search window; clears pending driver counters',
+    security: bearerAuth,
+    request: {
+      params: rideIdParamSchema,
+      body: { content: { 'application/json': { schema: proposeFareSchema } } },
+    },
+    responses: {
+      200: { description: 'Fare raised', content: { 'application/json': { schema: successResponse(rideViewSchema) } } },
+      400: { description: 'Fare is not higher or exceeds the ceiling', content: { 'application/json': { schema: errorResponse } } },
+      409: { description: 'Offer window closed or ride changed', content: { 'application/json': { schema: errorResponse } } },
+    },
+  });
   registry.registerPath({
     method: 'post',
     path: '/v1/rides',

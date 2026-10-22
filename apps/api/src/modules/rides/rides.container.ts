@@ -29,6 +29,7 @@ import {
   makeDriverArrivedController,
   makeDriverCounterController,
   makeRespondCounterController,
+  makeRaiseFareController,
   makeDriverEnRouteController,
   makeGetRideController,
   makeListRidesController,
@@ -92,6 +93,7 @@ export function buildRidesContainer(deps: RidesContainerDeps): RidesContainer {
   const negotiateFareUseCase = new NegotiateFareUseCase({
     rideRepo,
     rideEventRepo,
+    unitOfWork: deps.unitOfWork,
     acceptRide: acceptRideUseCase,
     requireDriverEligibility: deps.requireDriverEligibility,
   });
@@ -162,6 +164,7 @@ export function buildRidesContainer(deps: RidesContainerDeps): RidesContainer {
         acceptRide: makeAcceptRideController(acceptRideUseCase, actors),
         driverCounter: makeDriverCounterController(negotiateFareUseCase, actors),
         respondCounter: makeRespondCounterController(negotiateFareUseCase, actors),
+        raiseFare: makeRaiseFareController(negotiateFareUseCase, actors),
         driverEnRoute: makeDriverEnRouteController(driverEnRouteUseCase, actors),
         driverArrived: makeDriverArrivedController(driverArrivedUseCase, actors),
         startRide: makeStartRideController(startRideUseCase, actors),

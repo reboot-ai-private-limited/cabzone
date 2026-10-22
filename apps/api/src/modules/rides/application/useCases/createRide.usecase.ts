@@ -15,8 +15,8 @@ export interface CreateRideInput {
   riderId: string;
   passengerName: string;
   passengerPhoneE164: string;
-  pickup: GeoPoint;
-  drop: GeoPoint;
+  pickup: GeoPoint & { address?: string | null | undefined };
+  drop: GeoPoint & { address?: string | null | undefined };
   vehicleCategory: VehicleCategory;
 }
 
@@ -110,12 +110,12 @@ export class CreateRideUseCase {
       pickup: {
         lat: quote.pickup.lat,
         lng: quote.pickup.lng,
-        address: null,
+        address: input.pickup.address ?? null,
       },
       drop: {
         lat: quote.drop.lat,
         lng: quote.drop.lng,
-        address: null,
+        address: input.drop.address ?? null,
       },
       routeSnapshot: {
         provider: quote.routeProvider ?? 'GOOGLE_ROUTES',

@@ -90,6 +90,7 @@ export class AcceptRideUseCase {
       driverId: input.driverId,
       vehicleId,
       agreedFarePaise,
+      expectedVersion: ride.version,
       pickupOtpHash,
       pickupOtpExpiresAt,
       assignedAt: now,

@@ -102,6 +102,12 @@ export class RideRealtimeNotifier implements RideNotifierPort, DriverLocationObs
           }
         }
       }
+      if (event === 'ride.fare.raised') {
+        const candidates = await this.findCandidates.execute(ride);
+        for (const driver of candidates) {
+          this.publisher.publishToUser(driver.userId, event, base);
+        }
+      }
       if (event === 'ride.driver.assigned' || event === 'ride.offer.expired' || event === 'ride.cancelled') {
         const recipients = await this.offerRecipients?.take(ride.id) ?? [];
         const winnerUserId = ride.driverId ? await this.lookups.getUserIdForDriver(ride.driverId) : null;

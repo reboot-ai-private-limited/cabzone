@@ -22,6 +22,7 @@ import {
   listRidesQuerySchema,
   paymentDisputeSchema,
   paymentDisputeResolutionSchema,
+  proposeFareSchema,
   rideIdParamSchema,
   startRideRequestSchema,
 } from './rides.validation.js';
@@ -230,6 +231,20 @@ export function makeDriverCounterController(
     const { ride, counter } = await useCase.counter({ rideId: id, driverId, proposedFarePaise });
     await notify(actors.notifier?.fareNegotiation(ride, 'ride.fare.countered', counter));
     sendSuccess(req, res, counter, 'Counter-offer sent to rider', 201);
+  });
+}
+
+export function makeRaiseFareController(
+  useCase: NegotiateFareUseCase,
+  actors: RideHttpContext,
+): RequestHandler {
+  return asyncHandler(async (req: Request, res: Response) => {
+    const { id } = rideIdParamSchema.parse(req.params);
+    const { proposedFarePaise } = proposeFareSchema.parse(req.body);
+    const riderId = await requireRiderId(req, actors);
+    const ride = await useCase.raise({ rideId: id, riderId, proposedFarePaise });
+    await notify(actors.notifier?.rideUpdated(ride, 'ride.fare.raised', { proposedFarePaise }));
+    sendSuccess(req, res, toRideView(ride), 'Fare raised successfully');
   });
 }
 

@@ -30,3 +30,4 @@ graphify-out/cache/
 # Local AI agent workflow rules
 .agents/rules/git-workflow.md
 docs/engineering/git-workflow.md
+docs/design&flow

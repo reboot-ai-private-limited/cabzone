@@ -57,6 +57,16 @@ describe('Fare Negotiation Invariants', () => {
     } as unknown as RideEventEntity;
     expect(pendingCounters([legacy])).toEqual([]);
   });
+  it('clears counters raised against an older offer version', () => {
+    const at = new Date('2026-10-22T10:00:00.000Z');
+    const events = [
+      { eventType: 'FARE_COUNTER_PROPOSED', metadata: { driverId: 'driver-1', proposedFarePaise: 9000, rideVersion: 1 }, createdAt: at },
+      { eventType: 'FARE_PROPOSAL_RAISED', metadata: { rideVersion: 2 }, createdAt: new Date(at.getTime() + 1000) },
+      { eventType: 'FARE_COUNTER_PROPOSED', metadata: { driverId: 'driver-2', proposedFarePaise: 9500, rideVersion: 1 }, createdAt: new Date(at.getTime() + 2000) },
+      { eventType: 'FARE_COUNTER_PROPOSED', metadata: { driverId: 'driver-3', proposedFarePaise: 10000, rideVersion: 2 }, createdAt: new Date(at.getTime() + 3000) },
+    ] as RideEventEntity[];
+    expect(pendingCounters(events)).toMatchObject([{ driverId: 'driver-3', proposedFarePaise: 10000 }]);
+  });
   it('validates proposed fare against negotiation floor and ceiling bounds', () => {
     const bounds = { floorPaise: 8000, ceilingPaise: 15000 };
 

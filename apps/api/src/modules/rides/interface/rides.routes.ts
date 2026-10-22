@@ -13,6 +13,7 @@ export interface RidesRouterDeps {
   getRideEvents: RequestHandler;
   acceptRide: RequestHandler;
   driverCounter: RequestHandler;
+  raiseFare: RequestHandler;
   respondCounter: RequestHandler;
   driverEnRoute: RequestHandler;
   driverArrived: RequestHandler;
@@ -43,6 +44,7 @@ export function buildRidesRouter(deps: RidesRouterDeps): Router {
   router.post('/:id/accept', deps.requireDriver, deps.acceptRide);
   router.post('/:id/counter', deps.requireDriver, deps.driverCounter);
   router.post('/:id/counter/respond', deps.requireRider, deps.respondCounter);
+  router.post('/:id/fare/raise', deps.requireRider, deps.raiseFare);
   router.post('/:id/en-route', deps.requireDriver, deps.driverEnRoute);
   router.post('/:id/arrived', deps.requireDriver, deps.driverArrived);
   router.post('/:id/start', deps.requireDriver, deps.startRide);

@@ -32,6 +32,7 @@ export interface RideRepositoryPort {
     driverId: string;
     vehicleId?: string | undefined;
     agreedFarePaise: number;
+    expectedVersion?: number;
     pickupOtpHash: string;
     pickupOtpExpiresAt: Date;
     assignedAt?: Date;
