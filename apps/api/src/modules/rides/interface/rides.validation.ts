@@ -58,8 +58,8 @@ export const createRideRequestSchema = z.object({
   proposedFarePaise: z.number().int().positive('Proposed fare must be positive'),
   passenger: passengerSchema.pick({ name: true, phoneE164: true }),
   vehicleCategory: z.enum(VEHICLE_CATEGORIES),
-  pickup: locationPointSchema.pick({ lat: true, lng: true }),
-  drop: locationPointSchema.pick({ lat: true, lng: true }),
+  pickup: locationPointSchema,
+  drop: locationPointSchema,
   riderId: z.string().uuid().optional(),
 });
 

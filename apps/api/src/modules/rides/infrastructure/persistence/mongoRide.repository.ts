@@ -66,6 +66,7 @@ export class MongoRideRepository implements RideRepositoryPort {
     driverId: string;
     vehicleId?: string | undefined;
     agreedFarePaise: number;
+    expectedVersion?: number;
     pickupOtpHash: string;
     pickupOtpExpiresAt: Date;
     assignedAt?: Date;
@@ -77,6 +78,7 @@ export class MongoRideRepository implements RideRepositoryPort {
     const doc = await RideModel.findOneAndUpdate(
       {
         _id: opts.rideId,
+        ...(opts.expectedVersion === undefined ? {} : { version: opts.expectedVersion }),
         status: { $in: ['REQUESTED', 'OFFERING'] },
         driver_id: null,
         $or: [{ offering_expires_at: null }, { offering_expires_at: { $gt: assignedAt } }],

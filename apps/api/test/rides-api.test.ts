@@ -225,8 +225,8 @@ async function setup() {
         proposedFarePaise: quote.suggestedFarePaise,
         passenger: { name: 'Subir Roy', phoneE164: '+919876543210' },
         vehicleCategory: 'CAB',
-        pickup,
-        drop,
+        pickup: { ...pickup, address: 'Sevoke Road, Siliguri' },
+        drop: { ...drop, address: 'Hill Cart Road' },
       });
     return { res, quote };
   }
@@ -259,7 +259,38 @@ describe('Rides API', () => {
     expect(res.body.data.status).toBe('OFFERING');
     expect(res.body.data.bookerRiderId).toBe(RIDER_ID);
     expect(res.body.data.proposedFarePaise).toBe(quote.suggestedFarePaise);
+    expect(res.body.data.pickup.address).toBe('Sevoke Road, Siliguri');
+    expect(res.body.data.drop.address).toBe('Hill Cart Road');
     expect(res.body.data.passenger).not.toHaveProperty('pickupOtpHash');
+  });
+
+  it('raises an active offer, invalidates old counters, and enforces rider and ceiling limits', async () => {
+    const s = await setup();
+    const { res, quote } = await s.requestRide();
+    const id = res.body.data.id as string;
+    const endpoint = `/api/v1/rides/${id}/fare/raise`;
+    const proposedFarePaise = quote.suggestedFarePaise + 1000;
+    const counter = await request(s.app).post(`/api/v1/rides/${id}/counter`)
+      .set('Authorization', s.driverAuth).send({ proposedFarePaise: quote.suggestedFarePaise + 2000 });
+    expect(counter.status).toBe(201);
+
+    expect((await request(s.app).post(endpoint).set('Authorization', s.otherRiderAuth)
+      .send({ proposedFarePaise })).status).toBe(404);
+    const raised = await request(s.app).post(endpoint).set('Authorization', s.riderAuth)
+      .send({ proposedFarePaise });
+    expect(raised.status).toBe(200);
+    expect(raised.body.data.proposedFarePaise).toBe(proposedFarePaise);
+    const staleResponse = await request(s.app).post(`/api/v1/rides/${id}/counter/respond`)
+      .set('Authorization', s.riderAuth).send({ driverId: DRIVER_ID, action: 'ACCEPTED' });
+    expect(staleResponse.status).toBe(409);
+    expect((await request(s.app).post(endpoint).set('Authorization', s.riderAuth)
+      .send({ proposedFarePaise: quote.negotiation.ceilingPaise + 1000 })).status).toBe(400);
+    const accepted = await request(s.app).post(`/api/v1/rides/${id}/accept`)
+      .set('Authorization', s.driverAuth).send({});
+    expect(accepted.status).toBe(200);
+    expect(accepted.body.data.agreedFarePaise).toBe(proposedFarePaise);
+    expect((await request(s.app).post(endpoint).set('Authorization', s.riderAuth)
+      .send({ proposedFarePaise: proposedFarePaise + 1000 })).status).toBe(409);
   });
 
   it('rejects ride creation by a driver, a bad payload, and a tampered quote', async () => {

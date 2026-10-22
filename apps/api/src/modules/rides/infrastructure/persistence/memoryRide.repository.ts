@@ -51,12 +51,13 @@ export class MemoryRideRepository implements RideRepositoryPort {
     driverId: string;
     vehicleId?: string | undefined;
     agreedFarePaise: number;
+    expectedVersion?: number;
     pickupOtpHash: string;
     pickupOtpExpiresAt: Date;
     assignedAt?: Date;
   }): Promise<RideEntity | null> {
     const ride = this.rides.get(opts.rideId);
-    if (!ride) return null;
+    if (!ride || (opts.expectedVersion !== undefined && ride.version !== opts.expectedVersion)) return null;
     if (
       (ride.status !== 'REQUESTED' && ride.status !== 'OFFERING') ||
       ride.driverId !== null

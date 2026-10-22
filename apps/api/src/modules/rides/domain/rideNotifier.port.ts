@@ -10,6 +10,7 @@ export type RideLifecycleEvent =
   | 'ride.payment.disputed'
   | 'ride.payment.dispute_resolved'
   | 'ride.cancelled'
+  | 'ride.fare.raised'
   | 'ride.offer.expired';
 
 /** Best-effort realtime side effects. Implementations must never throw into the request path. */

@@ -33,7 +33,7 @@ export interface QuoteRequestDto {
     lat: number;
     lng: number;
   };
-  vehicleCategory?: VehicleCategory;
+  vehicleCategory: VehicleCategory;
 }
 
 export interface VehicleQuoteOption {
@@ -90,10 +90,7 @@ export interface QuoteDto {
   quoteToken: string;
 }
 
-export interface CreateQuoteResponseDto {
-  quotes: QuoteDto[];
-  expiresAt: string;
-}
+export type CreateQuoteResponseDto = QuoteDto;
 
 /**
  * Computes platform commission in integer paise.
