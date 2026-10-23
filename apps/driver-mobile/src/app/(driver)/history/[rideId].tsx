@@ -396,7 +396,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     backgroundColor: colors.lightCream,
     borderWidth: 1,
-    borderColor: colors.warmBeige,
+    borderColor: colors.border,
   },
   helpButtonText: {
     fontSize: typography.sizes.xs,

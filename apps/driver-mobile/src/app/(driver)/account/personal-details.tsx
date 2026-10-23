@@ -188,7 +188,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     height: 48,
     borderWidth: 1,
-    borderColor: colors.warmBeige,
+    borderColor: colors.border,
     fontSize: typography.sizes.sm,
     fontWeight: '600',
     color: colors.deepBrown,

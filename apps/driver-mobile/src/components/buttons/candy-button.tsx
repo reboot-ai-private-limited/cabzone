@@ -130,8 +130,8 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   mutedButton: {
-    borderWidth: 0,
-    borderColor: 'transparent',
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   text: {
     color: colors.deepBrown,

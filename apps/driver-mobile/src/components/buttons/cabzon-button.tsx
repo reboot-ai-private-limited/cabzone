@@ -103,6 +103,7 @@ export function CabzonButton({
           styles.button,
           { backgroundColor: getBackgroundColor() },
           variant === 'ghost' && styles.ghostBorder,
+          (variant === 'secondary' || isDisabled) && styles.secondaryBorder,
           style,
         ]}
       >
@@ -144,4 +145,5 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.deepBrown,
   },
+  secondaryBorder: { borderWidth: 1, borderColor: colors.border },
 });

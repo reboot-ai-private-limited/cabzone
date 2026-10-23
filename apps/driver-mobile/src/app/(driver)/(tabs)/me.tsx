@@ -263,7 +263,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: colors.warmBeige,
+    borderColor: colors.border,
   },
   ratingPillText: {
     fontSize: 11,
