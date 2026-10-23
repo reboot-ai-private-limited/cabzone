@@ -19,6 +19,7 @@
     "test:integration": "vitest run --config vitest.integration.config.ts"
   },
   "dependencies": {
+    "qrcode": "^1.5.4",
     "@asteasolutions/zod-to-openapi": "^7.3.4",
     "@cabzone/contracts": "workspace:*",
     "@cabzone/geo": "workspace:*",
@@ -41,6 +42,7 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
+    "@types/qrcode": "^1.5.6",
     "@cabzone/config": "workspace:*",
     "@types/cookie-parser": "^1.4.10",
     "@types/cors": "^2.8.17",

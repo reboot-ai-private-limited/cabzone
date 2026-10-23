@@ -27,6 +27,7 @@ import { useRide } from '@/context/ride-context';
 import type { RiderRideViewDto } from '@/services/api';
 import {
   extractPendingDriverCounters,
+  formatAssignedDriverSummary,
   formatRupeesFromPaise,
   getRideStatusMeta,
   isRideActive,
@@ -34,6 +35,7 @@ import {
 import { colors, radii, spacing, typography } from '@/design-system';
 import BookingMap from '@/components/booking/booking-map';
 import { OngoingRideView } from '@/components/ride/ongoing-ride-view';
+import { UpiPaymentPanel } from '@/components/ride/upi-payment-panel';
 
 const RIDER_CANCEL_REASONS: { code: CancellationReason; label: string }[] = [
   { code: 'RIDER_CHANGED_MIND', label: 'Changed my travel plans' },
@@ -500,7 +502,8 @@ export default function ActiveRideScreen() {
                           <View style={{ flex: 1 }}>
                             <Text style={styles.counterDriverName}>Verified Cabzone Driver</Text>
                             <Text style={styles.counterDriverSub}>
-                              ID: {counter.driverId.slice(0, 8)} · Cab (4 Seats)
+                              {counter.vehicleLabel ||
+                                `Driver #${counter.driverId.slice(0, 6).toUpperCase()} · Cab (4 Seats)`}
                             </Text>
                           </View>
                           <View style={{ alignItems: 'flex-end' }}>
@@ -549,9 +552,14 @@ export default function ActiveRideScreen() {
                     <Ionicons name="car-sport" size={26} color={colors.deepBrown} />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.driverCardTitle}>Assigned Cabzone Driver</Text>
+                    <Text style={styles.driverCardTitle}>
+                      {formatAssignedDriverSummary(ride).driverName}
+                    </Text>
                     <Text style={styles.driverCardSub}>
-                      Driver #{ride.driverId.slice(0, 8).toUpperCase()} · {ride.vehicleCategory}
+                      {formatAssignedDriverSummary(ride).vehicleLabel}
+                      {formatAssignedDriverSummary(ride).registrationNumber
+                        ? ` · ${formatAssignedDriverSummary(ride).registrationNumber}`
+                        : ''}
                     </Text>
                     {driverLiveLocation ? (
                       <Text style={styles.liveGpsText}>
@@ -560,35 +568,31 @@ export default function ActiveRideScreen() {
                       </Text>
                     ) : null}
                   </View>
-                  <View style={styles.verifiedPill}>
-                    <Ionicons name="checkmark-circle" size={14} color={colors.success} />
-                    <Text style={styles.verifiedPillText}>KYC Verified</Text>
-                  </View>
+                  {formatAssignedDriverSummary(ride).phoneE164 ? (
+                    <Pressable
+                      style={styles.verifiedPill}
+                      onPress={() =>
+                        void Linking.openURL(`tel:${formatAssignedDriverSummary(ride).phoneE164}`)
+                      }
+                      accessibilityRole="button"
+                      accessibilityLabel="Call driver"
+                    >
+                      <Ionicons name="call" size={14} color={colors.deepBrown} />
+                      <Text style={styles.verifiedPillText}>Call Driver</Text>
+                    </Pressable>
+                  ) : (
+                    <View style={styles.verifiedPill}>
+                      <Ionicons name="checkmark-circle" size={14} color={colors.success} />
+                      <Text style={styles.verifiedPillText}>KYC Verified</Text>
+                    </View>
+                  )}
                 </View>
               </View>
             ) : null}
 
             {/* PAYMENT PENDING INSTRUCTION CARD (D-040) */}
             {ride.status === 'PAYMENT_PENDING' || ride.status === 'TRIP_COMPLETED' ? (
-              <View style={styles.paymentPendingCard}>
-                <View style={styles.paymentHeaderRow}>
-                  <Ionicons name="wallet-outline" size={24} color={colors.deepBrown} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.paymentPendingTitle}>
-                      Pay {formatRupeesFromPaise(currentFarePaise)} Directly to Driver
-                    </Text>
-                    <Text style={styles.paymentPendingSub}>
-                      Pay via Cash or scan the driver&apos;s personal UPI QR. Once the driver taps
-                      &quot;Confirm Payment Received&quot;, your receipt will finalize
-                      automatically.
-                    </Text>
-                  </View>
-                </View>
-                <Pressable style={styles.refreshPaymentBtn} onPress={() => void loadRide()}>
-                  <Ionicons name="refresh" size={16} color={colors.deepBrown} />
-                  <Text style={styles.refreshPaymentBtnText}>Check Settlement Status</Text>
-                </Pressable>
-              </View>
+              <UpiPaymentPanel rideId={ride.id} amountPaise={currentFarePaise} onPaid={loadRide} />
             ) : null}
 
             {/* SETTLED RECEIPT & DISPUTE OPTION (D-041) */}
@@ -613,7 +617,13 @@ export default function ActiveRideScreen() {
                     <Text style={styles.settledSub}>
                       {ride.status === 'PAYMENT_DISPUTED'
                         ? 'Cabzone Support is reviewing your dispute ticket.'
-                        : 'Direct Cash / UPI payment confirmed by driver.'}
+                        : events.some(
+                              (event) =>
+                                event.eventType === 'PAYMENT_CONFIRMED' &&
+                                event.metadata.provider === 'RAZORPAY',
+                            )
+                          ? 'UPI test payment confirmed by Cabzone.'
+                          : 'Payment confirmed by your driver.'}
                     </Text>
                   </View>
                 </View>
@@ -711,7 +721,7 @@ export default function ActiveRideScreen() {
                   {formatRupeesFromPaise(ceilingPaise)}
                 </Text>
               ) : null}
-              <Text style={styles.paymentReminder}>Pay your driver directly by cash or UPI.</Text>
+              <Text style={styles.paymentReminder}>Pay by UPI in Cabzone after your trip.</Text>
               <Text style={styles.rideRefText}>Ride #{ride.id.slice(0, 8).toUpperCase()}</Text>
             </View>
 
@@ -935,8 +945,8 @@ export default function ActiveRideScreen() {
               </Pressable>
             </View>
             <Text style={styles.modalSubText}>
-              Describe what went wrong with the Cash/UPI payment (minimum 10 characters). Cabzone
-              Support will review the ride ledger.
+              Describe what went wrong with the payment (minimum 10 characters). Cabzone Support
+              will review the ride ledger.
             </Text>
             <TextInput
               style={styles.disputeInput}

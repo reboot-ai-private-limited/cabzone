@@ -69,7 +69,25 @@ export interface RidePricingSnapshot {
   stateBreakdown?: StateDistanceBreakdown[];
 }
 
+export interface RideAssignedDriverVehicleDto {
+  vehicleId: string;
+  make: string;
+  model: string;
+  color: string;
+  registrationNumber: string;
+  vehicleCategory: VehicleCategory;
+}
+
+export interface RideAssignedDriverDto {
+  driverId: string;
+  name: string;
+  phoneE164: string;
+  profilePhotoUrl: string | null;
+  vehicle: RideAssignedDriverVehicleDto | null;
+}
+
 export interface RideDto {
+  paymentCollection?: 'DIRECT' | 'RAZORPAY_TEST';
   id: string;
   bookerRiderId: string;
   passenger: {
@@ -80,6 +98,7 @@ export interface RideDto {
   };
   driverId: string | null;
   vehicleId: string | null;
+  assignedDriver?: RideAssignedDriverDto | null;
   status: RideStatus;
   vehicleCategory: VehicleCategory;
   pickup: {

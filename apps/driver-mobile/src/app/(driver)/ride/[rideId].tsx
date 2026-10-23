@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { RidePaymentQr } from '@/components/driver/ride-payment-qr';
 import {
   ActivityIndicator,
   Linking,
@@ -93,7 +94,8 @@ function getStatusMeta(status: RideStatus): {
       return {
         badge: 'PAYMENT DISPUTED',
         headline: 'Payment under support review',
-        subtitle: 'A payment dispute was raised for this ride. Cabzone Support will review the audit log.',
+        subtitle:
+          'A payment dispute was raised for this ride. Cabzone Support will review the audit log.',
         tone: 'red',
       };
     case 'CANCELLED':
@@ -126,7 +128,6 @@ export default function ActiveRideScreen() {
     markArrived,
     startTripWithOtp,
     completeTrip,
-    confirmDirectPayment,
     cancelTrip,
   } = useRide();
 
@@ -135,8 +136,6 @@ export default function ActiveRideScreen() {
     !(activeRide && activeRide.id === rideId),
   );
   const [otpInput, setOtpInput] = useState<string>('');
-  const [paymentMethodReceived, setPaymentMethodReceived] = useState<'CASH' | 'UPI'>('CASH');
-  const [paymentAcknowledged, setPaymentAcknowledged] = useState<boolean>(false);
   const [showCancelModal, setShowCancelModal] = useState<boolean>(false);
   const [selectedCancelReason, setSelectedCancelReason] =
     useState<CancellationReason>('RIDER_NO_SHOW');
@@ -194,7 +193,8 @@ export default function ActiveRideScreen() {
         </Text>
         <Pressable
           style={styles.primaryCta}
-          onPress={() => router.replace('/(driver)/(tabs)/home')}>
+          onPress={() => router.replace('/(driver)/(tabs)/home')}
+        >
           <Text style={styles.primaryCtaText}>Back to Home</Text>
         </Pressable>
       </SafeAreaView>
@@ -202,6 +202,16 @@ export default function ActiveRideScreen() {
   }
 
   const meta = getStatusMeta(ride.status);
+  const onlinePayment = ride.paymentCollection === 'RAZORPAY_TEST';
+  if (ride.status === 'PAYMENT_PENDING') {
+    meta.badge = 'AWAITING PAYMENT';
+    meta.headline = 'Show the payment QR to your rider';
+    meta.subtitle =
+      'The rider can scan your QR to open checkout. Payment confirmation updates automatically.';
+  } else if (onlinePayment && ride.status === 'SETTLED') {
+    meta.subtitle =
+      'UPI test payment verified. Driver payout is recorded for review; no money has moved.';
+  }
   const breakdown = computeRideEarningsBreakdown(ride);
   const distanceKm = Number(((ride.routeSnapshot?.distanceM ?? 0) / 1000).toFixed(1));
   const durationMin = Math.max(1, Math.round((ride.routeSnapshot?.durationSeconds ?? 0) / 60));
@@ -254,19 +264,6 @@ export default function ActiveRideScreen() {
     }
   };
 
-  const handleConfirmPayment = async () => {
-    if (!paymentAcknowledged) return;
-    const res = await confirmDirectPayment(ride.id);
-    if (res) {
-      setRide(res.ride);
-      setSettlementSummary({
-        farePaise: res.farePaise,
-        commissionPaise: res.commissionPaise,
-        walletBalancePaise: res.walletBalancePaise,
-      });
-    }
-  };
-
   const handleConfirmCancel = async () => {
     const cancelled = await cancelTrip(ride.id, selectedCancelReason);
     if (cancelled) {
@@ -288,7 +285,8 @@ export default function ActiveRideScreen() {
           style={styles.backBtn}
           onPress={() => router.replace('/(driver)/(tabs)/home')}
           accessibilityRole="button"
-          accessibilityLabel="Back to Home">
+          accessibilityLabel="Back to Home"
+        >
           <Ionicons name="arrow-back" size={20} color={colors.deepBrown} />
           <Text style={styles.backBtnText}>Home</Text>
         </Pressable>
@@ -301,7 +299,8 @@ export default function ActiveRideScreen() {
               : meta.tone === 'red'
                 ? styles.statusPillRed
                 : styles.statusPillAmber,
-          ]}>
+          ]}
+        >
           <Text
             style={[
               styles.statusPillText,
@@ -310,7 +309,8 @@ export default function ActiveRideScreen() {
                 : meta.tone === 'red'
                   ? styles.statusTextRed
                   : styles.statusTextAmber,
-            ]}>
+            ]}
+          >
             {meta.badge}
           </Text>
         </View>
@@ -350,7 +350,10 @@ export default function ActiveRideScreen() {
                         : ride.status === 'TRIP_STARTED'
                           ? 3
                           : 4;
-                const done = step.idx < currentIdx || ride.status === 'SETTLED' || ride.status === 'PAYMENT_CONFIRMED';
+                const done =
+                  step.idx < currentIdx ||
+                  ride.status === 'SETTLED' ||
+                  ride.status === 'PAYMENT_CONFIRMED';
                 const active = step.idx === currentIdx && !done;
                 return (
                   <View key={step.label} style={styles.stepperItem}>
@@ -362,10 +365,8 @@ export default function ActiveRideScreen() {
                       ]}
                     />
                     <Text
-                      style={[
-                        styles.stepperLabel,
-                        (done || active) && styles.stepperLabelActive,
-                      ]}>
+                      style={[styles.stepperLabel, (done || active) && styles.stepperLabelActive]}
+                    >
                       {step.label}
                     </Text>
                   </View>
@@ -393,7 +394,8 @@ export default function ActiveRideScreen() {
                 style={styles.callBtn}
                 onPress={callPassenger}
                 accessibilityRole="button"
-                accessibilityLabel="Call passenger">
+                accessibilityLabel="Call passenger"
+              >
                 <Ionicons name="call" size={18} color={colors.deepBrown} />
                 <Text style={styles.callBtnText}>Call</Text>
               </Pressable>
@@ -415,7 +417,8 @@ export default function ActiveRideScreen() {
                     ? 'drop'
                     : 'pickup',
                 )
-              }>
+              }
+            >
               <Ionicons name="navigate" size={16} color={colors.deepBrown} />
               <Text style={styles.mapsBtnText}>
                 Open{' '}
@@ -434,7 +437,8 @@ export default function ActiveRideScreen() {
             <View style={{ flex: 1 }}>
               <Text style={styles.pointLabel}>PICKUP</Text>
               <Text style={styles.pointAddress}>
-                {ride.pickup.address || `${ride.pickup.lat.toFixed(4)}, ${ride.pickup.lng.toFixed(4)}`}
+                {ride.pickup.address ||
+                  `${ride.pickup.lat.toFixed(4)}, ${ride.pickup.lng.toFixed(4)}`}
               </Text>
             </View>
           </View>
@@ -475,7 +479,8 @@ export default function ActiveRideScreen() {
                 (otpInput.length !== 4 || isMutatingRide) && styles.disabledBtn,
               ]}
               disabled={otpInput.length !== 4 || isMutatingRide}
-              onPress={handleStartTrip}>
+              onPress={handleStartTrip}
+            >
               {isMutatingRide ? (
                 <ActivityIndicator color={colors.deepBrown} />
               ) : (
@@ -485,96 +490,8 @@ export default function ActiveRideScreen() {
           </View>
         ) : null}
 
-        {ride.status === 'TRIP_COMPLETED' || ride.status === 'PAYMENT_PENDING' ? (
-          <View style={styles.paymentCard}>
-            <View style={styles.paymentBadgeRow}>
-              <Ionicons name="cash-outline" size={22} color={colors.deepBrown} />
-              <Text style={styles.paymentCardTitle}>Direct Fare Settlement</Text>
-            </View>
-
-            <View style={styles.collectAmountBox}>
-              <Text style={styles.collectLabel}>COLLECT FROM PASSENGER</Text>
-              <Text style={styles.collectValue}>₹{(breakdown.grossPaise / 100).toFixed(0)}</Text>
-              <Text style={styles.collectSub}>
-                Net Earnings: ₹{(breakdown.netPaise / 100).toFixed(0)} · Platform Fee (
-                {ride.pricingSnapshot?.commissionPercent ?? 8}%): ₹
-                {(breakdown.commissionPaise / 100).toFixed(0)}
-              </Text>
-            </View>
-
-            <Text style={styles.methodSectionLabel}>How did the passenger pay you?</Text>
-            <View style={styles.methodRow}>
-              <Pressable
-                style={[
-                  styles.methodChip,
-                  paymentMethodReceived === 'CASH' && styles.methodChipSelected,
-                ]}
-                onPress={() => setPaymentMethodReceived('CASH')}>
-                <Ionicons
-                  name="cash-outline"
-                  size={18}
-                  color={paymentMethodReceived === 'CASH' ? colors.deepBrown : colors.secondary}
-                />
-                <Text
-                  style={[
-                    styles.methodChipText,
-                    paymentMethodReceived === 'CASH' && styles.methodChipTextSelected,
-                  ]}>
-                  Cash Received
-                </Text>
-              </Pressable>
-
-              <Pressable
-                style={[
-                  styles.methodChip,
-                  paymentMethodReceived === 'UPI' && styles.methodChipSelected,
-                ]}
-                onPress={() => setPaymentMethodReceived('UPI')}>
-                <Ionicons
-                  name="qr-code-outline"
-                  size={18}
-                  color={paymentMethodReceived === 'UPI' ? colors.deepBrown : colors.secondary}
-                />
-                <Text
-                  style={[
-                    styles.methodChipText,
-                    paymentMethodReceived === 'UPI' && styles.methodChipTextSelected,
-                  ]}>
-                  Direct UPI Received
-                </Text>
-              </Pressable>
-            </View>
-
-            <Pressable
-              style={styles.ackRow}
-              onPress={() => setPaymentAcknowledged((prev) => !prev)}
-              accessibilityRole="checkbox"
-              accessibilityState={{ checked: paymentAcknowledged }}>
-              <View style={[styles.checkbox, paymentAcknowledged && styles.checkboxChecked]}>
-                {paymentAcknowledged ? <Text style={styles.checkboxMark}>✓</Text> : null}
-              </View>
-              <Text style={styles.ackText}>
-                I confirm that I have received ₹{(breakdown.grossPaise / 100).toFixed(0)} directly
-                from the passenger via {paymentMethodReceived === 'CASH' ? 'Cash' : 'UPI'}.
-              </Text>
-            </Pressable>
-
-            <Pressable
-              style={[
-                styles.primaryCta,
-                (!paymentAcknowledged || isMutatingRide) && styles.disabledBtn,
-              ]}
-              disabled={!paymentAcknowledged || isMutatingRide}
-              onPress={handleConfirmPayment}>
-              {isMutatingRide ? (
-                <ActivityIndicator color={colors.deepBrown} />
-              ) : (
-                <Text style={styles.primaryCtaText}>
-                  Confirm ₹{(breakdown.grossPaise / 100).toFixed(0)} Received & Settle Ride
-                </Text>
-              )}
-            </Pressable>
-          </View>
+        {ride.status === 'PAYMENT_PENDING' ? (
+          <RidePaymentQr rideId={ride.id} amountPaise={breakdown.grossPaise} onPaid={loadRide} />
         ) : null}
 
         {/* Fare & Commission Breakdown Card */}
@@ -619,7 +536,8 @@ export default function ActiveRideScreen() {
           <Pressable
             style={[styles.primaryCta, isMutatingRide && styles.disabledBtn]}
             disabled={isMutatingRide}
-            onPress={handleEnRoute}>
+            onPress={handleEnRoute}
+          >
             {isMutatingRide ? (
               <ActivityIndicator color={colors.deepBrown} />
             ) : (
@@ -632,7 +550,8 @@ export default function ActiveRideScreen() {
           <Pressable
             style={[styles.primaryCta, isMutatingRide && styles.disabledBtn]}
             disabled={isMutatingRide}
-            onPress={handleArrived}>
+            onPress={handleArrived}
+          >
             {isMutatingRide ? (
               <ActivityIndicator color={colors.deepBrown} />
             ) : (
@@ -645,7 +564,8 @@ export default function ActiveRideScreen() {
           <Pressable
             style={[styles.primaryCta, isMutatingRide && styles.disabledBtn]}
             disabled={isMutatingRide}
-            onPress={handleCompleteTrip}>
+            onPress={handleCompleteTrip}
+          >
             {isMutatingRide ? (
               <ActivityIndicator color={colors.deepBrown} />
             ) : (
@@ -660,7 +580,8 @@ export default function ActiveRideScreen() {
         ride.status === 'PAYMENT_DISPUTED' ? (
           <Pressable
             style={styles.primaryCta}
-            onPress={() => router.replace('/(driver)/(tabs)/home')}>
+            onPress={() => router.replace('/(driver)/(tabs)/home')}
+          >
             <Text style={styles.primaryCtaText}>Return to Home Dashboard →</Text>
           </Pressable>
         ) : null}
@@ -670,7 +591,8 @@ export default function ActiveRideScreen() {
           <Pressable
             style={styles.cancelTriggerBtn}
             disabled={isMutatingRide}
-            onPress={() => setShowCancelModal(true)}>
+            onPress={() => setShowCancelModal(true)}
+          >
             <Text style={styles.cancelTriggerText}>Cancel Ride</Text>
           </Pressable>
         ) : null}
@@ -681,12 +603,14 @@ export default function ActiveRideScreen() {
         visible={showCancelModal}
         transparent
         animationType="slide"
-        onRequestClose={() => setShowCancelModal(false)}>
+        onRequestClose={() => setShowCancelModal(false)}
+      >
         <View style={styles.modalBackdrop}>
           <View style={styles.modalSheet}>
             <Text style={styles.modalTitle}>Cancel Assigned Ride?</Text>
             <Text style={styles.modalSub}>
-              Select an honest operational reason. Frequent cancellations after assignment may affect dispatch priority.
+              Select an honest operational reason. Frequent cancellations after assignment may
+              affect dispatch priority.
             </Text>
 
             <View style={styles.reasonList}>
@@ -696,7 +620,8 @@ export default function ActiveRideScreen() {
                   <Pressable
                     key={item.code}
                     style={[styles.reasonItem, selected && styles.reasonItemSelected]}
-                    onPress={() => setSelectedCancelReason(item.code)}>
+                    onPress={() => setSelectedCancelReason(item.code)}
+                  >
                     <View style={[styles.radioOuter, selected && styles.radioOuterSelected]}>
                       {selected ? <View style={styles.radioInner} /> : null}
                     </View>
@@ -713,14 +638,16 @@ export default function ActiveRideScreen() {
               <Pressable
                 style={styles.modalKeepBtn}
                 onPress={() => setShowCancelModal(false)}
-                disabled={isMutatingRide}>
+                disabled={isMutatingRide}
+              >
                 <Text style={styles.modalKeepText}>Keep Ride</Text>
               </Pressable>
 
               <Pressable
                 style={[styles.modalConfirmCancelBtn, isMutatingRide && styles.disabledBtn]}
                 onPress={handleConfirmCancel}
-                disabled={isMutatingRide}>
+                disabled={isMutatingRide}
+              >
                 {isMutatingRide ? (
                   <ActivityIndicator color={colors.white} />
                 ) : (
@@ -794,7 +721,7 @@ const styles = StyleSheet.create({
   },
   statusPillAmber: {
     backgroundColor: colors.lightCream,
-    borderColor: colors.warmBeige,
+    borderColor: colors.border,
   },
   statusPillGreen: {
     backgroundColor: '#DCFCE7',
@@ -865,7 +792,7 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 5,
     borderRadius: 3,
-    backgroundColor: colors.warmBeige,
+    backgroundColor: colors.border,
   },
   stepperBarDone: {
     backgroundColor: '#16A34A',
@@ -885,7 +812,7 @@ const styles = StyleSheet.create({
   negotiatedBadge: {
     backgroundColor: colors.lightCream,
     borderWidth: 1,
-    borderColor: colors.warmBeige,
+    borderColor: colors.border,
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 10,
@@ -977,7 +904,7 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: colors.warmBeige,
+    borderColor: colors.border,
   },
   mapsBtnText: {
     fontSize: typography.sizes.xs,
@@ -1035,7 +962,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.cream,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: colors.warmBeige,
+    borderColor: colors.border,
     height: 58,
     fontSize: 26,
     fontWeight: '800',
@@ -1067,7 +994,7 @@ const styles = StyleSheet.create({
     padding: 16,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: colors.warmBeige,
+    borderColor: colors.border,
   },
   collectLabel: {
     fontSize: 11,
@@ -1315,7 +1242,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: colors.warmBeige,
+    borderColor: colors.border,
   },
   modalKeepText: {
     fontSize: typography.sizes.sm,

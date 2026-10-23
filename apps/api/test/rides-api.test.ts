@@ -183,6 +183,20 @@ async function setup() {
       u === RIDER_USER || u === OTHER_RIDER_USER ? profileIds[u]! : null,
     resolveDriverId: async (u) =>
       u === DRIVER_USER || u === OTHER_DRIVER_USER ? profileIds[u]! : null,
+    resolveAssignedDriver: async (driverId, vehicleId) => ({
+      driverId,
+      name: driverId === DRIVER_ID ? 'Subrata Ghosh' : 'Rajesh Barman',
+      phoneE164: '+919000000012',
+      profilePhotoUrl: null,
+      vehicle: {
+        vehicleId: vehicleId ?? '018f0a00-0000-7000-8000-000000000401',
+        make: 'Maruti',
+        model: 'Dzire',
+        color: 'White',
+        registrationNumber: 'WB74AB1234',
+        vehicleCategory: 'CAB',
+      },
+    }),
   });
 
   const app = createApp({ identity, rides });

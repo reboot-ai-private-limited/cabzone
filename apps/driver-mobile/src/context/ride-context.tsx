@@ -227,17 +227,30 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
               const events = await ridesApi
                 .getRideEvents(token, rideId)
                 .catch(() => [] as RideEventDto[]);
-              const lastDriverEvent = [...events]
+              const lastNegotiationEvent = [...events]
                 .reverse()
                 .find(
                   (e) =>
-                    (e.eventType === 'FARE_COUNTER_PROPOSED' ||
+                    e.eventType === 'FARE_PROPOSAL_RAISED' ||
+                    ((e.eventType === 'FARE_COUNTER_PROPOSED' ||
                       e.eventType === 'FARE_COUNTERED' ||
                       e.eventType === 'FARE_COUNTER_REJECTED') &&
-                    (!driver?.id ||
-                      (e.metadata as { driverId?: string } | null)?.driverId === driver.id),
+                      (!driver?.id ||
+                        (e.metadata as { driverId?: string } | null)?.driverId === driver.id)),
                 );
-              if (lastDriverEvent?.eventType === 'FARE_COUNTER_REJECTED') {
+              if (lastNegotiationEvent?.eventType === 'FARE_PROPOSAL_RAISED') {
+                setCounters((prev) => {
+                  const next = { ...prev };
+                  delete next[rideId];
+                  return next;
+                });
+                setRejectedCounters((prev) => {
+                  const next = { ...prev };
+                  delete next[rideId];
+                  return next;
+                });
+              } else if (lastNegotiationEvent?.eventType === 'FARE_COUNTER_REJECTED') {
+                const lastDriverEvent = lastNegotiationEvent;
                 const declinedFare =
                   (lastDriverEvent.metadata as { proposedFarePaise?: number } | null)
                     ?.proposedFarePaise ?? counters[rideId]!;
@@ -363,6 +376,29 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
             resync();
           } else if (frame.event === 'ride.offer.created') {
             void refreshRef.current.offers();
+          } else if (frame.event === 'ride.fare.raised') {
+            const rideId = frame.data?.rideId;
+            if (rideId) {
+              setIgnoredOfferIds((prev) => {
+                if (!prev.has(rideId)) return prev;
+                const next = new Set(prev);
+                next.delete(rideId);
+                return next;
+              });
+              setCounters((prev) => {
+                if (!(rideId in prev)) return prev;
+                const next = { ...prev };
+                delete next[rideId];
+                return next;
+              });
+              setRejectedCounters((prev) => {
+                if (!(rideId in prev)) return prev;
+                const next = { ...prev };
+                delete next[rideId];
+                return next;
+              });
+            }
+            void refreshRef.current.offers(true);
           } else if (frame.event === 'ride.fare.counter_rejected') {
             const rideId = frame.data?.rideId;
             const declinedFare = frame.data?.proposedFarePaise;

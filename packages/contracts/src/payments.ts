@@ -5,6 +5,14 @@
 export const PAYMENT_METHODS = ['UPI', 'CASH'] as const;
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 
+export interface RideUpiCheckoutDto {
+  orderId: string;
+  amountPaise: number;
+  currency: 'INR';
+  keyId: string;
+  testMode: true;
+}
+
 export const PAYMENT_STATUSES = [
   'CREATED',
   'PENDING',

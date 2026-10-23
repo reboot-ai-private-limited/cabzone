@@ -1,4 +1,10 @@
 import { z } from 'zod';
+
+export const upiPaymentProofSchema = z.object({
+  orderId: z.string().regex(/^order_[a-zA-Z0-9]+$/),
+  paymentId: z.string().regex(/^pay_[a-zA-Z0-9]+$/),
+  signature: z.string().regex(/^[a-f0-9]{64}$/),
+}).strict();
 import {
   CANCELLATION_REASONS,
   E164_PHONE_REGEX,

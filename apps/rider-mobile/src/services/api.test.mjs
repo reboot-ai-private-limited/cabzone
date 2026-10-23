@@ -27,7 +27,7 @@ function apiSession() {
     process: { env: {} },
     URLSearchParams,
     fetch: async (url, options) => {
-      const call = { url, authorization: options.headers.Authorization };
+      const call = { url, authorization: options.headers.Authorization, body: options.body, method: options.method };
       calls.push(call);
       return runtime.respond(call);
     },
@@ -104,4 +104,17 @@ test('rejected refresh ends the current session', async () => {
   await assert.rejects(s.riderRidesApi.getRide('old-access', 'ride-1'), /Unauthorized/);
   assert.equal(s.published.length, 1);
   assert.equal(s.published[0], null);
+});
+
+test('UPI verification sends only proof fields to the authenticated ride endpoint', async () => {
+  const s = apiSession();
+  s.runtime.respond = async () => response({ paid: true });
+  await s.riderRidesApi.verifyUpiPayment('old-access', 'ride/1', {
+    type: 'success', orderId: 'order_test', paymentId: 'pay_test', signature: 'a'.repeat(64),
+  });
+  const call = s.calls.at(-1);
+  assert.ok(call.url.endsWith('/rides/ride%2F1/payment/upi/verify'));
+  assert.equal(call.authorization, 'Bearer old-access');
+  assert.equal(call.method, 'POST');
+  assert.deepEqual(JSON.parse(call.body), { orderId: 'order_test', paymentId: 'pay_test', signature: 'a'.repeat(64) });
 });

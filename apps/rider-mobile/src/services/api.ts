@@ -143,11 +143,7 @@ async function recoverAccessToken(failedToken: string): Promise<string> {
       return refreshed.accessToken;
     })()
       .catch(async (error: unknown) => {
-        if (
-          isApiError(error) &&
-          error.isUnauthorized &&
-          (await getAccessToken()) === failedToken
-        ) {
+        if (isApiError(error) && error.isUnauthorized && (await getAccessToken()) === failedToken) {
           publishAccessToken(null);
         }
         throw error;
@@ -257,7 +253,10 @@ export const riderProfileApi = {
 };
 
 export const geoAndPricingApi = {
-  async createQuote(token: string | null, payload: QuoteRequestDto): Promise<CreateQuoteResponseDto> {
+  async createQuote(
+    token: string | null,
+    payload: QuoteRequestDto,
+  ): Promise<CreateQuoteResponseDto> {
     return request<CreateQuoteResponseDto>(
       '/api/v1/pricing/quotes',
       {
@@ -312,6 +311,34 @@ export interface CreateRiderRidePayload {
 }
 
 export const riderRidesApi = {
+  async createUpiPayment(
+    token: string,
+    rideId: string,
+  ): Promise<import('@cabzone/contracts').RideUpiCheckoutDto> {
+    return request(
+      `/api/v1/rides/${encodeURIComponent(rideId)}/payment/upi`,
+      { method: 'POST' },
+      token,
+    );
+  },
+  async verifyUpiPayment(
+    token: string,
+    rideId: string,
+    proof: { orderId: string; paymentId: string; signature: string },
+  ): Promise<{ paid: boolean }> {
+    return request(
+      `/api/v1/rides/${encodeURIComponent(rideId)}/payment/upi/verify`,
+      { method: 'POST', body: JSON.stringify({ orderId: proof.orderId, paymentId: proof.paymentId, signature: proof.signature }) },
+      token,
+    );
+  },
+  async upiPaymentStatus(token: string, rideId: string): Promise<{ paid: boolean }> {
+    return request(
+      `/api/v1/rides/${encodeURIComponent(rideId)}/payment/upi/status`,
+      { method: 'GET' },
+      token,
+    );
+  },
   async createRide(token: string, payload: CreateRiderRidePayload): Promise<RiderRideViewDto> {
     return request<RiderRideViewDto>(
       '/api/v1/rides',
@@ -332,11 +359,19 @@ export const riderRidesApi = {
     if (opts?.limit) params.set('limit', String(opts.limit));
     if (opts?.offset) params.set('offset', String(opts.offset));
     const qs = params.toString();
-    return request<RiderRideViewDto[]>(`/api/v1/rides${qs ? `?${qs}` : ''}`, { method: 'GET' }, token);
+    return request<RiderRideViewDto[]>(
+      `/api/v1/rides${qs ? `?${qs}` : ''}`,
+      { method: 'GET' },
+      token,
+    );
   },
 
   async getRide(token: string, rideId: string): Promise<RiderRideViewDto> {
-    return request<RiderRideViewDto>(`/api/v1/rides/${encodeURIComponent(rideId)}`, { method: 'GET' }, token);
+    return request<RiderRideViewDto>(
+      `/api/v1/rides/${encodeURIComponent(rideId)}`,
+      { method: 'GET' },
+      token,
+    );
   },
 
   async getRideEvents(token: string, rideId: string): Promise<RideEventDto[]> {
@@ -363,7 +398,11 @@ export const riderRidesApi = {
     );
   },
 
-  async raiseFare(token: string, rideId: string, proposedFarePaise: number): Promise<RiderRideViewDto> {
+  async raiseFare(
+    token: string,
+    rideId: string,
+    proposedFarePaise: number,
+  ): Promise<RiderRideViewDto> {
     return request<RiderRideViewDto>(
       `/api/v1/rides/${encodeURIComponent(rideId)}/fare/raise`,
       { method: 'POST', body: JSON.stringify({ proposedFarePaise }) },
@@ -386,11 +425,7 @@ export const riderRidesApi = {
     );
   },
 
-  async disputePayment(
-    token: string,
-    rideId: string,
-    reason: string,
-  ): Promise<RiderRideViewDto> {
+  async disputePayment(token: string, rideId: string, reason: string): Promise<RiderRideViewDto> {
     return request<RiderRideViewDto>(
       `/api/v1/rides/${encodeURIComponent(rideId)}/payment/dispute`,
       {
