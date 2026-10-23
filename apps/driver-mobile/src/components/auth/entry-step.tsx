@@ -1,960 +1,240 @@
-import { colors, motion, typography } from '@/design-system';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import {
-  Animated,
-  Easing,
-  Image,
-  Platform,
-  PanResponder,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  useWindowDimensions,
-  View,
-} from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import React, { useCallback, useEffect, useState } from 'react';
+import { Animated, Easing, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { CandyButton } from '@/components/buttons/candy-button';
-import { BlobBackground } from './blob-background';
+import { colors } from '@/design-system';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
-import { initPopSound, playPopSound, whenPopSoundReady } from '@/utils/sfx';
+import { BlobBackground } from './blob-background';
 
-type IconName = React.ComponentProps<typeof Ionicons>['name'];
-
-const PAGE_COUNT = 3;
-const AUTO_SLIDE_MS = 4000;
-const SLIDE_MS = 1100;
-const SLIDE_EASING = Easing.bezier(0.65, 0, 0.35, 1);
-
-const PILOT_COPY = {
-  headlineMain: 'Drive, Earn & Grow',
-  headlineHighlight: 'With Every Trip',
-  body: 'Quick verification, 0% commission for your first 14 days, and flexible shifts that fit your life.',
-};
-// Pages 2 & 3 of the swipeable hero (page 1 is the animated pilot orbit)
-const EXTRA_SLIDES: {
-  key: string;
-  heroIcon: IconName;
-  headline: string;
-  body: string;
-  pills: { label: string; icon: IconName }[];
-}[] = [
-  {
-    key: 'earn',
-    headline: 'Earn More, Keep More',
-    body: 'Instant payouts and 100% of your tips.',
-    heroIcon: 'wallet',
-    pills: [
-      { label: 'Instant\nPayouts', icon: 'flash' },
-      { label: 'Keep 100%\nTips', icon: 'cash' },
-      { label: 'Low\nCommission', icon: 'pricetag' },
-      { label: 'Weekly\nBonuses', icon: 'gift' },
-    ],
-  },
-  {
-    key: 'safe',
-    headline: 'Drive With Confidence',
-    body: 'Verified riders and 24/7 support.',
-    heroIcon: 'shield-checkmark',
-    pills: [
-      { label: 'Verified\nRiders', icon: 'checkmark-circle' },
-      { label: 'SOS\nButton', icon: 'alert-circle' },
-      { label: '24/7\nSupport', icon: 'headset' },
-      { label: 'Safe\nTrips', icon: 'car-sport' },
-    ],
-  },
-];
-
-const SLIDE_PILL_POSITIONS = [
-  { top: 42, right: 14 },
-  { top: 114, left: 14 },
-  { top: 232, left: 16 },
-  { top: 234, right: 14 },
-];
-
-interface EntryStepProps {
-  onBecomeDriver: () => void;
-  onLogin: () => void;
-}
-
-export function EntryStep({ onBecomeDriver, onLogin }: EntryStepProps) {
-  const insets = useSafeAreaInsets();
-  const isWeb = Platform.OS === 'web';
+function WelcomeHero() {
   const reducedMotion = useReducedMotion();
+  const [space, setSpace] = useState({ width: 340, height: 340 });
+  const [focused, setFocused] = useState(true);
+  const [entrance] = useState(() => new Animated.Value(1));
+  const [float] = useState(() => new Animated.Value(0));
 
-  // Swipeable hero pager (native-driven so it stays smooth while other animations run)
-  const { width: windowWidth } = useWindowDimensions();
-  const pageWidth = Math.min(windowWidth, 440);
-  const [, setPage] = useState(0);
-  const [tx] = useState(() => new Animated.Value(0));
-  const idx = useRef(0); // target page index, 0..PAGE_COUNT (PAGE_COUNT = clone of page 1)
-  const dragBase = useRef(0);
-  const dragReady = useRef(false);
-  const userDragging = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      setFocused(true);
+      return () => setFocused(false);
+    }, []),
+  );
 
-
-
-  const slideTo = (i: number, duration = SLIDE_MS) => {
-    idx.current = i;
-    setPage(i % PAGE_COUNT);
-    const wrap = () => {
-      if (i >= PAGE_COUNT) {
-        // landed on the clone of page 1: jump (invisibly) to the real page 1
-        tx.setValue(0);
-        idx.current = 0;
-      }
-    };
-    if (reducedMotion) {
-      tx.setValue(-i * pageWidth);
-      wrap();
-      return;
-    }
-    Animated.timing(tx, {
-      toValue: -i * pageWidth,
-      duration,
-      easing: SLIDE_EASING,
+  useEffect(() => {
+    entrance.setValue(reducedMotion || !focused ? 1 : 0);
+    float.setValue(0);
+    if (reducedMotion || !focused) return;
+    const enter = Animated.timing(entrance, {
+      toValue: 1,
+      duration: 500,
+      easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
-    }).start(({ finished }) => {
-      if (finished) wrap();
     });
-  };
-
-
-
-  // Finger drag: follows the finger, then eases to the nearest page (flick-aware)
-  const pan = useMemo(
-    () =>
-      // eslint-disable-next-line react-hooks/refs -- refs are only read inside gesture callbacks
-      PanResponder.create({
-        onMoveShouldSetPanResponder: (_, g) =>
-          Math.abs(g.dx) > 8 && Math.abs(g.dx) > Math.abs(g.dy) * 1.5,
-        onPanResponderTerminationRequest: () => false,
-        onPanResponderGrant: () => {
-          userDragging.current = true;
-          dragReady.current = false;
-          tx.stopAnimation((v) => {
-            dragBase.current = v;
-            dragReady.current = true;
-          });
-        },
-        onPanResponderMove: (_, g) => {
-          if (!dragReady.current) return;
-          const v = Math.max(-PAGE_COUNT * pageWidth, Math.min(0, dragBase.current + g.dx));
-          tx.setValue(v);
-        },
-        onPanResponderRelease: (_, g) => {
-          userDragging.current = false;
-          const pos = dragBase.current + g.dx;
-          const target = Math.round(-(pos + g.vx * 150) / pageWidth);
-          slideTo(Math.max(0, Math.min(PAGE_COUNT, target)), 500);
-        },
-        onPanResponderTerminate: () => {
-          userDragging.current = false;
-          slideTo(Math.max(0, Math.min(PAGE_COUNT, idx.current)), 400);
-        },
-      }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [pageWidth, reducedMotion],
-  );
-
-  // Auto-slide forever (paused while the user drags; off for reduced motion)
-  useEffect(() => {
-    if (reducedMotion) return;
-    const id = setInterval(() => {
-      if (userDragging.current) return;
-      slideTo(idx.current + 1);
-    }, AUTO_SLIDE_MS);
-    return () => clearInterval(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pageWidth, reducedMotion]);
-
-  // 1. Entrance pop values (staggered sticky spring physics)
-  const [avatarScale] = useState(() => new Animated.Value(0));
-  const [pill1Scale] = useState(() => new Animated.Value(0));
-  const [pill2Scale] = useState(() => new Animated.Value(0));
-  const [pill3Scale] = useState(() => new Animated.Value(0));
-  const [pill4Scale] = useState(() => new Animated.Value(0));
-  const [pill5Scale] = useState(() => new Animated.Value(0));
-
-  // 2. Ambient looped motion values (isolated on inner nested containers to prevent matrix collisions)
-  const [avatarPulse] = useState(() => new Animated.Value(1));
-  const [bannerPulse] = useState(() => new Animated.Value(1));
-  const [floatYLeft] = useState(() => new Animated.Value(0));
-  const [floatYRight] = useState(() => new Animated.Value(0));
-  const [beaconPulse] = useState(() => new Animated.Value(1));
-  const [beaconOpacity] = useState(() => new Animated.Value(1));
-
-  useEffect(() => {
-    // Eagerly pre-warm audio subsystem on mount
-    initPopSound().catch(() => {});
-
-    // Respect Section 32 (Reduced Motion)
-    if (reducedMotion) {
-      avatarScale.setValue(1);
-      pill1Scale.setValue(1);
-      pill2Scale.setValue(1);
-      pill3Scale.setValue(1);
-      pill4Scale.setValue(1);
-      pill5Scale.setValue(1);
-      avatarPulse.setValue(1);
-      bannerPulse.setValue(1);
-      floatYLeft.setValue(0);
-      floatYRight.setValue(0);
-      beaconPulse.setValue(1);
-      beaconOpacity.setValue(1);
-      return;
-    }
-
-    // Ambient Loop A: Pilot avatar calm breathing pulse (Section 17/37: calm 2.8s cycle)
-    const avatarLoop = Animated.loop(
+    const floating = Animated.loop(
       Animated.sequence([
-        Animated.timing(avatarPulse, {
-          toValue: 1.035,
-          duration: 1400,
-          easing: motion.nativeEasing.smooth,
+        Animated.timing(float, {
+          toValue: 1,
+          duration: 1800,
+          easing: Easing.inOut(Easing.ease),
           useNativeDriver: true,
+          isInteraction: false,
         }),
-        Animated.timing(avatarPulse, {
-          toValue: 1.0,
-          duration: 1400,
-          easing: motion.nativeEasing.smooth,
-          useNativeDriver: true,
-        }),
-      ])
-    );
-
-    // Ambient Loop B: Center banner subtle pulse
-    const bannerLoop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(bannerPulse, {
-          toValue: 1.02,
-          duration: 1600,
-          easing: motion.nativeEasing.smooth,
-          useNativeDriver: true,
-        }),
-        Animated.timing(bannerPulse, {
-          toValue: 1.0,
-          duration: 1600,
-          easing: motion.nativeEasing.smooth,
-          useNativeDriver: true,
-        }),
-      ])
-    );
-
-    // Ambient Loop C: Left pills smooth harmonic float (0 -> -4 -> 0 -> +4 -> 0)
-    const floatLeftLoop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(floatYLeft, {
-          toValue: -4,
-          duration: 1500,
-          easing: motion.nativeEasing.smooth,
-          useNativeDriver: true,
-        }),
-        Animated.timing(floatYLeft, {
-          toValue: 4,
-          duration: 3000,
-          easing: motion.nativeEasing.smooth,
-          useNativeDriver: true,
-        }),
-        Animated.timing(floatYLeft, {
+        Animated.timing(float, {
           toValue: 0,
-          duration: 1500,
-          easing: motion.nativeEasing.smooth,
+          duration: 1800,
+          easing: Easing.inOut(Easing.ease),
           useNativeDriver: true,
+          isInteraction: false,
         }),
-      ])
+      ]),
     );
-
-    // Ambient Loop D: Right pills counter-phase float (0 -> +4 -> 0 -> -4 -> 0)
-    const floatRightLoop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(floatYRight, {
-          toValue: 4,
-          duration: 1500,
-          easing: motion.nativeEasing.smooth,
-          useNativeDriver: true,
-        }),
-        Animated.timing(floatYRight, {
-          toValue: -4,
-          duration: 3000,
-          easing: motion.nativeEasing.smooth,
-          useNativeDriver: true,
-        }),
-        Animated.timing(floatYRight, {
-          toValue: 0,
-          duration: 1500,
-          easing: motion.nativeEasing.smooth,
-          useNativeDriver: true,
-        }),
-      ])
-    );
-
-    // Ambient Loop E: Online beacon glow halo (Section 17: subtle pulse, no flashing)
-    const beaconLoop = Animated.loop(
-      Animated.parallel([
-        Animated.sequence([
-          Animated.timing(beaconPulse, {
-            toValue: 1.45,
-            duration: 1200,
-            easing: motion.nativeEasing.smooth,
-            useNativeDriver: true,
-          }),
-          Animated.timing(beaconPulse, {
-            toValue: 1.0,
-            duration: 1200,
-            easing: motion.nativeEasing.smooth,
-            useNativeDriver: true,
-          }),
-        ]),
-        Animated.sequence([
-          Animated.timing(beaconOpacity, {
-            toValue: 0.45,
-            duration: 1200,
-            easing: motion.nativeEasing.smooth,
-            useNativeDriver: true,
-          }),
-          Animated.timing(beaconOpacity, {
-            toValue: 1.0,
-            duration: 1200,
-            easing: motion.nativeEasing.smooth,
-            useNativeDriver: true,
-          }),
-        ]),
-      ])
-    );
-
-    // Start all continuous ambient loops cleanly
-    avatarLoop.start();
-    bannerLoop.start();
-    floatLeftLoop.start();
-    floatRightLoop.start();
-    beaconLoop.start();
-
-    // 4. Staggered sticky entrance sequence with synchronized pop sound
-    const stickySpring = (value: Animated.Value) =>
-      Animated.spring(value, {
-        toValue: 1,
-        tension: 40,
-        friction: 5.2,
-        useNativeDriver: true,
-      });
-
-    const staggerInterval = 200;
-    const pops = [avatarScale, pill1Scale, pill2Scale, pill3Scale, pill4Scale, pill5Scale];
-    const timers: ReturnType<typeof setTimeout>[] = [];
-    const running: Animated.CompositeAnimation[] = [];
-    let cancelled = false;
-
-    // Wait for the audio to be decoded/loaded (max 700ms), then fire each pop's
-    // sound and spring from the SAME timer tick so they cannot drift apart.
-    whenPopSoundReady(700).then(() => {
-      if (cancelled) return;
-      pops.forEach((value, index) => {
-        timers.push(
-          setTimeout(() => {
-            if (cancelled) return;
-            playPopSound();
-            const spring = stickySpring(value);
-            running.push(spring);
-            spring.start();
-          }, index * staggerInterval)
-        );
-      });
-    });
-
-    // Clean up all timers and stop all running loops on unmount
+    enter.start();
+    floating.start();
     return () => {
-      cancelled = true;
-      timers.forEach(clearTimeout);
-      running.forEach((a) => a.stop());
-      avatarLoop.stop();
-      bannerLoop.stop();
-      floatLeftLoop.stop();
-      floatRightLoop.stop();
-      beaconLoop.stop();
+      enter.stop();
+      floating.stop();
     };
-  }, [
-    reducedMotion,
-    avatarScale,
-    pill1Scale,
-    pill2Scale,
-    pill3Scale,
-    pill4Scale,
-    pill5Scale,
-    avatarPulse,
-    bannerPulse,
-    floatYLeft,
-    floatYRight,
-    beaconPulse,
-    beaconOpacity,
-  ]);
-
-  // Clean single-transform entrance style (no duplicate scale keys)
-  const getPopStyle = (scaleVal: Animated.Value) => ({
-    opacity: scaleVal.interpolate({
-      inputRange: [0, 0.25, 1],
-      outputRange: [0, 0.85, 1],
-    }),
-    transform: [{ scale: scaleVal }],
-  });
-
-  // Slide whoop in / whoop out transform (scale: 0.72 -> 1.0 -> 0.72, opacity: 0 -> 1.0 -> 0, slight 8px vertical settle)
-  const getSlideWhoopStyle = (pageIndex: number) => {
-    if (reducedMotion) {
-      return {
-        opacity: 1,
-        transform: [{ scale: 1 }, { translateY: 0 }],
-      };
-    }
-
-    const centerPos = -pageIndex * pageWidth;
-    const prevPos = -(pageIndex - 1) * pageWidth;
-    const nextPos = -(pageIndex + 1) * pageWidth;
-
-    const scale = tx.interpolate({
-      inputRange: [
-        nextPos,
-        nextPos + pageWidth * 0.5,
-        centerPos,
-        prevPos - pageWidth * 0.5,
-        prevPos,
-      ],
-      outputRange: [0.72, 0.88, 1.0, 0.88, 0.72],
-      extrapolate: 'clamp',
-    });
-
-    const opacity = tx.interpolate({
-      inputRange: [
-        nextPos,
-        nextPos + pageWidth * 0.5,
-        centerPos,
-        prevPos - pageWidth * 0.5,
-        prevPos,
-      ],
-      outputRange: [0, 0.75, 1.0, 0.75, 0],
-      extrapolate: 'clamp',
-    });
-
-    const translateY = tx.interpolate({
-      inputRange: [nextPos, centerPos, prevPos],
-      outputRange: [8, 0, 8],
-      extrapolate: 'clamp',
-    });
-
-    return {
-      opacity,
-      transform: [{ scale }, { translateY }],
-    };
-  };
-
-  const renderCopy = (headline: string, body: string, highlight?: string) => (
-    <View style={styles.copySection}>
-      <Text style={styles.headline} numberOfLines={2} adjustsFontSizeToFit>
-        {headline}
-        {highlight ? <Text style={{ color: '#B43E00' }}>{'\n'}{highlight}</Text> : null}
-      </Text>
-      <Text style={styles.bodyText} numberOfLines={3} adjustsFontSizeToFit>{body}</Text>
-    </View>
-  );
-
-  const pilotPage = (key: string, pageIndex: number) => {
-    const whoopStyle = getSlideWhoopStyle(pageIndex);
-    return (
-      <View key={key} style={{ width: pageWidth, paddingHorizontal: 20, alignItems: 'center' }}>
-        <Animated.View style={[{ width: '100%', alignItems: 'center' }, whoopStyle]}>
-          <View style={styles.orbitalContainer}>
-            {/* Dashed Golden Elliptical Orbit Ring */}
-            <View style={styles.dashedOrbit} />
-
-            {/* Top Row: Avatar & Earnings Pill */}
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 12, zIndex: 10 }}>
-              {/* Central Pilot Avatar with Glowing Golden Ring & Star Badge */}
-              <Animated.View
-                style={[
-                  styles.avatarGlowRing,
-                  { position: 'relative', top: 0, alignSelf: 'auto', marginRight: 16 },
-                  getPopStyle(avatarScale),
-                ]}>
-                <Animated.View style={{ transform: [{ scale: avatarPulse }] }}>
-                  <Image
-                    source={require('@/assets/images/driverAvatar.png')}
-                    style={styles.avatarImage}
-                    resizeMode="cover"
-                  />
-                  {/* Star Badge */}
-                  <View style={styles.starBadge}>
-                    <Ionicons name="star" size={13} color="#FBBF24" />
-                  </View>
-                </Animated.View>
-              </Animated.View>
-
-              {/* Pill 1: Top-Right (Avg. Daily Earnings) */}
-              <Animated.View
-                style={[
-                  styles.pillAvgDaily,
-                  { position: 'relative', top: 0, right: 0 },
-                  getPopStyle(pill1Scale),
-                ]}>
-                <Animated.View style={[styles.pillInnerRow, { transform: [{ translateY: floatYRight }] }]}>
-                  <View style={styles.walletIconBox}>
-                    <Ionicons name="wallet" size={18} color="#92400E" />
-                  </View>
-                  <View style={{ marginLeft: 6 }}>
-                    <Text style={styles.avgDailyLabel}>Avg. daily{'\n'}earnings</Text>
-                    <Text style={styles.avgDailyValue}>₹1,250</Text>
-                  </View>
-                </Animated.View>
-              </Animated.View>
-            </View>
-
-            {/* Bottom Row: Daily Payouts & 24/7 Support */}
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 16, zIndex: 10 }}>
-              {/* Pill 2: Bottom-Left (Daily Payouts) */}
-              <Animated.View
-                style={[
-                  styles.pillSupport,
-                  { position: 'relative', top: 0, left: 0, marginRight: 12 },
-                  getPopStyle(pill2Scale),
-                ]}>
-                <Animated.View style={[styles.pillInnerRow, { transform: [{ translateY: floatYLeft }] }]}>
-                  <View style={styles.amberIconBox}>
-                    <Text style={{ fontSize: typography.sizes.base, fontWeight: '700', color: '#92400E' }}>₹</Text>
-                  </View>
-                  <Text style={[styles.pillSmallText, { marginLeft: 6 }]}>Daily payouts</Text>
-                </Animated.View>
-              </Animated.View>
-
-              {/* Pill 3: Bottom-Right (24/7 Support) */}
-              <Animated.View
-                style={[
-                  styles.pillDispatch,
-                  { position: 'relative', top: 0, right: 0 },
-                  getPopStyle(pill3Scale),
-                ]}>
-                <Animated.View style={[styles.pillInnerRow, { transform: [{ translateY: floatYRight }] }]}>
-                  <View style={styles.amberIconBox}>
-                    <Ionicons name="headset" size={16} color="#92400E" />
-                  </View>
-                  <Text style={[styles.pillSmallText, { marginLeft: 6 }]}>24/7 support</Text>
-                </Animated.View>
-              </Animated.View>
-            </View>
-          </View>
-          {renderCopy(PILOT_COPY.headlineMain, PILOT_COPY.body, PILOT_COPY.headlineHighlight)}
-        </Animated.View>
-      </View>
-    );
-  };
+  }, [entrance, float, focused, reducedMotion]);
 
   return (
-    <View style={styles.outerContainer}>
-      <View style={[styles.screen, isWeb && { maxWidth: 440 }]}>
-        <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={[
-            styles.scrollContent,
-            {
-              paddingTop: Math.max(insets.top, 22) + 12,
-              paddingBottom: Math.max(insets.bottom, 16) + 6,
-            },
-          ]}
-          showsVerticalScrollIndicator={false}
-          bounces={false}>
-
-
-          <View style={styles.mainStack}>
-            {/* Single fixed stationary blob anchored behind the slider */}
-            <View pointerEvents="none" style={styles.fixedBlobAnchor}>
-              <BlobBackground />
-            </View>
-
-            {/* Swipeable hero pager: top-centered native-driven translateX track */}
-            <View
-              style={{
-                width: pageWidth,
-                marginHorizontal: -20,
-                alignSelf: 'center',
-                overflow: 'hidden',
-                marginTop: 10,
-              }}
-              {...pan.panHandlers}>
-              <Animated.View
-                style={{
-                  flexDirection: 'row',
-                  width: pageWidth * (PAGE_COUNT + 1),
-                  transform: [{ translateX: tx }],
-                }}>
-                {pilotPage('p0', 0)}
-
-                {EXTRA_SLIDES.map((slide, sIdx) => {
-                  const whoopStyle = getSlideWhoopStyle(sIdx + 1);
-                  return (
-                    <View key={slide.key} style={{ width: pageWidth, paddingHorizontal: 20, alignItems: 'center' }}>
-                      <Animated.View style={[{ width: '100%', alignItems: 'center' }, whoopStyle]}>
-                        <View style={styles.orbitalContainer}>
-                          <View style={styles.dashedOrbit} />
-
-                          <Animated.View style={[styles.avatarGlowRing, { transform: [{ scale: avatarPulse }] }]}>
-                            <View style={styles.slideHeroIcon}>
-                              <Ionicons name={slide.heroIcon} size={40} color="#D97706" />
-                            </View>
-                          </Animated.View>
-
-                          {slide.pills.map((pill, i) => (
-                            <Animated.View
-                              key={pill.label}
-                              style={[
-                                styles.pillBase,
-                                SLIDE_PILL_POSITIONS[i],
-                                { transform: [{ translateY: i % 2 === 0 ? floatYLeft : floatYRight }] },
-                              ]}>
-                              <View style={styles.pillInnerRow}>
-                                <View style={styles.amberIconBox}>
-                                  <Ionicons name={pill.icon} size={15} color="#D97706" />
-                                </View>
-                                <Text style={styles.pillSmallText}>{pill.label}</Text>
-                              </View>
-                            </Animated.View>
-                          ))}
-                        </View>
-                        {renderCopy(slide.headline, slide.body)}
-                      </Animated.View>
-                    </View>
-                  );
-                })}
-                {/* Clone of page 1 so the loop wraps seamlessly */}
-                {pilotPage('p0-clone', 3)}
-              </Animated.View>
-            </View>
-
-            {/* Flexible spacer between top-centered slider and CTA */}
-            <View style={styles.midSpacer} />
-
-            {/* Action CTAs */}
-            <View style={styles.ctaSection}>
-              <CandyButton
-                title="Get Started as Driver"
-                onPress={onBecomeDriver}
-                icon={<Ionicons name="arrow-forward" size={19} color="#12304A" />}
-                style={{ width: '100%', maxWidth: 360, alignSelf: 'center' }}
-              />
-
-              <View style={styles.footerRow}>
-                <Text style={styles.footerPrompt}>Already a registered partner? </Text>
-                <Pressable onPress={onLogin} hitSlop={10}>
-                  <Text style={styles.loginLink}>Log in</Text>
-                </Pressable>
-              </View>
-            </View>
-
-            {/* Bottom breathing space */}
-            <View style={styles.bottomSpacer} />
-          </View>
-        </ScrollView>
+    <View
+      style={styles.heroFrame}
+      onLayout={({ nativeEvent }) => setSpace(nativeEvent.layout)}
+      pointerEvents="none"
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+    >
+      <View
+        style={[
+          styles.illustration,
+          { transform: [{ scale: Math.min(1, space.width / 340, space.height / 340) }] },
+        ]}
+      >
+        <View style={styles.blob}>{focused ? <BlobBackground size={340} /> : null}</View>
+        <Animated.View
+          style={{
+            opacity: entrance,
+            transform: [
+              { translateY: entrance.interpolate({ inputRange: [0, 1], outputRange: [12, 0] }) },
+            ],
+          }}
+        >
+          <Animated.Image
+            source={require('@/assets/images/cab.webp')}
+            resizeMode="contain"
+            style={[
+              styles.car,
+              {
+                transform: [
+                  { translateY: float.interpolate({ inputRange: [0, 1], outputRange: [0, -5] }) },
+                ],
+              },
+            ]}
+          />
+        </Animated.View>
+        <View style={[styles.benefit, styles.hours]}>
+          <Ionicons name="time-outline" size={19} color={colors.brandBrown} />
+          <Text style={styles.benefitText}>Choose your hours</Text>
+        </View>
+        <View style={[styles.benefit, styles.fare]}>
+          <Ionicons name="pricetag-outline" size={19} color={colors.brandBrown} />
+          <Text style={styles.benefitText}>Review the fare</Text>
+        </View>
+        <View style={[styles.benefit, styles.payment]}>
+          <Ionicons name="wallet-outline" size={19} color={colors.brandBrown} />
+          <Text style={styles.benefitText}>Cash or UPI</Text>
+        </View>
       </View>
     </View>
+  );
+}
+
+export function EntryStep({ onContinue }: { onContinue: () => void }) {
+  return (
+    <SafeAreaView style={styles.container}>
+      <View style={styles.content}>
+        <View style={styles.header}>
+          <Image
+            source={require('@/assets/brand/cabzone-horizontal.png')}
+            style={styles.logo}
+            resizeMode="contain"
+            accessibilityLabel="Cabzone Driver"
+            accessibilityRole="image"
+          />
+        </View>
+        <View style={styles.main}>
+          <WelcomeHero />
+          <View style={styles.copy}>
+            <Text style={styles.headline} accessibilityRole="header">
+              Your drive.{'\n'}
+              <Text style={styles.highlight}>Your choice.</Text>
+            </Text>
+            <Text style={styles.description}>
+              Review the route and fare.{'\n'}Drive when you’re ready.
+            </Text>
+          </View>
+        </View>
+        <View style={styles.footer}>
+          <Pressable
+            style={({ pressed }) => [styles.button, pressed && styles.pressed]}
+            onPress={onContinue}
+            accessibilityRole="button"
+            accessibilityLabel="Continue with your phone number"
+            accessibilityHint="Sign in or register as a driver"
+          >
+            <Text style={styles.buttonText}>Continue with phone</Text>
+            <Ionicons name="arrow-forward" size={22} color={colors.deepBrown} />
+          </Pressable>
+        </View>
+      </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-
-  pillBase: {
-    position: 'absolute',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 18,
-    paddingVertical: 7,
-    paddingHorizontal: 13,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
-    zIndex: 6,
-  },
-  slideHeroIcon: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    backgroundColor: '#FFF7DB',
-    borderWidth: 4,
-    borderColor: '#F5B301',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  outerContainer: {
-    flex: 1,
-    backgroundColor: Platform.OS === 'web' ? '#0F172A' : colors.background,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  screen: {
+  container: { flex: 1, backgroundColor: colors.white },
+  content: {
     flex: 1,
     width: '100%',
-    backgroundColor: colors.background,
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    paddingHorizontal: 20,
-  },
-  mainStack: {
-    flex: 1,
-    justifyContent: 'flex-start',
-    alignItems: 'center',
-    width: '100%',
-    paddingTop: 10,
-    position: 'relative',
-  },
-  fixedBlobAnchor: {
-    position: 'absolute',
-    top: 2,
+    maxWidth: 440,
     alignSelf: 'center',
-    width: 400,
-    height: 400,
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 0,
+    paddingHorizontal: 24,
+    paddingTop: 8,
+    paddingBottom: 16,
   },
-  midSpacer: {
-    flex: 1,
-    minHeight: 32,
-    maxHeight: 80,
-  },
-  bottomSpacer: {
-    flex: 1,
-    minHeight: 8,
-    maxHeight: 24,
-  },
-
-  orbitalContainer: {
-    height: 350,
-    position: 'relative',
-    justifyContent: 'center',
-    alignItems: 'center',
-    alignSelf: 'center',
-    width: '100%',
-    maxWidth: 390,
-  },
-  spotlightDisc: {
-    position: 'absolute',
-    width: 310,
-    height: 310,
-    borderRadius: 155,
-    backgroundColor: '#FFF2C2',
-    opacity: 0.72,
-    alignSelf: 'center',
-    top: 5,
-  },
-  dashedOrbit: {
-    position: 'absolute',
-    width: 290,
-    height: 204,
-    borderRadius: 145,
-    borderWidth: 1.5,
-    borderStyle: 'dashed',
-    borderColor: '#E5C368',
-    top: 52,
-    alignSelf: 'center',
-  },
-  avatarGlowRing: {
-    position: 'absolute',
-    top: 8,
-    alignSelf: 'center',
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 3,
-    borderColor: '#FBBF24',
-    shadowColor: '#F59E0B',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3,
-    shadowRadius: 14,
-    elevation: 6,
-    zIndex: 5,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  avatarImage: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-  },
-  starBadge: {
-    position: 'absolute',
-    bottom: -2,
-    right: -2,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: '#1E293B',
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 3,
-    elevation: 3,
-  },
-  pillAvgDaily: {
-    position: 'absolute',
-    top: 36,
-    right: 14,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 30,
-    paddingVertical: 7,
-    paddingHorizontal: 16,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.07,
-    shadowRadius: 10,
-    elevation: 3,
-    zIndex: 6,
-  },
-  pillInnerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  walletIconBox: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#FEF3C7',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 8,
-  },
-  avgDailyLabel: {
-    fontSize: 10.5,
-    color: '#4B5563',
-    fontWeight: '600',
-  },
-  avgDailyValue: {
-    fontSize: typography.sizes.base,
-    color: colors.text,
-    fontWeight: '800',
-    lineHeight: 18,
-  },
-  pillSupport: {
-    position: 'absolute',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 30,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
-    zIndex: 6,
-  },
-  pillDispatch: {
-    position: 'absolute',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 30,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
-    zIndex: 6,
-  },
-  amberIconBox: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: '#FEF3C7',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 8,
-  },
-  pillSmallText: {
-    fontSize: typography.sizes.xs,
-    fontWeight: '700',
-    color: colors.text,
-    lineHeight: 14,
-  },
-  copySection: {
-    marginTop: 36,
-    paddingHorizontal: 8,
-    alignItems: 'center',
-  },
+  header: { alignItems: 'center' },
+  logo: { width: 150, height: 52 },
+  main: { flex: 1, minHeight: 0, justifyContent: 'center', paddingVertical: 16 },
+  copy: { alignItems: 'center', flexShrink: 0, paddingTop: 12 },
   headline: {
-    fontSize: typography.sizes.xxl,
+    fontSize: 32,
+    lineHeight: 38,
     fontWeight: '800',
-    color: colors.text,
+    letterSpacing: -1.2,
     textAlign: 'center',
-    letterSpacing: -0.6,
-    lineHeight: 35,
+    color: colors.deepBrown,
   },
-  bodyText: {
-    marginTop: 10,
-    fontSize: 13.5,
-    lineHeight: 20,
+  highlight: { color: colors.brandBrown },
+  description: {
+    fontSize: 15,
+    lineHeight: 21,
     color: colors.secondary,
     textAlign: 'center',
-    maxWidth: '92%',
-    fontWeight: '500',
+    marginTop: 12,
+    maxWidth: 330,
   },
-  ctaSection: {
-    alignItems: 'center',
-    width: '100%',
-  },
-  primaryBtn: {
-    width: '100%',
-    height: 54,
-    borderRadius: 18,
-    backgroundColor: colors.darkNavy,
+  footer: { flexShrink: 0, paddingTop: 8 },
+  button: {
+    minHeight: 56,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    backgroundColor: colors.amber,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: colors.darkNavy,
-    shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.28,
-    shadowRadius: 12,
-    elevation: 4,
+    gap: 12,
   },
-  primaryBtnText: {
-    color: '#FFFFFF',
-    fontSize: 16.5,
+  buttonText: {
+    fontSize: 17,
+    lineHeight: 22,
     fontWeight: '700',
-    letterSpacing: 0.2,
+    color: colors.deepBrown,
+    flexShrink: 1,
   },
-  arrowIcon: {
-    marginLeft: 8,
-  },
-  footerRow: {
-    flexDirection: 'row',
+  pressed: { opacity: 0.9 },
+  heroFrame: {
+    flex: 1,
+    minHeight: 0,
+    maxHeight: 340,
+    width: '100%',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 22,
-    marginBottom: 0,
   },
-  footerPrompt: {
-    fontSize: 13.5,
-    color: colors.secondary,
-    fontWeight: '500',
+  illustration: { width: 340, height: 340, alignItems: 'center', justifyContent: 'center' },
+  blob: {
+    position: 'absolute',
+    width: 340,
+    height: 340,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  loginLink: {
-    fontSize: 13.5,
-    color: '#0F172A',
-    fontWeight: '800',
+  car: { width: 340, height: 230 },
+  benefit: {
+    position: 'absolute',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: colors.white,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
-  homeIndicator: {
-    width: 134,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: '#E5DECB',
-    alignSelf: 'center',
-    marginTop: 10,
-  },
+  benefitText: { fontSize: 13, lineHeight: 18, fontWeight: '700', color: colors.deepBrown },
+  hours: { top: 24, left: 0 },
+  fare: { top: 64, right: 0 },
+  payment: { bottom: 24 },
 });

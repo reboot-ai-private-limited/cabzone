@@ -355,7 +355,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderWidth: 1,
-    borderColor: colors.warmBeige,
+    borderColor: colors.border,
   },
   timerPillUrgent: {
     backgroundColor: '#FEE2E2',
@@ -386,7 +386,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: colors.lightBlue,
+    borderColor: colors.border,
   },
   metricsText: {
     fontSize: 13,
@@ -435,7 +435,7 @@ const styles = StyleSheet.create({
   counterSentPill: {
     backgroundColor: colors.lightCream,
     borderWidth: 1,
-    borderColor: colors.warmBeige,
+    borderColor: colors.border,
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 8,
@@ -496,7 +496,7 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     backgroundColor: colors.lightCream,
     borderWidth: 1,
-    borderColor: colors.warmBeige,
+    borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
   },

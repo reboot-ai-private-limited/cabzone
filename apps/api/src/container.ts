@@ -252,6 +252,33 @@ export function buildContainers(overrides?: Partial<AppContainers>): AppContaine
       tokenSecret: env.JWT_ACCESS_SECRET,
       resolveRiderId: async (userId) => (await riderRepo.findByUserId(userId))?.id ?? null,
       resolveDriverId,
+      resolveAssignedDriver: async (driverId, vehicleId) => {
+        const driver = await driverRepo.findById(driverId);
+        if (!driver) return null;
+        const targetVehicleId = vehicleId ?? driver.currentVehicleId;
+        const [user, vehicle] = await Promise.all([
+          userRepo.findById(driver.userId),
+          targetVehicleId ? vehicleRepo.findById(targetVehicleId) : Promise.resolve(null),
+        ]);
+        const name =
+          driver.name?.trim() || (user ? `Driver (${user.phoneE164.slice(-4)})` : 'Cabzone Driver');
+        return {
+          driverId: driver.id,
+          name,
+          phoneE164: user?.phoneE164 ?? '',
+          profilePhotoUrl: driver.profilePhotoUrl ?? null,
+          vehicle: vehicle
+            ? {
+                vehicleId: vehicle.id,
+                make: vehicle.make,
+                model: vehicle.model,
+                color: vehicle.color ?? '',
+                registrationNumber: vehicle.registrationNumber,
+                vehicleCategory: vehicle.vehicleType,
+              }
+            : null,
+        };
+      },
       notifier: dispatch.notifier,
       pickupOtpSecret: env.JWT_ACCESS_SECRET,
       requireDriverEligibility: async (driverId, ride) => {

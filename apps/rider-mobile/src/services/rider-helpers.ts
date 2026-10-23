@@ -1,9 +1,50 @@
-import type { RideEventDto, RideStatus } from '@cabzone/contracts';
+import {
+  VEHICLE_CATEGORY_REGISTRY,
+  type RideDto,
+  type RideEventDto,
+  type RideStatus,
+} from '@cabzone/contracts';
 
 export interface PendingDriverCounter {
   driverId: string;
   proposedFarePaise: number;
+  driverName?: string | null;
+  vehicleLabel?: string | null;
   createdAt: string;
+}
+
+export function formatAssignedDriverSummary(
+  ride: Pick<RideDto, 'driverId' | 'vehicleCategory' | 'assignedDriver'>,
+): {
+  driverName: string;
+  phoneE164: string | null;
+  profilePhotoUrl: string | null;
+  vehicleLabel: string;
+  registrationNumber: string | null;
+} {
+  const assigned = ride.assignedDriver;
+  const driverName =
+    assigned?.name?.trim() ||
+    (ride.driverId ? `Driver #${ride.driverId.slice(0, 6).toUpperCase()}` : 'Your driver');
+  const phoneE164 = assigned?.phoneE164?.trim() || null;
+  const profilePhotoUrl = assigned?.profilePhotoUrl?.trim() || null;
+  const vehicle = assigned?.vehicle;
+  const makeModel = vehicle
+    ? [vehicle.color, vehicle.make, vehicle.model]
+        .map((part) => part?.trim())
+        .filter(Boolean)
+        .join(' ')
+    : '';
+  const vehicleLabel = makeModel || VEHICLE_CATEGORY_REGISTRY[ride.vehicleCategory].displayName;
+  const registrationNumber = vehicle?.registrationNumber?.trim() || null;
+
+  return {
+    driverName,
+    phoneE164,
+    profilePhotoUrl,
+    vehicleLabel,
+    registrationNumber,
+  };
 }
 
 export interface PlacePreset {
@@ -200,9 +241,19 @@ export function extractPendingDriverCounters(events: RideEventDto[]): PendingDri
       if (raisedVersion && Number(meta.rideVersion ?? 0) < raisedVersion) continue;
       const fare = Number(meta.proposedFarePaise);
       if (!Number.isFinite(fare) || fare <= 0) continue;
+      const driverName =
+        typeof meta.driverName === 'string' && meta.driverName.trim().length > 0
+          ? meta.driverName.trim()
+          : null;
+      const vehicleLabel =
+        typeof meta.vehicleLabel === 'string' && meta.vehicleLabel.trim().length > 0
+          ? meta.vehicleLabel.trim()
+          : null;
       pending.set(driverId, {
         driverId,
         proposedFarePaise: fare,
+        driverName,
+        vehicleLabel,
         createdAt: event.createdAt,
       });
     } else {

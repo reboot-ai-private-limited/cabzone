@@ -438,7 +438,7 @@ const styles = StyleSheet.create({
   statusOffline: {
     backgroundColor: colors.lightCream,
     borderWidth: 1,
-    borderColor: colors.warmBeige,
+    borderColor: colors.border,
   },
   statusDot: {
     fontSize: typography.sizes.xs,
@@ -593,8 +593,8 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
   },
   canvasOnline: {
-    borderColor: '#86EFAC',
-    backgroundColor: '#F0FDF4',
+    borderColor: colors.border,
+    backgroundColor: colors.white,
   },
   canvasOffline: {
     borderColor: colors.border,
@@ -702,7 +702,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: colors.warmBeige,
+    borderColor: colors.border,
   },
   offlineTitle: {
     fontSize: 18,

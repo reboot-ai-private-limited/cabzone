@@ -150,6 +150,9 @@ export class CompleteRideUseCase {
         throw AppError.badRequest('DISPUTE_NOT_FOUND: This ride has no payment dispute.');
       }
       const prior = events.find((event) => event.eventType === 'PAYMENT_DISPUTE_RESOLVED');
+      if (events.some((event) => event.eventType === 'UPI_ORDER_CREATED')) {
+        throw AppError.conflict('Test UPI disputes require manual review in Razorpay; no automatic refund has been issued.');
+      }
       if (prior) {
         if (
           prior.metadata.outcome === input.outcome &&
@@ -263,6 +266,11 @@ export class CompleteRideUseCase {
 
     if (ride.status === 'SETTLED') {
       return { ride, farePaise, commissionPaise, driverWallet: wallet };
+    }
+
+    const paymentEvents = await this.deps.rideEventRepo?.findByRideId(ride.id);
+    if (paymentEvents?.some((event) => event.eventType === 'UPI_ORDER_CREATED')) {
+      throw AppError.conflict('This ride uses online UPI checkout. Payment must be verified by Cabzone.');
     }
 
     // Reserve the transition before posting money. A concurrent confirmation retries

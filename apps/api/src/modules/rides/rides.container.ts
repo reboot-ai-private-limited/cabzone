@@ -38,6 +38,12 @@ import {
   type RideHttpContext,
 } from './interface/rides.controller.js';
 import { buildRidesRouter } from './interface/rides.routes.js';
+import { RideUpiPaymentUseCase } from './application/useCases/rideUpiPayment.usecase.js';
+import { makeRideUpiController } from './interface/rideUpiPayment.controller.js';
+import { RazorpayTestGateway } from './infrastructure/razorpay.adapter.js';
+import { env, isProduction } from '../../config/env.js';
+import { RidePaymentQrAdapter } from './infrastructure/ridePaymentQr.adapter.js';
+import { makeRidePaymentQrControllers } from './interface/ridePaymentQr.controller.js';
 
 export interface RidesContainerDeps extends RideHttpContext {
   unitOfWork: UnitOfWorkPort;
@@ -74,6 +80,8 @@ const ADMIN_ROLES: AuthRole[] = ['SUPER_ADMIN', 'CITY_ADMIN', 'SUPPORT_ADMIN', '
 
 export function buildRidesContainer(deps: RidesContainerDeps): RidesContainer {
   const { rideRepo, rideEventRepo, walletRepo } = deps;
+  const upiPayment = new RideUpiPaymentUseCase({ rideRepo, rideEventRepo, unitOfWork: deps.unitOfWork,
+    gateway: new RazorpayTestGateway(env.RAZORPAY_KEY_ID ?? '', env.RAZORPAY_KEY_SECRET ?? '', !isProduction) });
 
   const createRideUseCase = new CreateRideUseCase({
     unitOfWork: deps.unitOfWork,
@@ -135,9 +143,12 @@ export function buildRidesContainer(deps: RidesContainerDeps): RidesContainer {
   const actors: RideHttpContext = {
     resolveRiderId: deps.resolveRiderId,
     resolveDriverId: deps.resolveDriverId,
+    resolveAssignedDriver: deps.resolveAssignedDriver,
     notifier: deps.notifier,
     pickupOtpSecret: deps.pickupOtpSecret,
   };
+  const qrControllers = makeRidePaymentQrControllers({ rideRepo, payment: upiPayment,
+    qr: new RidePaymentQrAdapter(deps.tokenSecret), actors });
 
   return {
     rideRepo,
@@ -159,7 +170,7 @@ export function buildRidesContainer(deps: RidesContainerDeps): RidesContainer {
         requireCanCancel: auth.requireRole('RIDER', 'DRIVER'),
         createRide: makeCreateRideController(createRideUseCase, actors),
         listRides: makeListRidesController(rideRepo, actors),
-        getRide: makeGetRideController(rideRepo, actors),
+        getRide: makeGetRideController(rideRepo, actors, rideEventRepo),
         getRideEvents: makeRideEventsController(rideRepo, rideEventRepo, actors),
         acceptRide: makeAcceptRideController(acceptRideUseCase, actors),
         driverCounter: makeDriverCounterController(negotiateFareUseCase, actors),
@@ -170,9 +181,18 @@ export function buildRidesContainer(deps: RidesContainerDeps): RidesContainer {
         startRide: makeStartRideController(startRideUseCase, actors),
         completeRide: makeCompleteRideController(completeRideUseCase, actors),
         confirmPayment: makeCompleteRideController(completeRideUseCase, actors, true),
+        createUpiPayment: makeRideUpiController(upiPayment, actors, 'create'),
+        verifyUpiPayment: makeRideUpiController(upiPayment, actors, 'verify'),
+        upiPaymentStatus: makeRideUpiController(upiPayment, actors, 'status'),
+        driverPaymentQr: qrControllers.driverQr,
+        driverPaymentStatus: qrControllers.driverStatus,
+        checkoutPage: qrControllers.page,
+        checkoutSession: qrControllers.session,
+        checkoutVerify: qrControllers.verify,
+        checkoutStatus: qrControllers.status,
         disputePayment: makeDisputePaymentController(completeRideUseCase, actors),
         resolvePaymentDispute: makeResolvePaymentDisputeController(completeRideUseCase, actors),
-        listPaymentDisputes: makeListPaymentDisputesController(rideRepo, rideEventRepo),
+        listPaymentDisputes: makeListPaymentDisputesController(rideRepo, rideEventRepo, actors),
         cancelRide: makeCancelRideController(cancelRideUseCase, actors),
       }),
   };

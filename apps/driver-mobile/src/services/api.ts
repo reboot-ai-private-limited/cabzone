@@ -100,7 +100,9 @@ let refreshInFlight: Promise<string> | null = null;
 
 export function subscribeAccessToken(listener: (token: string | null) => void): () => void {
   accessTokenListeners.add(listener);
-  return () => { accessTokenListeners.delete(listener); };
+  return () => {
+    accessTokenListeners.delete(listener);
+  };
 }
 
 function publishAccessToken(token: string | null): void {
@@ -117,20 +119,25 @@ async function recoverAccessToken(failedToken: string): Promise<string> {
   if (!refreshInFlight) {
     refreshInFlight = (async () => {
       const refreshToken = await getRefreshToken();
-      if (!refreshToken) throw new ApiError('Session expired. Please sign in again.', { status: 401 });
+      if (!refreshToken)
+        throw new ApiError('Session expired. Please sign in again.', { status: 401 });
       const refreshed = await authApi.refreshToken(refreshToken, await getOrCreateDeviceId());
-      if (await getRefreshToken() !== refreshToken) {
+      if ((await getRefreshToken()) !== refreshToken) {
         throw new ApiError('Session changed. Retry the action.', { status: 401 });
       }
       await saveAuthTokens(refreshed.accessToken, refreshed.refreshToken);
       publishAccessToken(refreshed.accessToken);
       return refreshed.accessToken;
-    })().catch(async (error: unknown) => {
-      if (isApiError(error) && error.isUnauthorized && await getAccessToken() === failedToken) {
-        publishAccessToken(null);
-      }
-      throw error;
-    }).finally(() => { refreshInFlight = null; });
+    })()
+      .catch(async (error: unknown) => {
+        if (isApiError(error) && error.isUnauthorized && (await getAccessToken()) === failedToken) {
+          publishAccessToken(null);
+        }
+        throw error;
+      })
+      .finally(() => {
+        refreshInFlight = null;
+      });
   }
   return refreshInFlight;
 }
@@ -372,7 +379,11 @@ export interface CancelRideResultDto {
 
 export const dispatchApi = {
   async getStatus(token: string): Promise<{ status: 'ONLINE' | 'OFFLINE' }> {
-    return request<{ status: 'ONLINE' | 'OFFLINE' }>('/api/v1/driver/status', { method: 'GET' }, token);
+    return request<{ status: 'ONLINE' | 'OFFLINE' }>(
+      '/api/v1/driver/status',
+      { method: 'GET' },
+      token,
+    );
   },
   async setStatus(
     token: string,
@@ -408,7 +419,11 @@ export const dispatchApi = {
     return request<RideOfferDto[]>('/api/v1/driver/offers', { method: 'GET' }, token);
   },
 
-  async registerPushToken(token: string, pushToken: string, installationId: string): Promise<{ ok: boolean }> {
+  async registerPushToken(
+    token: string,
+    pushToken: string,
+    installationId: string,
+  ): Promise<{ ok: boolean }> {
     return request<{ ok: boolean }>(
       '/api/v1/driver/push-token',
       { method: 'POST', body: JSON.stringify({ token: pushToken, installationId }) },
@@ -426,6 +441,23 @@ export const dispatchApi = {
 };
 
 export const ridesApi = {
+  async getPaymentQr(
+    token: string,
+    rideId: string,
+  ): Promise<{ paid: boolean; imageDataUrl?: string; expiresAt?: string; amountPaise?: number }> {
+    return request(
+      `/api/v1/rides/${encodeURIComponent(rideId)}/payment/upi/qr`,
+      { method: 'POST' },
+      token,
+    );
+  },
+  async checkUpiPayment(token: string, rideId: string): Promise<{ paid: boolean }> {
+    return request(
+      `/api/v1/rides/${encodeURIComponent(rideId)}/payment/upi/driver-status`,
+      { method: 'GET' },
+      token,
+    );
+  },
   async listMyRides(
     token: string,
     params?: { status?: RideStatus | RideStatus[]; limit?: number; offset?: number },

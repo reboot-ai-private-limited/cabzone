@@ -126,7 +126,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: colors.white,
     borderWidth: 1,
-    borderColor: colors.warmBeige,
+    borderColor: colors.border,
   },
   emailSupportText: { fontSize: typography.sizes.xs, fontWeight: '800', color: colors.deepBrown },
   faqCard: {

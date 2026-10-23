@@ -142,7 +142,7 @@ const styles = StyleSheet.create({
   docMeta: { fontSize: 11, color: colors.secondary, marginTop: 2 },
   badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10, borderWidth: 1 },
   badgeGreen: { backgroundColor: '#DCFCE7', borderColor: '#86EFAC' },
-  badgeAmber: { backgroundColor: colors.lightCream, borderColor: colors.warmBeige },
+  badgeAmber: { backgroundColor: colors.lightCream, borderColor: colors.border },
   badgeRed: { backgroundColor: '#FEE2E2', borderColor: '#FCA5A5' },
   badgeText: { fontSize: 10, fontWeight: '800' },
 });

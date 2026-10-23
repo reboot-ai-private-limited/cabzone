@@ -4,9 +4,9 @@ The driver app is an operating tool used outdoors, often between trips. Make ava
 
 ## Color decisions
 
-Use `src/design-system/colors.ts` as the source of truth. The brand anchor is deep brown `#3A2414`, the primary action is solid amber `#FBBF24`, and the app canvas, cards, and inputs are plain white. Use cream `#FFF9F0`, light cream `#FFF6E5`, and warm beige `#FFE7C7` sparingly for quiet surfaces and borders. Supporting illustration colors are `#FFD59A`, `#FB923C`, and `#B45309`.
+Use `src/design-system/colors.ts` as the source of truth. The brand anchor is deep brown `#3A2414`, the primary action is solid amber `#FBBF24`, and the app canvas, cards, and inputs are plain white. Use neutral gray `#E5E5E5` for borders; legacy cream and blue surface aliases resolve to white. Preserve the original duty and ride layouts. Welcome and phone sign-in follow the customer app's layout, with driver-specific artwork and copy. Supporting illustration colors are `#FFD59A`, `#FB923C`, and `#B45309`.
 
-Primary actions use solid amber with deep-brown text and compact corners. Secondary actions use a pale warm surface with brown text; destructive actions remain red. Green means confirmed success or online, amber means attention or pending, and red means an error or destructive action. Status badges always include a text label. A selected or uploaded file is not approval; keep those states distinct.
+Primary actions use solid amber with deep-brown text and compact corners. Secondary actions use a white surface with a neutral outline and brown text; destructive actions remain red. Green means confirmed success or online, amber means attention or pending, and red means an error or destructive action. Status badges always include a text label. A selected or uploaded file is not approval; keep those states distinct.
 
 ## Typography and layout
 

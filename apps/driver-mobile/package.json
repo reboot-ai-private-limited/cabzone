@@ -52,6 +52,8 @@
     "start": "expo start",
     "start:push": "EXPO_USE_PUSH=1 expo start",
     "typecheck": "tsc --noEmit",
+    "test:auth-ui": "node --test src/components/auth/auth-ui.test.mjs",
+    "test:payment-ui": "node --test src/components/driver/ride-payment-qr.test.mjs",
     "reset-project": "node ./scripts/reset-project.js",
     "android": "expo run:android",
     "ios": "expo run:ios",

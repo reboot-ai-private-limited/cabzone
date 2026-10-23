@@ -1,4 +1,5 @@
 import type { Request, RequestHandler, Response } from 'express';
+import type { RideAssignedDriverDto } from '@cabzone/contracts';
 import { AppError } from '../../../shared/errors/AppError.js';
 import { asyncHandler } from '../../../shared/http/asyncHandler.js';
 import { sendSuccess } from '../../../shared/http/response.util.js';
@@ -13,7 +14,7 @@ import type { NegotiateFareUseCase } from '../application/useCases/negotiateFare
 import type { RideEntity, RideEventRepositoryPort, RideRepositoryPort } from '../domain/index.js';
 import { logger } from '../../../shared/logging/logger.js';
 import { derivePickupOtp, type RideNotifierPort } from '../domain/index.js';
-import { toRideView } from './rides.presenter.js';
+import { toRideView, type RideView } from './rides.presenter.js';
 import {
   cancelRideSchema,
   counterResponseSchema,
@@ -34,6 +35,9 @@ export interface RideHttpContext {
   pickupOtpSecret?: string | undefined;
   resolveRiderId: (userId: string) => Promise<string | null>;
   resolveDriverId: (userId: string) => Promise<string | null>;
+  resolveAssignedDriver?:
+    | ((driverId: string, vehicleId: string | null) => Promise<RideAssignedDriverDto | null>)
+    | undefined;
 }
 
 const ADMIN_ROLES: ReadonlySet<string> = new Set([
@@ -49,6 +53,21 @@ async function notify(work: Promise<void> | undefined): Promise<void> {
     await work;
   } catch (err) {
     logger.warn({ err: String(err) }, 'ride realtime notification failed');
+  }
+}
+
+async function toEnrichedRideView(
+  ride: RideEntity,
+  actors?: RideHttpContext,
+): Promise<RideView> {
+  if (!ride.driverId || !actors?.resolveAssignedDriver) {
+    return toRideView(ride, null);
+  }
+  try {
+    const assignedDriver = await actors.resolveAssignedDriver(ride.driverId, ride.vehicleId);
+    return toRideView(ride, assignedDriver);
+  } catch {
+    return toRideView(ride, null);
   }
 }
 
@@ -114,13 +133,14 @@ export function makeCreateRideController(
       vehicleCategory: body.vehicleCategory,
     });
     await notify(actors.notifier?.rideRequested(ride));
-    sendSuccess(req, res, toRideView(ride), 'Ride requested successfully', 201);
+    sendSuccess(req, res, await toEnrichedRideView(ride, actors), 'Ride requested successfully', 201);
   });
 }
 
 export function makeGetRideController(
   rideRepo: RideRepositoryPort,
   actors: RideHttpContext,
+  paymentEvents?: RideEventRepositoryPort,
 ): RequestHandler {
   return asyncHandler(async (req: Request, res: Response) => {
     const { id } = rideIdParamSchema.parse(req.params);
@@ -137,10 +157,12 @@ export function makeGetRideController(
       OTP_VISIBLE.has(ride.status)
         ? derivePickupOtp(actors.pickupOtpSecret, ride.id, ride.passenger.pickupOtpExpiresAt)
         : undefined;
+    const view = await toEnrichedRideView(ride, actors);
+    const paymentCollection = paymentEvents && (await paymentEvents.findByRideId(ride.id)).some((event) => event.eventType === 'UPI_ORDER_CREATED') ? 'RAZORPAY_TEST' : 'DIRECT';
     sendSuccess(
       req,
       res,
-      pickupOtp ? { ...toRideView(ride), pickupOtp } : toRideView(ride),
+      { ...view, paymentCollection, ...(pickupOtp ? { pickupOtp } : {}) },
       'Ride retrieved successfully',
     );
   });
@@ -198,7 +220,8 @@ export function makeListRidesController(
       limit: q.limit,
       offset: q.offset,
     });
-    sendSuccess(req, res, rides.map(toRideView), 'Rides retrieved successfully');
+    const views = await Promise.all(rides.map((r) => toEnrichedRideView(r, actors)));
+    sendSuccess(req, res, views, 'Rides retrieved successfully');
   });
 }
 
@@ -214,7 +237,7 @@ export function makeAcceptRideController(
     await notify(
       actors.notifier?.rideUpdated(ride, 'ride.driver.assigned', { pickupOtp: _riderPickupOtp }),
     );
-    const view = toRideView(ride);
+    const view = await toEnrichedRideView(ride, actors);
     sendSuccess(req, res, view, 'Ride accepted successfully');
   });
 }
@@ -228,7 +251,24 @@ export function makeDriverCounterController(
     const { id } = rideIdParamSchema.parse(req.params);
     const { proposedFarePaise } = driverCounterSchema.parse(req.body);
     const driverId = await requireDriverId(req, actors);
-    const { ride, counter } = await useCase.counter({ rideId: id, driverId, proposedFarePaise });
+    const driverSummary = await actors.resolveAssignedDriver?.(driverId, null).catch(() => null);
+    const vehicleLabel = driverSummary?.vehicle
+      ? [
+          [driverSummary.vehicle.color, driverSummary.vehicle.make, driverSummary.vehicle.model]
+            .filter(Boolean)
+            .join(' '),
+          driverSummary.vehicle.registrationNumber,
+        ]
+          .filter(Boolean)
+          .join(' · ')
+      : null;
+    const { ride, counter } = await useCase.counter({
+      rideId: id,
+      driverId,
+      proposedFarePaise,
+      driverName: driverSummary?.name ?? null,
+      vehicleLabel,
+    });
     await notify(actors.notifier?.fareNegotiation(ride, 'ride.fare.countered', counter));
     sendSuccess(req, res, counter, 'Counter-offer sent to rider', 201);
   });
@@ -244,7 +284,7 @@ export function makeRaiseFareController(
     const riderId = await requireRiderId(req, actors);
     const ride = await useCase.raise({ rideId: id, riderId, proposedFarePaise });
     await notify(actors.notifier?.rideUpdated(ride, 'ride.fare.raised', { proposedFarePaise }));
-    sendSuccess(req, res, toRideView(ride), 'Fare raised successfully');
+    sendSuccess(req, res, await toEnrichedRideView(ride, actors), 'Fare raised successfully');
   });
 }
 
@@ -266,9 +306,16 @@ export function makeRespondCounterController(
         }),
       );
     } else {
-      await notify(actors.notifier?.fareNegotiation(result.ride, 'ride.fare.counter_rejected', result.counter));
+      await notify(
+        actors.notifier?.fareNegotiation(result.ride, 'ride.fare.counter_rejected', result.counter),
+      );
     }
-    sendSuccess(req, res, toRideView(result.ride), `Counter-offer ${action.toLowerCase()}`);
+    sendSuccess(
+      req,
+      res,
+      await toEnrichedRideView(result.ride, actors),
+      `Counter-offer ${action.toLowerCase()}`,
+    );
   });
 }
 
@@ -281,7 +328,7 @@ export function makeDriverEnRouteController(
     const driverId = await requireDriverId(req, actors);
     const ride = await useCase.execute({ rideId: id, driverId });
     await notify(actors.notifier?.rideUpdated(ride, 'ride.driver.en_route'));
-    sendSuccess(req, res, toRideView(ride), 'Driver is en route');
+    sendSuccess(req, res, await toEnrichedRideView(ride, actors), 'Driver is en route');
   });
 }
 
@@ -294,7 +341,7 @@ export function makeDriverArrivedController(
     const driverId = await requireDriverId(req, actors);
     const ride = await useCase.execute({ rideId: id, driverId });
     await notify(actors.notifier?.rideUpdated(ride, 'ride.driver.arrived'));
-    sendSuccess(req, res, toRideView(ride), 'Driver has arrived');
+    sendSuccess(req, res, await toEnrichedRideView(ride, actors), 'Driver has arrived');
   });
 }
 
@@ -308,7 +355,7 @@ export function makeStartRideController(
     const driverId = await requireDriverId(req, actors);
     const ride = await useCase.execute({ rideId: id, driverId, otp });
     await notify(actors.notifier?.rideUpdated(ride, 'ride.started'));
-    sendSuccess(req, res, toRideView(ride), 'Trip started');
+    sendSuccess(req, res, await toEnrichedRideView(ride, actors), 'Trip started');
   });
 }
 
@@ -334,7 +381,7 @@ export function makeCompleteRideController(
       req,
       res,
       {
-        ride: toRideView(result.ride),
+        ride: await toEnrichedRideView(result.ride, actors),
         farePaise: result.farePaise,
         commissionPaise: result.commissionPaise,
         walletBalancePaise: result.driverWallet.balancePaise,
@@ -356,7 +403,7 @@ export function makeDisputePaymentController(
     const riderId = await requireRiderId(req, actors);
     const ride = await useCase.disputePayment({ rideId: id, riderId, reason });
     await notify(actors.notifier?.rideUpdated(ride, 'ride.payment.disputed'));
-    sendSuccess(req, res, toRideView(ride), 'Payment dispute filed');
+    sendSuccess(req, res, await toEnrichedRideView(ride, actors), 'Payment dispute filed');
   });
 }
 
@@ -374,13 +421,14 @@ export function makeResolvePaymentDisputeController(
       reason,
     });
     await notify(actors.notifier?.rideUpdated(ride, 'ride.payment.dispute_resolved', { outcome }));
-    sendSuccess(req, res, toRideView(ride), 'Payment dispute resolved');
+    sendSuccess(req, res, await toEnrichedRideView(ride, actors), 'Payment dispute resolved');
   });
 }
 
 export function makeListPaymentDisputesController(
   rideRepo: RideRepositoryPort,
   eventRepo: RideEventRepositoryPort,
+  actors?: RideHttpContext,
 ): RequestHandler {
   return asyncHandler(async (req: Request, res: Response) => {
     const { limit, offset } = listRidesQuerySchema
@@ -389,7 +437,7 @@ export function makeListPaymentDisputesController(
     const rides = await rideRepo.list({ statuses: ['PAYMENT_DISPUTED'], limit, offset });
     const data = await Promise.all(
       rides.map(async (ride) => ({
-        ride: toRideView(ride),
+        ride: await toEnrichedRideView(ride, actors),
         ticket:
           (await eventRepo.findByRideId(ride.id)).find(
             (event) => event.eventType === 'PAYMENT_DISPUTED',
@@ -429,7 +477,7 @@ export function makeCancelRideController(
     sendSuccess(
       req,
       res,
-      { ride: toRideView(result.ride), feeBreakdown: result.feeBreakdown },
+      { ride: await toEnrichedRideView(result.ride, actors), feeBreakdown: result.feeBreakdown },
       'Ride cancelled',
     );
   });

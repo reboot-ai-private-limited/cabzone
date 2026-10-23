@@ -20,6 +20,15 @@ export interface RidesRouterDeps {
   startRide: RequestHandler;
   completeRide: RequestHandler;
   confirmPayment: RequestHandler;
+  createUpiPayment: RequestHandler;
+  verifyUpiPayment: RequestHandler;
+  upiPaymentStatus: RequestHandler;
+  driverPaymentQr: RequestHandler;
+  driverPaymentStatus: RequestHandler;
+  checkoutPage: RequestHandler;
+  checkoutSession: RequestHandler;
+  checkoutVerify: RequestHandler;
+  checkoutStatus: RequestHandler;
   disputePayment: RequestHandler;
   resolvePaymentDispute: RequestHandler;
   listPaymentDisputes: RequestHandler;
@@ -28,6 +37,11 @@ export interface RidesRouterDeps {
 
 export function buildRidesRouter(deps: RidesRouterDeps): Router {
   const router = Router();
+  // Payment-only QR tickets never grant account or ride-management access.
+  router.get('/payment/upi/checkout', deps.checkoutPage);
+  router.post('/payment/upi/checkout/session', deps.checkoutSession);
+  router.post('/payment/upi/checkout/verify', deps.checkoutVerify);
+  router.post('/payment/upi/checkout/status', deps.checkoutStatus);
   router.use(deps.authenticate);
 
   // Rider
@@ -50,6 +64,11 @@ export function buildRidesRouter(deps: RidesRouterDeps): Router {
   router.post('/:id/start', deps.requireDriver, deps.startRide);
   router.post('/:id/complete', deps.requireDriver, deps.completeRide);
   router.post('/:id/payment/confirm', deps.requireDriver, deps.confirmPayment);
+  router.post('/:id/payment/upi', deps.requireRider, deps.createUpiPayment);
+  router.post('/:id/payment/upi/verify', deps.requireRider, deps.verifyUpiPayment);
+  router.get('/:id/payment/upi/status', deps.requireRider, deps.upiPaymentStatus);
+  router.post('/:id/payment/upi/qr', deps.requireDriver, deps.driverPaymentQr);
+  router.get('/:id/payment/upi/driver-status', deps.requireDriver, deps.driverPaymentStatus);
   router.post('/:id/payment/dispute', deps.requireRider, deps.disputePayment);
   router.post('/:id/payment/dispute/resolve', deps.requireDisputeAdmin, deps.resolvePaymentDispute);
 

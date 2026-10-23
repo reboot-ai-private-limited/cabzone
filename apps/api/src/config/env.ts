@@ -28,6 +28,8 @@ const schema = z.object({
     .enum(['development', 'test', 'stage', 'staging', 'production'])
     .default('development'),
   PORT: z.coerce.number().int().positive().default(4000),
+  RAZORPAY_KEY_ID: z.string().regex(/^rzp_test_[a-zA-Z0-9]+$/).optional(),
+  RAZORPAY_KEY_SECRET: z.string().min(1).optional(),
 
   MONGO_URI: z.string().min(1, 'MONGO_URI is required'),
   REDIS_URL: z.string().min(1, 'REDIS_URL is required'),

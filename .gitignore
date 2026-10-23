@@ -24,6 +24,7 @@ coverage/
 *.log
 
 # Graphify internal cache and local machine config
+graphify-out/20??-??-??/
 graphify-out/.*
 graphify-out/cache/
 

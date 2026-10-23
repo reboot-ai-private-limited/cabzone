@@ -565,7 +565,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: colors.lightCream,
     borderWidth: 1,
-    borderColor: colors.warmBeige,
+    borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -586,7 +586,7 @@ const styles = StyleSheet.create({
   },
   summaryChipHighlight: {
     backgroundColor: colors.lightCream,
-    borderColor: colors.warmBeige,
+    borderColor: colors.border,
   },
   summaryLabel: {
     fontSize: 11,
@@ -728,7 +728,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderWidth: 1,
-    borderColor: colors.warmBeige,
+    borderColor: colors.border,
   },
   rangeBadgeText: {
     fontSize: 11,
@@ -740,7 +740,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     padding: 8,
     borderWidth: 1,
-    borderColor: colors.warmBeige,
+    borderColor: colors.border,
   },
   counterNoticeText: {
     fontSize: 12,
@@ -774,7 +774,7 @@ const styles = StyleSheet.create({
   inlineStepBtn: {
     backgroundColor: colors.white,
     borderWidth: 1,
-    borderColor: colors.warmBeige,
+    borderColor: colors.border,
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 8,
@@ -841,7 +841,7 @@ const styles = StyleSheet.create({
     borderRadius: 32,
     backgroundColor: colors.lightCream,
     borderWidth: 1,
-    borderColor: colors.warmBeige,
+    borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 14,
@@ -900,7 +900,7 @@ const styles = StyleSheet.create({
   },
   negotiatedPill: {
     backgroundColor: colors.lightCream,
-    borderColor: colors.warmBeige,
+    borderColor: colors.border,
     borderWidth: 1,
     paddingHorizontal: 8,
     paddingVertical: 3,

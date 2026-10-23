@@ -1,24 +1,24 @@
 /**
  * Cabzon Driver App — Color Tokens
- * Theme: deep brown, amber, and cream
+ * White surfaces with deep brown and amber accents
  */
 
 export const colors = {
   deepBrown: '#3A2414',
   amber: '#FBBF24',
-  cream: '#FFF9F0',
-  lightCream: '#FFF6E5',
-  warmBeige: '#FFE7C7',
+  cream: '#FFFFFF',
+  lightCream: '#FFFFFF',
+  warmBeige: '#FFFFFF',
   softAmber: '#FFD59A',
   orange: '#FB923C',
   brandBrown: '#B45309',
   cabzonBlue: '#3A2414',
-  lightBlue: '#FFE7C7',
-  softBlue: '#FFF6E5',
+  lightBlue: '#FFFFFF',
+  softBlue: '#FFFFFF',
   background: '#FFFFFF',
   white: '#FFFFFF',
   surface: '#FFFFFF',
-  border: '#FFE7C7',
+  border: '#E5E5E5',
   darkNavy: '#3A2414',
   text: '#3A2414',
   secondary: '#705746',

@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Animated,
+  Image,
+  Linking,
   PanResponder,
   Pressable,
   RefreshControl,
@@ -11,9 +13,8 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { decodePolyline } from '@cabzone/geo';
-import { VEHICLE_CATEGORY_REGISTRY } from '@cabzone/contracts';
 import type { RiderRideViewDto } from '@/services/api';
-import { formatRupeesFromPaise } from '@/services/rider-helpers';
+import { formatAssignedDriverSummary, formatRupeesFromPaise } from '@/services/rider-helpers';
 import { colors, radii, spacing, typography } from '@/design-system';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 import BookingMap from '@/components/booking/booking-map';
@@ -30,6 +31,7 @@ interface OngoingRideViewProps {
   onShare: () => void;
   onCancel: () => void;
   onRefresh: () => void;
+  onCallDriver?: ((phoneE164: string) => void) | undefined;
 }
 
 export function OngoingRideView({
@@ -44,6 +46,7 @@ export function OngoingRideView({
   onShare,
   onCancel,
   onRefresh,
+  onCallDriver,
 }: OngoingRideViewProps) {
   const reducedMotion = useReducedMotion();
   const [height, setHeight] = useState(700);
@@ -53,12 +56,18 @@ export function OngoingRideView({
   const [now, setNow] = useState(() => Date.now());
   const [progress] = useState(() => new Animated.Value(0));
   const inTrip = ride.status === 'TRIP_STARTED';
+  const arrived = ride.status === 'DRIVER_ARRIVED';
   const showRoute = inTrip || routeOverview;
-  const collapsedHeight = Math.min(400, height * 0.55);
+  const collapsedHeight = arrived
+    ? Math.min(500, height * 0.65)
+    : inTrip
+      ? Math.min(460, height * 0.6)
+      : Math.min(420, height * 0.55);
   const expandedHeight = Math.max(collapsedHeight + 1, height - 72);
   const fare = ride.agreedFarePaise ?? ride.proposedFarePaise ?? ride.suggestedFarePaise;
   const pickup = { ...ride.pickup, address: ride.pickup.address || 'Pickup location' };
   const drop = { ...ride.drop, address: ride.drop.address || 'Destination' };
+  const driverInfo = useMemo(() => formatAssignedDriverSummary(ride), [ride]);
   const routeCoordinates = useMemo(() => {
     try {
       return decodePolyline(ride.routeSnapshot.polyline).filter(
@@ -74,6 +83,16 @@ export function OngoingRideView({
   }, [ride.routeSnapshot.polyline]);
   const locationFresh =
     driverLocation && now - new Date(driverLocation.updatedAt).getTime() < 30_000;
+  const arrivalTime = ride.arrivedAt ? Date.parse(ride.arrivedAt) : NaN;
+  const waitingSeconds =
+    arrived && Number.isFinite(arrivalTime) && arrivalTime <= now
+      ? Math.floor((now - arrivalTime) / 1000)
+      : null;
+  const startTime = ride.startedAt ? Date.parse(ride.startedAt) : NaN;
+  const tripMinutes =
+    inTrip && Number.isFinite(startTime) && startTime <= now
+      ? Math.floor((now - startTime) / 60_000)
+      : null;
   const title = inTrip
     ? 'On your way'
     : ride.status === 'DRIVER_ARRIVED'
@@ -88,9 +107,9 @@ export function OngoingRideView({
       : 'We’ll update you when your driver arrives.';
 
   useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 5000);
+    const timer = setInterval(() => setNow(Date.now()), arrived ? 1000 : 5000);
     return () => clearInterval(timer);
-  }, []);
+  }, [arrived]);
 
   const animateTo = useCallback(
     (open: boolean) => {
@@ -107,6 +126,15 @@ export function OngoingRideView({
     animateTo(expanded);
     return () => progress.stopAnimation();
   }, [expanded, animateTo, progress]);
+
+  const handleCallDriver = useCallback(() => {
+    if (!driverInfo.phoneE164) return;
+    if (onCallDriver) {
+      onCallDriver(driverInfo.phoneE164);
+      return;
+    }
+    void Linking?.openURL?.(`tel:${driverInfo.phoneE164}`);
+  }, [driverInfo.phoneE164, onCallDriver]);
 
   const pan = PanResponder.create({
     onMoveShouldSetPanResponder: (_, gesture) =>
@@ -131,6 +159,35 @@ export function OngoingRideView({
     },
     onPanResponderTerminate: () => animateTo(expanded),
   });
+
+  const pickupCode =
+    !inTrip && ride.pickupOtp ? (
+      <View style={styles.otpRow}>
+        <View style={styles.flex}>
+          <Text style={styles.rowTitle}>Pickup code</Text>
+          <Text style={styles.caption}>Share only when you meet your driver</Text>
+        </View>
+        <Text
+          style={styles.otp}
+          accessibilityLabel={`Pickup code ${ride.pickupOtp.split('').join(' ')}`}
+        >
+          {ride.pickupOtp}
+        </Text>
+      </View>
+    ) : null;
+
+  const shareAction = (
+    <Pressable
+      style={styles.detailAction}
+      onPress={onShare}
+      accessibilityRole="button"
+      accessibilityLabel="Share trip"
+    >
+      <Ionicons name="share-social-outline" size={22} color={colors.deepBrown} />
+      <Text style={[styles.rowTitle, styles.flex]}>Share trip</Text>
+      <Ionicons name="chevron-forward" size={20} color={colors.secondary} />
+    </Pressable>
+  );
 
   return (
     <View
@@ -164,6 +221,16 @@ export function OngoingRideView({
       </View>
 
       <View style={[styles.mapControls, { bottom: collapsedHeight + spacing.lg }]}>
+        {inTrip ? (
+          <Pressable
+            style={styles.mapButton}
+            onPress={onShare}
+            accessibilityRole="button"
+            accessibilityLabel="Share trip"
+          >
+            <Ionicons name="share-social-outline" size={23} color={colors.deepBrown} />
+          </Pressable>
+        ) : null}
         {!inTrip ? (
           <Pressable
             style={styles.mapButton}
@@ -224,49 +291,101 @@ export function OngoingRideView({
               >
                 {title}
               </Text>
-              <Text style={styles.subtitle}>{subtitle}</Text>
+              <Text style={styles.vehicle}>{driverInfo.vehicleLabel}</Text>
             </View>
-            <Ionicons name="car-sport-outline" size={36} color={colors.deepBrown} />
+            <View style={styles.vehicleIdentity}>
+              <Ionicons name="car-sport-outline" size={32} color={colors.deepBrown} />
+              {driverInfo.registrationNumber ? (
+                <View style={styles.plateBadge}>
+                  <Text
+                    style={styles.plateText}
+                    accessibilityLabel={`Vehicle number ${driverInfo.registrationNumber}`}
+                  >
+                    {driverInfo.registrationNumber}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
           </View>
-
-          {!inTrip && ride.pickupOtp ? (
-            <View style={styles.otpRow}>
-              <View style={styles.flex}>
-                <Text style={styles.rowTitle}>Pickup code</Text>
-                <Text style={styles.caption}>Share when you meet your driver</Text>
+          {inTrip ? (
+            <View style={styles.arrival}>
+              <View style={styles.stop}>
+                <Ionicons name="location-outline" size={22} color={colors.brandBrown} />
+                <View style={styles.flex}>
+                  <Text style={styles.caption}>Heading to</Text>
+                  <Text style={styles.destination}>{drop.address}</Text>
+                </View>
               </View>
-              <Text
-                style={styles.otp}
-                accessibilityLabel={`Pickup code ${ride.pickupOtp.split('').join(' ')}`}
-              >
-                {ride.pickupOtp}
-              </Text>
+              <View style={styles.tripFacts}>
+                <Text style={styles.caption}>
+                  {`${(ride.routeSnapshot.distanceM / 1000).toFixed(1)} km booked route`}
+                </Text>
+                {tripMinutes !== null ? (
+                  <Text
+                    style={styles.caption}
+                    accessibilityLabel={`Trip time ${tripMinutes} minutes`}
+                  >
+                    {tripMinutes === 0 ? 'Trip just started' : `Trip time · ${tripMinutes} min`}
+                  </Text>
+                ) : null}
+              </View>
             </View>
-          ) : null}
+          ) : arrived ? (
+            <>
+              <View style={styles.arrival}>
+                <View style={styles.stop}>
+                  <Ionicons name="location-outline" size={22} color={colors.brandBrown} />
+                  <View style={styles.flex}>
+                    <Text style={styles.rowTitle}>Meet at your pickup</Text>
+                    <Text style={styles.address}>{pickup.address}</Text>
+                  </View>
+                </View>
+                {waitingSeconds !== null ? (
+                  <View style={styles.waitingRow}>
+                    <Text style={styles.caption}>Driver waiting</Text>
+                    <Text
+                      style={styles.waitingTime}
+                      accessibilityLabel={`Driver waiting for ${Math.floor(waitingSeconds / 60)} minutes and ${waitingSeconds % 60} seconds`}
+                    >
+                      {`${Math.floor(waitingSeconds / 60)}:${String(waitingSeconds % 60).padStart(2, '0')}`}
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+              {pickupCode}
+            </>
+          ) : (
+            <Text style={styles.caption}>{subtitle}</Text>
+          )}
 
           <View style={styles.driverActions}>
             <View style={styles.driverSummary}>
               <View style={styles.driverIcon}>
-                <Ionicons name="person-outline" size={21} color={colors.deepBrown} />
+                {driverInfo.profilePhotoUrl ? (
+                  <Image
+                    source={{ uri: driverInfo.profilePhotoUrl }}
+                    style={styles.driverPhoto}
+                    accessibilityLabel={`${driverInfo.driverName} photo`}
+                  />
+                ) : (
+                  <Ionicons name="person-outline" size={21} color={colors.deepBrown} />
+                )}
               </View>
-              <View style={styles.flex}>
-                <Text style={styles.rowTitle}>Your driver</Text>
-                <Text style={styles.caption}>
-                  {VEHICLE_CATEGORY_REGISTRY[ride.vehicleCategory].displayName}
-                </Text>
-              </View>
+              <Text style={styles.driverName}>{driverInfo.driverName}</Text>
             </View>
-            <Pressable
-              style={styles.action}
-              onPress={onShare}
-              accessibilityRole="button"
-              accessibilityLabel="Share trip"
-            >
-              <View style={styles.actionIcon}>
-                <Ionicons name="share-social-outline" size={23} color={colors.deepBrown} />
-              </View>
-              <Text style={styles.actionLabel}>Share trip</Text>
-            </Pressable>
+            {driverInfo.phoneE164 ? (
+              <Pressable
+                style={styles.action}
+                onPress={handleCallDriver}
+                accessibilityRole="button"
+                accessibilityLabel="Call driver"
+              >
+                <View style={styles.actionIcon}>
+                  <Ionicons name="call-outline" size={22} color={colors.deepBrown} />
+                </View>
+                <Text style={styles.actionLabel}>Contact driver</Text>
+              </Pressable>
+            ) : null}
             <Pressable
               style={styles.action}
               onPress={onSafety}
@@ -280,18 +399,20 @@ export function OngoingRideView({
             </Pressable>
           </View>
 
-          <Text style={styles.caption} accessibilityLiveRegion="polite">
-            {!driverLocation
-              ? 'Waiting for driver location'
-              : locationFresh
-                ? 'Driver location is live'
+          {!arrived ? pickupCode : null}
+
+          {!locationFresh ? (
+            <Text style={styles.caption} accessibilityLiveRegion="polite">
+              {!driverLocation
+                ? 'Waiting for driver location'
                 : 'Location update delayed · showing last known position'}
-          </Text>
+            </Text>
+          ) : null}
 
           <View style={styles.fareRow}>
             <View style={styles.flex}>
-              <Text style={styles.rowTitle}>Cash or UPI</Text>
-              <Text style={styles.caption}>Pay your driver directly after the trip</Text>
+              <Text style={styles.rowTitle}>UPI payment</Text>
+              <Text style={styles.caption}>Pay in Cabzone after the trip</Text>
             </View>
             <Text
               style={styles.fare}
@@ -323,6 +444,7 @@ export function OngoingRideView({
                   {(ride.routeSnapshot.distanceM / 1000).toFixed(1)} km · {passengerLabel}
                 </Text>
               </View>
+              {!inTrip ? shareAction : null}
               {!inTrip ? (
                 <Pressable style={styles.cancel} onPress={onCancel} accessibilityRole="button">
                   <Text style={styles.cancelText}>Cancel ride</Text>
@@ -386,12 +508,29 @@ const styles = StyleSheet.create({
   grabberTarget: { minHeight: 48, alignItems: 'center', justifyContent: 'center' },
   grabber: { width: 40, height: 5, borderRadius: radii.pill, backgroundColor: colors.border },
   sheetScroll: { flex: 1 },
-  sheetContent: { paddingHorizontal: spacing.xl, paddingBottom: spacing.xxl, gap: spacing.lg },
-  statusRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  sheetContent: { paddingHorizontal: spacing.xl, paddingBottom: spacing.xxl, gap: spacing.md },
+  statusRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md },
   title: { ...typography.h1, color: colors.deepBrown },
-  subtitle: { ...typography.body, color: colors.secondary, marginTop: spacing.xs },
+  vehicle: { ...typography.body, color: colors.deepBrown, marginTop: spacing.sm },
+  vehicleIdentity: { alignItems: 'center', gap: spacing.sm, maxWidth: '45%' },
   rowTitle: { ...typography.bodyBold, color: colors.deepBrown },
   caption: { ...typography.caption, color: colors.secondary },
+  arrival: { gap: spacing.md },
+  destination: { ...typography.h2, color: colors.deepBrown },
+  tripFacts: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+  },
+  waitingRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+  },
+  waitingTime: { ...typography.h2, color: colors.deepBrown, fontVariant: ['tabular-nums'] },
   otpRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -402,33 +541,66 @@ const styles = StyleSheet.create({
     borderColor: colors.borderSubtle,
   },
   otp: {
-    ...typography.hero,
+    ...typography.h1,
     color: colors.deepBrown,
     letterSpacing: 5,
     fontVariant: ['tabular-nums'],
   },
-  driverActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg },
-  driverSummary: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  driverActions: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+    paddingVertical: spacing.md,
+    borderTopWidth: 1,
+    borderColor: colors.borderSubtle,
+  },
+  driverSummary: { flex: 1, alignItems: 'center', gap: spacing.sm },
+  driverName: { ...typography.caption, color: colors.deepBrown, textAlign: 'center' },
   driverIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     backgroundColor: colors.white,
     borderWidth: 1,
     borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
   },
-  action: { alignItems: 'center', gap: spacing.xs, minWidth: 56 },
+  driverPhoto: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+  },
+  plateBadge: {
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
+  },
+  plateText: {
+    ...typography.bodyBold,
+    color: colors.deepBrown,
+    letterSpacing: 0.6,
+  },
+  action: { flex: 1, alignItems: 'center', gap: spacing.sm, minHeight: 76 },
   actionIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     backgroundColor: colors.amber,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  actionLabel: { ...typography.caption, color: colors.deepBrown },
+  actionLabel: { ...typography.caption, color: colors.deepBrown, textAlign: 'center' },
+  detailAction: {
+    minHeight: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
   fareRow: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -105,7 +105,7 @@ const styles = StyleSheet.create({
     padding: 16,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: colors.warmBeige,
+    borderColor: colors.border,
     marginBottom: 6,
   },
   plateLabel: { fontSize: 10, fontWeight: '800', color: colors.brandBrown, letterSpacing: 0.6 },
@@ -127,7 +127,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 14,
     borderWidth: 1,
-    borderColor: colors.warmBeige,
+    borderColor: colors.border,
   },
   noticeText: {
     flex: 1,

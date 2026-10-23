@@ -18,6 +18,8 @@ export const FARE_PROPOSAL_RAISED = 'FARE_PROPOSAL_RAISED';
 export interface FareCounter {
   driverId: string;
   proposedFarePaise: number;
+  driverName?: string | null | undefined;
+  vehicleLabel?: string | null | undefined;
   createdAt: Date;
 }
 
@@ -40,7 +42,12 @@ export function pendingCounters(events: RideEventEntity[]): FareCounter[] {
       pending.clear();
       continue;
     }
-    if (e.eventType !== COUNTER_PROPOSED && e.eventType !== COUNTER_ACCEPTED && e.eventType !== COUNTER_REJECTED) continue;
+    if (
+      e.eventType !== COUNTER_PROPOSED &&
+      e.eventType !== COUNTER_ACCEPTED &&
+      e.eventType !== COUNTER_REJECTED
+    )
+      continue;
     const metadata = e.metadata ?? {};
     const driverId = String(metadata['driverId'] ?? '');
     if (!driverId) continue;
@@ -48,9 +55,19 @@ export function pendingCounters(events: RideEventEntity[]): FareCounter[] {
       if (raisedVersion && Number(metadata['rideVersion'] ?? 0) < raisedVersion) continue;
       const proposedFarePaise = Number(metadata['proposedFarePaise']);
       if (!Number.isFinite(proposedFarePaise) || proposedFarePaise <= 0) continue;
+      const driverName =
+        typeof metadata['driverName'] === 'string' && metadata['driverName'].trim().length > 0
+          ? metadata['driverName'].trim()
+          : null;
+      const vehicleLabel =
+        typeof metadata['vehicleLabel'] === 'string' && metadata['vehicleLabel'].trim().length > 0
+          ? metadata['vehicleLabel'].trim()
+          : null;
       pending.set(driverId, {
         driverId,
         proposedFarePaise,
+        driverName,
+        vehicleLabel,
         createdAt: e.createdAt,
       });
     } else if (e.eventType === COUNTER_ACCEPTED || e.eventType === COUNTER_REJECTED) {
@@ -75,7 +92,11 @@ export class NegotiateFareUseCase {
     return ride;
   }
 
-  async raise(input: { rideId: string; riderId: string; proposedFarePaise: number }): Promise<RideEntity> {
+  async raise(input: {
+    rideId: string;
+    riderId: string;
+    proposedFarePaise: number;
+  }): Promise<RideEntity> {
     return this.deps.unitOfWork.run(async () => {
       const ride = await this.openRide(input.rideId);
       if (ride.bookerRiderId !== input.riderId) {
@@ -88,22 +109,35 @@ export class NegotiateFareUseCase {
         floorPercent: snap.negotiationFloorPercent,
         ceilingPercent: snap.negotiationCeilingPercent,
       });
-      if (input.proposedFarePaise <= (ride.proposedFarePaise ?? ride.suggestedFarePaise) || input.proposedFarePaise > ceilingPaise) {
-        throw AppError.badRequest('FARE_OUTSIDE_NEGOTIATION_LIMIT: Choose a higher fare within the allowed range.');
+      if (
+        input.proposedFarePaise <= (ride.proposedFarePaise ?? ride.suggestedFarePaise) ||
+        input.proposedFarePaise > ceilingPaise
+      ) {
+        throw AppError.badRequest(
+          'FARE_OUTSIDE_NEGOTIATION_LIMIT: Choose a higher fare within the allowed range.',
+        );
       }
       const now = new Date();
-      const updated = await this.deps.rideRepo.update({
-        ...ride,
-        proposedFarePaise: input.proposedFarePaise,
-        updatedAt: now,
-        version: ride.version + 1,
-      }, ride.version);
+      const updated = await this.deps.rideRepo.update(
+        {
+          ...ride,
+          proposedFarePaise: input.proposedFarePaise,
+          updatedAt: now,
+          version: ride.version + 1,
+        },
+        ride.version,
+      );
       if (!updated) throw AppError.conflict('RIDE_UNAVAILABLE: Ride changed, please retry.');
       await this.deps.rideEventRepo.save({
-        id: newUuid(), rideId: ride.id, eventType: FARE_PROPOSAL_RAISED,
-        actorType: 'RIDER', actorId: input.riderId,
-        previousStatus: ride.status, newStatus: ride.status,
-        metadata: { proposedFarePaise: input.proposedFarePaise, rideVersion: updated.version }, createdAt: now,
+        id: newUuid(),
+        rideId: ride.id,
+        eventType: FARE_PROPOSAL_RAISED,
+        actorType: 'RIDER',
+        actorId: input.riderId,
+        previousStatus: ride.status,
+        newStatus: ride.status,
+        metadata: { proposedFarePaise: input.proposedFarePaise, rideVersion: updated.version },
+        createdAt: now,
       });
       return updated;
     });
@@ -114,6 +148,8 @@ export class NegotiateFareUseCase {
     rideId: string;
     driverId: string;
     proposedFarePaise: number;
+    driverName?: string | null | undefined;
+    vehicleLabel?: string | null | undefined;
   }): Promise<{ ride: RideEntity; counter: FareCounter }> {
     const ride = await this.openRide(input.rideId);
     await this.deps.requireDriverEligibility(input.driverId, ride);
@@ -132,6 +168,14 @@ export class NegotiateFareUseCase {
     }
 
     const createdAt = new Date();
+    const metadata: Record<string, unknown> = {
+      driverId: input.driverId,
+      proposedFarePaise: input.proposedFarePaise,
+      rideVersion: ride.version,
+    };
+    if (input.driverName) metadata['driverName'] = input.driverName;
+    if (input.vehicleLabel) metadata['vehicleLabel'] = input.vehicleLabel;
+
     await this.deps.rideEventRepo.save({
       id: newUuid(),
       rideId: ride.id,
@@ -140,12 +184,18 @@ export class NegotiateFareUseCase {
       actorId: input.driverId,
       previousStatus: ride.status,
       newStatus: ride.status,
-      metadata: { driverId: input.driverId, proposedFarePaise: input.proposedFarePaise, rideVersion: ride.version },
+      metadata,
       createdAt,
     });
     return {
       ride,
-      counter: { driverId: input.driverId, proposedFarePaise: input.proposedFarePaise, createdAt },
+      counter: {
+        driverId: input.driverId,
+        proposedFarePaise: input.proposedFarePaise,
+        driverName: input.driverName ?? null,
+        vehicleLabel: input.vehicleLabel ?? null,
+        createdAt,
+      },
     };
   }
 
@@ -186,7 +236,12 @@ export class NegotiateFareUseCase {
 
     // AcceptRideUseCase opens its own unit of work, so this stays outside one (no nesting).
     const updated = await this.deps.rideRepo.update(
-      { ...ride, proposedFarePaise: counter.proposedFarePaise, updatedAt: new Date(), version: ride.version + 1 },
+      {
+        ...ride,
+        proposedFarePaise: counter.proposedFarePaise,
+        updatedAt: new Date(),
+        version: ride.version + 1,
+      },
       ride.version,
     );
     if (!updated) throw AppError.conflict('RIDE_UNAVAILABLE: Ride changed, please retry.');

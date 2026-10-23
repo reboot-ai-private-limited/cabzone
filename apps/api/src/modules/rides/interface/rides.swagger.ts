@@ -14,14 +14,35 @@ import {
   paymentDisputeSchema,
   paymentDisputeResolutionSchema,
   proposeFareSchema,
+  upiPaymentProofSchema,
 } from './rides.validation.js';
 
 export const rideViewSchema = z.object({
+  paymentCollection: z.enum(['DIRECT', 'RAZORPAY_TEST']).optional(),
   id: z.string().uuid(),
   status: z.string(),
   bookerRiderId: z.string().uuid(),
   driverId: z.string().uuid().nullable(),
   vehicleId: z.string().uuid().nullable(),
+  assignedDriver: z
+    .object({
+      driverId: z.string(),
+      name: z.string(),
+      phoneE164: z.string(),
+      profilePhotoUrl: z.string().nullable(),
+      vehicle: z
+        .object({
+          vehicleId: z.string(),
+          make: z.string(),
+          model: z.string(),
+          color: z.string(),
+          registrationNumber: z.string(),
+          vehicleCategory: z.string(),
+        })
+        .nullable(),
+    })
+    .nullable()
+    .optional(),
   vehicleCategory: z.string(),
   pickup: z.object({ lat: z.number(), lng: z.number(), address: z.string().nullable() }),
   drop: z.object({ lat: z.number(), lng: z.number(), address: z.string().nullable() }),
@@ -63,20 +84,85 @@ export const rideViewSchema = z.object({
 });
 
 export function registerRidesSwaggerPaths(): void {
+  for (const [method, suffix, summary] of [
+    ['post', '', 'Create or resume UPI-only Razorpay test checkout for the booking customer'],
+    ['post', '/verify', 'Verify checkout proof and reconcile a captured UPI test payment'],
+    [
+      'get',
+      '/status',
+      'Recover payment status from Razorpay and settle a captured UPI test payment',
+    ],
+  ] as const) {
+    registry.registerPath({
+      method,
+      path: `/v1/rides/{id}/payment/upi${suffix}`,
+      tags: ['Rides'],
+      summary,
+      security: bearerAuth,
+      request: {
+        params: rideIdParamSchema,
+        ...(suffix === '/verify'
+          ? { body: { content: { 'application/json': { schema: upiPaymentProofSchema } } } }
+          : {}),
+      },
+      responses: {
+        200: {
+          description: 'UPI test payment result',
+          content: {
+            'application/json': {
+              schema: successResponse(
+                suffix === ''
+                  ? z.object({
+                      keyId: z.string(),
+                      orderId: z.string(),
+                      amountPaise: z.number().int(),
+                      currency: z.literal('INR'),
+                      testMode: z.literal(true),
+                    })
+                  : z.object({ paid: z.boolean() }),
+              ),
+            },
+          },
+        },
+        400: {
+          description: 'Invalid payment proof or unavailable checkout',
+          content: { 'application/json': { schema: errorResponse } },
+        },
+        403: {
+          description: 'Booking customer required',
+          content: { 'application/json': { schema: errorResponse } },
+        },
+        409: {
+          description: 'Ride payment state changed',
+          content: { 'application/json': { schema: errorResponse } },
+        },
+      },
+    });
+  }
   registry.registerPath({
     method: 'post',
     path: '/v1/rides/{id}/fare/raise',
     tags: ['Rides'],
-    summary: 'Raise the rider offer during the active search window; clears pending driver counters',
+    summary:
+      'Raise the rider offer during the active search window; clears pending driver counters',
     security: bearerAuth,
     request: {
       params: rideIdParamSchema,
       body: { content: { 'application/json': { schema: proposeFareSchema } } },
     },
     responses: {
-      200: { description: 'Fare raised', content: { 'application/json': { schema: successResponse(rideViewSchema) } } },
-      400: { description: 'Fare is not higher or exceeds the ceiling', content: { 'application/json': { schema: errorResponse } } },
-      409: { description: 'Offer window closed or ride changed', content: { 'application/json': { schema: errorResponse } } },
+      200: {
+        description: 'Fare raised',
+        content: { 'application/json': { schema: successResponse(rideViewSchema) } },
+      },
+      400: {
+        description: 'Fare is not higher or exceeds the ceiling',
+        content: { 'application/json': { schema: errorResponse } },
+      },
+      409: {
+        description: 'Offer window closed or ride changed',
+        content: { 'application/json': { schema: errorResponse } },
+      },
     },
   });
   registry.registerPath({

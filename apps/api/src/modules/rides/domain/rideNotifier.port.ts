@@ -27,6 +27,11 @@ export interface RideNotifierPort {
   fareNegotiation(
     ride: RideEntity,
     event: 'ride.fare.countered' | 'ride.fare.counter_rejected',
-    payload: { driverId: string; proposedFarePaise: number },
+    payload: {
+      driverId: string;
+      proposedFarePaise: number;
+      driverName?: string | null | undefined;
+      vehicleLabel?: string | null | undefined;
+    },
   ): Promise<void>;
 }
