@@ -35,7 +35,7 @@ export function ReceiptPreview({
       try {
         const logo = require('@/assets/brand/cabzone-horizontal.png');
         let source: string | undefined;
-        if (Platform.OS === 'web') source = Image.resolveAssetSource(logo).uri;
+        if (Platform.OS === 'web') source = Image.resolveAssetSource(logo)?.uri;
         else {
           const asset = await Asset.fromModule(logo).downloadAsync();
           if (!asset.localUri) throw new Error('Receipt logo is unavailable.');

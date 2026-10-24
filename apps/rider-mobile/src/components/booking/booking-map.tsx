@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { WebView } from 'react-native-webview';
+import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import { bookingMapHtml, mapSelection, mapUpdate } from './booking-map-html';
 
 export interface BookingMapProps {
@@ -26,7 +26,7 @@ export default function BookingMap({
   onEditPickup,
   onSelectPoint,
 }: BookingMapProps) {
-  const webView = useRef<WebView>(null);
+  const webView = useRef<WebView<Record<string, unknown>>>(null);
   const [html] = useState(() =>
     bookingMapHtml(pickup, drop, { driverLocation, routeCoordinates, readOnly, cameraVersion }),
   );
@@ -49,7 +49,7 @@ export default function BookingMap({
         source={{ html, baseUrl: 'https://tiles.openfreemap.org' }}
         originWhitelist={['*']}
         onLoadEnd={() => setLoaded(true)}
-        onMessage={({ nativeEvent }) => {
+        onMessage={({ nativeEvent }: WebViewMessageEvent) => {
           if (nativeEvent.data === 'editPickup') {
             onEditPickup?.();
             return;

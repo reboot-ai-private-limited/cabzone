@@ -36,11 +36,16 @@ import {
   cn,
 } from '@cabzone/design-system';
 import { formatPaise } from '@/lib/format';
-import { useDriverApplication } from '../hooks/useDriverApplications';
+import { useDriverApplication, useUpdateDriverStatus } from '../hooks/useDriverApplications';
 import { useTransactionsList, useWalletDetail } from '../../finance/hooks/useFinance';
 import { AdjustBalanceDialog } from '../../finance/components/AdjustBalanceDialog';
 import { SettleDriverDialog } from '../../finance/components/SettleDriverDialog';
-import { DocumentPreviewDialog } from './DocumentPreviewDialog';
+import {
+  DOCUMENT_TYPE_LABELS,
+  DocumentPreviewDialog,
+  isPdfDocument,
+  resolveDocumentFileUrl,
+} from './DocumentPreviewDialog';
 import { OperationalStatusBadge, VehicleStatusBadge } from './StatusBadge';
 import { TrustScoreBadge } from '../../identity/components/TrustScoreBadge';
 
@@ -66,6 +71,12 @@ export function DriverDetailsScreen({ id }: DriverDetailsScreenProps) {
   const [isAdjustOpen, setIsAdjustOpen] = useState(false);
   const [isSettleOpen, setIsSettleOpen] = useState(false);
   const [isSuspendConfirmOpen, setIsSuspendConfirmOpen] = useState(false);
+  const [suspendReason, setSuspendReason] = useState('');
+  const updateStatusMutation = useUpdateDriverStatus(() => {
+    setIsSuspendConfirmOpen(false);
+    setSuspendReason('');
+    void detailQuery.refetch();
+  });
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
 
   // Financials filters
@@ -322,9 +333,17 @@ export function DriverDetailsScreen({ id }: DriverDetailsScreenProps) {
             <div className="flex flex-col md:flex-row items-center md:items-start gap-8">
               {/* Avatar & Identity Box */}
               <div className="flex flex-col items-center justify-center text-center w-full md:w-56 shrink-0 pt-1">
-                <div className="size-24 rounded-full bg-interactive flex items-center justify-center text-white shadow-xs mb-3">
-                  <User className="size-12 stroke-[1.75]" />
-                </div>
+                {d.driver?.profilePhotoUrl ? (
+                  <img
+                    src={d.driver.profilePhotoUrl}
+                    alt={driverDisplayName}
+                    className="size-24 rounded-full object-cover border border-slate-200 shadow-xs mb-3"
+                  />
+                ) : (
+                  <div className="size-24 rounded-full bg-interactive flex items-center justify-center text-white shadow-xs mb-3">
+                    <User className="size-12 stroke-[1.75]" />
+                  </div>
+                )}
                 <h3 className="font-bold text-slate-900 text-base">{driverDisplayName}</h3>
                 <span className="text-xs text-slate-500 font-mono mt-0.5">ID: {driverIdDisplay}</span>
                 <span className="inline-flex items-center px-3 py-0.5 mt-2.5 rounded-full text-[11px] font-semibold tracking-wider uppercase bg-slate-100 text-slate-600 border border-slate-200">
@@ -456,40 +475,62 @@ export function DriverDetailsScreen({ id }: DriverDetailsScreenProps) {
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {d.documents.map((doc) => (
-                      <div
-                        key={doc.id}
-                        className="rounded-lg border border-border bg-surface-muted/30 p-4 flex flex-col justify-between gap-3 hover:border-interactive/40 transition-colors"
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex flex-col">
-                            <span className="font-semibold text-xs text-text">{doc.type.replace(/_/g, ' ')}</span>
-                            {doc.documentNumberMasked && (
-                              <span className="text-xs font-mono text-text-subtle mt-0.5">
-                                {doc.documentNumberMasked}
-                              </span>
-                            )}
-                          </div>
-                          <Badge tone={doc.verificationStatus === 'VERIFIED' ? 'success' : 'warning'}>
-                            {doc.verificationStatus}
-                          </Badge>
-                        </div>
+                    {d.documents.map((doc) => {
+                      const docFileUrl = resolveDocumentFileUrl(doc);
+                      const docIsPdf = isPdfDocument(doc, docFileUrl);
+                      const docLabel =
+                        DOCUMENT_TYPE_LABELS[doc.type] ?? doc.type.replace(/_/g, ' ');
 
-                        <div className="flex items-center justify-between pt-2 border-t border-border/60 text-xs">
-                          <span className="text-text-subtle">
-                            {doc.expiresAt ? `Expires: ${formatDate(doc.expiresAt)}` : 'No expiry'}
-                          </span>
-                          <Button
-                            size="sm"
-                            variant="secondary"
-                            icon={<Eye className="size-3.5" />}
-                            onClick={() => setSelectedDoc(doc)}
-                          >
-                            View
-                          </Button>
+                      return (
+                        <div
+                          key={doc.id}
+                          className="rounded-lg border border-border bg-surface-muted/30 p-4 flex flex-col justify-between gap-3 hover:border-interactive/40 transition-colors"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex flex-col">
+                              <span className="font-semibold text-xs text-text">{docLabel}</span>
+                              {doc.documentNumberMasked && (
+                                <span className="text-xs font-mono text-text-subtle mt-0.5">
+                                  {doc.documentNumberMasked}
+                                </span>
+                              )}
+                            </div>
+                            <Badge tone={doc.verificationStatus === 'VERIFIED' ? 'success' : 'warning'}>
+                              {doc.verificationStatus}
+                            </Badge>
+                          </div>
+
+                          {docFileUrl && !docIsPdf && (
+                            <button
+                              type="button"
+                              onClick={() => setSelectedDoc(doc)}
+                              className="w-full h-36 rounded-lg bg-zinc-950 border border-border overflow-hidden cursor-pointer group relative"
+                              title={`Click to view full ${docLabel}`}
+                            >
+                              <img
+                                src={docFileUrl}
+                                alt={docLabel}
+                                className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-200"
+                              />
+                            </button>
+                          )}
+
+                          <div className="flex items-center justify-between pt-2 border-t border-border/60 text-xs">
+                            <span className="text-text-subtle">
+                              {doc.expiresAt ? `Expires: ${formatDate(doc.expiresAt)}` : 'No expiry'}
+                            </span>
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              icon={<Eye className="size-3.5" />}
+                              onClick={() => setSelectedDoc(doc)}
+                            >
+                              View Original
+                            </Button>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -855,14 +896,34 @@ export function DriverDetailsScreen({ id }: DriverDetailsScreenProps) {
         title={isSuspended ? 'Activate Driver Account' : 'Suspend Driver Account'}
         description={`Are you sure you want to ${isSuspended ? 'restore active dispatch privileges for' : 'suspend'} driver ${d.phoneE164}?`}
       >
+        {!isSuspended && (
+          <div className="flex flex-col gap-1.5 pt-2">
+            <label htmlFor="suspend-reason-input" className="text-xs font-semibold text-text">
+              Reason for suspension (optional)
+            </label>
+            <input
+              id="suspend-reason-input"
+              type="text"
+              value={suspendReason}
+              onChange={(e) => setSuspendReason(e.target.value)}
+              placeholder="e.g. Safety complaint, expired insurance, unsettled dues..."
+              className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text placeholder:text-text-subtle focus:border-interactive focus:outline-none"
+            />
+          </div>
+        )}
         <div className="flex items-center justify-end gap-2 pt-4">
           <Button variant="ghost" onClick={() => setIsSuspendConfirmOpen(false)}>
             Cancel
           </Button>
           <Button
             variant={isSuspended ? 'primary' : 'danger'}
+            loading={updateStatusMutation.isPending}
             onClick={() => {
-              setIsSuspendConfirmOpen(false);
+              updateStatusMutation.mutate({
+                id: d.application.id,
+                status: isSuspended ? 'ACTIVE' : 'SUSPENDED',
+                reason: suspendReason.trim() || null,
+              });
             }}
           >
             {isSuspended ? 'Confirm Activation' : 'Confirm Suspension'}

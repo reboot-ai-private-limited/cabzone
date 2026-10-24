@@ -16,6 +16,16 @@ import {
   makeMyWalletController,
 } from './interface/ledger.controller.js';
 import { buildAdminWalletRouter, buildDriverWalletRouter } from './interface/ledger.routes.js';
+import { env, isProdLike } from '../../config/env.js';
+import { WalletMoneyUseCase } from './application/useCases/walletMoney.usecase.js';
+import { WalletRechargeTickets } from './infrastructure/walletRechargeTickets.js';
+import { MongoWalletOperationRepository } from './infrastructure/persistence/walletOperation.repository.js';
+import type {
+  WalletOperationRepository,
+  WalletPaymentGateway,
+} from './domain/walletOperation.port.js';
+import { walletMoneyControllers } from './interface/walletMoney.controller.js';
+import { registerWalletMoneySwaggerPaths } from './interface/walletMoney.swagger.js';
 
 export interface LedgerLookups {
   getDrivers?: () => Promise<UserLookupItem[]>;
@@ -23,6 +33,8 @@ export interface LedgerLookups {
 }
 
 export interface LedgerContainerDeps {
+  walletOperations?: WalletOperationRepository;
+  walletPaymentGateway?: WalletPaymentGateway;
   unitOfWork: UnitOfWorkPort;
   walletRepo: WalletRepositoryPort;
   resolveDriverId: (userId: string) => Promise<string | null>;
@@ -35,6 +47,7 @@ export interface LedgerAuth {
 }
 
 export interface LedgerContainer {
+  walletMoneyUseCase: WalletMoneyUseCase;
   walletRepo: WalletRepositoryPort;
   adminAdjustWalletUseCase: AdminAdjustWalletUseCase;
   getWalletUseCase: GetWalletUseCase;
@@ -46,6 +59,19 @@ export interface LedgerContainer {
 }
 
 export function buildLedgerContainer(deps: LedgerContainerDeps): LedgerContainer {
+  registerWalletMoneySwaggerPaths();
+  const walletMoneyUseCase = new WalletMoneyUseCase({
+    walletRepo: deps.walletRepo,
+    operations: deps.walletOperations ?? new MongoWalletOperationRepository(),
+    gateway: deps.walletPaymentGateway,
+    unitOfWork: deps.unitOfWork,
+    enabled: !isProdLike && env.RAZORPAY_MODE === 'test',
+  });
+  const money = walletMoneyControllers(
+    walletMoneyUseCase,
+    new WalletRechargeTickets(env.JWT_ACCESS_SECRET),
+    deps.resolveDriverId,
+  );
   const adminAdjustWalletUseCase = new AdminAdjustWalletUseCase(deps.walletRepo, deps.unitOfWork);
   const getWalletUseCase = new GetWalletUseCase(deps.walletRepo);
   const listWalletsUseCase = new ListWalletsUseCase(deps.walletRepo, deps.lookups);
@@ -53,6 +79,7 @@ export function buildLedgerContainer(deps: LedgerContainerDeps): LedgerContainer
   const getFinanceStatsUseCase = new GetFinanceStatsUseCase(deps.walletRepo);
 
   return {
+    walletMoneyUseCase,
     walletRepo: deps.walletRepo,
     adminAdjustWalletUseCase,
     getWalletUseCase,
@@ -61,6 +88,7 @@ export function buildLedgerContainer(deps: LedgerContainerDeps): LedgerContainer
     getFinanceStatsUseCase,
     buildAdminWalletRouter: (auth) =>
       buildAdminWalletRouter({
+        money,
         authenticate: auth.authenticate,
         requireFinanceRole: auth.requireRole('SUPER_ADMIN', 'FINANCE_ADMIN'),
         adjustWallet: makeAdminAdjustWalletController(adminAdjustWalletUseCase),
@@ -71,6 +99,7 @@ export function buildLedgerContainer(deps: LedgerContainerDeps): LedgerContainer
       }),
     buildDriverWalletRouter: (auth) =>
       buildDriverWalletRouter({
+        money,
         authenticate: auth.authenticate,
         requireDriver: auth.requireRole('DRIVER'),
         getMyWallet: makeMyWalletController(getWalletUseCase, deps.resolveDriverId),

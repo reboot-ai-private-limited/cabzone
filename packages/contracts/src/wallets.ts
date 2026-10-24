@@ -21,6 +21,9 @@ export const TRANSACTION_REFERENCE_TYPES = [
   'ARREARS_PAYMENT',
   'RIDER_PROMO_CREDIT',
   'RIDER_REFUND',
+  'ONLINE_RIDE_EARNINGS',
+  'WALLET_CASHOUT',
+  'CASHOUT_REVERSAL',
 ] as const;
 export type TransactionReferenceType = (typeof TRANSACTION_REFERENCE_TYPES)[number];
 
@@ -30,6 +33,7 @@ export interface WalletDto {
   driverId?: string | null | undefined;
   riderId?: string | null | undefined;
   balancePaise: number;
+  earningsBalancePaise?: number | undefined;
   owedPaise?: number | undefined;
   status: WalletStatus;
   createdAt: string;
@@ -63,6 +67,7 @@ export interface WalletSummaryDto {
 }
 
 export interface WalletTransactionDto {
+  bucket?: 'COMMISSION' | 'EARNINGS' | undefined;
   id: string;
   walletId: string;
   ownerType?: WalletOwnerType | undefined;
@@ -81,14 +86,42 @@ export interface WalletTransactionDto {
   createdAt: string;
 }
 
+export interface WalletOperationDto {
+  id: string;
+  driverId: string;
+  kind: 'RECHARGE' | 'CASHOUT';
+  status: 'CREATED' | 'PENDING' | 'COMPLETED' | 'REJECTED';
+  amountPaise: number;
+  rechargePaise: number;
+  earningsPaise: number;
+  destinationUpi: string | null;
+  transferReference: string | null;
+  reason: string | null;
+  testMode: true;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DriverWalletActivityDto {
+  commissionBalancePaise: number;
+  earningsBalancePaise: number;
+  availableCashoutPaise: number;
+  pendingCashoutPaise: number;
+  cashoutBlockedReason: string | null;
+  operations: WalletOperationDto[];
+  testMode: true;
+}
+
 export interface FinanceStatsDto {
-  customer?: {
-    creditOutstandingPaise: number;
-    creditCustomersCount: number;
-    owedByCustomersPaise: number;
-    owedCustomersCount: number;
-    totalCustomersWithWallets: number;
-  } | undefined;
+  customer?:
+    | {
+        creditOutstandingPaise: number;
+        creditCustomersCount: number;
+        owedByCustomersPaise: number;
+        owedCustomersCount: number;
+        totalCustomersWithWallets: number;
+      }
+    | undefined;
   driver: {
     totalBalancePaise: number;
     activeDriversCount: number;
@@ -144,4 +177,3 @@ export interface AdjustWalletRequestDto {
   amountPaise: number;
   reason: string;
 }
-

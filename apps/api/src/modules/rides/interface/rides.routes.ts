@@ -21,6 +21,9 @@ export interface RidesRouterDeps {
   completeRide: RequestHandler;
   confirmPayment: RequestHandler;
   createUpiPayment: RequestHandler;
+  upiSession: RequestHandler;
+  switchToCash: RequestHandler;
+  upiWebhook: RequestHandler;
   verifyUpiPayment: RequestHandler;
   upiPaymentStatus: RequestHandler;
   driverPaymentQr: RequestHandler;
@@ -37,6 +40,7 @@ export interface RidesRouterDeps {
 
 export function buildRidesRouter(deps: RidesRouterDeps): Router {
   const router = Router();
+  router.post('/payment/upi/webhook', deps.upiWebhook);
   // Payment-only QR tickets never grant account or ride-management access.
   router.get('/payment/upi/checkout', deps.checkoutPage);
   router.post('/payment/upi/checkout/session', deps.checkoutSession);
@@ -64,7 +68,9 @@ export function buildRidesRouter(deps: RidesRouterDeps): Router {
   router.post('/:id/start', deps.requireDriver, deps.startRide);
   router.post('/:id/complete', deps.requireDriver, deps.completeRide);
   router.post('/:id/payment/confirm', deps.requireDriver, deps.confirmPayment);
+  router.post('/:id/payment/cash', deps.requireCanCancel, deps.switchToCash);
   router.post('/:id/payment/upi', deps.requireRider, deps.createUpiPayment);
+  router.post('/:id/payment/upi/session', deps.requireRider, deps.upiSession);
   router.post('/:id/payment/upi/verify', deps.requireRider, deps.verifyUpiPayment);
   router.get('/:id/payment/upi/status', deps.requireRider, deps.upiPaymentStatus);
   router.post('/:id/payment/upi/qr', deps.requireDriver, deps.driverPaymentQr);

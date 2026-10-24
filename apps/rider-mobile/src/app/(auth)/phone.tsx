@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Animated,
+  Easing,
   KeyboardAvoidingView,
   Image,
   ScrollView,
@@ -12,20 +14,85 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/context/auth-context';
+import { useReducedMotion } from '@/hooks/use-reduced-motion';
 import { normalizeIndianPhoneE164 } from '@/services/rider-helpers';
 import { colors, radii, spacing, typography } from '@/design-system';
 
 export default function PhoneEntryScreen() {
   const router = useRouter();
   const { requestOtp } = useAuth();
+  const reducedMotion = useReducedMotion();
   const [phoneDigits, setPhoneDigits] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const exitingRef = useRef(false);
+  const [sections] = useState(() => [
+    new Animated.Value(1),
+    new Animated.Value(1),
+    new Animated.Value(1),
+    new Animated.Value(1),
+  ]);
 
   const normalizedPhone = normalizeIndianPhoneE164(phoneDigits);
+
+  useFocusEffect(
+    useCallback(() => {
+      exitingRef.current = false;
+      if (reducedMotion) {
+        sections.forEach((v) => v.setValue(1));
+        return;
+      }
+      sections.forEach((v) => v.setValue(0));
+      const enter = Animated.stagger(
+        75,
+        sections.map((v) =>
+          Animated.timing(v, {
+            toValue: 1,
+            duration: 320,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+          }),
+        ),
+      );
+      enter.start();
+      return () => enter.stop();
+    }, [reducedMotion, sections]),
+  );
+
+  const animateOut = (onDone: () => void) => {
+    if (reducedMotion) {
+      onDone();
+      return;
+    }
+    if (exitingRef.current) return;
+    exitingRef.current = true;
+    Animated.stagger(
+      40,
+      sections.map((v) =>
+        Animated.timing(v, {
+          toValue: 0,
+          duration: 210,
+          easing: Easing.in(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      ),
+    ).start(({ finished }) => {
+      exitingRef.current = false;
+      if (finished) {
+        onDone();
+      } else {
+        sections.forEach((v) => v.setValue(1));
+      }
+    });
+  };
+
+  const handleBack = () => {
+    if (isLoading) return;
+    animateOut(() => router.back());
+  };
 
   const handleSendOtp = async () => {
     if (!normalizedPhone) {
@@ -36,13 +103,13 @@ export default function PhoneEntryScreen() {
     setError(null);
     try {
       await requestOtp(normalizedPhone);
-      router.push('/(auth)/otp');
+      setIsLoading(false);
+      animateOut(() => router.push('/(auth)/otp'));
     } catch (err: unknown) {
+      setIsLoading(false);
       setError(
         err instanceof Error ? err.message : 'Unable to send OTP right now. Please try again.',
       );
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -53,10 +120,26 @@ export default function PhoneEntryScreen() {
     >
       <SafeAreaView style={styles.container}>
         <View style={styles.inner}>
-          <View style={styles.header}>
+          <Animated.View
+            style={[
+              styles.header,
+              {
+                opacity: sections[0],
+                transform: [
+                  {
+                    translateY: sections[0].interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [-12, 0],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
             <Pressable
               style={styles.backBtn}
-              onPress={() => router.back()}
+              onPress={handleBack}
+              disabled={isLoading}
               accessibilityRole="button"
               accessibilityLabel="Back to welcome"
             >
@@ -69,7 +152,7 @@ export default function PhoneEntryScreen() {
               accessibilityLabel="Cabzone"
             />
             <View style={styles.headerSpacer} />
-          </View>
+          </Animated.View>
 
           <ScrollView
             style={styles.form}
@@ -77,53 +160,103 @@ export default function PhoneEntryScreen() {
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
-            <Text accessibilityRole="header" style={styles.title}>
-              Your mobile number
-            </Text>
-            <Text style={styles.subtitle}>We&apos;ll text you a 6-digit sign-in code.</Text>
+            <Animated.View
+              style={{
+                opacity: sections[1],
+                transform: [
+                  {
+                    translateY: sections[1].interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [12, 0],
+                    }),
+                  },
+                ],
+              }}
+            >
+              <Text accessibilityRole="header" style={styles.title}>
+                Your mobile number
+              </Text>
+              <Text style={styles.subtitle}>We&apos;ll text you a 6-digit sign-in code.</Text>
+            </Animated.View>
 
-            <Text nativeID="phone-label" style={styles.label}>
-              Mobile number
-            </Text>
-            <View style={styles.phoneInputRow}>
-              <View
-                style={styles.countryPrefix}
-                accessible
-                accessibilityLabel="India, country code plus 91"
-              >
-                <Text style={styles.countryPrefixText}>{'\u{1F1EE}\u{1F1F3} +91'}</Text>
+            <Animated.View
+              style={{
+                opacity: sections[2],
+                transform: [
+                  {
+                    translateY: sections[2].interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [16, 0],
+                    }),
+                  },
+                ],
+              }}
+            >
+              <Text nativeID="phone-label" style={styles.label}>
+                Mobile number
+              </Text>
+              <View style={styles.phoneInputRow}>
+                <View
+                  style={styles.countryPrefix}
+                  accessible
+                  accessibilityLabel="India, country code plus 91"
+                >
+                  <Text style={styles.countryPrefixText}>{'\u{1F1EE}\u{1F1F3} +91'}</Text>
+                </View>
+                <TextInput
+                  style={styles.phoneInput}
+                  accessibilityLabel="Mobile number, 10 digits"
+                  accessibilityLabelledBy="phone-label"
+                  placeholder="98765 43210"
+                  placeholderTextColor={colors.secondary}
+                  keyboardType="phone-pad"
+                  autoComplete="tel-national"
+                  textContentType="telephoneNumber"
+                  maxLength={10}
+                  value={phoneDigits}
+                  editable={!isLoading}
+                  onChangeText={(txt) => {
+                    setPhoneDigits(txt.replace(/\D/g, ''));
+                    if (error) setError(null);
+                  }}
+                  onSubmitEditing={() => void handleSendOtp()}
+                />
               </View>
-              <TextInput
-                style={styles.phoneInput}
-                accessibilityLabel="Mobile number, 10 digits"
-                accessibilityLabelledBy="phone-label"
-                placeholder="98765 43210"
-                placeholderTextColor={colors.secondary}
-                keyboardType="phone-pad"
-                autoComplete="tel-national"
-                textContentType="telephoneNumber"
-                maxLength={10}
-                value={phoneDigits}
-                editable={!isLoading}
-                onChangeText={(txt) => {
-                  setPhoneDigits(txt.replace(/\D/g, ''));
-                  if (error) setError(null);
-                }}
-              />
-            </View>
-            {error ? (
-              <View
-                style={styles.errorBox}
-                accessibilityRole="alert"
-                accessibilityLiveRegion="polite"
-              >
-                <Ionicons name="alert-circle" size={18} color={colors.error} />
-                <Text style={styles.errorText}>{error}</Text>
-              </View>
-            ) : null}
+              {error ? (
+                <View
+                  style={styles.errorBox}
+                  accessibilityRole="alert"
+                  accessibilityLiveRegion="polite"
+                >
+                  <Ionicons name="alert-circle" size={18} color={colors.error} />
+                  <Text style={styles.errorText}>{error}</Text>
+                </View>
+              ) : null}
+            </Animated.View>
           </ScrollView>
 
-          <View style={styles.footer}>
+          <Animated.View
+            style={[
+              styles.footer,
+              {
+                opacity: sections[3],
+                transform: [
+                  {
+                    translateY: sections[3].interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [18, 0],
+                    }),
+                  },
+                  {
+                    scale: sections[3].interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0.96, 1],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
             <Pressable
               style={({ pressed }) => [
                 styles.submitBtn,
@@ -145,7 +278,7 @@ export default function PhoneEntryScreen() {
                 </>
               )}
             </Pressable>
-          </View>
+          </Animated.View>
         </View>
       </SafeAreaView>
     </KeyboardAvoidingView>

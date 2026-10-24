@@ -18,7 +18,7 @@ import {
 } from './rides.validation.js';
 
 export const rideViewSchema = z.object({
-  paymentCollection: z.enum(['DIRECT', 'RAZORPAY_TEST']).optional(),
+  paymentCollection: z.enum(['DIRECT', 'CASH', 'RAZORPAY_TEST', 'RAZORPAY_UPI']).optional(),
   id: z.string().uuid(),
   status: z.string(),
   bookerRiderId: z.string().uuid(),
@@ -84,6 +84,90 @@ export const rideViewSchema = z.object({
 });
 
 export function registerRidesSwaggerPaths(): void {
+  registry.registerPath({
+    method: 'post',
+    path: '/v1/rides/{id}/payment/cash',
+    tags: ['Rides'],
+    security: bearerAuth,
+    summary: 'Switch an unpaid ride to cash; assigned driver must separately confirm receipt',
+    request: { params: rideIdParamSchema },
+    responses: {
+      200: {
+        description: 'Payment method and settlement state',
+        content: {
+          'application/json': {
+            schema: successResponse(
+              z.object({
+                paid: z.boolean(),
+                method: z.enum(['UPI', 'CASH']),
+                testMode: z.boolean(),
+                requiresReview: z.boolean(),
+              }),
+            ),
+          },
+        },
+      },
+      403: { description: 'Only booking rider or assigned driver can change payment' },
+      409: {
+        description:
+          'Online payment is processing, cannot be closed, or ride no longer awaits payment',
+      },
+    },
+  });
+  registry.registerPath({
+    method: 'post',
+    path: '/v1/rides/{id}/payment/upi/session',
+    tags: ['Rides'],
+    summary: 'Reuse the ride UPI QR/intent in live mode or simulated checkout in test mode',
+    security: bearerAuth,
+    request: { params: rideIdParamSchema },
+    responses: {
+      200: {
+        description: 'Shared payment session',
+        content: {
+          'application/json': {
+            schema: successResponse(
+              z.discriminatedUnion('kind', [
+                z.object({
+                  kind: z.literal('intent'),
+                  qrId: z.string(),
+                  upiUrl: z.string(),
+                  imageDataUrl: z.string(),
+                  amountPaise: z.number().int(),
+                  expiresAt: z.string().datetime(),
+                  testMode: z.literal(false),
+                }),
+                z.object({
+                  kind: z.literal('checkout'),
+                  checkout: z.object({
+                    keyId: z.string(),
+                    orderId: z.string(),
+                    amountPaise: z.number().int(),
+                    currency: z.literal('INR'),
+                    testMode: z.literal(true),
+                  }),
+                }),
+              ]),
+            ),
+          },
+        },
+      },
+      403: { description: 'Booking customer required' },
+      409: { description: 'Expired or changed payment session' },
+    },
+  });
+  registry.registerPath({
+    method: 'post',
+    path: '/v1/rides/payment/upi/webhook',
+    tags: ['Rides'],
+    summary:
+      'Receive signed Razorpay QR credit notifications; independently reconcile captured payment',
+    request: { headers: z.object({ 'x-razorpay-signature': z.string() }) },
+    responses: {
+      200: { description: 'Notification processed or irrelevant event acknowledged' },
+      403: { description: 'Missing or invalid webhook signature' },
+    },
+  });
   for (const [method, suffix, summary] of [
     ['post', '', 'Create or resume UPI-only Razorpay test checkout for the booking customer'],
     ['post', '/verify', 'Verify checkout proof and reconcile a captured UPI test payment'],

@@ -7,6 +7,7 @@ export type RideLifecycleEvent =
   | 'ride.started'
   | 'ride.completed'
   | 'ride.payment.confirmed'
+  | 'ride.payment.method.changed'
   | 'ride.payment.disputed'
   | 'ride.payment.dispute_resolved'
   | 'ride.cancelled'

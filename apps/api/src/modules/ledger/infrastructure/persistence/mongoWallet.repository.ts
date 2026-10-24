@@ -50,6 +50,7 @@ export class MongoWalletRepository implements WalletRepositoryPort {
         driver_id: wallet.driverId || null,
         rider_id: wallet.riderId || null,
         balance_paise: wallet.balancePaise,
+        earnings_balance_paise: wallet.earningsBalancePaise ?? 0,
         owed_paise: wallet.owedPaise ?? 0,
         status: wallet.status,
         version: wallet.version,
@@ -67,6 +68,7 @@ export class MongoWalletRepository implements WalletRepositoryPort {
     const created = await WalletTransactionModel.create({
       _id: transaction.id,
       wallet_id: transaction.walletId,
+      bucket: transaction.bucket ?? 'COMMISSION',
       owner_type: transaction.ownerType ?? (transaction.riderId ? 'RIDER' : 'DRIVER'),
       driver_id: transaction.driverId ?? null,
       rider_id: transaction.riderId ?? null,
@@ -123,6 +125,7 @@ export class MongoWalletRepository implements WalletRepositoryPort {
     ]);
 
     const items: WalletTransactionDto[] = docs.map((d) => ({
+      bucket: d.bucket ?? 'COMMISSION',
       id: d._id,
       walletId: d.wallet_id,
       ownerType: d.owner_type,
@@ -447,6 +450,7 @@ export class MongoWalletRepository implements WalletRepositoryPort {
       driverId: doc.driver_id ?? '',
       riderId: doc.rider_id ?? null,
       balancePaise: doc.balance_paise,
+      earningsBalancePaise: doc.earnings_balance_paise ?? 0,
       owedPaise: doc.owed_paise ?? 0,
       status: doc.status,
       version: doc.version,
@@ -457,6 +461,7 @@ export class MongoWalletRepository implements WalletRepositoryPort {
 
   private toTransaction(doc: WalletTransactionDocument): WalletTransactionEntity {
     return {
+      bucket: doc.bucket ?? 'COMMISSION',
       id: doc._id,
       walletId: doc.wallet_id,
       ownerType: doc.owner_type,

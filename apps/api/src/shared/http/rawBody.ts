@@ -9,7 +9,7 @@ declare global {
   }
 }
 
-export const RAW_BODY_ROUTES = ['/payments/webhook'] as const;
+export const RAW_BODY_ROUTES = ['/payments/webhook', '/rides/payment/upi/webhook'] as const;
 
 export function shouldCaptureRawBody(url: string | undefined): boolean {
   if (url === undefined) return false;

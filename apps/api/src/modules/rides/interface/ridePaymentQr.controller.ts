@@ -30,8 +30,26 @@ export function makeRidePaymentQrControllers(deps: {
         throw AppError.notFound('Ride not found.');
       const current = await payment.reconcile(id, ride.bookerRiderId);
       await notifyPaid(current);
-      if (current.status === 'SETTLED' || action === 'status') {
-        sendSuccess(req, res, { paid: current.status === 'SETTLED' });
+      const state = await payment.paymentState(id);
+      if (
+        current.status === 'SETTLED' ||
+        action === 'status' ||
+        state.method === 'CASH' ||
+        state.requiresReview
+      ) {
+        sendSuccess(req, res, state);
+        return;
+      }
+      if (payment.live) {
+        const session = await payment.session(id, ride.bookerRiderId);
+        if (session.kind !== 'intent') throw AppError.badRequest('UPI QR is unavailable.');
+        sendSuccess(req, res, {
+          paid: false,
+          imageDataUrl: session.imageDataUrl,
+          expiresAt: session.expiresAt,
+          amountPaise: session.amountPaise,
+          testMode: false,
+        });
         return;
       }
       const checkout = await payment.create(id, ride.bookerRiderId);
@@ -61,6 +79,14 @@ export function makeRidePaymentQrControllers(deps: {
         throw AppError.badRequest('Payment does not match this QR.');
       const current = await payment.reconcile(ride.id, ride.bookerRiderId, proof);
       await notifyPaid(current);
+      const state = await payment.paymentState(ride.id);
+      if (state.method === 'CASH' || state.requiresReview) {
+        throw AppError.conflict(
+          state.requiresReview
+            ? 'Payment needs support review. Please do not pay again.'
+            : 'Cash selected. Pay your driver directly; this checkout is closed.',
+        );
+      }
       if (action === 'session' && current.status === 'PAYMENT_PENDING') {
         const checkout = await payment.create(ride.id, ride.bookerRiderId);
         if (checkout.orderId !== scope.orderId)

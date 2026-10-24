@@ -1,6 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Animated,
+  Easing,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -10,18 +12,77 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/context/auth-context';
+import { useReducedMotion } from '@/hooks/use-reduced-motion';
 import { colors, radii, spacing, typography } from '@/design-system';
 
 export default function OtpVerificationScreen() {
   const router = useRouter();
   const { pendingPhoneE164, verifyOtp, requestOtp } = useAuth();
+  const reducedMotion = useReducedMotion();
   const [otp, setOtp] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
   const [cooldown, setCooldown] = useState(30);
   const [error, setError] = useState<string | null>(null);
+  const exitingRef = useRef(false);
+  const [sections] = useState(() => [
+    new Animated.Value(1),
+    new Animated.Value(1),
+    new Animated.Value(1),
+  ]);
+
+  useFocusEffect(
+    useCallback(() => {
+      exitingRef.current = false;
+      if (reducedMotion) {
+        sections.forEach((v) => v.setValue(1));
+        return;
+      }
+      sections.forEach((v) => v.setValue(0));
+      const enter = Animated.stagger(
+        75,
+        sections.map((v) =>
+          Animated.timing(v, {
+            toValue: 1,
+            duration: 320,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+          }),
+        ),
+      );
+      enter.start();
+      return () => enter.stop();
+    }, [reducedMotion, sections]),
+  );
+
+  const animateOut = (onDone: () => void) => {
+    if (reducedMotion) {
+      onDone();
+      return;
+    }
+    if (exitingRef.current) return;
+    exitingRef.current = true;
+    Animated.stagger(
+      40,
+      sections.map((v) =>
+        Animated.timing(v, {
+          toValue: 0,
+          duration: 210,
+          easing: Easing.in(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      ),
+    ).start(({ finished }) => {
+      exitingRef.current = false;
+      if (finished) {
+        onDone();
+      } else {
+        sections.forEach((v) => v.setValue(1));
+      }
+    });
+  };
 
   useEffect(() => {
     if (!pendingPhoneE164) {
@@ -35,6 +96,11 @@ export default function OtpVerificationScreen() {
     return () => clearTimeout(t);
   }, [cooldown]);
 
+  const handleBack = () => {
+    if (isVerifying) return;
+    animateOut(() => router.back());
+  };
+
   const handleVerify = async (codeToVerify?: string) => {
     const cleanOtp = (codeToVerify ?? otp).replace(/\D/g, '');
     if (cleanOtp.length !== 6) {
@@ -46,17 +112,17 @@ export default function OtpVerificationScreen() {
     setError(null);
     try {
       const profile = await verifyOtp(pendingPhoneE164, cleanOtp);
-      if (!profile || !profile.name || !profile.name.trim()) {
-        router.replace('/(onboarding)/name');
-      } else {
-        router.replace('/(rider)/(tabs)/home');
-      }
+      const nextRoute =
+        !profile || !profile.name || !profile.name.trim()
+          ? '/(onboarding)/name'
+          : '/(rider)/(tabs)/home';
+      setIsVerifying(false);
+      animateOut(() => router.replace(nextRoute));
     } catch (err: unknown) {
+      setIsVerifying(false);
       setError(
         err instanceof Error ? err.message : 'Invalid or expired OTP. Please try again.',
       );
-    } finally {
-      setIsVerifying(false);
     }
   };
 
@@ -78,83 +144,135 @@ export default function OtpVerificationScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <View style={styles.topSection}>
-          <Pressable style={styles.backBtn} onPress={() => router.back()}>
-            <Ionicons name="arrow-back" size={22} color={colors.deepBrown} />
-          </Pressable>
-
-          <Text style={styles.title}>Verify 6-Digit OTP</Text>
-          <Text style={styles.subtitle}>
-            Enter the code sent to{' '}
-            <Text style={{ fontWeight: '700', color: colors.deepBrown }}>
-              {pendingPhoneE164}
-            </Text>
-          </Text>
-
-          <TextInput
-            style={styles.otpInput}
-            placeholder="• • • • • •"
-            placeholderTextColor={colors.muted}
-            keyboardType="number-pad"
-            maxLength={6}
-            value={otp}
-            onChangeText={(txt) => {
-              const digits = txt.replace(/\D/g, '').slice(0, 6);
-              setOtp(digits);
-              if (error) setError(null);
-              if (digits.length === 6) {
-                void handleVerify(digits);
-              }
+          <Animated.View
+            style={{
+              opacity: sections[0],
+              transform: [
+                {
+                  translateY: sections[0].interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [-12, 0],
+                  }),
+                },
+              ],
+              gap: spacing.md,
             }}
-            autoFocus
-          />
-
-          <View style={styles.devHelperRow}>
-            <Text style={styles.devHelperLabel}>Dev Quick-Fill:</Text>
-            <Pressable
-              style={styles.devChip}
-              onPress={() => {
-                setOtp('123456');
-                void handleVerify('123456');
-              }}
-            >
-              <Text style={styles.devChipText}>Use 123456</Text>
-            </Pressable>
-          </View>
-
-          {error ? (
-            <View style={styles.errorBox}>
-              <Ionicons name="alert-circle" size={18} color={colors.error} />
-              <Text style={styles.errorText}>{error}</Text>
-            </View>
-          ) : null}
-
-          <Pressable
-            onPress={() => void handleResend()}
-            disabled={cooldown > 0}
-            style={{ marginTop: spacing.xs }}
           >
-            <Text style={styles.resendText}>
-              {cooldown > 0
-                ? `Resend code in ${cooldown}s`
-                : 'Didn’t receive it? Tap to Resend OTP'}
+            <Pressable style={styles.backBtn} onPress={handleBack} disabled={isVerifying}>
+              <Ionicons name="arrow-back" size={22} color={colors.deepBrown} />
+            </Pressable>
+
+            <Text style={styles.title}>Verify 6-Digit OTP</Text>
+            <Text style={styles.subtitle}>
+              Enter the code sent to{' '}
+              <Text style={{ fontWeight: '700', color: colors.deepBrown }}>
+                {pendingPhoneE164}
+              </Text>
             </Text>
-          </Pressable>
+          </Animated.View>
+
+          <Animated.View
+            style={{
+              opacity: sections[1],
+              transform: [
+                {
+                  translateY: sections[1].interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [16, 0],
+                  }),
+                },
+              ],
+              gap: spacing.md,
+            }}
+          >
+            <TextInput
+              style={styles.otpInput}
+              placeholder="• • • • • •"
+              placeholderTextColor={colors.muted}
+              keyboardType="number-pad"
+              maxLength={6}
+              value={otp}
+              editable={!isVerifying}
+              onChangeText={(txt) => {
+                const digits = txt.replace(/\D/g, '').slice(0, 6);
+                setOtp(digits);
+                if (error) setError(null);
+                if (digits.length === 6) {
+                  void handleVerify(digits);
+                }
+              }}
+              autoFocus
+            />
+
+            <View style={styles.devHelperRow}>
+              <Text style={styles.devHelperLabel}>Dev Quick-Fill:</Text>
+              <Pressable
+                style={styles.devChip}
+                disabled={isVerifying}
+                onPress={() => {
+                  setOtp('123456');
+                  void handleVerify('123456');
+                }}
+              >
+                <Text style={styles.devChipText}>Use 123456</Text>
+              </Pressable>
+            </View>
+
+            {error ? (
+              <View style={styles.errorBox}>
+                <Ionicons name="alert-circle" size={18} color={colors.error} />
+                <Text style={styles.errorText}>{error}</Text>
+              </View>
+            ) : null}
+
+            <Pressable
+              onPress={() => void handleResend()}
+              disabled={cooldown > 0}
+              style={{ marginTop: spacing.xs }}
+            >
+              <Text style={styles.resendText}>
+                {cooldown > 0
+                  ? `Resend code in ${cooldown}s`
+                  : 'Didn’t receive it? Tap to Resend OTP'}
+              </Text>
+            </Pressable>
+          </Animated.View>
         </View>
 
-        <Pressable
-          style={[
-            styles.submitBtn,
-            (otp.length !== 6 || isVerifying) && styles.submitBtnDisabled,
-          ]}
-          onPress={() => void handleVerify()}
-          disabled={otp.length !== 6 || isVerifying}
+        <Animated.View
+          style={{
+            opacity: sections[2],
+            transform: [
+              {
+                translateY: sections[2].interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [18, 0],
+                }),
+              },
+              {
+                scale: sections[2].interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0.96, 1],
+                }),
+              },
+            ],
+          }}
         >
-          {isVerifying ? (
-            <ActivityIndicator color={colors.deepBrown} />
-          ) : (
-            <Text style={styles.submitBtnText}>Verify & Continue</Text>
-          )}
-        </Pressable>
+          <Pressable
+            style={[
+              styles.submitBtn,
+              (otp.length !== 6 || isVerifying) && styles.submitBtnDisabled,
+            ]}
+            onPress={() => void handleVerify()}
+            disabled={otp.length !== 6 || isVerifying}
+          >
+            {isVerifying ? (
+              <ActivityIndicator color={colors.deepBrown} />
+            ) : (
+              <Text style={styles.submitBtnText}>Verify & Continue</Text>
+            )}
+          </Pressable>
+        </Animated.View>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );

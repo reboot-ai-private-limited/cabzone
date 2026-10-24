@@ -2,6 +2,7 @@
 
 Directory of daily engineering logs:
 
+- [October 24, 2026 - Expo SDK 58 upgrade, mobile auth exit animations, driver wallet money movement, and Web Admin driver management & original KYC docs](daily-work/24thoct.md)
 - [October 23, 2026 - Mobile auth, navigation, live ride flow, UPI test checkout, driver payment QR, and receipts](daily-work/23rdoct.md)
 - [October 22, 2026 - Customer mobile app and fare-raise negotiation](daily-work/22ndoct.md)
 - [October 15, 2026 - Incoming driver offers and simulator resilience](daily-work/15thoct.md)
@@ -14,4 +15,3 @@ Directory of daily engineering logs:
 - [September 28, 2026 - Phase 3: Zones Full Implementation, Geometry Engine & Operational Control Plane](daily-work/28thsept.md)
 - [September 26, 2026 - Phase 1: Backend Ride Lifecycle Hardening](daily-work/26thsept.md)
 - [September 25, 2026 - Stage 2: Zone Domain & Resolution Engine, Quote Lifecycle & First-to-Accept](daily-work/25thsept.md)
-

@@ -11,6 +11,7 @@ import type {
   ListDriverApplicationsUseCase,
   ReviewDriverApplicationUseCase,
   SubmitDriverApplicationUseCase,
+  UpdateDriverStatusUseCase,
   UploadDriverDocumentUseCase,
 } from '../application/useCases/index.js';
 import type {
@@ -25,6 +26,7 @@ import {
   registerVehicleRequestSchema,
   listDriverApplicationsQuerySchema,
   reviewApplicationRequestSchema,
+  updateDriverStatusRequestSchema,
   uploadDriverLicenseFileRequestSchema,
   uploadVehicleDocumentFileRequestSchema,
   uploadIdentityDocumentFileRequestSchema,
@@ -131,6 +133,22 @@ export function makeListDriverApplicationsController(useCase: ListDriverApplicat
   return asyncHandler(async (req: Request, res: Response) => {
     const query = listDriverApplicationsQuerySchema.parse(req.query);
     sendSuccess(req, res, await useCase.execute(query), 'Driver applications retrieved', 200);
+  });
+}
+
+export function makeUpdateDriverStatusController(useCase: UpdateDriverStatusUseCase): RequestHandler {
+  return asyncHandler(async (req: Request, res: Response) => {
+    const id = req.params.id;
+    if (!id) throw AppError.badRequest('Application or Driver ID is required');
+    const parsed = updateDriverStatusRequestSchema.parse(req.body);
+    const result = await useCase.execute({ id, status: parsed.status });
+    sendSuccess(
+      req,
+      res,
+      result,
+      parsed.status === 'SUSPENDED' ? 'Driver account suspended' : 'Driver account activated',
+      200,
+    );
   });
 }
 

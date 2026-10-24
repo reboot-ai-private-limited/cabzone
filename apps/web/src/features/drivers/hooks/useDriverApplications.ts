@@ -39,3 +39,15 @@ export function useReviewApplication(onDone?: () => void) {
     ...(onDone === undefined ? {} : { onSuccess: onDone }),
   });
 }
+
+export function useUpdateDriverStatus(onDone?: () => void) {
+  return useApiMutation<
+    { id: string; status: 'ACTIVE' | 'SUSPENDED'; reason?: string | null },
+    unknown
+  >({
+    call: (token, v) =>
+      driversApi.updateStatus(v.id, { status: v.status, reason: v.reason }, token),
+    invalidates: [keys.drivers.all()],
+    ...(onDone === undefined ? {} : { onSuccess: onDone }),
+  });
+}

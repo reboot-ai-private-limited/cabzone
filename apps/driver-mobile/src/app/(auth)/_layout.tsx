@@ -9,5 +9,5 @@ export default function AuthGroupLayout() {
     return <Redirect href="/" />;
   }
 
-  return <Stack screenOptions={{ headerShown: false }} />;
+  return <Stack screenOptions={{ headerShown: false, animation: 'fade' }} />;
 }

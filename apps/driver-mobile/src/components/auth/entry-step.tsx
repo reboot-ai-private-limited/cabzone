@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
@@ -7,11 +7,11 @@ import { colors } from '@/design-system';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 import { BlobBackground } from './blob-background';
 
-function WelcomeHero() {
+function WelcomeHero({ exiting }: { exiting: boolean }) {
   const reducedMotion = useReducedMotion();
   const [space, setSpace] = useState({ width: 340, height: 340 });
   const [focused, setFocused] = useState(true);
-  const [entrance] = useState(() => new Animated.Value(1));
+  const [entrances] = useState(() => Array.from({ length: 4 }, () => new Animated.Value(1)));
   const [float] = useState(() => new Animated.Value(0));
 
   useFocusEffect(
@@ -22,15 +22,22 @@ function WelcomeHero() {
   );
 
   useEffect(() => {
-    entrance.setValue(reducedMotion || !focused ? 1 : 0);
+    if (exiting) return;
+    entrances.forEach((value) => value.setValue(reducedMotion || !focused ? 1 : 0));
     float.setValue(0);
     if (reducedMotion || !focused) return;
-    const enter = Animated.timing(entrance, {
-      toValue: 1,
-      duration: 500,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
-    });
+
+    const enter = Animated.stagger(
+      110,
+      entrances.map((value) =>
+        Animated.spring(value, {
+          toValue: 1,
+          tension: 44,
+          friction: 6,
+          useNativeDriver: true,
+        }),
+      ),
+    );
     const floating = Animated.loop(
       Animated.sequence([
         Animated.timing(float, {
@@ -55,7 +62,47 @@ function WelcomeHero() {
       enter.stop();
       floating.stop();
     };
-  }, [entrance, float, focused, reducedMotion]);
+  }, [entrances, exiting, float, focused, reducedMotion]);
+
+  useEffect(() => {
+    if (!exiting || reducedMotion) return;
+    float.stopAnimation();
+    const exit = Animated.stagger(
+      40,
+      [...entrances].reverse().map((value) =>
+        Animated.timing(value, {
+          toValue: 0,
+          duration: 210,
+          easing: Easing.in(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      ),
+    );
+    exit.start();
+    return () => exit.stop();
+  }, [entrances, exiting, float, reducedMotion]);
+
+  const pillAnim = (index: number, driftY: number) => ({
+    opacity: entrances[index].interpolate({
+      inputRange: [0, 0.3, 1],
+      outputRange: [0, 0.85, 1],
+      extrapolate: 'clamp',
+    }),
+    transform: [
+      {
+        scale: entrances[index].interpolate({
+          inputRange: [0, 1],
+          outputRange: [0.84, 1],
+        }),
+      },
+      {
+        translateY: entrances[index].interpolate({
+          inputRange: [0, 1],
+          outputRange: [driftY, 0],
+        }),
+      },
+    ],
+  });
 
   return (
     <View
@@ -71,12 +118,40 @@ function WelcomeHero() {
           { transform: [{ scale: Math.min(1, space.width / 340, space.height / 340) }] },
         ]}
       >
-        <View style={styles.blob}>{focused ? <BlobBackground size={340} /> : null}</View>
+        <Animated.View
+          style={[
+            styles.blob,
+            {
+              opacity: entrances[0],
+              transform: [
+                {
+                  scale: entrances[0].interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0.88, 1],
+                  }),
+                },
+              ],
+            },
+          ]}
+        >
+          {focused ? <BlobBackground size={340} /> : null}
+        </Animated.View>
         <Animated.View
           style={{
-            opacity: entrance,
+            opacity: entrances[0],
             transform: [
-              { translateY: entrance.interpolate({ inputRange: [0, 1], outputRange: [12, 0] }) },
+              {
+                translateY: entrances[0].interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [exiting ? -16 : 14, 0],
+                }),
+              },
+              {
+                scale: entrances[0].interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0.92, 1],
+                }),
+              },
             ],
           }}
         >
@@ -93,28 +168,118 @@ function WelcomeHero() {
             ]}
           />
         </Animated.View>
-        <View style={[styles.benefit, styles.hours]}>
+        <Animated.View style={[styles.benefit, styles.hours, pillAnim(1, -10)]}>
           <Ionicons name="time-outline" size={19} color={colors.brandBrown} />
           <Text style={styles.benefitText}>Choose your hours</Text>
-        </View>
-        <View style={[styles.benefit, styles.fare]}>
+        </Animated.View>
+        <Animated.View style={[styles.benefit, styles.fare, pillAnim(2, -10)]}>
           <Ionicons name="pricetag-outline" size={19} color={colors.brandBrown} />
           <Text style={styles.benefitText}>Review the fare</Text>
-        </View>
-        <View style={[styles.benefit, styles.payment]}>
+        </Animated.View>
+        <Animated.View style={[styles.benefit, styles.payment, pillAnim(3, 12)]}>
           <Ionicons name="wallet-outline" size={19} color={colors.brandBrown} />
           <Text style={styles.benefitText}>Cash or UPI</Text>
-        </View>
+        </Animated.View>
       </View>
     </View>
   );
 }
 
 export function EntryStep({ onContinue }: { onContinue: () => void }) {
+  const reducedMotion = useReducedMotion();
+  const [exiting, setExiting] = useState(false);
+  const exitingRef = useRef(false);
+  const [sections] = useState(() => [
+    new Animated.Value(1),
+    new Animated.Value(1),
+    new Animated.Value(1),
+  ]);
+
+  useFocusEffect(
+    useCallback(() => {
+      exitingRef.current = false;
+      setExiting(false);
+      if (reducedMotion) {
+        sections.forEach((v) => v.setValue(1));
+        return;
+      }
+      sections.forEach((v) => v.setValue(0));
+      const enter = Animated.stagger(
+        90,
+        sections.map((v) =>
+          Animated.timing(v, {
+            toValue: 1,
+            duration: 360,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+          }),
+        ),
+      );
+      enter.start();
+      return () => enter.stop();
+    }, [reducedMotion, sections]),
+  );
+
+  const handleContinuePress = () => {
+    if (reducedMotion) {
+      onContinue();
+      return;
+    }
+    if (exitingRef.current) return;
+    exitingRef.current = true;
+    setExiting(true);
+
+    Animated.stagger(
+      45,
+      [
+        Animated.timing(sections[0], {
+          toValue: 0,
+          duration: 220,
+          easing: Easing.in(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(sections[1], {
+          toValue: 0,
+          duration: 230,
+          easing: Easing.in(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(sections[2], {
+          toValue: 0,
+          duration: 240,
+          easing: Easing.in(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      ],
+    ).start(({ finished }) => {
+      if (finished) {
+        onContinue();
+      } else {
+        exitingRef.current = false;
+        setExiting(false);
+      }
+    });
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
-        <View style={styles.header}>
+        <Animated.View
+          style={[
+            styles.header,
+            {
+              opacity: sections[0],
+              transform: [
+                {
+                  translateY: sections[0].interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [-12, 0],
+                  }),
+                },
+              ],
+            },
+          ]}
+        >
           <Image
             source={require('@/assets/brand/cabzone-horizontal.png')}
             style={styles.logo}
@@ -122,10 +287,25 @@ export function EntryStep({ onContinue }: { onContinue: () => void }) {
             accessibilityLabel="Cabzone Driver"
             accessibilityRole="image"
           />
-        </View>
+        </Animated.View>
         <View style={styles.main}>
-          <WelcomeHero />
-          <View style={styles.copy}>
+          <WelcomeHero exiting={exiting} />
+          <Animated.View
+            style={[
+              styles.copy,
+              {
+                opacity: sections[1],
+                transform: [
+                  {
+                    translateY: sections[1].interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [14, 0],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
             <Text style={styles.headline} accessibilityRole="header">
               Your drive.{'\n'}
               <Text style={styles.highlight}>Your choice.</Text>
@@ -133,12 +313,33 @@ export function EntryStep({ onContinue }: { onContinue: () => void }) {
             <Text style={styles.description}>
               Review the route and fare.{'\n'}Drive when you’re ready.
             </Text>
-          </View>
+          </Animated.View>
         </View>
-        <View style={styles.footer}>
+        <Animated.View
+          style={[
+            styles.footer,
+            {
+              opacity: sections[2],
+              transform: [
+                {
+                  translateY: sections[2].interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [18, 0],
+                  }),
+                },
+                {
+                  scale: sections[2].interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0.96, 1],
+                  }),
+                },
+              ],
+            },
+          ]}
+        >
           <Pressable
             style={({ pressed }) => [styles.button, pressed && styles.pressed]}
-            onPress={onContinue}
+            onPress={handleContinuePress}
             accessibilityRole="button"
             accessibilityLabel="Continue with your phone number"
             accessibilityHint="Sign in or register as a driver"
@@ -146,7 +347,7 @@ export function EntryStep({ onContinue }: { onContinue: () => void }) {
             <Text style={styles.buttonText}>Continue with phone</Text>
             <Ionicons name="arrow-forward" size={22} color={colors.deepBrown} />
           </Pressable>
-        </View>
+        </Animated.View>
       </View>
     </SafeAreaView>
   );

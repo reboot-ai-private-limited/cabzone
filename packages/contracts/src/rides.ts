@@ -87,7 +87,7 @@ export interface RideAssignedDriverDto {
 }
 
 export interface RideDto {
-  paymentCollection?: 'DIRECT' | 'RAZORPAY_TEST';
+  paymentCollection?: 'DIRECT' | 'CASH' | 'RAZORPAY_TEST' | 'RAZORPAY_UPI';
   id: string;
   bookerRiderId: string;
   passenger: {

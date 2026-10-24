@@ -1,10 +1,29 @@
 import { Buffer } from 'node:buffer';
+import { createHash } from 'node:crypto';
 import { newUuid } from '../../../shared/ids.js';
 import { AppError } from '../../../shared/errors/AppError.js';
 import type { DriverLicenseStoragePort } from '../domain/driverLicenseStorage.port.js';
 
 export class CloudinaryDriverLicenseAdapter implements DriverLicenseStoragePort {
   constructor(private readonly config: { cloudName: string; apiKey: string; apiSecret: string }) {}
+
+  resolveUrl(storageKey: string): string | null {
+    if (!storageKey || storageKey.startsWith('mock/')) {
+      return null;
+    }
+    if (
+      storageKey.startsWith('http://') ||
+      storageKey.startsWith('https://') ||
+      storageKey.startsWith('data:')
+    ) {
+      return storageKey;
+    }
+    const signature = createHash('sha1')
+      .update(`${storageKey}${this.config.apiSecret}`)
+      .digest('base64url')
+      .slice(0, 8);
+    return `https://res.cloudinary.com/${encodeURIComponent(this.config.cloudName)}/raw/authenticated/s--${signature}--/${storageKey}`;
+  }
 
   async upload(dataUrl: string, extension: 'pdf' | 'jpg'): Promise<string> {
     // shortcut: replaced or failed-persistence assets need an orphan cleanup job.

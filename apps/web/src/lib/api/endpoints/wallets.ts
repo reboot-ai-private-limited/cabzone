@@ -4,6 +4,7 @@ import type {
   ListWalletsQueryDto,
   WalletSummaryDto,
   WalletTransactionDto,
+  WalletOperationDto,
 } from '@cabzone/contracts';
 import { request } from '../client.js';
 
@@ -44,6 +45,18 @@ export interface AdjustWalletBody {
 }
 
 export const walletsApi = {
+  cashouts: (token?: string, signal?: AbortSignal) =>
+    request<WalletOperationDto[]>('/v1/admin/wallets/cashouts', { method: 'GET', token, signal }),
+  resolveCashout: (
+    id: string,
+    body: { outcome: 'PAID' | 'REJECTED'; detail: string },
+    token?: string,
+  ) =>
+    request<WalletOperationDto>(`/v1/admin/wallets/cashouts/${id}/resolve`, {
+      method: 'POST',
+      body,
+      token,
+    }),
   getStats: (token?: string, signal?: AbortSignal) =>
     request<FinanceStatsDto>('/v1/admin/wallets/stats', { method: 'GET', token, signal }),
 

@@ -23,6 +23,7 @@ import {
   ListDriverApplicationsUseCase,
   ReviewDriverApplicationUseCase,
   SubmitDriverApplicationUseCase,
+  UpdateDriverStatusUseCase,
   UpdateAdminUserStatusUseCase,
   UpdateAdminUserUseCase,
   UploadDriverDocumentUseCase,
@@ -64,6 +65,7 @@ import {
   makeListDriverApplicationsController,
   makeReviewDriverApplicationController,
   makeSubmitDriverApplicationController,
+  makeUpdateDriverStatusController,
   makeUploadDriverDocumentController,
   makeUploadDriverLicenseFileController,
   makeUploadVehicleDocumentFileController,
@@ -240,7 +242,20 @@ export function buildIdentityContainer(deps?: IdentityContainerDeps): IdentityCo
     vehicleRepo,
   });
 
-  const adminApplicationDeps = { applicationRepo, driverRepo, userRepo, vehicleRepo, documentRepo };
+  const licenseStorage = new CloudinaryDriverLicenseAdapter({
+    cloudName: env.CLOUDINARY_CLOUD_NAME,
+    apiKey: env.CLOUDINARY_API_KEY,
+    apiSecret: env.CLOUDINARY_API_SECRET,
+  });
+
+  const adminApplicationDeps = {
+    applicationRepo,
+    driverRepo,
+    userRepo,
+    vehicleRepo,
+    documentRepo,
+    licenseStorage,
+  };
 
   const adminRiderDeps = {
     riderRepo,
@@ -329,6 +344,9 @@ export function buildIdentityContainer(deps?: IdentityContainerDeps): IdentityCo
         // Applications currently have no authoritative city assignment.
         requireAdminRole: requireRole('SUPER_ADMIN'),
         reviewApplication: makeReviewDriverApplicationController(reviewDriverApplicationUseCase),
+        updateDriverStatus: makeUpdateDriverStatusController(
+          new UpdateDriverStatusUseCase(adminApplicationDeps),
+        ),
         listApplications: makeListDriverApplicationsController(
           new ListDriverApplicationsUseCase(adminApplicationDeps),
         ),

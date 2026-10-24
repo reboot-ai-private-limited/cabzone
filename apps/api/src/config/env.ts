@@ -28,8 +28,13 @@ const schema = z.object({
     .enum(['development', 'test', 'stage', 'staging', 'production'])
     .default('development'),
   PORT: z.coerce.number().int().positive().default(4000),
-  RAZORPAY_KEY_ID: z.string().regex(/^rzp_test_[a-zA-Z0-9]+$/).optional(),
+  RAZORPAY_MODE: z.enum(['test', 'live']).default('test'),
+  RAZORPAY_KEY_ID: z
+    .string()
+    .regex(/^rzp_(test|live)_[a-zA-Z0-9]+$/)
+    .optional(),
   RAZORPAY_KEY_SECRET: z.string().min(1).optional(),
+  RAZORPAY_WEBHOOK_SECRET: z.string().min(16).optional(),
 
   MONGO_URI: z.string().min(1, 'MONGO_URI is required'),
   REDIS_URL: z.string().min(1, 'REDIS_URL is required'),
@@ -38,7 +43,12 @@ const schema = z.object({
   CORS_ORIGINS: z
     .string()
     .default('http://localhost:3000')
-    .transform((s) => s.split(',').map((o) => o.trim()).filter(Boolean)),
+    .transform((s) =>
+      s
+        .split(',')
+        .map((o) => o.trim())
+        .filter(Boolean),
+    ),
 
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
 

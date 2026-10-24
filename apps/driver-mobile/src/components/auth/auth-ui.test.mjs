@@ -76,6 +76,35 @@ function screen(file, exported) {
           ),
           Platform: { OS: 'android' },
           StyleSheet: { create: (styles) => styles },
+          Easing: {
+            ease: (t) => t,
+            cubic: (t) => t,
+            in: (fn) => fn,
+            out: (fn) => fn,
+            inOut: (fn) => fn,
+          },
+          Animated: {
+            View: 'Animated.View',
+            Image: 'Animated.Image',
+            Text: 'Animated.Text',
+            Value: class {
+              constructor(val) {
+                this.val = val;
+              }
+              setValue(val) {
+                this.val = val;
+              }
+              stopAnimation() {}
+              interpolate() {
+                return this.val;
+              }
+            },
+            timing: () => ({ start: (cb) => cb && cb({ finished: true }), stop() {} }),
+            spring: () => ({ start: (cb) => cb && cb({ finished: true }), stop() {} }),
+            stagger: () => ({ start: (cb) => cb && cb({ finished: true }), stop() {} }),
+            sequence: () => ({ start: (cb) => cb && cb({ finished: true }), stop() {} }),
+            loop: () => ({ start() {}, stop() {} }),
+          },
         };
       if (name === 'react-native-safe-area-context') return { SafeAreaView: 'SafeAreaView' };
       if (name === '@expo/vector-icons') return { Ionicons: 'Icon' };

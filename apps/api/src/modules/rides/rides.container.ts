@@ -39,8 +39,12 @@ import {
 } from './interface/rides.controller.js';
 import { buildRidesRouter } from './interface/rides.routes.js';
 import { RideUpiPaymentUseCase } from './application/useCases/rideUpiPayment.usecase.js';
-import { makeRideUpiController } from './interface/rideUpiPayment.controller.js';
-import { RazorpayTestGateway } from './infrastructure/razorpay.adapter.js';
+import {
+  makeRideUpiController,
+  makeSwitchToCashController,
+} from './interface/rideUpiPayment.controller.js';
+import { makeRideUpiWebhook } from './interface/rideUpiWebhook.controller.js';
+import { RazorpayGateway } from './infrastructure/razorpay.adapter.js';
 import { env, isProduction } from '../../config/env.js';
 import { RidePaymentQrAdapter } from './infrastructure/ridePaymentQr.adapter.js';
 import { makeRidePaymentQrControllers } from './interface/ridePaymentQr.controller.js';
@@ -80,8 +84,18 @@ const ADMIN_ROLES: AuthRole[] = ['SUPER_ADMIN', 'CITY_ADMIN', 'SUPPORT_ADMIN', '
 
 export function buildRidesContainer(deps: RidesContainerDeps): RidesContainer {
   const { rideRepo, rideEventRepo, walletRepo } = deps;
-  const upiPayment = new RideUpiPaymentUseCase({ rideRepo, rideEventRepo, unitOfWork: deps.unitOfWork,
-    gateway: new RazorpayTestGateway(env.RAZORPAY_KEY_ID ?? '', env.RAZORPAY_KEY_SECRET ?? '', !isProduction) });
+  const upiPayment = new RideUpiPaymentUseCase({
+    walletRepo,
+    rideRepo,
+    rideEventRepo,
+    unitOfWork: deps.unitOfWork,
+    gateway: new RazorpayGateway(
+      env.RAZORPAY_KEY_ID ?? '',
+      env.RAZORPAY_KEY_SECRET ?? '',
+      !isProduction || env.RAZORPAY_MODE === 'live',
+      env.RAZORPAY_MODE,
+    ),
+  });
 
   const createRideUseCase = new CreateRideUseCase({
     unitOfWork: deps.unitOfWork,
@@ -121,6 +135,8 @@ export function buildRidesContainer(deps: RidesContainerDeps): RidesContainer {
     rideRepo,
   });
   const completeRideUseCase = new CompleteRideUseCase({
+    prepareCashConfirmation: (rideId, driverId) =>
+      upiPayment.prepareCashConfirmation(rideId, driverId),
     rideRepo,
     walletRepo,
     rideEventRepo,
@@ -147,8 +163,12 @@ export function buildRidesContainer(deps: RidesContainerDeps): RidesContainer {
     notifier: deps.notifier,
     pickupOtpSecret: deps.pickupOtpSecret,
   };
-  const qrControllers = makeRidePaymentQrControllers({ rideRepo, payment: upiPayment,
-    qr: new RidePaymentQrAdapter(deps.tokenSecret), actors });
+  const qrControllers = makeRidePaymentQrControllers({
+    rideRepo,
+    payment: upiPayment,
+    qr: new RidePaymentQrAdapter(deps.tokenSecret),
+    actors,
+  });
 
   return {
     rideRepo,
@@ -182,6 +202,9 @@ export function buildRidesContainer(deps: RidesContainerDeps): RidesContainer {
         completeRide: makeCompleteRideController(completeRideUseCase, actors),
         confirmPayment: makeCompleteRideController(completeRideUseCase, actors, true),
         createUpiPayment: makeRideUpiController(upiPayment, actors, 'create'),
+        upiSession: makeRideUpiController(upiPayment, actors, 'session'),
+        switchToCash: makeSwitchToCashController(upiPayment, actors, rideRepo),
+        upiWebhook: makeRideUpiWebhook(upiPayment, actors, env.RAZORPAY_WEBHOOK_SECRET),
         verifyUpiPayment: makeRideUpiController(upiPayment, actors, 'verify'),
         upiPaymentStatus: makeRideUpiController(upiPayment, actors, 'status'),
         driverPaymentQr: qrControllers.driverQr,

@@ -56,10 +56,7 @@ async function notify(work: Promise<void> | undefined): Promise<void> {
   }
 }
 
-async function toEnrichedRideView(
-  ride: RideEntity,
-  actors?: RideHttpContext,
-): Promise<RideView> {
+async function toEnrichedRideView(ride: RideEntity, actors?: RideHttpContext): Promise<RideView> {
   if (!ride.driverId || !actors?.resolveAssignedDriver) {
     return toRideView(ride, null);
   }
@@ -133,7 +130,13 @@ export function makeCreateRideController(
       vehicleCategory: body.vehicleCategory,
     });
     await notify(actors.notifier?.rideRequested(ride));
-    sendSuccess(req, res, await toEnrichedRideView(ride, actors), 'Ride requested successfully', 201);
+    sendSuccess(
+      req,
+      res,
+      await toEnrichedRideView(ride, actors),
+      'Ride requested successfully',
+      201,
+    );
   });
 }
 
@@ -158,7 +161,21 @@ export function makeGetRideController(
         ? derivePickupOtp(actors.pickupOtpSecret, ride.id, ride.passenger.pickupOtpExpiresAt)
         : undefined;
     const view = await toEnrichedRideView(ride, actors);
-    const paymentCollection = paymentEvents && (await paymentEvents.findByRideId(ride.id)).some((event) => event.eventType === 'UPI_ORDER_CREATED') ? 'RAZORPAY_TEST' : 'DIRECT';
+    const paymentAudit = paymentEvents ? await paymentEvents.findByRideId(ride.id) : [];
+    const confirmedMethod = paymentAudit.find((event) => event.eventType === 'PAYMENT_CONFIRMED')
+      ?.metadata.method;
+    const cash =
+      confirmedMethod !== 'UPI' &&
+      paymentAudit.some(
+        (event) => event.eventType === 'PAYMENT_METHOD_CHANGED' && event.metadata.method === 'CASH',
+      );
+    const paymentCollection = cash
+      ? 'CASH'
+      : paymentAudit.some((event) => event.eventType === 'UPI_QR_CREATED')
+        ? 'RAZORPAY_UPI'
+        : paymentAudit.some((event) => event.eventType === 'UPI_ORDER_CREATED')
+          ? 'RAZORPAY_TEST'
+          : 'DIRECT';
     sendSuccess(
       req,
       res,

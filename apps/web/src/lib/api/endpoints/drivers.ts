@@ -22,6 +22,7 @@ export interface DriverApplicationSummaryDto {
   driver: {
     id: string;
     name?: string | null | undefined;
+    profilePhotoUrl?: string | null | undefined;
     alternatePhone?: string | null | undefined;
     gender?: string | null | undefined;
     dateOfBirth?: string | null | undefined;
@@ -51,6 +52,7 @@ export interface DriverDocumentAdminDto {
   id: string;
   type: DocumentType;
   storageKey: string;
+  fileUrl?: string | null | undefined;
   documentNumberMasked: string | null;
   expiresAt: string | null;
   verificationStatus: DocumentVerificationStatus;
@@ -95,6 +97,17 @@ export const driversApi = {
   review: (id: string, body: ReviewApplicationBody, token?: string) =>
     request<unknown>(`/v1/admin/driver-applications/${id}/review`, {
       method: 'POST',
+      body,
+      token,
+    }),
+
+  updateStatus: (
+    id: string,
+    body: { status: 'ACTIVE' | 'SUSPENDED'; reason?: string | null },
+    token?: string,
+  ) =>
+    request<DriverApplicationDetailDto>(`/v1/admin/driver-applications/${id}/status`, {
+      method: 'PATCH',
       body,
       token,
     }),

@@ -448,6 +448,40 @@ describe('Rides API', () => {
     ).toHaveLength(0);
   });
 
+  it('persists a cash switch through both app routes and settles only after assigned-driver confirmation', async () => {
+    const s = await setup();
+    const id = (await s.requestRide()).res.body.data.id as string;
+    const post = (path: string, auth: string) => request(s.app)
+      .post(`/api/v1/rides/${id}/${path}`).set('Authorization', auth).send({});
+    await post('accept', s.driverAuth);
+    const accepted = (await s.rideRepo.findById(id))!;
+    await s.rideRepo.save({ ...accepted, status: 'PAYMENT_PENDING', completedAt: new Date() });
+
+    expect((await post('payment/cash', s.otherRiderAuth)).status).toBe(403);
+    expect((await post('payment/cash', s.otherDriverAuth)).status).toBe(403);
+    const changed = await post('payment/cash', s.riderAuth);
+    expect(changed.status).toBe(200);
+    expect(changed.body.data).toMatchObject({ method: 'CASH', paid: false, requiresReview: false });
+    const rider = await request(s.app).get(`/api/v1/rides/${id}`).set('Authorization', s.riderAuth);
+    expect(rider.body.data).toMatchObject({ status: 'PAYMENT_PENDING', paymentCollection: 'CASH' });
+    const driver = await request(s.app).get(`/api/v1/rides/${id}/payment/upi/driver-status`).set('Authorization', s.driverAuth);
+    expect(driver.body.data).toMatchObject({ method: 'CASH', paid: false });
+    expect((await post('payment/confirm', s.riderAuth)).status).toBe(403);
+    expect((await post('payment/confirm', s.otherDriverAuth)).status).toBe(403);
+    const confirmed = await post('payment/confirm', s.driverAuth);
+    expect(confirmed.status).toBe(200);
+    expect(confirmed.body.data.ride.status).toBe('SETTLED');
+    const repeated = await post('payment/confirm', s.driverAuth);
+    expect(repeated.body.data.walletBalancePaise).toBe(confirmed.body.data.walletBalancePaise);
+    const status = await request(s.app).get(`/api/v1/rides/${id}/payment/upi/status`).set('Authorization', s.riderAuth);
+    expect(status.body.data).toMatchObject({ method: 'CASH', paid: true });
+    const timeline = await request(s.app).get(`/api/v1/rides/${id}/events`).set('Authorization', s.riderAuth);
+    const payments = timeline.body.data.filter((event: { eventType: string }) => event.eventType === 'PAYMENT_CONFIRMED');
+    expect(payments).toHaveLength(1);
+    expect(payments[0].metadata.method).toBe('CASH');
+    expect(await s.walletRepo.findTransactionsByWalletId('018f0a00-0000-7000-8000-000000000301')).toHaveLength(1);
+  });
+
   it('only one of two competing drivers wins the ride', async () => {
     const s = await setup();
     const id = (await s.requestRide()).res.body.data.id as string;
