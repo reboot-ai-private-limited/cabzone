@@ -1,7 +1,7 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Platform, Pressable, StyleSheet, View } from 'react-native';
+import { type ColorValue, Platform, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '@/design-system';
 
@@ -12,11 +12,11 @@ function TabIcon({
 }: {
   name: React.ComponentProps<typeof Ionicons>['name'];
   focused: boolean;
-  color: React.ComponentProps<typeof Ionicons>['color'];
+  color: ColorValue | undefined;
 }) {
   return (
     <View style={[styles.icon, focused && styles.activeIcon]}>
-      <Ionicons name={name} size={22} color={color} />
+      <Ionicons name={name} size={22} color={typeof color === 'string' ? color : undefined} />
     </View>
   );
 }

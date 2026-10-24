@@ -16,7 +16,7 @@ import { useAuth } from '@/context/auth-context';
 export function OtpStep() {
   const { phone, verifyOtp, sendOtp, setStep, otpCooldown, isLoading, error, clearError } = useAuth();
   const [otp, setOtp] = useState('');
-  const inputRef = useRef<TextInput>(null);
+  const inputRef = useRef<React.ComponentRef<typeof TextInput>>(null);
 
   const handleOtpChange = (text: string) => {
     clearError();

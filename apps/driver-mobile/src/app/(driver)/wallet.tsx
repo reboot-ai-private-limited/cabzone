@@ -13,6 +13,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useDuty } from '@/context/duty-context';
 import { colors, typography } from '@/design-system';
+import { WalletMoneyPanel } from '@/components/driver/wallet-money-panel';
 
 type TxFilter = 'ALL' | 'DEBIT' | 'CREDIT';
 
@@ -21,6 +22,7 @@ export default function DriverWalletScreen() {
   const { walletBalancePaise, walletTransactions, refreshSummary } = useDuty();
   const [txFilter, setTxFilter] = useState<TxFilter>('ALL');
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [walletRevision, setWalletRevision] = useState(0);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -28,6 +30,7 @@ export default function DriverWalletScreen() {
       await refreshSummary();
     } finally {
       setIsRefreshing(false);
+      setWalletRevision((value) => value + 1);
     }
   };
 
@@ -48,17 +51,19 @@ export default function DriverWalletScreen() {
           style={styles.backBtn}
           onPress={() => router.back()}
           accessibilityRole="button"
-          accessibilityLabel="Back">
+          accessibilityLabel="Back"
+        >
           <Ionicons name="arrow-back" size={20} color={colors.deepBrown} />
           <Text style={styles.backText}>Back</Text>
         </Pressable>
-        <Text style={styles.topTitle}>Wallet & Ledger</Text>
+        <Text style={styles.topTitle}>Wallet</Text>
         <Pressable
           style={styles.refreshBtn}
           onPress={handleRefresh}
           disabled={isRefreshing}
           accessibilityRole="button"
-          accessibilityLabel="Refresh wallet">
+          accessibilityLabel="Refresh wallet"
+        >
           {isRefreshing ? (
             <ActivityIndicator size="small" color={colors.deepBrown} />
           ) : (
@@ -75,26 +80,32 @@ export default function DriverWalletScreen() {
             onRefresh={handleRefresh}
             tintColor={colors.deepBrown}
           />
-        }>
+        }
+      >
         {/* Balance Card */}
         <View style={styles.balanceCard}>
-          <Text style={styles.balanceLabel}>CURRENT WALLET BALANCE</Text>
+          <Text style={styles.balanceLabel}>RECHARGE CREDIT</Text>
           <Text style={[styles.balanceValue, isNegative && { color: colors.error }]}>
             ₹{walletBalancePaise != null ? (walletBalancePaise / 100).toFixed(2) : '0.00'}
           </Text>
           <Text style={styles.balanceSub}>
             {isNegative
               ? 'Commission balance due. Settle dues with Cabzone Support to maintain uninterrupted dispatch.'
-              : 'Your wallet is in good standing for dispatch.'}
+              : (walletBalancePaise ?? 0) > 0
+                ? 'Recharge credit covers commission on cash trips.'
+                : 'Add money to receive new ride offers.'}
           </Text>
 
           <View style={styles.noticeBox}>
             <Ionicons name="information-circle-outline" size={18} color={colors.deepBrown} />
             <Text style={styles.noticeText}>
-              Wallet credits and top-ups increase your commission balance. They are separate from passenger trip earnings.
+              Wallet credits and top-ups increase your commission balance. They are separate from
+              passenger trip earnings.
             </Text>
           </View>
         </View>
+
+        <WalletMoneyPanel refreshVersion={walletRevision} />
 
         {/* Filter Pills */}
         <View style={styles.filterRow}>
@@ -104,7 +115,8 @@ export default function DriverWalletScreen() {
               <Pressable
                 key={key}
                 style={[styles.filterPill, active && styles.filterPillActive]}
-                onPress={() => setTxFilter(key)}>
+                onPress={() => setTxFilter(key)}
+              >
                 <Text style={[styles.filterText, active && styles.filterTextActive]}>
                   {key === 'ALL'
                     ? 'All Entries'
@@ -119,7 +131,7 @@ export default function DriverWalletScreen() {
 
         {/* Transactions List */}
         <View style={styles.ledgerCard}>
-          <Text style={styles.ledgerTitle}>Immutable Transaction History</Text>
+          <Text style={styles.ledgerTitle}>Transaction history</Text>
           {filteredTx.length === 0 ? (
             <Text style={styles.emptyText}>No ledger entries match this filter.</Text>
           ) : (
@@ -130,6 +142,7 @@ export default function DriverWalletScreen() {
                   <View style={{ flex: 1 }}>
                     <Text style={styles.txRef}>
                       {tx.referenceType ? tx.referenceType.replace(/_/g, ' ') : tx.type}
+                      {tx.bucket === 'EARNINGS' ? ' · Earnings' : ''}
                     </Text>
                     <Text style={styles.txDate}>
                       {new Date(tx.createdAt).toLocaleString('en-IN')}
@@ -143,7 +156,8 @@ export default function DriverWalletScreen() {
                     style={[
                       styles.txAmount,
                       isCredit ? { color: colors.success } : { color: colors.brandBrown },
-                    ]}>
+                    ]}
+                  >
                     {isCredit ? '+' : '-'}₹{(Math.abs(tx.amountPaise) / 100).toFixed(2)}
                   </Text>
                 </View>

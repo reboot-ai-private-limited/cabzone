@@ -128,6 +128,7 @@ export default function ActiveRideScreen() {
     markArrived,
     startTripWithOtp,
     completeTrip,
+    confirmDirectPayment,
     cancelTrip,
   } = useRide();
 
@@ -205,12 +206,13 @@ export default function ActiveRideScreen() {
   const onlinePayment = ride.paymentCollection === 'RAZORPAY_TEST';
   if (ride.status === 'PAYMENT_PENDING') {
     meta.badge = 'AWAITING PAYMENT';
-    meta.headline = 'Show the payment QR to your rider';
-    meta.subtitle =
-      'The rider can scan your QR to open checkout. Payment confirmation updates automatically.';
+    meta.headline = 'Collect payment from your rider';
+    meta.subtitle = 'Use UPI or change payment to cash. Confirm cash only after receiving it.';
   } else if (onlinePayment && ride.status === 'SETTLED') {
     meta.subtitle =
       'UPI test payment verified. Driver payout is recorded for review; no money has moved.';
+  } else if (ride.paymentCollection === 'RAZORPAY_UPI' && ride.status === 'SETTLED') {
+    meta.subtitle = 'UPI payment verified. Your earnings are recorded; bank settlement is pending.';
   }
   const breakdown = computeRideEarningsBreakdown(ride);
   const distanceKm = Number(((ride.routeSnapshot?.distanceM ?? 0) / 1000).toFixed(1));
@@ -403,6 +405,21 @@ export default function ActiveRideScreen() {
           </View>
         </View>
 
+        {ride.status === 'PAYMENT_PENDING' ? (
+          <RidePaymentQr
+            key={ride.id}
+            rideId={ride.id}
+            amountPaise={breakdown.grossPaise}
+            onPaid={loadRide}
+            onCashReceived={async () => {
+              const result = await confirmDirectPayment(ride.id);
+              if (!result)
+                throw new Error('Cash confirmation failed. Check payment status before retrying.');
+              setRide(result.ride);
+            }}
+          />
+        ) : null}
+
         {/* Route & Navigation Card */}
         <View style={styles.card}>
           <View style={styles.cardHeaderRow}>
@@ -488,10 +505,6 @@ export default function ActiveRideScreen() {
               )}
             </Pressable>
           </View>
-        ) : null}
-
-        {ride.status === 'PAYMENT_PENDING' ? (
-          <RidePaymentQr rideId={ride.id} amountPaise={breakdown.grossPaise} onPaid={loadRide} />
         ) : null}
 
         {/* Fare & Commission Breakdown Card */}

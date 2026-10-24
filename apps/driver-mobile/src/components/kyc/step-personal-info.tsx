@@ -70,9 +70,9 @@ export function StepPersonalInfo({ draft, onUpdate, onNext, onClose }: StepPerso
   const [saveError, setSaveError] = useState<string | null>(null);
 
   // Input refs for responsive focus
-  const firstNameRef = useRef<TextInput>(null);
-  const lastNameRef = useRef<TextInput>(null);
-  const dobInputRef = useRef<TextInput>(null);
+  const firstNameRef = useRef<React.ComponentRef<typeof TextInput>>(null);
+  const lastNameRef = useRef<React.ComponentRef<typeof TextInput>>(null);
+  const dobInputRef = useRef<React.ComponentRef<typeof TextInput>>(null);
 
   // Focus tracking for warm borders
   const [focusedField, setFocusedField] = useState<'firstName' | 'lastName' | 'dob' | null>(null);

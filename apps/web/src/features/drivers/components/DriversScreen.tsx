@@ -8,10 +8,11 @@ import {
   CheckCircle2,
   Clock,
   CreditCard,
-  FileCheck,
+  MapPin,
+  Phone,
   RefreshCw,
   Star,
-  User,
+  UserCheck,
   Users,
   XCircle,
 } from 'lucide-react';
@@ -33,36 +34,23 @@ import {
   Skeleton,
   StatTile,
 } from '@cabzone/design-system';
-import {
-  DRIVER_APPLICATION_STATUSES,
-  VEHICLE_CATEGORIES,
-  type DriverApplicationStatus,
-} from '@cabzone/contracts';
+import { VEHICLE_CATEGORIES } from '@cabzone/contracts';
 import type { DriverApplicationSummaryDto } from '@/lib/api/endpoints/drivers';
 import { useDriverApplications } from '../hooks/useDriverApplications';
 import { DriverDetailModal } from './DriverDetailModal';
 import {
   DriverStatusBadge,
-  OperationalStatusBadge,
   REVIEWABLE,
   StatusBadge,
 } from './StatusBadge';
-import { TrustScoreBadge } from '../../identity/components/TrustScoreBadge';
 
 const PAGE_SIZE = 15;
 
-type ViewMode = 'kyc' | 'fleet';
-type KycFilter = 'ALL' | 'PENDING' | DriverApplicationStatus;
+type ViewMode = 'fleet' | 'kyc';
 type FleetFilter = 'ALL' | 'ACTIVE' | 'SUSPENDED';
 
-const KYC_FILTER_OPTIONS = [
-  { value: 'ALL', label: 'All Applications' },
-  { value: 'PENDING', label: 'Needs Review (Queue)' },
-  ...DRIVER_APPLICATION_STATUSES.map((s) => ({ value: s, label: s.replaceAll('_', ' ') })),
-];
-
 const FLEET_FILTER_OPTIONS = [
-  { value: 'ALL', label: 'All Fleet Drivers' },
+  { value: 'ALL', label: 'All Verified Drivers' },
   { value: 'ACTIVE', label: 'Active Drivers' },
   { value: 'SUSPENDED', label: 'Suspended Drivers' },
 ];
@@ -72,8 +60,29 @@ const VEHICLE_FILTER_OPTIONS = [
   ...VEHICLE_CATEGORIES.map((c) => ({ value: c, label: c.replaceAll('_', ' ') })),
 ];
 
-const formatDate = (iso: string | null): string =>
-  iso === null ? '—' : new Date(iso).toLocaleDateString('en-IN', { dateStyle: 'medium' });
+const formatDate = (iso: string | null | undefined): string => {
+  if (!iso) return 'Not available';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+};
+
+const formatTime = (iso: string | null | undefined): string => {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return d
+    .toLocaleTimeString('en-IN', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    })
+    .toLowerCase();
+};
 
 const formatTimeAgo = (iso: string | null): string => {
   if (!iso) return '—';
@@ -86,11 +95,35 @@ const formatTimeAgo = (iso: string | null): string => {
   return `${days}d ago`;
 };
 
+const formatPhoneDisplay = (phoneE164: string | null): string => {
+  if (!phoneE164) return '—';
+  const cleaned = phoneE164.replace(/\s+/g, '');
+  const match = cleaned.match(/^(\+91)(\d{5})(\d{5})$/);
+  if (match) {
+    return `${match[1]} ${match[2]} ${match[3]}`;
+  }
+  return phoneE164;
+};
+
+const getDriverInitials = (name: string | null | undefined, phone: string | null): string => {
+  const trimmed = name?.trim();
+  if (trimmed) {
+    const parts = trimmed.split(/\s+/).filter(Boolean);
+    if (parts.length >= 2) {
+      return `${parts[0]![0] ?? ''}${parts[parts.length - 1]![0] ?? ''}`.toUpperCase();
+    }
+    return trimmed.slice(0, 2).toUpperCase();
+  }
+  const digits = (phone ?? '').replace(/\D/g, '');
+  return digits.slice(-2) || 'DR';
+};
+
+type IndexedDriverRow = DriverApplicationSummaryDto & { sl: number };
+
 export function DriversScreen() {
   const router = useRouter();
-  const [viewMode, setViewMode] = useState<ViewMode>('kyc');
+  const [viewMode, setViewMode] = useState<ViewMode>('fleet');
   const [searchQuery, setSearchQuery] = useState('');
-  const [kycFilter, setKycFilter] = useState<KycFilter>('ALL');
   const [fleetFilter, setFleetFilter] = useState<FleetFilter>('ALL');
   const [vehicleFilter, setVehicleFilter] = useState<string>('ALL');
   const [page, setPage] = useState(1);
@@ -99,7 +132,7 @@ export function DriversScreen() {
   const [selectedFleetDriver, setSelectedFleetDriver] =
     useState<DriverApplicationSummaryDto | null>(null);
 
-  // Fetch all applications to power both KPI stats, the review queue, and fleet directory
+  // Fetch all applications to power both KPI stats, the review queue, and verified drivers
   const appsQuery = useDriverApplications({ limit: 100 });
   const rawList = useMemo(() => appsQuery.data ?? [], [appsQuery.data]);
 
@@ -133,39 +166,43 @@ export function DriversScreen() {
     return rawList.filter((row) => {
       // View mode condition
       if (viewMode === 'fleet') {
-        // Fleet directory only shows approved / active drivers
+        // Verified drivers only shows approved / active drivers
         if (row.application.status !== 'APPROVED') return false;
 
         if (fleetFilter !== 'ALL') {
           const status = row.driver?.status ?? 'ACTIVE';
           if (status !== fleetFilter) return false;
         }
+
+        // Vehicle category filter (only in Verified Drivers view)
+        if (vehicleFilter !== 'ALL') {
+          if (!row.vehicle || row.vehicle.vehicleType !== vehicleFilter) {
+            return false;
+          }
+        }
       } else {
-        // KYC view mode
-        if (kycFilter === 'PENDING') {
-          if (!REVIEWABLE.has(row.application.status)) return false;
-        } else if (kycFilter !== 'ALL') {
-          if (row.application.status !== kycFilter) return false;
-        }
+        // Requests / Pending view only shows pending applications awaiting review
+        if (!REVIEWABLE.has(row.application.status)) return false;
       }
 
-      // Vehicle category filter
-      if (vehicleFilter !== 'ALL') {
-        if (!row.vehicle || row.vehicle.vehicleType !== vehicleFilter) {
-          return false;
-        }
-      }
-
-      // Search query (phone, driverId, registrationNumber, make/model)
+      // Search query (name, phone, DL, address, driverId, registrationNumber, make/model)
       if (searchQuery.trim().length > 0) {
         const q = searchQuery.trim().toLowerCase();
+        const name = row.driver?.name?.toLowerCase() ?? '';
         const phone = row.phoneE164?.toLowerCase() ?? '';
+        const phoneFormatted = formatPhoneDisplay(row.phoneE164).toLowerCase();
+        const dl = row.driver?.dlNumber?.toLowerCase() ?? '';
+        const address = row.driver?.address?.toLowerCase() ?? '';
         const driverId = row.application.driverId.toLowerCase();
         const reg = row.vehicle?.registrationNumber.toLowerCase() ?? '';
         const makeModel = `${row.vehicle?.make ?? ''} ${row.vehicle?.model ?? ''}`.toLowerCase();
 
         const matches =
+          name.includes(q) ||
           phone.includes(q) ||
+          phoneFormatted.includes(q) ||
+          dl.includes(q) ||
+          address.includes(q) ||
           driverId.includes(q) ||
           reg.includes(q) ||
           makeModel.includes(q);
@@ -175,65 +212,99 @@ export function DriversScreen() {
 
       return true;
     });
-  }, [rawList, viewMode, kycFilter, fleetFilter, vehicleFilter, searchQuery]);
+  }, [rawList, viewMode, fleetFilter, vehicleFilter, searchQuery]);
 
-  // Pagination slicing
+  // Pagination slicing with SL number
   const pageCount = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
-  const currentRows = useMemo(() => {
+  const currentRows = useMemo<IndexedDriverRow[]>(() => {
     const start = (page - 1) * PAGE_SIZE;
-    return filteredRows.slice(start, start + PAGE_SIZE);
+    return filteredRows.slice(start, start + PAGE_SIZE).map((r, idx) => ({
+      ...r,
+      sl: start + idx + 1,
+    }));
   }, [filteredRows, page]);
 
   const hasActiveFilters =
     searchQuery.trim().length > 0 ||
-    vehicleFilter !== 'ALL' ||
-    (viewMode === 'kyc' && kycFilter !== 'ALL') ||
-    (viewMode === 'fleet' && fleetFilter !== 'ALL');
+    (viewMode === 'fleet' && (vehicleFilter !== 'ALL' || fleetFilter !== 'ALL'));
 
   const handleClearFilters = () => {
     setSearchQuery('');
     setVehicleFilter('ALL');
-    setKycFilter('ALL');
     setFleetFilter('ALL');
     setPage(1);
   };
 
-  // Columns for KYC Verification Queue
-  const kycColumns: Column<DriverApplicationSummaryDto>[] = [
+  // Columns for Requests / Pending Queue
+  const kycColumns: Column<IndexedDriverRow>[] = [
+    {
+      key: 'sl',
+      header: 'SL',
+      render: (r) => <span className="text-xs font-medium text-text-subtle">{r.sl}</span>,
+    },
     {
       key: 'driver',
-      header: 'Applicant',
+      header: 'Driver',
+      render: (r) => {
+        const driverName = r.driver?.name?.trim() || 'Unnamed Driver';
+        const dlNumber = r.driver?.dlNumber?.trim() || 'No DL Number';
+        const initials = getDriverInitials(r.driver?.name, r.phoneE164);
+        return (
+          <div className="flex items-center gap-3">
+            <div className="size-9 rounded-full bg-surface-muted border border-border flex items-center justify-center shrink-0 text-xs font-bold text-text">
+              {initials}
+            </div>
+            <div className="flex flex-col">
+              <span className="text-sm font-semibold text-text leading-snug">{driverName}</span>
+              <span className="text-xs text-text-subtle">{dlNumber}</span>
+            </div>
+          </div>
+        );
+      },
+    },
+    {
+      key: 'mobile',
+      header: 'Mobile',
       render: (r) => (
-        <div className="flex items-center gap-3">
-          <div className="size-8 rounded-full bg-surface-muted border border-border flex items-center justify-center shrink-0 text-text-subtle">
-            <User className="size-4 text-interactive" />
-          </div>
-          <div className="flex flex-col">
-            <span className="font-mono text-sm font-semibold text-text">
-              {r.phoneE164 ?? '—'}
-            </span>
-            <span className="font-mono text-[11px] text-text-subtle truncate max-w-[120px]" title={r.application.driverId}>
-              {r.application.driverId.slice(0, 8)}…
-            </span>
-          </div>
+        <div className="inline-flex items-center gap-1.5 text-xs font-medium text-text">
+          <Phone className="size-3.5 text-text-subtle shrink-0" />
+          <span>{formatPhoneDisplay(r.phoneE164)}</span>
         </div>
       ),
     },
     {
-      key: 'status',
-      header: 'Application Status',
+      key: 'submitted',
+      header: 'Submitted Date ↓',
       render: (r) => (
-        <div className="flex items-center gap-2">
-          <StatusBadge status={r.application.status} />
-          {r.application.reapplyCount > 0 && (
-            <Badge tone="warning">Reapplied #{r.application.reapplyCount}</Badge>
-          )}
+        <div className="flex flex-col">
+          <span className="text-xs font-medium text-text">
+            {formatDate(r.application.submittedAt ?? r.application.createdAt)}
+          </span>
+          <span className="text-[11px] text-text-subtle flex items-center gap-1 mt-0.5">
+            <Clock className="size-3" />
+            {formatTimeAgo(r.application.submittedAt)}
+          </span>
         </div>
       ),
+    },
+    {
+      key: 'address',
+      header: 'Address',
+      render: (r) =>
+        r.driver?.address ? (
+          <div className="inline-flex items-center gap-1.5 text-xs text-text">
+            <MapPin className="size-3.5 text-text-subtle shrink-0" />
+            <span className="truncate max-w-[160px]" title={r.driver.address}>
+              {r.driver.address}
+            </span>
+          </div>
+        ) : (
+          <span className="text-xs text-text-subtle">Not available</span>
+        ),
     },
     {
       key: 'vehicle',
-      header: 'Registered Vehicle',
+      header: 'Vehicle',
       render: (r) =>
         r.vehicle === null ? (
           <span className="text-text-subtle text-xs italic">No vehicle submitted</span>
@@ -254,21 +325,20 @@ export function DriversScreen() {
         ),
     },
     {
-      key: 'submitted',
-      header: 'Submission',
+      key: 'status',
+      header: 'Status',
       render: (r) => (
-        <div className="flex flex-col">
-          <span className="text-xs font-medium text-text">{formatDate(r.application.submittedAt)}</span>
-          <span className="text-[11px] text-text-subtle flex items-center gap-1 mt-0.5">
-            <Clock className="size-3" />
-            {formatTimeAgo(r.application.submittedAt)}
-          </span>
+        <div className="flex items-center gap-2">
+          <StatusBadge status={r.application.status} />
+          {r.application.reapplyCount > 0 && (
+            <Badge tone="warning">Reapplied #{r.application.reapplyCount}</Badge>
+          )}
         </div>
       ),
     },
     {
       key: 'actions',
-      header: 'Actions',
+      header: 'Action',
       align: 'right',
       render: (r) => {
         const needsReview = REVIEWABLE.has(r.application.status);
@@ -278,10 +348,7 @@ export function DriversScreen() {
               href={`/drivers/applications/${r.application.id}`}
               onClick={(e) => e.stopPropagation()}
             >
-              <Button
-                size="sm"
-                variant={needsReview ? 'primary' : 'secondary'}
-              >
+              <Button size="sm" variant={needsReview ? 'primary' : 'secondary'}>
                 {needsReview ? 'Review' : 'View'}
               </Button>
             </Link>
@@ -289,13 +356,23 @@ export function DriversScreen() {
               href={`/finance?driverId=${r.application.driverId}`}
               onClick={(e) => e.stopPropagation()}
             >
-              <Button size="sm" icon={<CreditCard className="size-3.5" />} aria-label="Wallet" title="View Wallet" />
+              <Button
+                size="sm"
+                icon={<CreditCard className="size-3.5" />}
+                aria-label="Wallet"
+                title="View Wallet"
+              />
             </Link>
             <Link
               href={`/rides?driverId=${r.application.driverId}`}
               onClick={(e) => e.stopPropagation()}
             >
-              <Button size="sm" icon={<Car className="size-3.5" />} aria-label="Rides" title="View Rides" />
+              <Button
+                size="sm"
+                icon={<Car className="size-3.5" />}
+                aria-label="Rides"
+                title="View Rides"
+              />
             </Link>
           </div>
         );
@@ -303,89 +380,141 @@ export function DriversScreen() {
     },
   ];
 
-  // Columns for Fleet Directory View
-  const fleetColumns: Column<DriverApplicationSummaryDto>[] = [
+  // Columns for Verified Drivers View (matching inspiration columns)
+  const fleetColumns: Column<IndexedDriverRow>[] = [
+    {
+      key: 'sl',
+      header: 'SL',
+      render: (r) => <span className="text-xs font-medium text-text-subtle">{r.sl}</span>,
+    },
     {
       key: 'driver',
       header: 'Driver',
+      render: (r) => {
+        const driverName = r.driver?.name?.trim() || 'Unnamed Driver';
+        const dlNumber = r.driver?.dlNumber?.trim() || 'No DL Number';
+        const initials = getDriverInitials(r.driver?.name, r.phoneE164);
+        return (
+          <div className="flex items-center gap-3">
+            <div className="size-9 rounded-full bg-surface-muted border border-border flex items-center justify-center shrink-0 text-xs font-bold text-text">
+              {initials}
+            </div>
+            <div className="flex flex-col">
+              <Link
+                href={`/drivers/${r.application.id}`}
+                className="text-sm font-semibold text-text hover:text-interactive hover:underline leading-snug"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {driverName}
+              </Link>
+              <span className="text-xs text-text-subtle">{dlNumber}</span>
+            </div>
+          </div>
+        );
+      },
+    },
+    {
+      key: 'mobile',
+      header: 'Mobile',
       render: (r) => (
-        <div className="flex items-center gap-3">
-          <div className="size-8 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shrink-0 text-emerald-600">
-            <User className="size-4" />
-          </div>
-          <div className="flex flex-col">
-            <Link
-              href={`/drivers/${r.application.id}`}
-              className="font-mono text-sm font-semibold text-text hover:text-interactive hover:underline"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {r.phoneE164 ?? '—'}
-            </Link>
-            <span className="font-mono text-[11px] text-text-subtle truncate max-w-[120px]" title={r.application.driverId}>
-              {r.application.driverId.slice(0, 8)}…
-            </span>
-          </div>
+        <div className="inline-flex items-center gap-1.5 text-xs font-medium text-text">
+          <Phone className="size-3.5 text-text-subtle shrink-0" />
+          <span>{formatPhoneDisplay(r.phoneE164)}</span>
         </div>
       ),
     },
     {
-      key: 'operational',
-      header: 'Operational State',
-      render: () => <OperationalStatusBadge status="ONLINE" />,
+      key: 'joinedDate',
+      header: 'Joined Date ↓',
+      render: (r) => (
+        <span className="text-xs text-text-subtle">
+          {formatDate(r.application.reviewedAt ?? r.application.createdAt)}
+        </span>
+      ),
     },
     {
-      key: 'accountStatus',
-      header: 'Account Status',
-      render: (r) => <DriverStatusBadge status={r.driver?.status ?? 'ACTIVE'} />,
-    },
-    {
-      key: 'vehicle',
-      header: 'Assigned Vehicle',
+      key: 'address',
+      header: 'Address',
       render: (r) =>
-        r.vehicle === null ? (
-          <span className="text-text-subtle text-xs italic">Unassigned</span>
-        ) : (
-          <div className="flex flex-col">
-            <span className="text-xs font-medium text-text">
-              {r.vehicle.make} {r.vehicle.model}
-            </span>
-            <span className="font-mono text-[11px] text-text-subtle">
-              {r.vehicle.registrationNumber} · {r.vehicle.vehicleType}
+        r.driver?.address ? (
+          <div className="inline-flex items-center gap-1.5 text-xs text-text">
+            <MapPin className="size-3.5 text-text-subtle shrink-0" />
+            <span className="truncate max-w-[160px]" title={r.driver.address}>
+              {r.driver.address}
             </span>
           </div>
+        ) : (
+          <span className="text-xs text-text-subtle">Not available</span>
         ),
     },
     {
-      key: 'rating',
-      header: 'Rating & Rides',
+      key: 'licenseExpiry',
+      header: 'License Expiry',
       render: (r) => (
-        <div className="flex items-center gap-1.5 text-xs">
-          <Star className="size-3.5 fill-amber-500 text-amber-500" />
-          <span className="font-semibold text-text">
-            {r.driver?.ratingAverage ? r.driver.ratingAverage.toFixed(2) : '5.0'}
-          </span>
-          <span className="text-text-subtle">
-            ({r.driver?.ratingCount ?? 0})
-          </span>
-        </div>
+        <span className="text-xs text-text-subtle">{formatDate(r.driver?.dlExpiry)}</span>
       ),
     },
     {
-      key: 'trustScore',
-      header: 'Trust Score',
-      render: (r) => <TrustScoreBadge score={r.driver?.trustScore} size="sm" />,
+      key: 'lastRide',
+      header: 'Last Ride',
+      render: (r) => {
+        const lastIso = r.application.reviewedAt ?? r.application.submittedAt;
+        if (!lastIso) {
+          return <span className="text-xs text-text-subtle">Not available</span>;
+        }
+        return (
+          <div className="flex flex-col leading-tight">
+            <span className="text-xs font-semibold text-text">{formatDate(lastIso)}</span>
+            <span className="text-[11px] text-text-subtle mt-0.5">{formatTime(lastIso)}</span>
+          </div>
+        );
+      },
+    },
+    {
+      key: 'rating',
+      header: 'Rating',
+      render: (r) => {
+        const ratingVal = r.driver?.ratingAverage ? r.driver.ratingAverage.toFixed(1) : '5.0';
+        const tripCount = r.driver?.ratingCount ?? 0;
+        return (
+          <div className="flex flex-col leading-tight">
+            <div className="inline-flex items-center gap-1 text-xs">
+              <Star className="size-3.5 fill-amber-500 text-amber-500" />
+              <span className="font-semibold text-text">{ratingVal}</span>
+            </div>
+            <span className="text-[11px] text-text-subtle mt-0.5">
+              ({tripCount} {tripCount === 1 ? 'trip' : 'trips'})
+            </span>
+          </div>
+        );
+      },
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      render: (r) => <DriverStatusBadge status={r.driver?.status ?? 'ACTIVE'} />,
     },
     {
       key: 'actions',
-      header: 'Actions',
+      header: 'Action',
       align: 'right',
       render: (r) => (
         <div className="flex items-center justify-end gap-1.5">
           <Link href={`/drivers/${r.application.id}`} onClick={(e) => e.stopPropagation()}>
             <Button size="sm" variant="secondary">
-              Details
+              View
             </Button>
           </Link>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={(e) => {
+              e.stopPropagation();
+              setSelectedFleetDriver(r);
+            }}
+          >
+            Edit
+          </Button>
           <Link
             href={`/drivers/${r.application.id}?tab=financials`}
             onClick={(e) => e.stopPropagation()}
@@ -398,18 +527,6 @@ export function DriversScreen() {
               title="Driver Financials"
             />
           </Link>
-          <Link
-            href={`/drivers/${r.application.id}?tab=duty`}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <IconButton
-              size="sm"
-              variant="secondary"
-              icon={<Car className="size-3.5" />}
-              label="Driver Duty History"
-              title="Driver Duty History"
-            />
-          </Link>
         </div>
       ),
     },
@@ -419,8 +536,8 @@ export function DriversScreen() {
     <div className="flex flex-col gap-6 p-8 max-w-[1600px] mx-auto w-full">
       {/* Page Header */}
       <PageHeader
-        title="Drivers & KYC Control Plane"
-        breadcrumbs={[{ label: 'Admin', href: '/' }, { label: 'Drivers & KYC' }]}
+        title="Drivers"
+        breadcrumbs={[{ label: 'Home', href: '/' }, { label: 'Drivers' }]}
         actions={
           <div className="flex items-center gap-2">
             <Button
@@ -437,19 +554,19 @@ export function DriversScreen() {
       {/* Operational KPI Stat Tiles */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatTile
-          label="Pending KYC Reviews"
-          value={stats.pending}
-          icon={<Clock className="size-4 text-warning" />}
-          hint="Applications awaiting admin action"
-          tone={stats.pending > 0 ? 'warning' : 'default'}
-          loading={appsQuery.isLoading}
-        />
-        <StatTile
-          label="Active Fleet Drivers"
+          label="Verified Drivers"
           value={stats.approved}
           icon={<CheckCircle2 className="size-4 text-success" />}
           hint="Onboarded & dispatch eligible"
           tone="success"
+          loading={appsQuery.isLoading}
+        />
+        <StatTile
+          label="Requests / Pending"
+          value={stats.pending}
+          icon={<Clock className="size-4 text-warning" />}
+          hint="Applications awaiting admin action"
+          tone={stats.pending > 0 ? 'warning' : 'default'}
           loading={appsQuery.isLoading}
         />
         <StatTile
@@ -470,7 +587,7 @@ export function DriversScreen() {
         />
       </div>
 
-      {/* View Switcher: KYC Queue vs Fleet Directory */}
+      {/* View Switcher: Verified Drivers (default) vs Requests / Pending */}
       <div className="flex items-center justify-between border-b border-border pb-3">
         <SegmentedControl<ViewMode>
           label="Drivers Console View"
@@ -481,14 +598,14 @@ export function DriversScreen() {
           }}
           segments={[
             {
-              value: 'kyc',
-              label: `KYC Review Queue ${stats.pending > 0 ? `(${stats.pending})` : ''}`,
-              icon: <FileCheck className="size-3.5" />,
+              value: 'fleet',
+              label: `Verified Drivers (${stats.approved})`,
+              icon: <UserCheck className="size-3.5" />,
             },
             {
-              value: 'fleet',
-              label: `Fleet Directory (${stats.approved})`,
-              icon: <Users className="size-3.5" />,
+              value: 'kyc',
+              label: `Requests / Pending ${stats.pending > 0 ? `(${stats.pending})` : ''}`,
+              icon: <Clock className="size-3.5" />,
             },
           ]}
         />
@@ -503,44 +620,35 @@ export function DriversScreen() {
               setSearchQuery(val);
               setPage(1);
             }}
-            placeholder="Search phone, driver ID, plate number, vehicle make..."
+            placeholder="Search by name or phone..."
           />
         </div>
 
-        {viewMode === 'kyc' ? (
-          <FilterField label="KYC Status" className="w-48">
-            <Select
-              value={kycFilter}
-              onValueChange={(v) => {
-                setKycFilter(v as KycFilter);
-                setPage(1);
-              }}
-              options={KYC_FILTER_OPTIONS}
-            />
-          </FilterField>
-        ) : (
-          <FilterField label="Fleet Status" className="w-44">
-            <Select
-              value={fleetFilter}
-              onValueChange={(v) => {
-                setFleetFilter(v as FleetFilter);
-                setPage(1);
-              }}
-              options={FLEET_FILTER_OPTIONS}
-            />
-          </FilterField>
-        )}
+        {viewMode === 'fleet' && (
+          <>
+            <FilterField label="Driver Status" className="w-44">
+              <Select
+                value={fleetFilter}
+                onValueChange={(v) => {
+                  setFleetFilter(v as FleetFilter);
+                  setPage(1);
+                }}
+                options={FLEET_FILTER_OPTIONS}
+              />
+            </FilterField>
 
-        <FilterField label="Vehicle Type" className="w-44">
-          <Select
-            value={vehicleFilter}
-            onValueChange={(v) => {
-              setVehicleFilter(v);
-              setPage(1);
-            }}
-            options={VEHICLE_FILTER_OPTIONS}
-          />
-        </FilterField>
+            <FilterField label="Vehicle Type" className="w-44">
+              <Select
+                value={vehicleFilter}
+                onValueChange={(v) => {
+                  setVehicleFilter(v);
+                  setPage(1);
+                }}
+                options={VEHICLE_FILTER_OPTIONS}
+              />
+            </FilterField>
+          </>
+        )}
 
         {hasActiveFilters && (
           <div className="pb-0.5">
@@ -572,15 +680,15 @@ export function DriversScreen() {
             hasActiveFilters
               ? 'No matching drivers or applications'
               : viewMode === 'kyc'
-                ? 'No pending applications'
-                : 'No approved drivers in fleet'
+                ? 'No pending requests'
+                : 'No verified drivers yet'
           }
           description={
             hasActiveFilters
               ? 'Try adjusting your search criteria or clearing active filters.'
               : viewMode === 'kyc'
-                ? 'All driver KYC applications have been reviewed.'
-                : 'Approved drivers will appear in this directory.'
+                ? 'All driver applications have been reviewed.'
+                : 'Verified drivers will appear in this list.'
           }
           action={
             hasActiveFilters ? (

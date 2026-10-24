@@ -9,6 +9,7 @@ import {
 } from '@cabzone/contracts';
 
 export interface WalletTransactionDocument extends Document<string> {
+  bucket?: 'COMMISSION' | 'EARNINGS';
   _id: string;
   wallet_id: string;
   owner_type?: WalletOwnerType;
@@ -30,6 +31,7 @@ const walletTransactionSchema = new Schema<WalletTransactionDocument>(
   {
     _id: { type: String, required: true },
     wallet_id: { type: String, required: true },
+    bucket: { type: String, enum: ['COMMISSION', 'EARNINGS'], default: 'COMMISSION' },
     owner_type: {
       type: String,
       enum: WALLET_OWNER_TYPES,

@@ -40,8 +40,8 @@ export function StepDrivingLicence({
 }: StepDrivingLicenceProps) {
   const insets = useSafeAreaInsets();
   const { token, driver, documents, refreshProfile } = useAuth();
-  const dlInputRef = useRef<TextInput>(null);
-  const expiryInputRef = useRef<TextInput>(null);
+  const dlInputRef = useRef<React.ComponentRef<typeof TextInput>>(null);
+  const expiryInputRef = useRef<React.ComponentRef<typeof TextInput>>(null);
 
   const [dlNumber, setDlNumber] = useState(draft.dlNumber || driver?.dlNumber || '');
   const [expiryDate, setExpiryDate] = useState(() =>

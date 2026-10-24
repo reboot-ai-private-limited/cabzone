@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import {
   AlertCircle,
+  ExternalLink,
   Eye,
   FileText,
   IdCard,
@@ -10,7 +11,12 @@ import {
 import { Button } from '@cabzone/design-system';
 import type { DriverDocumentAdminDto } from '@/lib/api/endpoints/drivers';
 import { DocumentStatusBadge } from './StatusBadge';
-import { DocumentPreviewDialog } from './DocumentPreviewDialog';
+import {
+  DOCUMENT_TYPE_LABELS,
+  DocumentPreviewDialog,
+  isPdfDocument,
+  resolveDocumentFileUrl,
+} from './DocumentPreviewDialog';
 
 export interface DocumentViewerCardProps {
   document: DriverDocumentAdminDto;
@@ -27,16 +33,33 @@ export function DocumentViewerCard({ document, driverPhone }: DocumentViewerCard
   const isExpired =
     document.expiresAt !== null && new Date(document.expiresAt).getTime() < Date.now();
 
-  const title = isDL ? 'Driving Licence (DL)' : 'Government ID Card';
+  const title = DOCUMENT_TYPE_LABELS[document.type] ?? document.type.replace(/_/g, ' ');
   const Icon = isDL ? IdCard : FileText;
+  const fileUrl = resolveDocumentFileUrl(document);
+  const isPdf = isPdfDocument(document, fileUrl);
 
   return (
     <>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-lg border border-border bg-surface hover:bg-surface-muted/40 transition-colors">
         <div className="flex items-start gap-3">
-          <div className="size-10 rounded-md bg-surface-muted border border-border flex items-center justify-center shrink-0 text-text-subtle">
-            <Icon className="size-5 text-interactive" />
-          </div>
+          {fileUrl && !isPdf ? (
+            <button
+              type="button"
+              onClick={() => setIsPreviewOpen(true)}
+              className="w-16 h-12 rounded-md bg-zinc-900 border border-border overflow-hidden shrink-0 cursor-pointer group relative"
+              title="Click to inspect full document"
+            >
+              <img
+                src={fileUrl}
+                alt={title}
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+              />
+            </button>
+          ) : (
+            <div className="size-10 rounded-md bg-surface-muted border border-border flex items-center justify-center shrink-0 text-text-subtle">
+              <Icon className="size-5 text-interactive" />
+            </div>
+          )}
 
           <div className="flex flex-col gap-0.5">
             <div className="flex items-center gap-2">
@@ -65,13 +88,24 @@ export function DocumentViewerCard({ document, driverPhone }: DocumentViewerCard
         </div>
 
         <div className="flex items-center gap-2 self-end sm:self-center">
+          {fileUrl && (
+            <a
+              href={fileUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-border bg-surface text-xs font-medium text-text-subtle hover:text-text hover:bg-surface-muted transition-colors"
+              title="Open original document in new tab"
+            >
+              <ExternalLink className="size-3.5" />
+            </a>
+          )}
           <Button
             size="sm"
             variant="secondary"
             icon={<Eye className="size-3.5 text-interactive" />}
             onClick={() => setIsPreviewOpen(true)}
           >
-            Preview Document
+            View Document
           </Button>
         </div>
       </div>

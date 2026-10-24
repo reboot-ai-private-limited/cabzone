@@ -7,6 +7,7 @@ import type {
   ListWalletsQueryDto,
   WalletSummaryDto,
   WalletTransactionDto,
+  WalletOperationDto,
 } from '@cabzone/contracts';
 import { walletsApi, type AdjustWalletBody, type WalletViewDto } from '@/lib/api/endpoints/wallets';
 import { authedQueryOptions } from '@/lib/query/factory';
@@ -24,6 +25,27 @@ export function useFinanceStats() {
       staleTime: staleTime.short,
     }),
   );
+}
+
+export function usePendingCashouts() {
+  return useQuery({
+    ...authedQueryOptions<WalletOperationDto[]>({
+      queryKey: [...keys.wallets.all(), 'cashouts'],
+      fetch: (token, signal) => walletsApi.cashouts(token, signal),
+      staleTime: staleTime.short,
+    }),
+    refetchInterval: 15000,
+  });
+}
+
+export function useResolveCashout() {
+  return useApiMutation<
+    { id: string; outcome: 'PAID' | 'REJECTED'; detail: string },
+    WalletOperationDto
+  >({
+    call: (token, { id, ...body }) => walletsApi.resolveCashout(id, body, token),
+    invalidates: [keys.wallets.all()],
+  });
 }
 
 export function useWalletsList(query: ListWalletsQueryDto = {}) {

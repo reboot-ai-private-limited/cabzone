@@ -68,8 +68,8 @@ export function LoginFormLayer({
   const [isOtpFocused, setIsOtpFocused] = useState(false);
   const [timer, setTimer] = useState(60);
 
-  const phoneInputRef = useRef<TextInput>(null);
-  const otpInputRef = useRef<TextInput>(null);
+  const phoneInputRef = useRef<React.ComponentRef<typeof TextInput>>(null);
+  const otpInputRef = useRef<React.ComponentRef<typeof TextInput>>(null);
 
   const isPhoneValid = phoneInput.length === 10;
   const isOtpComplete = otpInput.length === 6;

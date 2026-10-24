@@ -12,6 +12,7 @@ export interface WalletDocument extends Document<string> {
   driver_id: string | null;
   rider_id: string | null;
   balance_paise: number;
+  earnings_balance_paise: number;
   owed_paise: number;
   status: WalletStatus;
   version: number;
@@ -31,6 +32,7 @@ const walletSchema = new Schema<WalletDocument>(
     driver_id: { type: String, default: null, sparse: true, index: true },
     rider_id: { type: String, default: null, sparse: true, index: true },
     balance_paise: { type: Number, default: 0 },
+    earnings_balance_paise: { type: Number, default: 0, min: 0 },
     owed_paise: { type: Number, default: 0 },
     status: {
       type: String,

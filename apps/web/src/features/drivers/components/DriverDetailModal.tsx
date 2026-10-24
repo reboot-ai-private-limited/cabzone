@@ -2,7 +2,9 @@
 
 import Link from 'next/link';
 import {
+  Ban,
   Car,
+  CheckCircle2,
   CreditCard,
   ExternalLink,
   ShieldCheck,
@@ -17,6 +19,7 @@ import {
   FieldRow,
 } from '@cabzone/design-system';
 import type { DriverApplicationSummaryDto } from '@/lib/api/endpoints/drivers';
+import { useUpdateDriverStatus } from '../hooks/useDriverApplications';
 import { DriverStatusBadge, OperationalStatusBadge, VehicleStatusBadge } from './StatusBadge';
 import { TrustScoreBadge } from '../../identity/components/TrustScoreBadge';
 
@@ -34,15 +37,20 @@ export function DriverDetailModal({
   open,
   onOpenChange,
 }: DriverDetailModalProps) {
+  const updateStatusMutation = useUpdateDriverStatus(() => {
+    onOpenChange(false);
+  });
+
   if (!driverSummary) return null;
 
   const { driver, application, vehicle, phoneE164 } = driverSummary;
+  const isSuspended = driver?.status === 'SUSPENDED';
 
   return (
     <Dialog
       open={open}
       onOpenChange={onOpenChange}
-      title={phoneE164 ?? 'Driver Profile'}
+      title={driver?.name || phoneE164 || 'Driver Profile'}
       description="Operational fleet profile and driver dispatch record"
       className="max-w-xl"
     >
@@ -54,7 +62,7 @@ export function DriverDetailModal({
               Account:
             </span>
             <DriverStatusBadge status={driver?.status ?? 'ACTIVE'} />
-            <OperationalStatusBadge status="ONLINE" />
+            <OperationalStatusBadge status={isSuspended ? 'OFFLINE' : 'ONLINE'} />
           </div>
 
           <div className="flex items-center gap-3">
@@ -79,12 +87,17 @@ export function DriverDetailModal({
           </div>
 
           <DefinitionList>
+            {driver?.name ? (
+              <FieldRow label="Driver Name">
+                <span className="font-semibold text-text">{driver.name}</span>
+              </FieldRow>
+            ) : null}
             <FieldRow label="Registered Phone">
               <span className="font-mono font-medium text-text">{phoneE164 ?? '—'}</span>
             </FieldRow>
-            <FieldRow label="Driver UUID">
-              <span className="font-mono text-xs text-text-subtle truncate max-w-[200px]" title={application.driverId}>
-                {application.driverId}
+            <FieldRow label="Driving Licence">
+              <span className="font-mono text-xs text-text">
+                {driver?.dlNumber || 'Not available'}
               </span>
             </FieldRow>
             <FieldRow label="KYC Status">
@@ -94,7 +107,9 @@ export function DriverDetailModal({
               </span>
             </FieldRow>
             <FieldRow label="Approved On">
-              <span className="text-xs text-text">{formatDate(application.reviewedAt ?? application.createdAt)}</span>
+              <span className="text-xs text-text">
+                {formatDate(application.reviewedAt ?? application.createdAt)}
+              </span>
             </FieldRow>
           </DefinitionList>
         </div>
@@ -107,7 +122,9 @@ export function DriverDetailModal({
           </div>
 
           {vehicle === null ? (
-            <p className="text-xs text-text-subtle py-2">No vehicle assigned to this driver profile.</p>
+            <p className="text-xs text-text-subtle py-2">
+              No vehicle assigned to this driver profile.
+            </p>
           ) : (
             <DefinitionList>
               <FieldRow label="Category">
@@ -130,7 +147,7 @@ export function DriverDetailModal({
           )}
         </div>
 
-        {/* Operational Shortcuts */}
+        {/* Operational Shortcuts & Suspend / Activate */}
         <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-border">
           <div className="flex items-center gap-2">
             <Link href={`/drivers/${application.id}?tab=financials`}>
@@ -145,15 +162,38 @@ export function DriverDetailModal({
             </Link>
           </div>
 
-          <Link href={`/drivers/applications/${application.id}`}>
+          <div className="flex items-center gap-2">
             <Button
               size="sm"
-              variant="secondary"
-              icon={<ExternalLink className="size-3.5 text-interactive" />}
+              variant={isSuspended ? 'primary' : 'danger'}
+              loading={updateStatusMutation.isPending}
+              icon={
+                isSuspended ? (
+                  <CheckCircle2 className="size-3.5" />
+                ) : (
+                  <Ban className="size-3.5" />
+                )
+              }
+              onClick={() =>
+                updateStatusMutation.mutate({
+                  id: application.id,
+                  status: isSuspended ? 'ACTIVE' : 'SUSPENDED',
+                })
+              }
             >
-              View Application KYC
+              {isSuspended ? 'Activate Driver' : 'Suspend Driver'}
             </Button>
-          </Link>
+
+            <Link href={`/drivers/${application.id}`}>
+              <Button
+                size="sm"
+                variant="secondary"
+                icon={<ExternalLink className="size-3.5 text-interactive" />}
+              >
+                Full Profile
+              </Button>
+            </Link>
+          </div>
         </div>
       </div>
     </Dialog>

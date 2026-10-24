@@ -33,6 +33,7 @@ import { MongoPushTokenRepository } from '@/modules/dispatch/infrastructure/push
 import { MongoPushReceiptRepository } from '@/modules/dispatch/infrastructure/pushReceipt.repository.js';
 import { MongoWalletRepository } from '@/modules/ledger/index.js';
 import { buildLedgerContainer, type LedgerContainer } from '@/modules/ledger/ledger.container.js';
+import { RazorpayGateway } from '@/modules/rides/infrastructure/razorpay.adapter.js';
 import { MongoRideEventRepository, MongoRideRepository } from '@/modules/rides/index.js';
 import { buildRidesContainer, type RidesContainer } from '@/modules/rides/rides.container.js';
 import { getRedis } from '@/shared/queue/redis.js';
@@ -140,6 +141,7 @@ export function buildContainers(overrides?: Partial<AppContainers>): AppContaine
   const ledger =
     overrides?.ledger ??
     buildLedgerContainer({
+      walletPaymentGateway: new RazorpayGateway(env.RAZORPAY_KEY_ID ?? '', env.RAZORPAY_KEY_SECRET ?? '', !isProdLike && env.RAZORPAY_MODE === 'test'),
       unitOfWork,
       walletRepo,
       resolveDriverId,

@@ -17,6 +17,8 @@ import type {
   VerifyOtpResponseDto,
   WalletDto,
   WalletTransactionDto,
+  DriverWalletActivityDto,
+  WalletOperationDto,
 } from '@cabzone/contracts';
 
 export type { DriverProfileDetailDto };
@@ -441,17 +443,38 @@ export const dispatchApi = {
 };
 
 export const ridesApi = {
+  async switchToCash(
+    token: string,
+    rideId: string,
+  ): Promise<import('@cabzone/contracts').RidePaymentStateDto> {
+    return request(
+      `/api/v1/rides/${encodeURIComponent(rideId)}/payment/cash`,
+      { method: 'POST' },
+      token,
+    );
+  },
   async getPaymentQr(
     token: string,
     rideId: string,
-  ): Promise<{ paid: boolean; imageDataUrl?: string; expiresAt?: string; amountPaise?: number }> {
+  ): Promise<{
+    paid: boolean;
+    imageDataUrl?: string;
+    expiresAt?: string;
+    amountPaise?: number;
+    testMode?: boolean;
+    method?: 'UPI' | 'CASH';
+    requiresReview?: boolean;
+  }> {
     return request(
       `/api/v1/rides/${encodeURIComponent(rideId)}/payment/upi/qr`,
       { method: 'POST' },
       token,
     );
   },
-  async checkUpiPayment(token: string, rideId: string): Promise<{ paid: boolean }> {
+  async checkUpiPayment(
+    token: string,
+    rideId: string,
+  ): Promise<import('@cabzone/contracts').RidePaymentStateDto> {
     return request(
       `/api/v1/rides/${encodeURIComponent(rideId)}/payment/upi/driver-status`,
       { method: 'GET' },
@@ -578,6 +601,18 @@ export interface WalletViewDto {
 }
 
 export const walletApi = {
+  async activity(token: string): Promise<DriverWalletActivityDto> {
+    return request('/api/v1/driver/wallet/me/activity', { method: 'GET' }, token);
+  },
+  async recharge(token: string, amountPaise: number, idempotencyKey: string): Promise<{ operation: WalletOperationDto; checkoutUrl: string }> {
+    return request('/api/v1/driver/wallet/me/recharges', { method: 'POST', body: JSON.stringify({ amountPaise, idempotencyKey }) }, token);
+  },
+  async rechargeStatus(token: string, id: string): Promise<{ operation: WalletOperationDto; checkoutUrl: string }> {
+    return request(`/api/v1/driver/wallet/me/recharges/${encodeURIComponent(id)}/status`, { method: 'POST' }, token);
+  },
+  async cashout(token: string, amountPaise: number, destinationUpi: string, idempotencyKey: string): Promise<WalletOperationDto> {
+    return request('/api/v1/driver/wallet/me/cashouts', { method: 'POST', body: JSON.stringify({ amountPaise, destinationUpi, idempotencyKey }) }, token);
+  },
   async getMyWallet(token: string): Promise<WalletViewDto | null> {
     try {
       return await request<WalletViewDto>('/api/v1/driver/wallet/me', { method: 'GET' }, token);

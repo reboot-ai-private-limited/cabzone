@@ -311,6 +311,26 @@ export interface CreateRiderRidePayload {
 }
 
 export const riderRidesApi = {
+  async switchToCash(
+    token: string,
+    rideId: string,
+  ): Promise<import('@cabzone/contracts').RidePaymentStateDto> {
+    return request(
+      `/api/v1/rides/${encodeURIComponent(rideId)}/payment/cash`,
+      { method: 'POST' },
+      token,
+    );
+  },
+  async createUpiSession(
+    token: string,
+    rideId: string,
+  ): Promise<import('@cabzone/contracts').RideUpiSessionDto> {
+    return request(
+      `/api/v1/rides/${encodeURIComponent(rideId)}/payment/upi/session`,
+      { method: 'POST' },
+      token,
+    );
+  },
   async createUpiPayment(
     token: string,
     rideId: string,
@@ -325,14 +345,24 @@ export const riderRidesApi = {
     token: string,
     rideId: string,
     proof: { orderId: string; paymentId: string; signature: string },
-  ): Promise<{ paid: boolean }> {
+  ): Promise<import('@cabzone/contracts').RidePaymentStateDto> {
     return request(
       `/api/v1/rides/${encodeURIComponent(rideId)}/payment/upi/verify`,
-      { method: 'POST', body: JSON.stringify({ orderId: proof.orderId, paymentId: proof.paymentId, signature: proof.signature }) },
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          orderId: proof.orderId,
+          paymentId: proof.paymentId,
+          signature: proof.signature,
+        }),
+      },
       token,
     );
   },
-  async upiPaymentStatus(token: string, rideId: string): Promise<{ paid: boolean }> {
+  async upiPaymentStatus(
+    token: string,
+    rideId: string,
+  ): Promise<import('@cabzone/contracts').RidePaymentStateDto> {
     return request(
       `/api/v1/rides/${encodeURIComponent(rideId)}/payment/upi/status`,
       { method: 'GET' },
@@ -415,7 +445,7 @@ export const riderRidesApi = {
     rideId: string,
     reason: CancellationReason,
   ): Promise<RiderRideViewDto> {
-    return request<RiderRideViewDto>(
+    const result = await request<{ ride: RiderRideViewDto }>(
       `/api/v1/rides/${encodeURIComponent(rideId)}/cancel`,
       {
         method: 'POST',
@@ -423,6 +453,7 @@ export const riderRidesApi = {
       },
       token,
     );
+    return result.ride;
   },
 
   async disputePayment(token: string, rideId: string, reason: string): Promise<RiderRideViewDto> {

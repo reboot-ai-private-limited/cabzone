@@ -118,3 +118,16 @@ test('UPI verification sends only proof fields to the authenticated ride endpoin
   assert.equal(call.method, 'POST');
   assert.deepEqual(JSON.parse(call.body), { orderId: 'order_test', paymentId: 'pay_test', signature: 'a'.repeat(64) });
 });
+
+test('cancellation returns the enclosed ride so the active screen retains its pricing snapshot', async () => {
+  const s = apiSession();
+  const ride = { id: 'ride-1', status: 'CANCELLED', suggestedFarePaise: 8300,
+    pricingSnapshot: { minimumFarePaise: 7000, negotiationFloorPercent: 80, negotiationCeilingPercent: 150 } };
+  s.runtime.respond = async () => response({ ride, feeBreakdown: { cancellationFeePaise: 0 } });
+  const cancelled = await s.riderRidesApi.cancelRide('old-access', 'ride-1', 'RIDER_CHANGED_MIND');
+  assert.equal(cancelled.id, 'ride-1');
+  assert.equal(cancelled.status, 'CANCELLED');
+  assert.equal(cancelled.pricingSnapshot.minimumFarePaise, 7000);
+  assert.equal(cancelled.suggestedFarePaise, 8300);
+  assert.deepEqual(JSON.parse(s.calls.at(-1).body), { reason: 'RIDER_CHANGED_MIND' });
+});

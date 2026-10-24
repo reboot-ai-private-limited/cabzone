@@ -13,6 +13,7 @@ import {
 } from '../src/modules/identity/interface/middlewares/index.js';
 import { MemoryWalletRepository } from '../src/modules/ledger/index.js';
 import { buildLedgerContainer } from '../src/modules/ledger/ledger.container.js';
+import { MemoryWalletOperationRepository } from '../src/modules/ledger/infrastructure/persistence/walletOperation.repository.js';
 
 const JWT_SECRET = 'this-is-a-super-secret-key-that-is-at-least-32-chars-long!';
 const DRIVER_USER = '018f0a00-0000-7000-8000-0000000000b1';
@@ -49,6 +50,13 @@ async function setup() {
     requireZoneAccess: makeRequireZoneAccess({ adminRepo: { findByUserId: async () => null } }),
   };
   const ledger = buildLedgerContainer({
+    walletOperations: new MemoryWalletOperationRepository(),
+    walletPaymentGateway: {
+      keyId: 'rzp_test_fixture',
+      live: false,
+      createOrder: async () => 'order_fixture',
+      findCapturedPayment: async () => null,
+    },
     unitOfWork,
     walletRepo: new MemoryWalletRepository(),
     resolveDriverId: async (u) => (u === DRIVER_USER ? DRIVER_ID : null),
@@ -75,6 +83,7 @@ async function setup() {
     finance: await login('018f0a00-0000-7000-8000-0000000000c1', 'FINANCE_ADMIN'),
     support: await login('018f0a00-0000-7000-8000-0000000000c2', 'SUPPORT_ADMIN'),
     driver: await login(DRIVER_USER, 'DRIVER'),
+    otherDriver: await login('other-driver', 'DRIVER'),
     rider: await login('018f0a00-0000-7000-8000-0000000000a1', 'RIDER'),
   };
 }
@@ -86,6 +95,70 @@ const adjust = (
 ) => request(s.app).post('/api/v1/admin/wallets/adjustments').set('Authorization', auth).send(body);
 
 describe('Wallet API', () => {
+  it('scopes recharge tickets to one request and cashout decisions to Finance', async () => {
+    const s = await setup();
+    const create = await request(s.app)
+      .post('/api/v1/driver/wallet/me/recharges')
+      .set('Authorization', s.driver)
+      .send({ amountPaise: 10000, idempotencyKey: 'recharge-http' });
+    expect(create.status).toBe(201);
+    const { operation, checkoutUrl } = create.body.data;
+    expect(operation).not.toHaveProperty('idempotencyKey');
+    expect(operation).not.toHaveProperty('orderId');
+    const ticket = new URL(checkoutUrl).hash.slice(1);
+    const session = await request(s.app)
+      .post('/api/v1/driver/wallet/recharge-checkout/session')
+      .send({ ticket });
+    expect(session.status).toBe(200);
+    expect(session.body.data.checkout.orderId).toBe('order_fixture');
+    expect(
+      (
+        await request(s.app)
+          .post('/api/v1/driver/wallet/recharge-checkout/status')
+          .send({ ticket: `${ticket}tampered` })
+      ).status,
+    ).toBe(400);
+    expect(
+      (
+        await request(s.app)
+          .post(`/api/v1/driver/wallet/me/recharges/${operation.id}/status`)
+          .set('Authorization', s.otherDriver)
+      ).status,
+    ).toBe(403);
+    await adjust(s, s.finance, {
+      driverId: DRIVER_ID,
+      amountPaise: 20000,
+      type: 'CREDIT',
+      reason: 'Test wallet funding',
+    });
+    const cashout = await request(s.app)
+      .post('/api/v1/driver/wallet/me/cashouts')
+      .set('Authorization', s.driver)
+      .send({ amountPaise: 15000, destinationUpi: 'driver@upi', idempotencyKey: 'cashout-http' });
+    expect(cashout.status).toBe(201);
+    const path = `/api/v1/admin/wallets/cashouts/${cashout.body.data.id}/resolve`;
+    expect(
+      (
+        await request(s.app)
+          .post(path)
+          .set('Authorization', s.driver)
+          .send({ outcome: 'PAID', detail: 'test-reference' })
+      ).status,
+    ).toBe(403);
+    expect(
+      (await request(s.app).get('/api/v1/admin/wallets/cashouts').set('Authorization', s.support))
+        .status,
+    ).toBe(403);
+    const decision = await request(s.app)
+      .post(path)
+      .set('Authorization', s.finance)
+      .send({ outcome: 'REJECTED', detail: 'Correct the destination' });
+    expect(decision.status).toBe(200);
+    const activity = await request(s.app)
+      .get('/api/v1/driver/wallet/me/activity')
+      .set('Authorization', s.driver);
+    expect(activity.body.data.availableCashoutPaise).toBe(20000);
+  });
   it('requires authentication and the right role', async () => {
     const s = await setup();
     expect((await request(s.app).get(`/api/v1/admin/wallets/${DRIVER_ID}`)).status).toBe(401);

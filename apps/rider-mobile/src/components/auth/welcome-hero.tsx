@@ -6,7 +6,7 @@ import { colors, radii, spacing, typography } from '@/design-system';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 import { BlobBackground } from './blob-background';
 
-export function WelcomeHero() {
+export function WelcomeHero({ exiting = false }: { exiting?: boolean }) {
   const reducedMotion = useReducedMotion();
   const [availableSpace, setAvailableSpace] = useState({ width: 340, height: 340 });
   const [focused, setFocused] = useState(true);
@@ -20,12 +20,13 @@ export function WelcomeHero() {
   const [float] = useState(() => new Animated.Value(0));
 
   useEffect(() => {
+    if (exiting) return;
     entrances.forEach((value) => value.setValue(reducedMotion || !focused ? 1 : 0));
     float.setValue(0);
     if (reducedMotion || !focused) return;
 
     const entrance = Animated.stagger(
-      180,
+      140,
       entrances.map((value) =>
         Animated.spring(value, {
           toValue: 1,
@@ -59,15 +60,46 @@ export function WelcomeHero() {
       entrance.stop();
       floating.stop();
     };
-  }, [entrances, float, focused, reducedMotion]);
+  }, [entrances, exiting, float, focused, reducedMotion]);
 
-  const pop = (index: number) => ({
+  useEffect(() => {
+    if (!exiting || reducedMotion) return;
+    float.stopAnimation();
+    const exit = Animated.stagger(
+      40,
+      [...entrances].reverse().map((value) =>
+        Animated.timing(value, {
+          toValue: 0,
+          duration: 210,
+          easing: Easing.in(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      ),
+    );
+    exit.start();
+    return () => exit.stop();
+  }, [entrances, exiting, float, reducedMotion]);
+
+  const pop = (index: number, exitOffset = -10) => ({
     opacity: entrances[index].interpolate({
       inputRange: [0, 0.25, 1],
       outputRange: [0, 0.85, 1],
       extrapolate: 'clamp',
     }),
-    transform: [{ scale: entrances[index] }],
+    transform: [
+      {
+        scale: entrances[index].interpolate({
+          inputRange: [0, 1],
+          outputRange: [exiting ? 0.82 : 0, 1],
+        }),
+      },
+      {
+        translateY: entrances[index].interpolate({
+          inputRange: [0, 1],
+          outputRange: [exiting ? exitOffset : 10, 0],
+        }),
+      },
+    ],
   });
   const drift = (distance: number) => ({
     transform: [
@@ -94,15 +126,48 @@ export function WelcomeHero() {
           },
         ]}
       >
-        <View style={styles.blob}>{focused && <BlobBackground size={340} />}</View>
-        <View style={styles.orbit} />
-        <Animated.View style={[styles.cityPosition, pop(1)]}>
+        <Animated.View
+          style={[
+            styles.blob,
+            {
+              opacity: entrances[0],
+              transform: [
+                {
+                  scale: entrances[0].interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0.88, 1],
+                  }),
+                },
+              ],
+            },
+          ]}
+        >
+          {focused && <BlobBackground size={340} />}
+        </Animated.View>
+        <Animated.View
+          style={[
+            styles.orbit,
+            {
+              opacity: entrances[0],
+              transform: [
+                { rotate: '-18deg' },
+                {
+                  scale: entrances[0].interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0.9, 1],
+                  }),
+                },
+              ],
+            },
+          ]}
+        />
+        <Animated.View style={[styles.cityPosition, pop(1, -12)]}>
           <Animated.View style={[styles.benefit, drift(-6)]}>
             <Ionicons name="location" size={17} color={colors.brandBrown} />
             <Text style={styles.benefitText}>City to city</Text>
           </Animated.View>
         </Animated.View>
-        <Animated.View style={[styles.farePosition, pop(2)]}>
+        <Animated.View style={[styles.farePosition, pop(2, -12)]}>
           <Animated.View style={[styles.benefit, drift(6)]}>
             <View style={styles.benefitIcon}>
               <Ionicons name="pricetag" size={18} color={colors.brandBrown} />
@@ -113,7 +178,7 @@ export function WelcomeHero() {
             </View>
           </Animated.View>
         </Animated.View>
-        <Animated.View style={[styles.carWrap, pop(0)]}>
+        <Animated.View style={[styles.carWrap, pop(0, -16)]}>
           <Animated.View
             style={{
               transform: [
@@ -128,7 +193,7 @@ export function WelcomeHero() {
             />
           </Animated.View>
         </Animated.View>
-        <Animated.View style={[styles.safetyPosition, pop(3)]}>
+        <Animated.View style={[styles.safetyPosition, pop(3, 12)]}>
           <Animated.View style={[styles.benefit, drift(-4)]}>
             <View style={styles.benefitIcon}>
               <Ionicons name="shield-checkmark" size={18} color={colors.brandBrown} />

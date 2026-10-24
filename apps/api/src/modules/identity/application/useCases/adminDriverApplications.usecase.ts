@@ -1,5 +1,6 @@
 import type { DriverApplicationStatus } from '@cabzone/contracts';
 import { AppError } from '../../../../shared/errors/AppError.js';
+import type { DriverLicenseStoragePort } from '../../domain/driverLicenseStorage.port.js';
 import type {
   DriverApplicationEntity,
   DriverApplicationRepositoryPort,
@@ -18,6 +19,7 @@ export interface AdminDriverApplicationDeps {
   userRepo: UserRepositoryPort;
   vehicleRepo: VehicleRepositoryPort;
   documentRepo: DriverDocumentRepositoryPort;
+  licenseStorage?: DriverLicenseStoragePort | undefined;
 }
 
 export interface DriverApplicationSummary {
@@ -27,8 +29,28 @@ export interface DriverApplicationSummary {
   vehicle: VehicleEntity | null;
 }
 
+export interface DriverDocumentWithUrl extends DriverDocumentEntity {
+  fileUrl: string | null;
+}
+
 export interface DriverApplicationDetail extends DriverApplicationSummary {
-  documents: DriverDocumentEntity[];
+  documents: DriverDocumentWithUrl[];
+}
+
+function attachDocumentUrls(
+  deps: AdminDriverApplicationDeps,
+  documents: DriverDocumentEntity[],
+): DriverDocumentWithUrl[] {
+  return documents.map((doc) => ({
+    ...doc,
+    fileUrl:
+      deps.licenseStorage?.resolveUrl?.(doc.storageKey) ??
+      (doc.storageKey.startsWith('http://') ||
+      doc.storageKey.startsWith('https://') ||
+      doc.storageKey.startsWith('data:')
+        ? doc.storageKey
+        : null),
+  }));
 }
 
 async function summarize(
@@ -68,6 +90,39 @@ export class GetDriverApplicationDetailUseCase {
       summarize(this.deps, application),
       this.deps.documentRepo.findByApplicationId(application.id),
     ]);
-    return { ...summary, documents };
+    return { ...summary, documents: attachDocumentUrls(this.deps, documents) };
+  }
+}
+
+export class UpdateDriverStatusUseCase {
+  constructor(private readonly deps: AdminDriverApplicationDeps) {}
+
+  async execute(input: {
+    id: string;
+    status: 'ACTIVE' | 'SUSPENDED';
+  }): Promise<DriverApplicationDetail> {
+    const application =
+      (await this.deps.applicationRepo.findById(input.id)) ??
+      (await this.deps.applicationRepo.findByDriverId(input.id));
+    if (!application) throw AppError.notFound('Driver application not found.');
+
+    const driver = await this.deps.driverRepo.findById(application.driverId);
+    if (!driver) throw AppError.notFound('Driver profile not found.');
+
+    await this.deps.driverRepo.update({
+      ...driver,
+      status: input.status,
+      operationalStatus:
+        input.status === 'SUSPENDED' && driver.operationalStatus === 'ONLINE'
+          ? 'OFFLINE'
+          : driver.operationalStatus,
+      updatedAt: new Date(),
+    });
+
+    const [summary, documents] = await Promise.all([
+      summarize(this.deps, application),
+      this.deps.documentRepo.findByApplicationId(application.id),
+    ]);
+    return { ...summary, documents: attachDocumentUrls(this.deps, documents) };
   }
 }

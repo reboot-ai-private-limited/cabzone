@@ -13,6 +13,19 @@ export interface RideUpiCheckoutDto {
   testMode: true;
 }
 
+export interface RideUpiIntentDto {
+  kind: 'intent';
+  qrId: string;
+  upiUrl: string;
+  imageDataUrl: string;
+  amountPaise: number;
+  expiresAt: string;
+  testMode: false;
+}
+
+export type RideUpiSessionDto =
+  { kind: 'checkout'; checkout: RideUpiCheckoutDto } | RideUpiIntentDto;
+
 export const PAYMENT_STATUSES = [
   'CREATED',
   'PENDING',
@@ -21,6 +34,13 @@ export const PAYMENT_STATUSES = [
   'DISPUTED',
   'REFUNDED',
 ] as const;
+
+export interface RidePaymentStateDto {
+  paid: boolean;
+  method: 'UPI' | 'CASH';
+  testMode: boolean;
+  requiresReview: boolean;
+}
 export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
 
 export interface PaymentDto {

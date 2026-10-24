@@ -6,6 +6,7 @@ export interface WalletEntity {
   driverId: string;
   riderId?: string | null | undefined;
   balancePaise: number;
+  earningsBalancePaise?: number | undefined;
   owedPaise?: number | undefined;
   status: WalletStatus;
   version: number;

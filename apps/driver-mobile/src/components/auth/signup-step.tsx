@@ -1,6 +1,8 @@
-import React, { useRef, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Animated,
+  Easing,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -12,9 +14,11 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '@/design-system';
 import { useAuth } from '@/context/auth-context';
+import { useReducedMotion } from '@/hooks/use-reduced-motion';
 
 export interface SignupStepProps {
   onBack: () => void;
@@ -23,6 +27,7 @@ export interface SignupStepProps {
 
 export function SignupStep({ onBack, onSuccess }: SignupStepProps) {
   const { phone, sendOtp, verifyOtp, otpCooldown, error, clearError } = useAuth();
+  const reducedMotion = useReducedMotion();
   const [phoneInput, setPhoneInput] = useState(() => phone.replace(/\D/g, '').slice(-10));
   const [otpInput, setOtpInput] = useState('');
   const [isOtpSent, setIsOtpSent] = useState(false);
@@ -31,9 +36,78 @@ export function SignupStep({ onBack, onSuccess }: SignupStepProps) {
   const [localError, setLocalError] = useState<string | null>(null);
   const sendInFlight = useRef(false);
   const verifyInFlight = useRef(false);
+  const exitingRef = useRef(false);
+  const [sections] = useState(() => [
+    new Animated.Value(1),
+    new Animated.Value(1),
+    new Animated.Value(1),
+    new Animated.Value(1),
+  ]);
+
   const phoneValid = /^[6-9]\d{9}$/.test(phoneInput);
   const busy = sendingOtp || verifying;
   const visibleError = localError || error;
+
+  const animateIn = useCallback(
+    (includeHeader = true) => {
+      if (reducedMotion) {
+        sections.forEach((v) => v.setValue(1));
+        return;
+      }
+      const targets = includeHeader ? sections : sections.slice(1);
+      targets.forEach((v) => v.setValue(0));
+      Animated.stagger(
+        75,
+        targets.map((v) =>
+          Animated.timing(v, {
+            toValue: 1,
+            duration: 320,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+          }),
+        ),
+      ).start();
+    },
+    [reducedMotion, sections],
+  );
+
+  const animateOut = useCallback(
+    (onDone: () => void, includeHeader = true) => {
+      if (reducedMotion) {
+        onDone();
+        return;
+      }
+      if (exitingRef.current) return;
+      exitingRef.current = true;
+      const targets = includeHeader ? sections : sections.slice(1);
+      Animated.stagger(
+        40,
+        targets.map((v) =>
+          Animated.timing(v, {
+            toValue: 0,
+            duration: 200,
+            easing: Easing.in(Easing.cubic),
+            useNativeDriver: true,
+          }),
+        ),
+      ).start(({ finished }) => {
+        exitingRef.current = false;
+        if (finished) {
+          onDone();
+        } else {
+          sections.forEach((v) => v.setValue(1));
+        }
+      });
+    },
+    [reducedMotion, sections],
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      exitingRef.current = false;
+      animateIn(true);
+    }, [animateIn]),
+  );
 
   const resetError = () => {
     clearError();
@@ -51,8 +125,16 @@ export function SignupStep({ onBack, onSuccess }: SignupStepProps) {
     resetError();
     try {
       if (await sendOtp(phoneInput)) {
-        setOtpInput('');
-        setIsOtpSent(true);
+        if (!isOtpSent) {
+          animateOut(() => {
+            setOtpInput('');
+            setIsOtpSent(true);
+            animateIn(false);
+          }, false);
+        } else {
+          setOtpInput('');
+          setIsOtpSent(true);
+        }
       }
     } catch (err: unknown) {
       setLocalError(
@@ -70,7 +152,11 @@ export function SignupStep({ onBack, onSuccess }: SignupStepProps) {
     setVerifying(true);
     resetError();
     try {
-      if (await verifyOtp(code)) onSuccess?.();
+      if (await verifyOtp(code)) {
+        animateOut(() => {
+          onSuccess?.();
+        }, true);
+      }
     } catch (err: unknown) {
       setLocalError(
         err instanceof Error ? err.message : 'Could not verify the code. Please try again.',
@@ -83,9 +169,23 @@ export function SignupStep({ onBack, onSuccess }: SignupStepProps) {
 
   const editPhone = () => {
     resetError();
-    setIsOtpSent(false);
-    setOtpInput('');
+    animateOut(() => {
+      setIsOtpSent(false);
+      setOtpInput('');
+      animateIn(false);
+    }, false);
   };
+
+  const handleBackPress = () => {
+    if (isOtpSent) {
+      editPhone();
+      return;
+    }
+    animateOut(() => {
+      onBack();
+    }, true);
+  };
+
   const submitDisabled = busy || (isOtpSent ? otpInput.length !== 6 : !phoneValid);
 
   return (
@@ -95,10 +195,25 @@ export function SignupStep({ onBack, onSuccess }: SignupStepProps) {
     >
       <SafeAreaView style={styles.container}>
         <View style={styles.inner}>
-          <View style={styles.header}>
+          <Animated.View
+            style={[
+              styles.header,
+              {
+                opacity: sections[0],
+                transform: [
+                  {
+                    translateY: sections[0].interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [-12, 0],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
             <Pressable
               style={styles.back}
-              onPress={isOtpSent ? editPhone : onBack}
+              onPress={handleBackPress}
               disabled={busy}
               accessibilityRole="button"
               accessibilityLabel={isOtpSent ? 'Change mobile number' : 'Back to welcome'}
@@ -113,7 +228,7 @@ export function SignupStep({ onBack, onSuccess }: SignupStepProps) {
               accessibilityLabel="Cabzone Driver"
             />
             <View style={styles.headerSpacer} />
-          </View>
+          </Animated.View>
 
           <ScrollView
             style={styles.form}
@@ -121,113 +236,162 @@ export function SignupStep({ onBack, onSuccess }: SignupStepProps) {
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
-            <Text style={styles.title} accessibilityRole="header">
-              {isOtpSent ? 'Verify your number' : 'Your mobile number'}
-            </Text>
-            <Text style={styles.subtitle}>
-              {isOtpSent
-                ? `Enter the 6-digit code sent to +91 ${phoneInput}.`
-                : 'We’ll text you a 6-digit sign-in code.'}
-            </Text>
+            <Animated.View
+              style={{
+                opacity: sections[1],
+                transform: [
+                  {
+                    translateY: sections[1].interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [12, 0],
+                    }),
+                  },
+                ],
+              }}
+            >
+              <Text style={styles.title} accessibilityRole="header">
+                {isOtpSent ? 'Verify your number' : 'Your mobile number'}
+              </Text>
+              <Text style={styles.subtitle}>
+                {isOtpSent
+                  ? `Enter the 6-digit code sent to +91 ${phoneInput}.`
+                  : 'We’ll text you a 6-digit sign-in code.'}
+              </Text>
+            </Animated.View>
 
-            {!isOtpSent ? (
-              <>
-                <Text nativeID="driver-phone-label" style={styles.label}>
-                  Mobile number
-                </Text>
-                <View style={styles.phoneRow}>
-                  <View
-                    style={styles.countryPrefix}
-                    accessible
-                    accessibilityLabel="India, country code plus 91"
-                  >
-                    <Text style={styles.countryText}>{'\u{1F1EE}\u{1F1F3} +91'}</Text>
+            <Animated.View
+              style={{
+                opacity: sections[2],
+                transform: [
+                  {
+                    translateY: sections[2].interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [16, 0],
+                    }),
+                  },
+                ],
+              }}
+            >
+              {!isOtpSent ? (
+                <>
+                  <Text nativeID="driver-phone-label" style={styles.label}>
+                    Mobile number
+                  </Text>
+                  <View style={styles.phoneRow}>
+                    <View
+                      style={styles.countryPrefix}
+                      accessible
+                      accessibilityLabel="India, country code plus 91"
+                    >
+                      <Text style={styles.countryText}>{'\u{1F1EE}\u{1F1F3} +91'}</Text>
+                    </View>
+                    <TextInput
+                      style={styles.input}
+                      accessibilityLabel="Mobile number, 10 digits"
+                      accessibilityLabelledBy="driver-phone-label"
+                      placeholder="98765 43210"
+                      placeholderTextColor={colors.secondary}
+                      keyboardType="phone-pad"
+                      autoComplete="tel-national"
+                      textContentType="telephoneNumber"
+                      maxLength={10}
+                      value={phoneInput}
+                      editable={!busy}
+                      onChangeText={(text) => {
+                        resetError();
+                        setPhoneInput(text.replace(/\D/g, '').slice(0, 10));
+                      }}
+                      onSubmitEditing={() => void handleSendOtp()}
+                    />
                   </View>
+                </>
+              ) : (
+                <>
+                  <Text nativeID="driver-otp-label" style={styles.label}>
+                    Verification code
+                  </Text>
                   <TextInput
-                    style={styles.input}
-                    accessibilityLabel="Mobile number, 10 digits"
-                    accessibilityLabelledBy="driver-phone-label"
-                    placeholder="98765 43210"
+                    style={[styles.input, styles.otpInput]}
+                    accessibilityLabel="Verification code, 6 digits"
+                    accessibilityLabelledBy="driver-otp-label"
+                    placeholder="000000"
                     placeholderTextColor={colors.secondary}
-                    keyboardType="phone-pad"
-                    autoComplete="tel-national"
-                    textContentType="telephoneNumber"
-                    maxLength={10}
-                    value={phoneInput}
+                    keyboardType="number-pad"
+                    autoComplete="sms-otp"
+                    textContentType="oneTimeCode"
+                    maxLength={6}
+                    value={otpInput}
                     editable={!busy}
+                    autoFocus
                     onChangeText={(text) => {
                       resetError();
-                      setPhoneInput(text.replace(/\D/g, '').slice(0, 10));
+                      const digits = text.replace(/\D/g, '').slice(0, 6);
+                      setOtpInput(digits);
+                      if (digits.length === 6) void handleVerify(digits);
                     }}
-                    onSubmitEditing={() => void handleSendOtp()}
+                    onSubmitEditing={() => void handleVerify()}
                   />
-                </View>
-              </>
-            ) : (
-              <>
-                <Text nativeID="driver-otp-label" style={styles.label}>
-                  Verification code
-                </Text>
-                <TextInput
-                  style={[styles.input, styles.otpInput]}
-                  accessibilityLabel="Verification code, 6 digits"
-                  accessibilityLabelledBy="driver-otp-label"
-                  placeholder="000000"
-                  placeholderTextColor={colors.secondary}
-                  keyboardType="number-pad"
-                  autoComplete="sms-otp"
-                  textContentType="oneTimeCode"
-                  maxLength={6}
-                  value={otpInput}
-                  editable={!busy}
-                  autoFocus
-                  onChangeText={(text) => {
-                    resetError();
-                    const digits = text.replace(/\D/g, '').slice(0, 6);
-                    setOtpInput(digits);
-                    if (digits.length === 6) void handleVerify(digits);
-                  }}
-                  onSubmitEditing={() => void handleVerify()}
-                />
-                <View style={styles.codeActions}>
-                  <Pressable
-                    style={styles.textAction}
-                    onPress={editPhone}
-                    disabled={busy}
-                    accessibilityRole="button"
-                    accessibilityLabel="Change mobile number"
-                  >
-                    <Text style={styles.link}>Change number</Text>
-                  </Pressable>
-                  <Pressable
-                    style={styles.textAction}
-                    onPress={() => void handleSendOtp()}
-                    disabled={busy || otpCooldown > 0}
-                    accessibilityRole="button"
-                    accessibilityLabel="Resend code"
-                    accessibilityState={{ disabled: busy || otpCooldown > 0 }}
-                  >
-                    <Text style={[styles.link, (busy || otpCooldown > 0) && styles.muted]}>
-                      {otpCooldown > 0 ? `Resend in ${otpCooldown}s` : 'Resend code'}
-                    </Text>
-                  </Pressable>
-                </View>
-              </>
-            )}
+                  <View style={styles.codeActions}>
+                    <Pressable
+                      style={styles.textAction}
+                      onPress={editPhone}
+                      disabled={busy}
+                      accessibilityRole="button"
+                      accessibilityLabel="Change mobile number"
+                    >
+                      <Text style={styles.link}>Change number</Text>
+                    </Pressable>
+                    <Pressable
+                      style={styles.textAction}
+                      onPress={() => void handleSendOtp()}
+                      disabled={busy || otpCooldown > 0}
+                      accessibilityRole="button"
+                      accessibilityLabel="Resend code"
+                      accessibilityState={{ disabled: busy || otpCooldown > 0 }}
+                    >
+                      <Text style={[styles.link, (busy || otpCooldown > 0) && styles.muted]}>
+                        {otpCooldown > 0 ? `Resend in ${otpCooldown}s` : 'Resend code'}
+                      </Text>
+                    </Pressable>
+                  </View>
+                </>
+              )}
 
-            {visibleError ? (
-              <View
-                style={styles.errorBox}
-                accessibilityRole="alert"
-                accessibilityLiveRegion="polite"
-              >
-                <Ionicons name="alert-circle" size={18} color={colors.error} />
-                <Text style={styles.errorText}>{visibleError}</Text>
-              </View>
-            ) : null}
+              {visibleError ? (
+                <View
+                  style={styles.errorBox}
+                  accessibilityRole="alert"
+                  accessibilityLiveRegion="polite"
+                >
+                  <Ionicons name="alert-circle" size={18} color={colors.error} />
+                  <Text style={styles.errorText}>{visibleError}</Text>
+                </View>
+              ) : null}
+            </Animated.View>
           </ScrollView>
 
-          <View style={styles.footer}>
+          <Animated.View
+            style={[
+              styles.footer,
+              {
+                opacity: sections[3],
+                transform: [
+                  {
+                    translateY: sections[3].interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [18, 0],
+                    }),
+                  },
+                  {
+                    scale: sections[3].interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0.96, 1],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
             <Pressable
               style={({ pressed }) => [
                 styles.submit,
@@ -263,7 +427,7 @@ export function SignupStep({ onBack, onSuccess }: SignupStepProps) {
                 </>
               )}
             </Pressable>
-          </View>
+          </Animated.View>
         </View>
       </SafeAreaView>
     </KeyboardAvoidingView>

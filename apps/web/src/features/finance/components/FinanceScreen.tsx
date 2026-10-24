@@ -19,6 +19,7 @@ import {
   useTransactionsList,
 } from '../hooks/useFinance';
 import { TransactionsLedgerTable } from './TransactionsLedgerTable';
+import { CashoutQueue } from './CashoutQueue';
 
 export function FinanceScreen() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -92,6 +93,7 @@ export function FinanceScreen() {
         }
       />
 
+      <CashoutQueue />
       {/* KPI Cards for Transactions */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Card 1: Platform Commissions */}

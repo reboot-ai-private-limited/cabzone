@@ -21,6 +21,7 @@ export interface CompleteRideInput {
 }
 
 export interface CompleteRideDeps {
+  prepareCashConfirmation?: (rideId: string, driverId: string) => Promise<void>;
   unitOfWork: UnitOfWorkPort;
   rideRepo: RideRepositoryPort;
   walletRepo: WalletRepositoryPort;
@@ -94,6 +95,7 @@ export class CompleteRideUseCase {
   }
 
   async confirmPayment(input: CompleteRideInput): Promise<CompleteRideResult> {
+    await this.deps.prepareCashConfirmation?.(input.rideId, input.driverId);
     return this.deps.unitOfWork.run(() => this.settle(input));
   }
 
@@ -150,8 +152,12 @@ export class CompleteRideUseCase {
         throw AppError.badRequest('DISPUTE_NOT_FOUND: This ride has no payment dispute.');
       }
       const prior = events.find((event) => event.eventType === 'PAYMENT_DISPUTE_RESOLVED');
-      if (events.some((event) => event.eventType === 'UPI_ORDER_CREATED')) {
-        throw AppError.conflict('Test UPI disputes require manual review in Razorpay; no automatic refund has been issued.');
+      if (
+        events.some((event) => ['UPI_ORDER_CREATED', 'UPI_QR_CREATED'].includes(event.eventType))
+      ) {
+        throw AppError.conflict(
+          'Online UPI disputes require manual review in Razorpay; no automatic refund has been issued.',
+        );
       }
       if (prior) {
         if (
@@ -269,8 +275,17 @@ export class CompleteRideUseCase {
     }
 
     const paymentEvents = await this.deps.rideEventRepo?.findByRideId(ride.id);
-    if (paymentEvents?.some((event) => event.eventType === 'UPI_ORDER_CREATED')) {
-      throw AppError.conflict('This ride uses online UPI checkout. Payment must be verified by Cabzone.');
+    if (
+      !paymentEvents?.some(
+        (event) => event.eventType === 'PAYMENT_METHOD_CHANGED' && event.metadata.method === 'CASH',
+      ) &&
+      paymentEvents?.some((event) =>
+        ['UPI_ORDER_CREATED', 'UPI_QR_CREATED'].includes(event.eventType),
+      )
+    ) {
+      throw AppError.conflict(
+        'This ride uses online UPI checkout. Payment must be verified by Cabzone.',
+      );
     }
 
     // Reserve the transition before posting money. A concurrent confirmation retries
@@ -329,6 +344,12 @@ export class CompleteRideUseCase {
         newStatus: 'SETTLED',
         metadata: {
           ...(input.metadata ?? {}),
+          ...(paymentEvents?.some(
+            (event) =>
+              event.eventType === 'PAYMENT_METHOD_CHANGED' && event.metadata.method === 'CASH',
+          )
+            ? { method: 'CASH' }
+            : {}),
           farePaise,
           completedAt: ride.completedAt?.toISOString() ?? null,
           confirmedAt: now.toISOString(),
