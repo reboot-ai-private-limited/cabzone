@@ -659,6 +659,15 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
               </Pressable>
             </View>
 
+            {(activeQuote.arrearsPaise ?? 0) > 0 ? (
+              <View style={styles.bufferNotice}>
+                <Ionicons name="information-circle-outline" size={15} color={colors.brandBrown} />
+                <Text style={styles.bufferNoticeText}>
+                  + {formatRupeesFromPaise(activeQuote.arrearsPaise ?? 0)} previous cancellation fee due on this ride
+                  {activeQuote.cashAllowed === false ? ' (UPI required)' : ''}
+                </Text>
+              </View>
+            ) : null}
             {activeQuote.bufferApplied ? (
               <View style={styles.bufferNotice}>
                 <Ionicons name="information-circle-outline" size={15} color={colors.brandBrown} />

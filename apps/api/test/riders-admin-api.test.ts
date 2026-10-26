@@ -207,6 +207,14 @@ class TestMemoryRideRepo implements RideRepositoryPort {
       .slice(filter.offset, filter.offset + filter.limit);
   }
 
+  async count(): Promise<number> {
+    return this.rides.size;
+  }
+
+  async listDriverRidesInWindow(): Promise<RideEntity[]> {
+    return [];
+  }
+
   async findExpiredOfferings(): Promise<RideEntity[]> {
     return [];
   }

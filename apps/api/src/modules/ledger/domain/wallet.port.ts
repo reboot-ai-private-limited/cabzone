@@ -23,7 +23,7 @@ export interface WalletRepositoryPort {
   findById(id: string): Promise<WalletEntity | null>;
   save(wallet: WalletEntity): Promise<WalletEntity>;
   recordTransaction(transaction: WalletTransactionEntity): Promise<WalletTransactionEntity>;
-  findTransactionsByWalletId(walletId: string): Promise<WalletTransactionEntity[]>;
+  findTransactionsByWalletId(walletId: string, limit?: number): Promise<WalletTransactionEntity[]>;
   findTransactionByIdempotencyKey(key: string): Promise<WalletTransactionEntity | null>;
   listWallets(
     query: ListWalletsQueryDto,
@@ -32,7 +32,8 @@ export interface WalletRepositoryPort {
       getRiders?: () => Promise<UserLookupItem[]>;
     },
   ): Promise<{ items: WalletSummaryDto[]; total: number }>;
-  listTransactions(query: ListTransactionsQueryDto): Promise<{ items: WalletTransactionDto[]; total: number }>;
+  listTransactions(
+    query: ListTransactionsQueryDto,
+  ): Promise<{ items: WalletTransactionDto[]; total: number }>;
   getStats(): Promise<FinanceStatsDto>;
 }
-

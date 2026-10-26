@@ -65,17 +65,17 @@ Each question contains:
 | OQ-015 | Driver/admin review SLA              | 🟡 PRE-LAUNCH | Operations               |
 | OQ-016 | Driver location frequency            | 🟡 PRE-LAUNCH | Realtime, Infrastructure |
 | OQ-017 | GPS spoofing enforcement             | 🟡 PRE-LAUNCH | Fraud                    |
-| OQ-018 | Trust-score formula                  | 🟡 PRE-LAUNCH | Trust, UX                |
-| OQ-019 | Review visibility/timing             | 🟡 PRE-LAUNCH | Reviews                  |
+| OQ-018 | Trust-score formula                  |    🟢 DECIDED | Trust, UX                |
+| OQ-019 | Review visibility/timing             |    🟢 DECIDED | Reviews                  |
 | OQ-020 | Ride-for-someone-else accountability | 🟡 PRE-LAUNCH | Rider, Safety            |
 | OQ-021 | Vehicle/document data model          | 🟡 PRE-LAUNCH | Driver                   |
-| OQ-022 | Toll/permit handling                 | 🟡 PRE-LAUNCH | Interstate               |
+| OQ-022 | Toll/permit handling                 |    🟢 DECIDED | Interstate, Fare         |
 | OQ-023 | Wallet top-up methods                | 🟡 PRE-LAUNCH | Wallet                   |
 | OQ-024 | Payment reconciliation               | 🟡 PRE-LAUNCH | Finance                  |
 | OQ-025 | City/admin permission scope          | 🟡 PRE-LAUNCH | Admin                    |
 | OQ-026 | Document retention                   | 🟡 PRE-LAUNCH | KYC, Security            |
 | OQ-027 | Phone-number recycling               | 🟡 PRE-LAUNCH | Auth                     |
-| OQ-028 | Cancellation/no-show fees            | 🟡 PRE-LAUNCH | Ride, Payment            |
+| OQ-028 | Cancellation/no-show fees            |    🟢 DECIDED | Ride, Payment, Pricing   |
 | OQ-029 | SOS workflow                         |   🟢 DEFERRED | Safety                   |
 | OQ-030 | Scheduled rides                      |   🟢 DEFERRED | Product                  |
 | OQ-031 | Multi-stop rides                     |   🟢 DEFERRED | Product                  |
@@ -571,42 +571,30 @@ Admin/fraud review determines enforcement.
 
 ## OQ-018 — Trust-score formula
 
-**Status:** `OPEN`
-**Priority:** 🟡 PRE-LAUNCH
+**Status:** `DECIDED`
+**Priority:** 🟢 RESOLVED (formerly 🟡 PRE-LAUNCH)
+**Decision Reference:** [`decision-log.md`](../decision-log.md#d-046--double-blind-post-ride-ratings--trust-score-display-threshold) (D-046)
 
-The PRD proposes incorporating:
+### Approved Decision
 
-- verified ride count
-- rating
-- cancellation rate
-- complaints/disputes
-- recency/decay
-
-and recommends hiding the score until a minimum ride threshold exists.
-
-### Recommended default
-
-Start with a deterministic formula rather than ML.
-
-Document the exact formula before exposing the score publicly.
+Use a deterministic formula incorporating verified completed rides, revealed star ratings, actual rider/driver cancellations, no-shows, and recorded payment/ride disputes. Never expose fabricated default star averages (e.g. `5.0` when `ratingCount === 0`): client UIs display `"New"` until `ratingCount >= 5` revealed ratings exist, and public trust scores remain hidden until at least `5` completed rides exist.
 
 ---
 
 ## OQ-019 — Review visibility
 
-**Status:** `OPEN`
-**Priority:** 🟡 PRE-LAUNCH
+**Status:** `DECIDED`
+**Priority:** 🟢 RESOLVED (formerly 🟡 PRE-LAUNCH)
+**Decision Reference:** [`decision-log.md`](../decision-log.md#d-046--double-blind-post-ride-ratings--trust-score-display-threshold) (D-046)
 
-The PRD recommends blind/double-blind reviews to reduce retaliation.
+### Approved Decision
 
-### Recommended default
-
-Neither side sees the other's rating until:
+Double-blind 1–5 star ratings (plus optional preset tags) are enabled strictly on `SETTLED` rides within a **7-day (168-hour)** window from `settledAt`, capped at one immutable submission per `(rideId, reviewerRole)` (`bookerRiderId` ↔ assigned `driverId`). Neither side's rating is visible or aggregated into `ratingAverage` / `ratingCount` until:
 
 ```text
 both submit
 OR
-review window expires
+7-day review window expires
 ```
 
 ---
@@ -665,33 +653,25 @@ If vehicle documents are required, model them separately from driver documents.
 
 ## OQ-022 — Tolls and permits
 
-**Status:** `OPEN`
-**Priority:** 🟡 PRE-LAUNCH
+**Status:** `DECIDED`
+**Priority:** 🟢 RESOLVED (formerly 🟡 PRE-LAUNCH)
+**Decision Reference:** [`decision-log.md`](../decision-log.md#d-045--highway-toll--interstate-permit-quoteride-treatment) (D-045)
 
-The PRD recommends showing tolls/permit charges separately rather than hiding them inside per-km rates.
+### Approved Decision
 
-### Recommended default
+Highway tolls and interstate permits are **separate non-commissioned estimates, payable by the rider at actuals**:
 
-Represent separately:
-
-```text
-base fare
-distance fare
-toll charges
-permit charges
-other approved charges
-```
-
-Do not silently include tolls inside `rate_per_km`.
-
-Routing-side design (estimated tolls via `RouteProvider`, toll pricing policy, unavailable-toll handling): [`geo-reference-and-routing.md`](geo-reference-and-routing.md).
+- `suggestedFarePaise`, negotiation bounds (`[floorPaise, ceilingPaise]`), `agreedFarePaise`, and platform commission cover strictly the ride fare (`base + distance + buffer`). Tolls/permits are never bundled into `rate_per_km` or commissioned.
+- Quotes and rides freeze `tollSnapshot` from `RouteProvider` (`TollInfo`), displaying `estimatedAmountPaise` when available or `"Toll / permit applicable — amount unavailable (payable at actuals)"` when `exists: true` and `estimatedAmountPaise === null` (never converting unknown tolls into `₹0`).
+- Routing-side design: [`geo-reference-and-routing.md`](geo-reference-and-routing.md).
 
 ---
 
 ## OQ-023 — Wallet top-up methods
 
-**Status:** `OPEN`
+**Status:** `OPEN` (Internal Beta scope locked in D-042; live provider gated on commercial launch)
 **Priority:** 🟡 PRE-LAUNCH
+**Decision Reference:** [`decision-log.md`](../decision-log.md#d-042--internal-beta--test-staging-target--launch-exclusions) (D-042)
 
 ### Question
 
@@ -699,7 +679,7 @@ Which wallet top-up mechanisms are supported?
 
 ### Recommended default
 
-Support one digital payment provider initially.
+Support one digital payment provider initially (Internal Beta uses Razorpay **test** UPI recharge + manual Finance cashout review per [`driver-wallet-money-movement.md`](../engineering/driver-wallet-money-movement.md); live wallet funding and automated payouts remain gated until commercial launch prerequisites pass).
 
 All top-ups must create immutable wallet ledger transactions.
 
@@ -810,22 +790,14 @@ Treat a newly verified phone number as an authentication event, not proof that t
 
 ## OQ-028 — Cancellation and no-show fee values
 
-**Status:** `OPEN`
-**Priority:** 🟡 PRE-LAUNCH
+**Status:** `DECIDED`
+**Priority:** 🟢 RESOLVED (formerly 🟡 PRE-LAUNCH)
+**Decision Reference:** [`decision-log.md`](../decision-log.md#d-044--rider-cancellation--no-show-fee-arrears-ledger--configurable-policy) (D-044, completes D-032)
 
-The PRD identifies cancellation/no-show handling as missing.
+### Approved Decision
 
-### Recommended default
-
-Make cancellation rules configurable by:
-
-```text
-ride state
-city
-vehicle type
-```
-
-Do not hard-code fee values into the application.
+- **Configurable on `PricingConfig`**: Fee and timing parameters (`cancellationFeePaise`, `driverCompensationPaise`, `platformCancellationFeePaise`, `riderCancellationGraceSeconds`, `driverNoShowWaitSeconds`) live on `PricingConfig` per city/state/global scope and `vehicleCategory`, snapshotted into `RidePricingSnapshot` at ride creation (defaults: ₹50 total = ₹35 driver + ₹15 platform, 2m grace, 5m no-show wait).
+- **Next-Ride Arrears Ledger**: Incurred rider cancellation/no-show fees record an immutable `CANCELLATION_FEE_ARREARS` debit on `bookerRiderId` alongside the driver's wallet compensation credit, surface as an itemized `arrearsPaise` line on the rider's next quote/ride, recover via online UPI capture or collecting-driver wallet debit on cash confirmation, and block further **cash** bookings whenever unpaid arrears `>= cancellationFeePaise` (₹50).
 
 ---
 
@@ -833,14 +805,15 @@ Do not hard-code fee values into the application.
 
 ## OQ-029 — SOS / Emergency workflow
 
-**Status:** `DEFERRED`
+**Status:** `DEFERRED` (Confirmed for Internal Beta in D-042)
 **Priority:** 🟢 POST-LAUNCH
+**Decision Reference:** [`decision-log.md`](../decision-log.md#d-042--internal-beta--test-staging-target--launch-exclusions) (D-042)
 
 The PRD recommends SOS functionality and emergency-contact/live-location sharing as an additional capability.
 
-### Recommended default
+### Approved Beta Boundary
 
-Design an extension point in the ride model but keep the complete emergency workflow outside the initial MVP unless safety requirements make it mandatory before launch.
+Internal Beta retains the existing rider active-ride safety actions (`Share Trip`, emergency-contact calling, and `112` emergency dialing). A dedicated backend SOS escalation / operations-center workflow remains outside Internal Beta and deferred to commercial launch.
 
 ---
 

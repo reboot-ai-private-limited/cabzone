@@ -1,25 +1,145 @@
 'use client';
 
-import { Badge, DefinitionList, Dialog, FieldRow, Skeleton } from '@cabzone/design-system';
-import type { AdminRideDto } from '@/lib/api/endpoints/rides';
+import { useEffect, useState } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import {
+  type AdminRole,
+  CANCELLATION_REASONS,
+  type CancellationReason,
+} from '@cabzone/contracts';
+import {
+  Badge,
+  Button,
+  DefinitionList,
+  Dialog,
+  FieldRow,
+  Input,
+  Select,
+  Skeleton,
+} from '@cabzone/design-system';
+import { getStoredAdminRole } from '@/features/auth/lib/authApi';
+import {
+  type AdminRideDto,
+  CANCELLABLE_RIDE_STATUSES,
+  type PaymentDisputeQueueItemDto,
+  type RideEventDto,
+  ridesApi,
+} from '@/lib/api/endpoints/rides';
 import { formatPaise } from '@/lib/format';
+import { keys } from '@/lib/query/keys';
 import { useRideEvents } from '../hooks/useRides';
 import { RideStatusBadge } from './RideStatusBadge';
 
 const fmt = (iso: string | null): string =>
-  iso === null ? '—' : new Date(iso).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
+  iso === null
+    ? '—'
+    : new Date(iso).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
 
 const place = (p: { lat: number; lng: number; address: string | null }): string =>
   p.address ?? `${p.lat.toFixed(4)}, ${p.lng.toFixed(4)}`;
 
+const CANCEL_OPTIONS = CANCELLATION_REASONS.map((r) => ({
+  value: r,
+  label: r.replaceAll('_', ' '),
+}));
+
+const DISPUTE_OUTCOME_OPTIONS = [
+  { value: 'RIDER_WINS', label: 'Rider wins — refund driver commission' },
+  { value: 'DRIVER_WINS', label: 'Driver wins — uphold settlement' },
+];
+
+function summarizeMetadata(e: RideEventDto): string | null {
+  const m = e.metadata;
+  if (!m) return null;
+  const parts: string[] = [];
+  if (typeof m.outcome === 'string') parts.push(`Outcome: ${m.outcome}`);
+  if (typeof m.reason === 'string' && m.reason.trim()) parts.push(`Reason: ${m.reason}`);
+  if (typeof m.method === 'string') parts.push(`Method: ${m.method}`);
+  if (typeof m.paymentId === 'string') parts.push(`Payment: ${m.paymentId}`);
+  if (typeof m.refundedCommissionPaise === 'number' && m.refundedCommissionPaise > 0) {
+    parts.push(`Refunded commission: ${formatPaise(m.refundedCommissionPaise)}`);
+  }
+  return parts.length > 0 ? parts.join(' · ') : null;
+}
+
 export function RideDetailDialog({
   ride,
+  dispute = null,
+  adminRole: adminRoleProp,
+  onRideUpdated,
   onOpenChange,
 }: {
   ride: AdminRideDto | null;
+  dispute?: PaymentDisputeQueueItemDto | null;
+  adminRole?: AdminRole | null;
+  onRideUpdated?: (ride: AdminRideDto) => void;
   onOpenChange: (open: boolean) => void;
 }) {
+  const queryClient = useQueryClient();
   const events = useRideEvents(ride?.id ?? null);
+  const [resolvedRole, setResolvedRole] = useState<AdminRole | null>(adminRoleProp ?? null);
+  const [outcome, setOutcome] = useState<'RIDER_WINS' | 'DRIVER_WINS'>('RIDER_WINS');
+  const [disputeReason, setDisputeReason] = useState('');
+  const [cancelReason, setCancelReason] = useState<CancellationReason>('ADMIN_OVERRIDE');
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setResolvedRole(adminRoleProp ?? getStoredAdminRole());
+  }, [adminRoleProp]);
+
+  useEffect(() => {
+    setActionError(null);
+    setDisputeReason('');
+    setOutcome('RIDER_WINS');
+    setCancelReason('ADMIN_OVERRIDE');
+  }, [ride?.id]);
+
+  const resolveMutation = useMutation({
+    mutationFn: async () => {
+      if (!ride) throw new Error('No ride selected');
+      return ridesApi.resolvePaymentDispute(ride.id, outcome, disputeReason.trim());
+    },
+    onSuccess: (updated) => {
+      setActionError(null);
+      setDisputeReason('');
+      void queryClient.invalidateQueries({ queryKey: keys.rides.all() });
+      void queryClient.invalidateQueries({ queryKey: keys.wallets.all() });
+      onRideUpdated?.(updated);
+    },
+    onError: (err) => {
+      setActionError(err instanceof Error ? err.message : 'Could not resolve dispute.');
+    },
+  });
+
+  const cancelMutation = useMutation({
+    mutationFn: async () => {
+      if (!ride) throw new Error('No ride selected');
+      return ridesApi.cancel(ride.id, cancelReason);
+    },
+    onSuccess: (res) => {
+      setActionError(null);
+      void queryClient.invalidateQueries({ queryKey: keys.rides.all() });
+      onRideUpdated?.(res.ride);
+    },
+    onError: (err) => {
+      setActionError(err instanceof Error ? err.message : 'Could not cancel ride.');
+    },
+  });
+
+  const canResolveDispute =
+    ride?.status === 'PAYMENT_DISPUTED' &&
+    (resolvedRole === null || resolvedRole === 'SUPER_ADMIN' || resolvedRole === 'SUPPORT_ADMIN');
+
+  const canForceCancel =
+    ride !== null &&
+    CANCELLABLE_RIDE_STATUSES.includes(ride.status) &&
+    (resolvedRole === null ||
+      resolvedRole === 'SUPER_ADMIN' ||
+      resolvedRole === 'CITY_ADMIN' ||
+      resolvedRole === 'SUPPORT_ADMIN');
+
+  const evidence = dispute?.evidence;
+  const settlement = ride?.driverSettlement;
 
   return (
     <Dialog
@@ -30,7 +150,7 @@ export function RideDetailDialog({
       className="max-w-2xl"
     >
       {ride !== null && (
-        <div className="flex flex-col gap-5">
+        <div className="flex flex-col gap-5 max-h-[75vh] overflow-y-auto pr-1">
           <DefinitionList>
             <FieldRow label="Status">
               <RideStatusBadge status={ride.status} />
@@ -60,12 +180,146 @@ export function RideDetailDialog({
             <FieldRow label="Agreed fare">
               {ride.agreedFarePaise === null ? '—' : formatPaise(ride.agreedFarePaise)}
             </FieldRow>
+            {(ride.paymentCollection || evidence?.paymentCollection) && (
+              <FieldRow label="Payment collection">
+                <span className="font-mono text-xs">
+                  {ride.paymentCollection ?? evidence?.paymentCollection}
+                </span>
+              </FieldRow>
+            )}
+            {settlement && (
+              <FieldRow label="Driver settlement">
+                <span className="text-xs font-mono">
+                  Net {formatPaise(settlement.netEarningsPaise)} · Fee{' '}
+                  {formatPaise(settlement.netCommissionPaise)}
+                  {settlement.commissionRefundedPaise > 0
+                    ? ` (Refunded ${formatPaise(settlement.commissionRefundedPaise)})`
+                    : ''}
+                </span>
+              </FieldRow>
+            )}
             {ride.cancellationReason !== null && (
               <FieldRow label="Reason">
                 <Badge tone="danger">{ride.cancellationReason}</Badge>
               </FieldRow>
             )}
           </DefinitionList>
+
+          {dispute && (
+            <section
+              aria-label="Dispute Evidence"
+              className="rounded-lg border border-border bg-surface-muted/50 p-3.5 flex flex-col gap-2 text-xs"
+            >
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold uppercase tracking-wider text-text">
+                  Dispute &amp; Refund Evidence
+                </h3>
+                {dispute.resolution ? (
+                  <Badge tone="success">RESOLVED</Badge>
+                ) : (
+                  <Badge tone="warning">OPEN DISPUTE</Badge>
+                )}
+              </div>
+              <p className="text-text">
+                <span className="font-semibold">Rider complaint:</span>{' '}
+                {typeof dispute.ticket.metadata?.reason === 'string'
+                  ? dispute.ticket.metadata.reason
+                  : '—'}
+              </p>
+              <div className="grid grid-cols-2 gap-2 font-mono text-text-subtle pt-1">
+                <span>
+                  Order ID: {dispute.evidence.providerOrderId ?? '—'}
+                </span>
+                <span>
+                  Payment ID: {dispute.evidence.providerPaymentId ?? '—'}
+                </span>
+                <span>
+                  Commission charged: {formatPaise(dispute.evidence.commissionChargedPaise)}
+                </span>
+                <span>
+                  Commission refunded: {formatPaise(dispute.evidence.commissionRefundedPaise)}
+                </span>
+                {dispute.evidence.refundTransactionId && (
+                  <span className="col-span-2">
+                    Refund Ledger Tx: {dispute.evidence.refundTransactionId}
+                  </span>
+                )}
+              </div>
+              {dispute.resolution && (
+                <p className="text-text pt-1 border-t border-border">
+                  <span className="font-semibold">Admin ruling:</span>{' '}
+                  {String(dispute.resolution.metadata?.outcome ?? '')} —{' '}
+                  {String(dispute.resolution.metadata?.reason ?? '')}
+                </p>
+              )}
+            </section>
+          )}
+
+          {actionError && (
+            <p role="alert" className="text-xs font-medium text-danger">
+              {actionError}
+            </p>
+          )}
+
+          {canResolveDispute && (
+            <section
+              aria-label="Resolve Payment Dispute"
+              className="rounded-lg border border-border bg-surface p-3.5 flex flex-col gap-3"
+            >
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-text">
+                Resolve Payment Dispute
+              </h3>
+              <Select
+                value={outcome}
+                onValueChange={(v) => setOutcome(v as 'RIDER_WINS' | 'DRIVER_WINS')}
+                options={DISPUTE_OUTCOME_OPTIONS}
+              />
+              <Input
+                type="text"
+                value={disputeReason}
+                onChange={(e) => setDisputeReason(e.target.value)}
+                placeholder="Resolution audit note (minimum 10 characters)..."
+              />
+              <div className="flex justify-end">
+                <Button
+                  size="sm"
+                  loading={resolveMutation.isPending}
+                  disabled={disputeReason.trim().length < 10}
+                  onClick={() => resolveMutation.mutate()}
+                >
+                  Submit Ruling
+                </Button>
+              </div>
+            </section>
+          )}
+
+          {canForceCancel && (
+            <section
+              aria-label="Force Cancel Ride"
+              className="rounded-lg border border-border bg-surface p-3.5 flex flex-col gap-3"
+            >
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-text">
+                Operator Force Cancel
+              </h3>
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+                <div className="flex-1">
+                  <Select
+                    value={cancelReason}
+                    onValueChange={(v) => setCancelReason(v as CancellationReason)}
+                    options={CANCEL_OPTIONS}
+                  />
+                </div>
+                <Button
+                  size="sm"
+                  variant="danger"
+                  loading={cancelMutation.isPending}
+                  onClick={() => cancelMutation.mutate()}
+                >
+                  Force Cancel Ride
+                </Button>
+              </div>
+            </section>
+          )}
 
           <section aria-label="Timeline" className="flex flex-col gap-2">
             <h3 className="text-xs font-semibold uppercase tracking-wider text-text-subtle">
@@ -79,14 +333,24 @@ export function RideDetailDialog({
               <p className="text-sm text-text-subtle">No recorded events yet.</p>
             ) : (
               <ol className="flex flex-col divide-y divide-border">
-                {(events.data ?? []).map((e) => (
-                  <li key={e.id} className="flex items-baseline justify-between gap-3 py-2 text-sm">
-                    <span className="font-medium text-text">{e.eventType.replaceAll('_', ' ')}</span>
-                    <span className="text-xs text-text-subtle">
-                      {e.actorType} · {fmt(e.createdAt)}
-                    </span>
-                  </li>
-                ))}
+                {(events.data ?? []).map((e) => {
+                  const summary = summarizeMetadata(e);
+                  return (
+                    <li key={e.id} className="flex flex-col gap-0.5 py-2 text-sm">
+                      <div className="flex items-baseline justify-between gap-3">
+                        <span className="font-medium text-text">
+                          {e.eventType.replaceAll('_', ' ')}
+                        </span>
+                        <span className="text-xs text-text-subtle">
+                          {e.actorType} · {fmt(e.createdAt)}
+                        </span>
+                      </div>
+                      {summary && (
+                        <span className="text-xs text-text-subtle font-mono">{summary}</span>
+                      )}
+                    </li>
+                  );
+                })}
               </ol>
             )}
           </section>

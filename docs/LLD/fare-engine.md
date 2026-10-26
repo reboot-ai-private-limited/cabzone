@@ -174,6 +174,13 @@ buffer_surcharge
 negotiation_floor
 negotiation_ceiling
 commission
+cancellation_fee_paise
+driver_compensation_paise
+platform_cancellation_fee_paise
+rider_cancellation_grace_seconds
+driver_no_show_wait_seconds
+arrears_paise (if unpaid rider cancellation arrears attach per D-044)
+toll_snapshot (separate non-commissioned estimate per D-045)
 ```
 
 Never re-read mutable pricing for an existing Ride.
@@ -205,18 +212,13 @@ SUM(segment_fares)
 
 The PRD requires this state-segment pricing model.
 
-## 13. Tolls and Permits
+## 13. Tolls and Permits (Decided — D-045)
 
-Tolls/permits should be represented separately from distance fare.
+Per Decision D-045 ([`decision-log.md`](../decision-log.md#d-045--highway-toll--interstate-permit-quoteride-treatment)):
 
-```text
-Total Fare
-├── Distance/Base Fare
-├── Toll Charges
-└── Permit Charges
-```
-
-The PRD recommends this transparent breakdown.
+- `suggestedFarePaise`, negotiation bounds (`[floorPaise, ceilingPaise]`), `agreedFarePaise`, and platform commission cover **strictly the ride fare** (`Base + Distance + Buffer`).
+- Highway tolls and interstate commercial permits are **never** bundled into `ratePerKmPaise` or `agreedFarePaise`, and **zero platform commission** is charged on them.
+- Quotes and rides freeze `tollSnapshot` (`TollInfo` from `RouteProvider`) and display `estimatedAmountPaise` — or `"Toll / permit applicable — amount unavailable (payable at actuals)"` when `exists: true` and `estimatedAmountPaise === null` (never coercing unknown tolls to `₹0`) — as a separate disclosure line payable by the rider at actuals.
 
 ## 14. Mid-Trip Extension
 

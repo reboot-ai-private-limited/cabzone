@@ -54,6 +54,8 @@ export interface RideEntity {
   suggestedFarePaise: number;
   proposedFarePaise: number | null;
   agreedFarePaise: number | null;
+  /** Unpaid rider cancellation/no-show fee arrears attached to this ride (D-044). */
+  arrearsPaise?: number;
   status: RideStatus;
   cancellationReason: CancellationReason | null;
   offeringExpiresAt: Date | null;

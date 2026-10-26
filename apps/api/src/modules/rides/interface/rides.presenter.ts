@@ -6,8 +6,12 @@ export function toRideView(ride: RideEntity, assignedDriver: RideAssignedDriverD
   const { idempotencyKey: _idempotencyKey, ...publicRide } = ride;
   void _idempotencyKey;
   const { riderId, name, phoneE164, pickupOtpExpiresAt } = ride.passenger;
+  const arrearsPaise = Math.max(0, ride.arrearsPaise ?? 0);
+  const activeFarePaise = ride.agreedFarePaise ?? ride.proposedFarePaise ?? ride.suggestedFarePaise;
   return {
     ...publicRide,
+    arrearsPaise,
+    totalPayablePaise: activeFarePaise + arrearsPaise,
     passenger: { riderId, name, phoneE164, pickupOtpExpiresAt },
     assignedDriver,
   };

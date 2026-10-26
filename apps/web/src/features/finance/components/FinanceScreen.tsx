@@ -2,25 +2,33 @@
 
 import { useDeferredValue, useState } from 'react';
 import Link from 'next/link';
+import { useMutation } from '@tanstack/react-query';
 import {
   AlertTriangle,
+  CheckCircle2,
   Coins,
   History,
   Receipt,
   RefreshCw,
   Search,
+  ShieldAlert,
   Users,
   Wallet,
 } from 'lucide-react';
-import { Button, ErrorState, PageHeader, Input, Skeleton } from '@cabzone/design-system';
+import type { DriverEarningsReconciliationDto } from '@cabzone/contracts';
+import { Badge, Button, ErrorState, Input, PageHeader, Skeleton } from '@cabzone/design-system';
 import { formatPaise } from '@/lib/format';
 import { ApiError } from '@/lib/api/ApiError';
+import { ridesApi } from '@/lib/api/endpoints/rides';
 import { useFinanceStats, useTransactionsList } from '../hooks/useFinance';
 import { TransactionsLedgerTable } from './TransactionsLedgerTable';
 import { CashoutQueue } from './CashoutQueue';
 
 export function FinanceScreen() {
   const [searchQuery, setSearchQuery] = useState('');
+  const [reconcileReport, setReconcileReport] = useState<DriverEarningsReconciliationDto | null>(
+    null,
+  );
   const deferredSearch = useDeferredValue(searchQuery);
 
   // Transaction Queries
@@ -30,6 +38,11 @@ export function FinanceScreen() {
   });
   const stats =
     statsQuery.data?.driver && statsQuery.data.transactions ? statsQuery.data : undefined;
+
+  const reconcileMutation = useMutation({
+    mutationFn: () => ridesApi.reconcileEarnings({ mode: 'AUDIT' }),
+    onSuccess: (report) => setReconcileReport(report),
+  });
 
   const handleRefresh = () => {
     void statsQuery.refetch();
@@ -44,6 +57,15 @@ export function FinanceScreen() {
         breadcrumbs={[{ label: 'Admin', href: '/' }, { label: 'Transactions' }]}
         actions={
           <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="secondary"
+              icon={<ShieldAlert className="size-3.5 text-text-subtle" />}
+              loading={reconcileMutation.isPending}
+              onClick={() => reconcileMutation.mutate()}
+            >
+              Audit Settlements
+            </Button>
             <Link href="/drivers">
               <Button
                 size="sm"
@@ -71,6 +93,55 @@ export function FinanceScreen() {
           </div>
         }
       />
+
+      {reconcileMutation.isError && (
+        <ErrorState
+          title="Settlement audit failed"
+          message={
+            reconcileMutation.error instanceof Error
+              ? reconcileMutation.error.message
+              : 'Could not run ride settlement audit.'
+          }
+          onRetry={() => reconcileMutation.mutate()}
+        />
+      )}
+
+      {reconcileReport && (
+        <div className="rounded-xl border border-border bg-surface p-4 flex flex-col gap-2 text-xs">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2 font-semibold text-text">
+              <CheckCircle2 className="size-4 text-success" />
+              <span>Ride Settlement Audit Report</span>
+              <Badge tone={reconcileReport.issues.length === 0 ? 'success' : 'warning'}>
+                {reconcileReport.issues.length === 0
+                  ? 'ALL SETTLEMENTS CLEAN'
+                  : `${reconcileReport.issues.length} DISCREPANCIES`}
+              </Badge>
+            </div>
+            <button
+              type="button"
+              onClick={() => setReconcileReport(null)}
+              className="text-text-subtle hover:text-text cursor-pointer"
+            >
+              Dismiss
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-4 font-mono text-text-subtle">
+            <span>Checked rides: {reconcileReport.checkedSettledRides}</span>
+            <span>Clean cash: {reconcileReport.cleanCashRides}</span>
+            <span>Clean online: {reconcileReport.cleanOnlineRides}</span>
+          </div>
+          {reconcileReport.issues.length > 0 && (
+            <ul className="mt-1 flex flex-col gap-1 font-mono text-text border-t border-border pt-2">
+              {reconcileReport.issues.slice(0, 5).map((issue, idx) => (
+                <li key={`${issue.code}-${issue.rideId ?? idx}`}>
+                  [{issue.code}] Ride {issue.rideId?.slice(0, 8) ?? '—'} — {issue.detail}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       <CashoutQueue />
       {/* KPI Cards for Transactions */}

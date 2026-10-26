@@ -19,9 +19,12 @@ import {
 
 export class MongoWalletRepository implements WalletRepositoryPort {
   async findTransactionByIdempotencyKey(key: string): Promise<WalletTransactionEntity | null> {
-    const doc = await WalletTransactionModel.findOne({ idempotency_key: key }).lean<WalletTransactionDocument | null>().exec();
+    const doc = await WalletTransactionModel.findOne({ idempotency_key: key })
+      .lean<WalletTransactionDocument | null>()
+      .exec();
     return doc ? this.toTransaction(doc) : null;
   }
+
   async findByDriverId(driverId: string): Promise<WalletEntity | null> {
     const doc = await WalletModel.findOne({ driver_id: driverId })
       .lean<WalletDocument | null>()
@@ -51,7 +54,7 @@ export class MongoWalletRepository implements WalletRepositoryPort {
         rider_id: wallet.riderId || null,
         balance_paise: wallet.balancePaise,
         earnings_balance_paise: wallet.earningsBalancePaise ?? 0,
-        owed_paise: wallet.owedPaise ?? 0,
+        owed_paise: Math.max(0, -wallet.balancePaise),
         status: wallet.status,
         version: wallet.version,
       },
@@ -86,24 +89,37 @@ export class MongoWalletRepository implements WalletRepositoryPort {
     return this.toTransaction(created.toObject() as WalletTransactionDocument);
   }
 
-  async findTransactionsByWalletId(walletId: string): Promise<WalletTransactionEntity[]> {
-    const docs = await WalletTransactionModel.find({ wallet_id: walletId })
-      .sort({ created_at: -1 })
-      .lean<WalletTransactionDocument[]>()
-      .exec();
+  async findTransactionsByWalletId(
+    walletId: string,
+    limit?: number,
+  ): Promise<WalletTransactionEntity[]> {
+    let q = WalletTransactionModel.find({ wallet_id: walletId }).sort({ created_at: -1 });
+    if (limit !== undefined) q = q.limit(limit);
+    const docs = await q.lean<WalletTransactionDocument[]>().exec();
     return docs.map((d) => this.toTransaction(d));
   }
 
   async listTransactions(
     query: ListTransactionsQueryDto,
   ): Promise<{ items: WalletTransactionDto[]; total: number }> {
+    if (query.referenceIds && query.referenceIds.length === 0) {
+      return { items: [], total: 0 };
+    }
     const filter: Record<string, unknown> = {};
     if (query.walletId) filter.wallet_id = query.walletId;
     if (query.driverId) filter.driver_id = query.driverId;
     if (query.riderId) filter.rider_id = query.riderId;
     if (query.ownerType) filter.owner_type = query.ownerType;
-    if (query.type) filter.type = query.type;
-    if (query.referenceType) filter.reference_type = query.referenceType;
+    if (query.types && query.types.length > 0) filter.type = { $in: query.types };
+    else if (query.type) filter.type = query.type;
+    if (query.referenceTypes && query.referenceTypes.length > 0) {
+      filter.reference_type = { $in: query.referenceTypes };
+    } else if (query.referenceType) {
+      filter.reference_type = query.referenceType;
+    }
+    if (query.referenceIds) {
+      filter.reference_id = { $in: query.referenceIds };
+    }
 
     if (query.search && query.search.trim()) {
       const s = query.search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -290,7 +306,10 @@ export class MongoWalletRepository implements WalletRepositoryPort {
 
     // Fetch transactions to compute lifetime earnings, last entry, and entry count
     const txDocs = await WalletTransactionModel.find({}).lean<WalletTransactionDocument[]>().exec();
-    const statsByOwner = new Map<string, { entriesCount: number; lastEntryDate: Date; lifetimeEarningsPaise: number }>();
+    const statsByOwner = new Map<
+      string,
+      { entriesCount: number; lastEntryDate: Date; lifetimeEarningsPaise: number }
+    >();
 
     for (const tx of txDocs) {
       const keys = [tx.wallet_id, tx.driver_id, tx.rider_id].filter(Boolean) as string[];
@@ -323,7 +342,9 @@ export class MongoWalletRepository implements WalletRepositoryPort {
     let summaries: WalletSummaryDto[] = docs.map((doc) => {
       const ownerId = (ownerType === 'RIDER' ? doc.rider_id : doc.driver_id) ?? doc._id;
       const user = userMap.get(ownerId);
-      const txStat = statsByOwner.get(doc._id) ?? (doc.driver_id ? statsByOwner.get(doc.driver_id) : undefined);
+      const txStat =
+        statsByOwner.get(doc._id) ??
+        (doc.driver_id ? statsByOwner.get(doc.driver_id) : undefined);
       const isEligible = doc.status === 'ACTIVE' && doc.balance_paise > 0;
       const owed = doc.balance_paise < 0 ? Math.abs(doc.balance_paise) : (doc.owed_paise ?? 0);
       const payable = doc.balance_paise > 0 ? doc.balance_paise : 0;
@@ -356,7 +377,9 @@ export class MongoWalletRepository implements WalletRepositoryPort {
 
     // Also include users who do not yet have a wallet document in MongoDB if browsing all
     if (!query.status || query.status === 'ALL') {
-      const existingOwnerIds = new Set(docs.map((d) => (ownerType === 'RIDER' ? d.rider_id : d.driver_id)));
+      const existingOwnerIds = new Set(
+        docs.map((d) => (ownerType === 'RIDER' ? d.rider_id : d.driver_id)),
+      );
       for (const [userId, user] of userMap.entries()) {
         if (!existingOwnerIds.has(userId)) {
           summaries.push({
@@ -429,7 +452,9 @@ export class MongoWalletRepository implements WalletRepositoryPort {
         case 'LIFETIME_EARNINGS':
           return (b.lifetimeEarningsPaise ?? 0) - (a.lifetimeEarningsPaise ?? 0);
         case 'RECENT_ENTRY':
-          return new Date(b.lastEntryDate ?? 0).getTime() - new Date(a.lastEntryDate ?? 0).getTime();
+          return (
+            new Date(b.lastEntryDate ?? 0).getTime() - new Date(a.lastEntryDate ?? 0).getTime()
+          );
         default:
           return 0;
       }

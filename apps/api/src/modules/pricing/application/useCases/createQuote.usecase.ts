@@ -7,14 +7,27 @@ import type {
   StateDistanceBreakdown,
   VehicleCategory,
 } from '@cabzone/contracts';
-import { calculateNegotiationBounds, SERVICE_CLASSIFICATION_TYPES, VEHICLE_CATEGORIES } from '@cabzone/contracts';
+import {
+  calculateNegotiationBounds,
+  DEFAULT_CANCELLATION_FEE_PAISE,
+  SERVICE_CLASSIFICATION_TYPES,
+  VEHICLE_CATEGORIES,
+} from '@cabzone/contracts';
 import { AppError } from '../../../../shared/errors/AppError.js';
 import { newUuid } from '../../../../shared/ids.js';
+import {
+  getRiderUnpaidArrearsPaise,
+  type WalletRepositoryPort,
+} from '../../../ledger/ledger.public.js';
 import {
   haversineDistanceM,
   type ServiceClassificationUseCase,
 } from '../../../zone/zone.public.js';
-import { calculateBaseFareEstimate, type PricingConfigRepositoryPort } from '../../domain/index.js';
+import {
+  calculateBaseFareEstimate,
+  resolveCancellationPolicy,
+  type PricingConfigRepositoryPort,
+} from '../../domain/index.js';
 import { isPointInIndia } from '@cabzone/geo';
 import {
   calculateStateDistanceBreakdown,
@@ -27,6 +40,7 @@ export interface CreateQuoteInput {
   drop: GeoPoint;
   vehicleCategory: VehicleCategory;
   requestedService?: ServiceClassificationType | undefined;
+  riderId?: string | null | undefined;
 }
 
 export interface QuoteTokenPayload {
@@ -57,30 +71,72 @@ export interface QuoteTokenPayload {
   expiresAtMs: number;
 }
 
-const pointSchema = z.object({ lat: z.number().finite().min(-90).max(90), lng: z.number().finite().min(-180).max(180) });
+const pointSchema = z.object({
+  lat: z.number().finite().min(-90).max(90),
+  lng: z.number().finite().min(-180).max(180),
+});
 const integerSchema = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
-const quotePayloadSchema = z.object({
-  quoteId: z.string().uuid(), pickup: pointSchema, drop: pointSchema,
-  vehicleCategory: z.enum(VEHICLE_CATEGORIES), serviceType: z.enum(SERVICE_CLASSIFICATION_TYPES),
-  cityZoneId: z.string().nullable(), pricingConfigId: z.string().min(1), pricingConfigVersion: integerSchema.positive(),
-  distanceM: integerSchema, durationSeconds: integerSchema, suggestedFarePaise: integerSchema,
-  floorPaise: integerSchema, ceilingPaise: integerSchema, expiresAtMs: integerSchema.positive(),
-  routeScope: z.enum(['INTRA_STATE', 'INTERSTATE']).nullish(),
-  originStateCode: z.string().nullish(), destinationStateCode: z.string().nullish(),
-  originCountryCode: z.string().nullish(), destinationCountryCode: z.string().nullish(),
-  originCityName: z.string().nullish(), destinationCityName: z.string().nullish(),
-  routeProvider: z.string().optional(), polyline: z.string().max(100000).nullish(),
-  stateBreakdown: z.array(z.object({
-    stateCode: z.string(), stateName: z.string(), distanceM: integerSchema,
-    distanceKm: z.number().finite().nonnegative(), percentage: z.number().finite().min(0).max(100),
-    ratePerKmPaise: integerSchema.optional(), distanceFarePaise: integerSchema.optional(),
-  })).max(100).optional(),
-  statePricingVersions: z.array(z.object({ stateCode: z.string(), configId: z.string().min(1), version: integerSchema.positive() })).max(100).optional(),
-}).refine((quote) => quote.floorPaise <= quote.ceilingPaise && quote.floorPaise <= quote.suggestedFarePaise && quote.suggestedFarePaise <= quote.ceilingPaise);
+const quotePayloadSchema = z
+  .object({
+    quoteId: z.string().uuid(),
+    pickup: pointSchema,
+    drop: pointSchema,
+    vehicleCategory: z.enum(VEHICLE_CATEGORIES),
+    serviceType: z.enum(SERVICE_CLASSIFICATION_TYPES),
+    cityZoneId: z.string().nullable(),
+    pricingConfigId: z.string().min(1),
+    pricingConfigVersion: integerSchema.positive(),
+    distanceM: integerSchema,
+    durationSeconds: integerSchema,
+    suggestedFarePaise: integerSchema,
+    floorPaise: integerSchema,
+    ceilingPaise: integerSchema,
+    expiresAtMs: integerSchema.positive(),
+    routeScope: z.enum(['INTRA_STATE', 'INTERSTATE']).nullish(),
+    originStateCode: z.string().nullish(),
+    destinationStateCode: z.string().nullish(),
+    originCountryCode: z.string().nullish(),
+    destinationCountryCode: z.string().nullish(),
+    originCityName: z.string().nullish(),
+    destinationCityName: z.string().nullish(),
+    routeProvider: z.string().optional(),
+    polyline: z.string().max(100000).nullish(),
+    stateBreakdown: z
+      .array(
+        z.object({
+          stateCode: z.string(),
+          stateName: z.string(),
+          distanceM: integerSchema,
+          distanceKm: z.number().finite().nonnegative(),
+          percentage: z.number().finite().min(0).max(100),
+          ratePerKmPaise: integerSchema.optional(),
+          distanceFarePaise: integerSchema.optional(),
+        }),
+      )
+      .max(100)
+      .optional(),
+    statePricingVersions: z
+      .array(
+        z.object({
+          stateCode: z.string(),
+          configId: z.string().min(1),
+          version: integerSchema.positive(),
+        }),
+      )
+      .max(100)
+      .optional(),
+  })
+  .refine(
+    (quote) =>
+      quote.floorPaise <= quote.ceilingPaise &&
+      quote.floorPaise <= quote.suggestedFarePaise &&
+      quote.suggestedFarePaise <= quote.ceilingPaise,
+  );
 
 export interface CreateQuoteDeps {
   serviceClassificationUseCase: ServiceClassificationUseCase;
   pricingConfigRepo: PricingConfigRepositoryPort;
+  walletRepo?: WalletRepositoryPort | undefined;
   routingUseCase?: { execute(req: RouteRequest): Promise<RouteResult> } | undefined;
   tokenSecret: string;
   quoteTtlSeconds?: number | undefined; // default 300 (5 minutes)
@@ -149,7 +205,9 @@ export class CreateQuoteUseCase {
 
     if (!config) {
       if (!classification.cityZoneId) {
-        throw AppError.badRequest('NO_ACTIVE_ZONE: Service is not available for this route or location.');
+        throw AppError.badRequest(
+          'NO_ACTIVE_ZONE: Service is not available for this route or location.',
+        );
       }
       throw AppError.notFound(
         `PRICING_UNAVAILABLE: No active pricing configuration found for ${input.vehicleCategory} in this location or zone.`,
@@ -167,7 +225,9 @@ export class CreateQuoteUseCase {
     // 5. If route crosses multiple states in an outstation trip, resolve per-state rates
     const stateRateCache = new Map<string, number>();
     const statePricingVersions: { stateCode: string; configId: string; version: number }[] = [];
-    if (classification.serviceType === 'OUTSTATION' && stateBreakdown.length > 0) {
+    const crossesStateBoundary =
+      classification.routeScope === 'INTERSTATE' || stateBreakdown.length > 1;
+    if (classification.serviceType === 'OUTSTATION' && crossesStateBoundary) {
       for (const seg of stateBreakdown) {
         const stateCfg = await this.deps.pricingConfigRepo.findEffectiveConfigByState(
           seg.stateCode,
@@ -175,7 +235,11 @@ export class CreateQuoteUseCase {
         );
         if (stateCfg) {
           stateRateCache.set(seg.stateCode, stateCfg.outstationRatePerKmPaise);
-          statePricingVersions.push({ stateCode: seg.stateCode, configId: stateCfg.id, version: stateCfg.version });
+          statePricingVersions.push({
+            stateCode: seg.stateCode,
+            configId: stateCfg.id,
+            version: stateCfg.version,
+          });
         }
       }
     }
@@ -201,6 +265,19 @@ export class CreateQuoteUseCase {
       floorPercent: config.negotiationFloorPercent,
       ceilingPercent: config.negotiationCeilingPercent,
     });
+
+    const policy = resolveCancellationPolicy(config);
+    const riderWallet =
+      input.riderId && this.deps.walletRepo
+        ? await this.deps.walletRepo.findByRiderId(input.riderId)
+        : null;
+    const arrearsPaise = getRiderUnpaidArrearsPaise(riderWallet);
+    const totalEstimatedPayablePaise = suggestedFarePaise + arrearsPaise;
+    const cashBlockThresholdPaise =
+      policy.cancellationFeePaise > 0
+        ? policy.cancellationFeePaise
+        : DEFAULT_CANCELLATION_FEE_PAISE;
+    const cashAllowed = arrearsPaise < cashBlockThresholdPaise;
 
     const quoteId = newUuid();
     const expiresAt = new Date(Date.now() + this.ttlSeconds * 1000);
@@ -248,6 +325,9 @@ export class CreateQuoteUseCase {
       bufferApplied: classification.bufferApplied,
       vehicleCategory: input.vehicleCategory,
       suggestedFarePaise,
+      arrearsPaise,
+      totalEstimatedPayablePaise,
+      cashAllowed,
       pricingConfigId: config.id,
       pricingConfigVersion: config.version,
       routeScope: classification.routeScope ?? null,
@@ -280,20 +360,26 @@ export class CreateQuoteUseCase {
     now: Date = new Date(),
   ): QuoteTokenPayload {
     const parts = token.split('.');
-    if (token.length > 200000) throw AppError.badRequest('INVALID_QUOTE_TOKEN: Quote token is too large.');
+    if (token.length > 200000)
+      throw AppError.badRequest('INVALID_QUOTE_TOKEN: Quote token is too large.');
     if (parts.length !== 2 || !parts[0] || !parts[1]) {
       throw AppError.badRequest('INVALID_QUOTE_TOKEN: Malformed quote token.');
     }
 
     const [data, signature] = parts;
     const expectedSig = createHmac('sha256', secret).update(data).digest('base64url');
-    if (signature.length !== expectedSig.length || !timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSig))) {
+    if (
+      signature.length !== expectedSig.length ||
+      !timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSig))
+    ) {
       throw AppError.badRequest('INVALID_QUOTE_TOKEN: Quote signature verification failed.');
     }
 
     let payload: QuoteTokenPayload;
     try {
-      payload = quotePayloadSchema.parse(JSON.parse(Buffer.from(data, 'base64url').toString('utf8')));
+      payload = quotePayloadSchema.parse(
+        JSON.parse(Buffer.from(data, 'base64url').toString('utf8')),
+      );
     } catch {
       throw AppError.badRequest('INVALID_QUOTE_TOKEN: Corrupted quote payload.');
     }

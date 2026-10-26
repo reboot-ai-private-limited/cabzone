@@ -432,28 +432,26 @@ The provider must remain replaceable.
 
 ---
 
-# 18. Toll Responsibility
+# 18. Toll Responsibility (Decided — D-045)
 
 Route answers:
 
 > What toll does the routing provider estimate?
 
-Pricing answers:
+Pricing answers (per [`decision-log.md`](../decision-log.md#d-045--highway-toll--interstate-permit-quoteride-treatment), D-045):
 
-> How should Cabzon include that estimate in the recommended fare?
+> Keep `suggestedFarePaise`, negotiation bounds, `agreedFarePaise`, and commission strictly on the ride fare (`base + distance + buffer`), and freeze `TollInfo` as a **separate non-commissioned disclosure line** payable by the rider at actuals.
 
 Example:
 
 ```text
 Route estimate
-  Toll = ₹180
+  Toll = ₹180 (isEstimate = true)
        |
        v
-Pricing
-  Include estimated toll = YES
-       |
-       v
-Recommended fare
+Pricing / Quote Snapshot
+  suggestedFarePaise = ₹1,550 (ride fare only; negotiation & commission base)
+  tollSnapshot       = ₹180 estimated toll (separate disclosure, paid at actuals, 0% commission)
 ```
 
 Do not calculate fare inside the Route module.
@@ -486,30 +484,28 @@ Toll exists but amount unavailable
 
 ---
 
-# 20. Toll and Negotiated Fare
+# 20. Toll and Negotiated Fare (Decided — D-045)
 
-Example:
+Per Decision D-045, tolls and interstate permits remain separate from the negotiated ride fare:
 
 ```text
-Base/distance/time: ₹1,550
-Estimated toll:     ₹180
----------------------------
-Recommended fare:   ₹1,730
+Recommended ride fare (negotiable & commissionable): ₹1,550
+Estimated highway toll (separate disclosure):        ₹180 (payable at actuals)
 ```
 
-Rider proposes:
+Rider proposes ride fare:
 
 ```text
-₹1,600
+₹1,500
 ```
 
 Driver accepts:
 
 ```text
-Agreed fare = ₹1,600
+Agreed ride fare = ₹1,500 (tolls/permits payable separately at actuals)
 ```
 
-The agreed fare must not silently change because a later routing request returns a different toll estimate.
+The agreed ride fare and frozen `tollSnapshot` must never silently mutate if a later routing request returns a different toll estimate.
 
 ---
 

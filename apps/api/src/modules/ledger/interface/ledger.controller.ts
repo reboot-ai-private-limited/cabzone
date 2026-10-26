@@ -8,8 +8,11 @@ import type { GetFinanceStatsUseCase } from '../application/useCases/getFinanceS
 import type { GetWalletUseCase } from '../application/useCases/getWallet.usecase.js';
 import type { ListTransactionsUseCase } from '../application/useCases/listTransactions.usecase.js';
 import type { ListWalletsUseCase } from '../application/useCases/listWallets.usecase.js';
+import type { WalletRepositoryPort } from '../domain/index.js';
 import {
   adminAdjustWalletSchema,
+  driverListTransactionsQuerySchema,
+  driverMyWalletQuerySchema,
   listTransactionsQuerySchema,
   listWalletsQuerySchema,
 } from './ledger.validation.js';
@@ -40,14 +43,18 @@ export function makeAdminListWalletsController(useCase: ListWalletsUseCase): Req
   });
 }
 
-export function makeAdminGetFinanceStatsController(useCase: GetFinanceStatsUseCase): RequestHandler {
+export function makeAdminGetFinanceStatsController(
+  useCase: GetFinanceStatsUseCase,
+): RequestHandler {
   return asyncHandler(async (req: Request, res: Response) => {
     const stats = await useCase.execute();
     sendSuccess(req, res, stats, 'Finance statistics retrieved successfully');
   });
 }
 
-export function makeAdminListTransactionsController(useCase: ListTransactionsUseCase): RequestHandler {
+export function makeAdminListTransactionsController(
+  useCase: ListTransactionsUseCase,
+): RequestHandler {
   return asyncHandler(async (req: Request, res: Response) => {
     const query = listTransactionsQuerySchema.parse(req.query);
     const result = await useCase.execute(query);
@@ -61,10 +68,67 @@ export function makeMyWalletController(
 ): RequestHandler {
   return asyncHandler(async (req: Request, res: Response) => {
     if (!req.auth) throw AppError.unauthenticated('Authentication required.');
+    const { txLimit } = driverMyWalletQuerySchema.parse(req.query);
     const driverId = await resolveDriverId(req.auth.userId);
     if (!driverId) {
       throw AppError.forbidden('DRIVER_PROFILE_REQUIRED: No driver profile for this account.');
     }
-    sendSuccess(req, res, await useCase.execute(driverId), 'Wallet retrieved successfully');
+    sendSuccess(
+      req,
+      res,
+      await useCase.execute(driverId, txLimit),
+      'Wallet retrieved successfully',
+    );
+  });
+}
+
+export function makeMyWalletTransactionsController(
+  walletRepo: WalletRepositoryPort,
+  useCase: ListTransactionsUseCase,
+  resolveDriverId: (userId: string) => Promise<string | null>,
+): RequestHandler {
+  return asyncHandler(async (req: Request, res: Response) => {
+    if (!req.auth) throw AppError.unauthenticated('Authentication required.');
+    const query = driverListTransactionsQuerySchema.parse(req.query);
+    const driverId = await resolveDriverId(req.auth.userId);
+    if (!driverId) {
+      throw AppError.forbidden('DRIVER_PROFILE_REQUIRED: No driver profile for this account.');
+    }
+    const wallet = await walletRepo.findByDriverId(driverId);
+    if (!wallet) {
+      sendSuccess(
+        req,
+        res,
+        { items: [], total: 0, limit: query.limit, offset: query.offset, hasMore: false },
+        'Wallet transactions retrieved successfully',
+      );
+      return;
+    }
+    const types = query.type
+      ? [query.type]
+      : query.direction === 'CREDIT'
+        ? (['CREDIT', 'REVERSAL'] as const)
+        : query.direction === 'DEBIT'
+          ? (['DEBIT', 'ADJUSTMENT'] as const)
+          : undefined;
+    const { items, total } = await useCase.execute({
+      walletId: wallet.id,
+      types,
+      referenceType: query.referenceType,
+      limit: query.limit,
+      offset: query.offset,
+    });
+    sendSuccess(
+      req,
+      res,
+      {
+        items,
+        total,
+        limit: query.limit,
+        offset: query.offset,
+        hasMore: query.offset + items.length < total,
+      },
+      'Wallet transactions retrieved successfully',
+    );
   });
 }

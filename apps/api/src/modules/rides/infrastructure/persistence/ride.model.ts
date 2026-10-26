@@ -35,6 +35,7 @@ export interface RideDocument extends Document<string> {
   suggested_fare_paise: number;
   proposed_fare_paise: number | null;
   agreed_fare_paise: number | null;
+  arrears_paise?: number;
   status: RideStatus;
   cancellation_reason: CancellationReason | null;
   offering_expires_at: Date | null;
@@ -92,6 +93,7 @@ const rideSchema = new Schema<RideDocument>(
     suggested_fare_paise: { type: Number, required: true, min: 0 },
     proposed_fare_paise: { type: Number, default: null },
     agreed_fare_paise: { type: Number, default: null },
+    arrears_paise: { type: Number, default: 0, min: 0 },
     status: {
       type: String,
       enum: RIDE_STATUSES,
@@ -142,14 +144,18 @@ rideSchema.index(
   },
 );
 rideSchema.index({ driver_id: 1, created_at: -1 });
-rideSchema.index({ driver_id: 1 }, {
-  name: 'one_active_ride_per_driver',
-  unique: true,
-  partialFilterExpression: {
-    driver_id: { $type: 'string' },
-    status: { $in: ['DRIVER_ASSIGNED', 'DRIVER_EN_ROUTE', 'DRIVER_ARRIVED', 'TRIP_STARTED'] },
+rideSchema.index({ driver_id: 1, settled_at: -1 });
+rideSchema.index(
+  { driver_id: 1 },
+  {
+    name: 'one_active_ride_per_driver',
+    unique: true,
+    partialFilterExpression: {
+      driver_id: { $type: 'string' },
+      status: { $in: ['DRIVER_ASSIGNED', 'DRIVER_EN_ROUTE', 'DRIVER_ARRIVED', 'TRIP_STARTED'] },
+    },
   },
-});
+);
 rideSchema.index({ status: 1, created_at: -1 });
 rideSchema.index({ status: 1, offering_expires_at: 1 });
 rideSchema.index({ vehicle_id: 1, created_at: -1 });

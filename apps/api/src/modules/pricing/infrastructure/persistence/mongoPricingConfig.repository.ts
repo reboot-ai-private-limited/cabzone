@@ -1,10 +1,19 @@
-import type { PricingConfigLevel, VehicleCategory } from '@cabzone/contracts';
+import {
+  DEFAULT_CANCELLATION_FEE_PAISE,
+  DEFAULT_DRIVER_COMPENSATION_PAISE,
+  DEFAULT_DRIVER_NO_SHOW_WAIT_SECONDS,
+  DEFAULT_PLATFORM_CANCELLATION_FEE_PAISE,
+  DEFAULT_RIDER_CANCELLATION_GRACE_SECONDS,
+  type PricingConfigLevel,
+  type VehicleCategory,
+} from '@cabzone/contracts';
 import { AppError } from '../../../../shared/errors/AppError.js';
-import type {
-  EffectivePricingTarget,
-  PricingConfigEntity,
-  PricingConfigFilter,
-  PricingConfigRepositoryPort,
+import {
+  resolveCancellationPolicy,
+  type EffectivePricingTarget,
+  type PricingConfigEntity,
+  type PricingConfigFilter,
+  type PricingConfigRepositoryPort,
 } from '../../domain/index.js';
 import {
   type PricingConfigDocument,
@@ -31,6 +40,14 @@ function toPricingConfigEntity(doc: PricingConfigDocument): PricingConfigEntity 
     negotiationCeilingPercent: doc.negotiation_ceiling_percent,
     negotiationWindowSeconds: doc.negotiation_window_seconds,
     commissionPercent: doc.commission_percent,
+    cancellationFeePaise: doc.cancellation_fee_paise ?? DEFAULT_CANCELLATION_FEE_PAISE,
+    driverCompensationPaise: doc.driver_compensation_paise ?? DEFAULT_DRIVER_COMPENSATION_PAISE,
+    platformCancellationFeePaise:
+      doc.platform_cancellation_fee_paise ?? DEFAULT_PLATFORM_CANCELLATION_FEE_PAISE,
+    riderCancellationGraceSeconds:
+      doc.rider_cancellation_grace_seconds ?? DEFAULT_RIDER_CANCELLATION_GRACE_SECONDS,
+    driverNoShowWaitSeconds:
+      doc.driver_no_show_wait_seconds ?? DEFAULT_DRIVER_NO_SHOW_WAIT_SECONDS,
     effectiveFrom: doc.effective_from,
     effectiveTo: doc.effective_to,
     status: doc.status,
@@ -124,6 +141,7 @@ export class MongoPricingConfigRepository implements PricingConfigRepositoryPort
   }
 
   async save(config: PricingConfigEntity, expectedVersion?: number): Promise<PricingConfigEntity> {
+    const policy = resolveCancellationPolicy(config);
     const doc = await PricingConfigModel.findOneAndUpdate(
       { _id: config.id, ...(expectedVersion === undefined ? {} : { version: expectedVersion }) },
       {
@@ -144,6 +162,11 @@ export class MongoPricingConfigRepository implements PricingConfigRepositoryPort
         negotiation_ceiling_percent: config.negotiationCeilingPercent,
         negotiation_window_seconds: config.negotiationWindowSeconds,
         commission_percent: config.commissionPercent,
+        cancellation_fee_paise: policy.cancellationFeePaise,
+        driver_compensation_paise: policy.driverCompensationPaise,
+        platform_cancellation_fee_paise: policy.platformCancellationFeePaise,
+        rider_cancellation_grace_seconds: policy.riderCancellationGraceSeconds,
+        driver_no_show_wait_seconds: policy.driverNoShowWaitSeconds,
         effective_from: config.effectiveFrom,
         effective_to: config.effectiveTo,
         status: config.status,
@@ -198,4 +221,3 @@ export class MongoPricingConfigRepository implements PricingConfigRepositoryPort
     await PricingConfigModel.findByIdAndDelete(id);
   }
 }
-

@@ -1,17 +1,21 @@
 import { z } from 'zod';
-
-export const upiPaymentProofSchema = z.object({
-  orderId: z.string().regex(/^order_[a-zA-Z0-9]+$/),
-  paymentId: z.string().regex(/^pay_[a-zA-Z0-9]+$/),
-  signature: z.string().regex(/^[a-f0-9]{64}$/),
-}).strict();
 import {
   CANCELLATION_REASONS,
+  DRIVER_EARNINGS_PERIODS,
   E164_PHONE_REGEX,
   NEGOTIATION_ACTIONS,
+  PAYMENT_METHODS,
   RIDE_STATUSES,
   VEHICLE_CATEGORIES,
 } from '@cabzone/contracts';
+
+export const upiPaymentProofSchema = z
+  .object({
+    orderId: z.string().regex(/^order_[a-zA-Z0-9]+$/),
+    paymentId: z.string().regex(/^pay_[a-zA-Z0-9]+$/),
+    signature: z.string().regex(/^[a-f0-9]{64}$/),
+  })
+  .strict();
 
 export const locationPointSchema = z.object({
   lat: z.number().min(-90).max(90),
@@ -55,6 +59,10 @@ export const cancelRideSchema = z.object({
   reason: z.enum(CANCELLATION_REASONS),
 });
 
+export const waiveCancellationFeeSchema = z.object({
+  reason: z.string().trim().min(5, 'Reason must be at least 5 characters').max(1000),
+});
+
 export const rideStatusSchema = z.enum(RIDE_STATUSES);
 export const negotiationActionSchema = z.enum(NEGOTIATION_ACTIONS);
 export const cancellationReasonSchema = z.enum(CANCELLATION_REASONS);
@@ -80,6 +88,7 @@ export const createRideRequestSchema = z.object({
   drop: locationPointSchema,
   riderId: z.string().uuid().optional(),
   idempotencyKey: idempotencyKeySchema.optional(),
+  paymentMethod: z.enum(PAYMENT_METHODS).optional(),
 });
 
 export const startRideRequestSchema = z.object({
@@ -98,6 +107,12 @@ export const paymentDisputeResolutionSchema = z.object({
   reason: z.string().trim().min(10).max(1000),
 });
 
+export const listPaymentDisputesQuerySchema = z.object({
+  status: z.enum(['OPEN', 'RESOLVED', 'ALL']).default('OPEN'),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+  offset: z.coerce.number().int().min(0).default(0),
+});
+
 export const listRidesQuerySchema = z.object({
   status: z
     .string()
@@ -109,3 +124,25 @@ export const listRidesQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(20),
   offset: z.coerce.number().int().min(0).default(0),
 });
+
+export const driverEarningsQuerySchema = z.object({
+  period: z.enum(DRIVER_EARNINGS_PERIODS).default('TODAY'),
+});
+
+export const driverHistoryQuerySchema = z.object({
+  status: z
+    .string()
+    .optional()
+    .transform((v) => (v ? v.split(',').map((s) => s.trim()) : undefined))
+    .pipe(z.array(rideStatusSchema).optional()),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+  offset: z.coerce.number().int().min(0).default(0),
+});
+
+export const reconcileDriverEarningsSchema = z
+  .object({
+    mode: z.enum(['AUDIT', 'BACKFILL_ONLINE_EARNINGS']).default('AUDIT'),
+    driverId: z.string().min(1).max(128).optional(),
+    rideIds: z.array(z.string().uuid()).max(200).optional(),
+  })
+  .strict();

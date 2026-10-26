@@ -50,7 +50,18 @@ const walletSchema = new Schema<WalletDocument>(
   },
 );
 
+walletSchema.index(
+  { rider_id: 1 },
+  {
+    name: 'one_wallet_per_rider',
+    unique: true,
+    partialFilterExpression: {
+      owner_type: 'RIDER',
+      rider_id: { $type: 'string' },
+    },
+  },
+);
+
 export const WalletModel: mongoose.Model<WalletDocument> =
   (mongoose.models.Wallet as mongoose.Model<WalletDocument>) ||
   mongoose.model<WalletDocument>('Wallet', walletSchema);
-

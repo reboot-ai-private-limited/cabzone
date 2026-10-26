@@ -38,6 +38,7 @@ export function buildDriverRouter(deps: DriverRouterDeps): Router {
 export interface AdminDriverRouterDeps {
   authenticate: RequestHandler;
   requireAdminRole: RequestHandler;
+  requireReadRole?: RequestHandler | undefined;
   reviewApplication: RequestHandler;
   listApplications: RequestHandler;
   getApplication: RequestHandler;
@@ -46,8 +47,9 @@ export interface AdminDriverRouterDeps {
 
 export function buildAdminDriverRouter(deps: AdminDriverRouterDeps): Router {
   const router = Router();
-  router.get('/driver-applications', deps.authenticate, deps.requireAdminRole, deps.listApplications);
-  router.get('/driver-applications/:id', deps.authenticate, deps.requireAdminRole, deps.getApplication);
+  const readGuard = deps.requireReadRole ?? deps.requireAdminRole;
+  router.get('/driver-applications', deps.authenticate, readGuard, deps.listApplications);
+  router.get('/driver-applications/:id', deps.authenticate, readGuard, deps.getApplication);
   router.post('/driver-applications/:id/review', deps.authenticate, deps.requireAdminRole, deps.reviewApplication);
   if (deps.updateDriverStatus) {
     router.patch('/driver-applications/:id/status', deps.authenticate, deps.requireAdminRole, deps.updateDriverStatus);
