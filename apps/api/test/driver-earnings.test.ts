@@ -157,6 +157,8 @@ function buildTestApp(deps: {
     reconcileDriverEarnings: makeReconcileDriverEarningsController(deps.driverEarnings),
     getRide: makeGetRideController(deps.rideRepo, actors, deps.rideEventRepo, deps.driverEarnings),
     getRideEvents: noopHandler,
+    getRideRating: noopHandler,
+    submitRideRating: noopHandler,
     acceptRide: noopHandler,
     driverCounter: noopHandler,
     raiseFare: noopHandler,
@@ -410,7 +412,13 @@ describe('Server-owned driver earnings, pagination & historical reconciliation',
     // 1. Settled cash ride: gross 15000, commission 1200 -> net 13800
     const cashRideId = newUuid();
     await rideRepo.save(
-      makeRide({ id: cashRideId, driverId, agreedFarePaise: 15000, status: 'SETTLED', settledAt: now }),
+      makeRide({
+        id: cashRideId,
+        driverId,
+        agreedFarePaise: 15000,
+        status: 'SETTLED',
+        settledAt: now,
+      }),
     );
     await walletRepo.recordTransaction(
       makeTx({

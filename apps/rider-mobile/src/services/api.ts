@@ -10,6 +10,8 @@ import type {
   ResolvedLocationDetails,
   RideDto,
   RideEventDto,
+  RideRatingStatusDto,
+  SubmitRideRatingRequestDto,
   RideStatus,
   RiderDto,
   UpdateRiderProfileDto,
@@ -459,6 +461,29 @@ export const riderRidesApi = {
       token,
     );
     return result.ride;
+  },
+
+  async getRideRating(token: string, rideId: string): Promise<RideRatingStatusDto> {
+    return request<RideRatingStatusDto>(
+      `/api/v1/rides/${encodeURIComponent(rideId)}/rating`,
+      { method: 'GET' },
+      token,
+    );
+  },
+
+  async submitRideRating(
+    token: string,
+    rideId: string,
+    payload: SubmitRideRatingRequestDto,
+  ): Promise<RideRatingStatusDto> {
+    return request<RideRatingStatusDto>(
+      `/api/v1/rides/${encodeURIComponent(rideId)}/rating`,
+      {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      },
+      token,
+    );
   },
 
   async disputePayment(token: string, rideId: string, reason: string): Promise<RiderRideViewDto> {

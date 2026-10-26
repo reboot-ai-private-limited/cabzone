@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { RidePaymentQr } from '@/components/driver/ride-payment-qr';
+import { RideRatingCard } from '@/components/driver/ride-rating-card';
 import {
   ActivityIndicator,
   Linking,
@@ -595,6 +596,13 @@ export default function ActiveRideScreen() {
               <Text style={styles.primaryCtaText}>Complete Trip at Destination →</Text>
             )}
           </Pressable>
+        ) : null}
+
+        {ride.status === 'SETTLED' ? (
+          <RideRatingCard
+            rideId={ride.id}
+            passengerName={ride.passenger?.name || 'Passenger'}
+          />
         ) : null}
 
         {ride.status === 'SETTLED' ||

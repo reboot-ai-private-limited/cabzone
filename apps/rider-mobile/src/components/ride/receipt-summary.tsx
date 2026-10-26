@@ -114,7 +114,11 @@ export function ReceiptSummary({
             </View>
           )}
           <View style={styles.flex}>
-            <Text style={styles.value}>{receipt.driver.driverName}</Text>
+            <Text style={styles.value}>
+              {receipt.driver.ratingLabel
+                ? `${receipt.driver.driverName} · ★ ${receipt.driver.ratingLabel}`
+                : receipt.driver.driverName}
+            </Text>
             <Text style={styles.caption}>{receipt.driver.vehicleLabel}</Text>
             {receipt.driver.registrationNumber ? (
               <Text style={styles.plate}>{receipt.driver.registrationNumber}</Text>

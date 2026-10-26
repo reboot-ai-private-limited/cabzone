@@ -4,6 +4,7 @@ import type {
   RideEntity,
   RideListFilter,
   RideRepositoryPort,
+  RiderTripCountsSummary,
 } from '../../domain/index.js';
 import { AppError } from '../../../../shared/errors/AppError.js';
 
@@ -209,11 +210,15 @@ export class MemoryRideRepository implements RideRepositoryPort {
     completedRides: number;
     cancelledRides: number;
     totalSpentPaise: number;
+    noShowsCount: number;
+    disputesCount: number;
   }> {
     let totalRides = 0;
     let completedRides = 0;
     let cancelledRides = 0;
     let totalSpentPaise = 0;
+    let noShowsCount = 0;
+    let disputesCount = 0;
 
     const isCompleted = (status: string) =>
       status === 'TRIP_COMPLETED' ||
@@ -228,22 +233,26 @@ export class MemoryRideRepository implements RideRepositoryPort {
         if (isCompleted(r.status)) {
           completedRides++;
           totalSpentPaise += r.agreedFarePaise ?? r.suggestedFarePaise;
+          if (r.status === 'PAYMENT_DISPUTED') disputesCount++;
         } else if (r.status === 'CANCELLED') {
           cancelledRides++;
+          if (r.cancellationReason === 'RIDER_NO_SHOW') noShowsCount++;
         }
       }
     }
 
-    return { totalRides, completedRides, cancelledRides, totalSpentPaise };
+    return {
+      totalRides,
+      completedRides,
+      cancelledRides,
+      totalSpentPaise,
+      noShowsCount,
+      disputesCount,
+    };
   }
 
-  async getRiderTripCountsBatch(
-    riderIds: string[],
-  ): Promise<Map<string, { totalRides: number; completedRides: number; cancelledRides: number }>> {
-    const map = new Map<
-      string,
-      { totalRides: number; completedRides: number; cancelledRides: number }
-    >();
+  async getRiderTripCountsBatch(riderIds: string[]): Promise<Map<string, RiderTripCountsSummary>> {
+    const map = new Map<string, RiderTripCountsSummary>();
     const idSet = new Set(riderIds);
     const isCompleted = (status: string) =>
       status === 'TRIP_COMPLETED' ||
@@ -260,10 +269,26 @@ export class MemoryRideRepository implements RideRepositoryPort {
           : null;
       if (!id) continue;
 
-      const current = map.get(id) ?? { totalRides: 0, completedRides: 0, cancelledRides: 0 };
+      const current = map.get(id) ?? {
+        totalRides: 0,
+        completedRides: 0,
+        cancelledRides: 0,
+        noShowsCount: 0,
+        disputesCount: 0,
+      };
       current.totalRides++;
-      if (r.status === 'CANCELLED') current.cancelledRides++;
-      if (isCompleted(r.status)) current.completedRides++;
+      if (r.status === 'CANCELLED') {
+        current.cancelledRides++;
+        if (r.cancellationReason === 'RIDER_NO_SHOW') {
+          current.noShowsCount = (current.noShowsCount ?? 0) + 1;
+        }
+      }
+      if (isCompleted(r.status)) {
+        current.completedRides++;
+        if (r.status === 'PAYMENT_DISPUTED') {
+          current.disputesCount = (current.disputesCount ?? 0) + 1;
+        }
+      }
       map.set(id, current);
     }
 

@@ -25,7 +25,7 @@ import {
   Select,
   Skeleton,
 } from '@cabzone/design-system';
-import { REJECTION_TYPES, type RejectionType } from '@cabzone/contracts';
+import { REJECTION_TYPES, formatPublicRatingLabel, type RejectionType } from '@cabzone/contracts';
 import {
   useDriverApplication,
   useReviewApplication,
@@ -440,7 +440,7 @@ export function DriverApplicationScreen({ applicationId }: DriverApplicationScre
                 <div className="flex items-center gap-1 text-xs">
                   <Star className="size-3.5 fill-amber-500 text-amber-500" />
                   <span className="font-semibold text-text">
-                    {d.driver?.ratingAverage ? d.driver.ratingAverage.toFixed(2) : '5.0'}
+                    {formatPublicRatingLabel(d.driver?.ratingAverage, d.driver?.ratingCount)}
                   </span>
                   <span className="text-text-subtle">
                     ({d.driver?.ratingCount ?? 0} rides)

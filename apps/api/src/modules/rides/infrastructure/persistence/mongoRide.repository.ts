@@ -4,6 +4,7 @@ import type {
   RideEntity,
   RideListFilter,
   RideRepositoryPort,
+  RiderTripCountsSummary,
 } from '../../domain/index.js';
 import { RideModel, type RideDocument } from './ride.model.js';
 import { AppError } from '../../../../shared/errors/AppError.js';
@@ -141,7 +142,6 @@ export class MongoRideRepository implements RideRepositoryPort {
   }): Promise<RideEntity | null> {
     const assignedAt = opts.assignedAt ?? new Date();
 
-    // Wait for the unique driver index before allowing the first assignment.
     await RideModel.init();
     const doc = await RideModel.findOneAndUpdate(
       {
@@ -197,6 +197,8 @@ export class MongoRideRepository implements RideRepositoryPort {
     completedRides: number;
     cancelledRides: number;
     totalSpentPaise: number;
+    noShowsCount: number;
+    disputesCount: number;
   }> {
     const results = await RideModel.aggregate([
       {
@@ -231,6 +233,23 @@ export class MongoRideRepository implements RideRepositoryPort {
           cancelledRides: {
             $sum: { $cond: [{ $eq: ['$status', 'CANCELLED'] }, 1, 0] },
           },
+          noShowsCount: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $eq: ['$status', 'CANCELLED'] },
+                    { $eq: ['$cancellation_reason', 'RIDER_NO_SHOW'] },
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
+          },
+          disputesCount: {
+            $sum: { $cond: [{ $eq: ['$status', 'PAYMENT_DISPUTED'] }, 1, 0] },
+          },
           totalSpentPaise: {
             $sum: {
               $cond: [
@@ -256,7 +275,14 @@ export class MongoRideRepository implements RideRepositoryPort {
     ]).exec();
 
     if (!results || results.length === 0) {
-      return { totalRides: 0, completedRides: 0, cancelledRides: 0, totalSpentPaise: 0 };
+      return {
+        totalRides: 0,
+        completedRides: 0,
+        cancelledRides: 0,
+        totalSpentPaise: 0,
+        noShowsCount: 0,
+        disputesCount: 0,
+      };
     }
     const r = results[0];
     return {
@@ -264,16 +290,13 @@ export class MongoRideRepository implements RideRepositoryPort {
       completedRides: r.completedRides ?? 0,
       cancelledRides: r.cancelledRides ?? 0,
       totalSpentPaise: r.totalSpentPaise ?? 0,
+      noShowsCount: r.noShowsCount ?? 0,
+      disputesCount: r.disputesCount ?? 0,
     };
   }
 
-  async getRiderTripCountsBatch(
-    riderIds: string[],
-  ): Promise<Map<string, { totalRides: number; completedRides: number; cancelledRides: number }>> {
-    const map = new Map<
-      string,
-      { totalRides: number; completedRides: number; cancelledRides: number }
-    >();
+  async getRiderTripCountsBatch(riderIds: string[]): Promise<Map<string, RiderTripCountsSummary>> {
+    const map = new Map<string, RiderTripCountsSummary>();
     if (riderIds.length === 0) return map;
 
     const results = await RideModel.aggregate([
@@ -289,6 +312,23 @@ export class MongoRideRepository implements RideRepositoryPort {
         $group: {
           _id: '$booker_rider_id',
           cancelledRides: { $sum: { $cond: [{ $eq: ['$status', 'CANCELLED'] }, 1, 0] } },
+          noShowsCount: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $eq: ['$status', 'CANCELLED'] },
+                    { $eq: ['$cancellation_reason', 'RIDER_NO_SHOW'] },
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
+          },
+          disputesCount: {
+            $sum: { $cond: [{ $eq: ['$status', 'PAYMENT_DISPUTED'] }, 1, 0] },
+          },
           totalRides: { $sum: 1 },
           completedRides: {
             $sum: {
@@ -319,6 +359,8 @@ export class MongoRideRepository implements RideRepositoryPort {
         totalRides: r.totalRides ?? 0,
         completedRides: r.completedRides ?? 0,
         cancelledRides: r.cancelledRides ?? 0,
+        noShowsCount: r.noShowsCount ?? 0,
+        disputesCount: r.disputesCount ?? 0,
       });
     }
     return map;

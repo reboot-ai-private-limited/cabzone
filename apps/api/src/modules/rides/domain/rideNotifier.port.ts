@@ -13,6 +13,7 @@ export type RideLifecycleEvent =
   | 'ride.cancelled'
   | 'ride.fare.raised'
   | 'ride.offer.expired'
+  | 'ride.rating.revealed'
   | 'ride.cancellation_fee.waived';
 
 /** Best-effort realtime side effects. Implementations must never throw into the request path. */

@@ -24,7 +24,7 @@ export function TrustScoreBadge({
         className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full font-medium border border-border bg-surface-muted text-text-subtle ${
           size === 'sm' ? 'text-[11px]' : 'text-xs'
         } ${className}`}
-        title="Requires at least 3 completed trips to calculate verified trust score."
+        title="Requires at least 5 completed trips to calculate verified trust score."
       >
         <Shield className="size-3 text-text-subtle" />
         <span>Unrated</span>

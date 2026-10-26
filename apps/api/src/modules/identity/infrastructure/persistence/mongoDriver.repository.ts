@@ -1,5 +1,6 @@
 import type { DriverEntity, DriverRepositoryPort } from '../../domain/index.js';
 import { DriverModel, type DriverDocument } from './driver.model.js';
+import { AppError } from '../../../../shared/errors/AppError.js';
 
 export class MongoDriverRepository implements DriverRepositoryPort {
   async findById(driverId: string): Promise<DriverEntity | null> {
@@ -15,6 +16,8 @@ export class MongoDriverRepository implements DriverRepositoryPort {
   }
 
   async create(driver: DriverEntity): Promise<DriverEntity> {
+    const ratingCount = driver.ratingCount > 0 ? driver.ratingCount : 0;
+    const ratingAverage = ratingCount > 0 ? driver.ratingAverage : null;
     const created = await DriverModel.create({
       _id: driver.id,
       user_id: driver.userId,
@@ -31,8 +34,8 @@ export class MongoDriverRepository implements DriverRepositoryPort {
       status: driver.status,
       kyc_status: driver.kycStatus,
       operational_status: driver.operationalStatus,
-      rating_average: driver.ratingAverage,
-      rating_count: driver.ratingCount,
+      rating_average: ratingAverage,
+      rating_count: ratingCount,
       trust_score: driver.trustScore,
       current_vehicle_id: driver.currentVehicleId,
       wallet_id: driver.walletId,
@@ -42,6 +45,8 @@ export class MongoDriverRepository implements DriverRepositoryPort {
   }
 
   async update(driver: DriverEntity): Promise<DriverEntity> {
+    const ratingCount = driver.ratingCount > 0 ? driver.ratingCount : 0;
+    const ratingAverage = ratingCount > 0 ? driver.ratingAverage : null;
     const updated = await DriverModel.findOneAndUpdate(
       { _id: driver.id, version: driver.version },
       {
@@ -58,8 +63,8 @@ export class MongoDriverRepository implements DriverRepositoryPort {
         status: driver.status,
         kyc_status: driver.kycStatus,
         operational_status: driver.operationalStatus,
-        rating_average: driver.ratingAverage,
-        rating_count: driver.ratingCount,
+        rating_average: ratingAverage,
+        rating_count: ratingCount,
         trust_score: driver.trustScore,
         current_vehicle_id: driver.currentVehicleId,
         version: driver.version + 1,
@@ -73,7 +78,44 @@ export class MongoDriverRepository implements DriverRepositoryPort {
     return this.toEntity(updated);
   }
 
+  async applyRevealedRating(
+    driverId: string,
+    stars: number,
+  ): Promise<{ ratingAverage: number; ratingCount: number }> {
+    for (let attempt = 0; attempt < 6; attempt++) {
+      const doc = await DriverModel.findById(driverId).lean<DriverDocument | null>().exec();
+      if (!doc) {
+        throw AppError.notFound('DRIVER_NOT_FOUND: Driver profile not found.');
+      }
+      const prevCount = doc.rating_count > 0 ? doc.rating_count : 0;
+      const prevAvg = prevCount > 0 && doc.rating_average !== null ? doc.rating_average : 0;
+      const nextCount = prevCount + 1;
+      const nextAvg = Number(((prevAvg * prevCount + stars) / nextCount).toFixed(2));
+      const updated = await DriverModel.findOneAndUpdate(
+        { _id: driverId, version: doc.version },
+        {
+          $set: {
+            rating_count: nextCount,
+            rating_average: nextAvg,
+            version: doc.version + 1,
+          },
+        },
+        { new: true },
+      )
+        .lean<DriverDocument | null>()
+        .exec();
+      if (updated) {
+        return {
+          ratingAverage: updated.rating_average ?? nextAvg,
+          ratingCount: updated.rating_count,
+        };
+      }
+    }
+    throw AppError.conflict('RATING_AGGREGATE_CONFLICT: Driver rating aggregate retry exhausted.');
+  }
+
   private toEntity(doc: DriverDocument): DriverEntity {
+    const ratingCount = doc.rating_count > 0 ? doc.rating_count : 0;
     return {
       id: doc._id,
       userId: doc.user_id,
@@ -90,8 +132,8 @@ export class MongoDriverRepository implements DriverRepositoryPort {
       status: doc.status,
       kycStatus: doc.kyc_status,
       operationalStatus: doc.operational_status,
-      ratingAverage: doc.rating_average,
-      ratingCount: doc.rating_count,
+      ratingAverage: ratingCount > 0 ? doc.rating_average : null,
+      ratingCount,
       trustScore: doc.trust_score,
       currentVehicleId: doc.current_vehicle_id,
       walletId: doc.wallet_id,

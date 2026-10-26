@@ -107,6 +107,14 @@ export const paymentDisputeResolutionSchema = z.object({
   reason: z.string().trim().min(10).max(1000),
 });
 
+export const submitRideRatingSchema = z
+  .object({
+    stars: z.number().int().min(1).max(5),
+    tags: z.array(z.string().trim().min(1).max(64)).max(5).optional(),
+    comment: z.string().trim().max(280).nullable().optional(),
+  })
+  .strict();
+
 export const listPaymentDisputesQuerySchema = z.object({
   status: z.enum(['OPEN', 'RESOLVED', 'ALL']).default('OPEN'),
   limit: z.coerce.number().int().min(1).max(100).default(20),

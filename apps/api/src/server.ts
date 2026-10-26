@@ -9,6 +9,7 @@ import type { AppContainers } from './container.js';
 
 const OFFER_SWEEP_MS = 15_000;
 const PUSH_RECEIPT_SWEEP_MS = 60_000;
+const RATING_REVEAL_SWEEP_MS = 60_000;
 
 async function main(): Promise<void> {
   loadEnv();
@@ -43,10 +44,18 @@ async function main(): Promise<void> {
   }, OFFER_SWEEP_MS);
   sweep.unref();
   const receiptSweep = setInterval(() => {
-    containers.dispatch.push.checkReceipts()
+    containers.dispatch.push
+      .checkReceipts()
       .catch((err: unknown) => logger.warn({ err: String(err) }, 'push receipt sweep failed'));
   }, PUSH_RECEIPT_SWEEP_MS);
   receiptSweep.unref();
+  // D-046: Periodically reveal unilateral post-ride ratings once their 7-day window expires.
+  const ratingRevealSweep = setInterval(() => {
+    containers.rides.rideRatingsUseCase
+      .revealExpiredRatings()
+      .catch((err: unknown) => logger.warn({ err: String(err) }, 'rating reveal sweep failed'));
+  }, RATING_REVEAL_SWEEP_MS);
+  ratingRevealSweep.unref();
 
   const shutdown = (signal: string) => {
     logger.info({ signal }, 'signal received, draining');
@@ -58,6 +67,7 @@ async function main(): Promise<void> {
 
     clearInterval(sweep);
     clearInterval(receiptSweep);
+    clearInterval(ratingRevealSweep);
     hub.close();
     server.close(() => {
       void (async () => {

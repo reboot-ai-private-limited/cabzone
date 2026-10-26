@@ -21,7 +21,12 @@ import {
   Select,
   Skeleton,
 } from '@cabzone/design-system';
-import { REJECTION_TYPES, type RejectionType } from '@cabzone/contracts';
+import {
+  MIN_PUBLIC_RATING_COUNT,
+  REJECTION_TYPES,
+  formatPublicRatingLabel,
+  type RejectionType,
+} from '@cabzone/contracts';
 import { useDriverApplication, useReviewApplication } from '../hooks/useDriverApplications';
 import { REVIEWABLE, StatusBadge, VehicleStatusBadge } from './StatusBadge';
 import { DocumentViewerCard } from './DocumentViewerCard';
@@ -136,7 +141,9 @@ export function DriverApplicationDialog({
                 {d.driver && (
                   <FieldRow label="Driver Rating">
                     <span className="text-xs font-medium text-text">
-                      {d.driver.ratingAverage ? `★ ${d.driver.ratingAverage.toFixed(2)}` : 'Unrated'}
+                      {d.driver.ratingCount >= MIN_PUBLIC_RATING_COUNT && d.driver.ratingAverage !== null
+                        ? `★ ${formatPublicRatingLabel(d.driver.ratingAverage, d.driver.ratingCount)}`
+                        : 'New'}
                       <span className="text-text-subtle ml-1">({d.driver.ratingCount} trips)</span>
                     </span>
                   </FieldRow>

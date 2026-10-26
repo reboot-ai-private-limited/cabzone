@@ -1,9 +1,11 @@
 export * from './ride.model.js';
 export * from './rideEvent.model.js';
+export * from './rideReview.model.js';
 export * from './fareNegotiation.model.js';
 export * from './rideExtension.model.js';
 export * from './memoryRide.repository.js';
 export * from './memoryRideEvent.repository.js';
+export * from './memoryRideReview.repository.js';
 export * from './mongoRideEvent.repository.js';
 export * from './mongoRide.repository.js';
-
+export * from './mongoRideReview.repository.js';

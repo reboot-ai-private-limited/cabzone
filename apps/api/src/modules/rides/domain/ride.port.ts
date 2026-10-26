@@ -22,6 +22,14 @@ export interface RideListFilter extends RideCountFilter {
   offset: number;
 }
 
+export interface RiderTripCountsSummary {
+  totalRides: number;
+  completedRides: number;
+  cancelledRides: number;
+  noShowsCount?: number | undefined;
+  disputesCount?: number | undefined;
+}
+
 export interface RideRepositoryPort {
   ensureReady?(): Promise<void>;
   create(ride: RideEntity): Promise<RideEntity>;
@@ -54,17 +62,14 @@ export interface RideRepositoryPort {
     pickupOtpExpiresAt: Date;
     assignedAt?: Date;
   }): Promise<RideEntity | null>;
-  countDailyRiderUnassignedCancellations(
-    riderId: string,
-    sinceDate: Date,
-  ): Promise<number>;
+  countDailyRiderUnassignedCancellations(riderId: string, sinceDate: Date): Promise<number>;
   getRiderStats(riderId: string): Promise<{
     totalRides: number;
     completedRides: number;
     cancelledRides: number;
     totalSpentPaise: number;
+    noShowsCount?: number | undefined;
+    disputesCount?: number | undefined;
   }>;
-  getRiderTripCountsBatch(
-    riderIds: string[],
-  ): Promise<Map<string, { totalRides: number; completedRides: number; cancelledRides: number }>>;
+  getRiderTripCountsBatch(riderIds: string[]): Promise<Map<string, RiderTripCountsSummary>>;
 }

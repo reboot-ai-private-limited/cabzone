@@ -22,6 +22,8 @@ export class MongoRiderRepository implements RiderRepositoryPort {
   }
 
   async create(rider: RiderEntity): Promise<RiderEntity> {
+    const ratingCount = rider.ratingCount > 0 ? rider.ratingCount : 0;
+    const ratingAverage = ratingCount > 0 ? rider.ratingAverage : null;
     const created = await RiderModel.create({
       _id: rider.id,
       user_id: rider.userId,
@@ -34,8 +36,8 @@ export class MongoRiderRepository implements RiderRepositoryPort {
           }
         : null,
       preferred_language: rider.preferredLanguage,
-      rating_average: rider.ratingAverage,
-      rating_count: rider.ratingCount,
+      rating_average: ratingAverage,
+      rating_count: ratingCount,
       trust_score: rider.trustScore ?? null,
       version: rider.version,
     });
@@ -43,6 +45,8 @@ export class MongoRiderRepository implements RiderRepositoryPort {
   }
 
   async update(rider: RiderEntity): Promise<RiderEntity> {
+    const ratingCount = rider.ratingCount > 0 ? rider.ratingCount : 0;
+    const ratingAverage = ratingCount > 0 ? rider.ratingAverage : null;
     const updated = await RiderModel.findByIdAndUpdate(
       rider.id,
       {
@@ -56,8 +60,8 @@ export class MongoRiderRepository implements RiderRepositoryPort {
               }
             : null,
           preferred_language: rider.preferredLanguage,
-          rating_average: rider.ratingAverage,
-          rating_count: rider.ratingCount,
+          rating_average: ratingAverage,
+          rating_count: ratingCount,
           trust_score: rider.trustScore ?? null,
           version: rider.version + 1,
         },
@@ -71,6 +75,42 @@ export class MongoRiderRepository implements RiderRepositoryPort {
       throw AppError.notFound('RIDER_NOT_FOUND: Rider profile not found.');
     }
     return this.toEntity(updated);
+  }
+
+  async applyRevealedRating(
+    riderId: string,
+    stars: number,
+  ): Promise<{ ratingAverage: number; ratingCount: number }> {
+    for (let attempt = 0; attempt < 6; attempt++) {
+      const doc = await RiderModel.findById(riderId).lean<RiderDocument | null>().exec();
+      if (!doc) {
+        throw AppError.notFound('RIDER_NOT_FOUND: Rider profile not found.');
+      }
+      const prevCount = doc.rating_count > 0 ? doc.rating_count : 0;
+      const prevAvg = prevCount > 0 && doc.rating_average !== null ? doc.rating_average : 0;
+      const nextCount = prevCount + 1;
+      const nextAvg = Number(((prevAvg * prevCount + stars) / nextCount).toFixed(2));
+      const updated = await RiderModel.findOneAndUpdate(
+        { _id: riderId, version: doc.version },
+        {
+          $set: {
+            rating_count: nextCount,
+            rating_average: nextAvg,
+            version: doc.version + 1,
+          },
+        },
+        { new: true },
+      )
+        .lean<RiderDocument | null>()
+        .exec();
+      if (updated) {
+        return {
+          ratingAverage: updated.rating_average ?? nextAvg,
+          ratingCount: updated.rating_count,
+        };
+      }
+    }
+    throw AppError.conflict('RATING_AGGREGATE_CONFLICT: Rider rating aggregate retry exhausted.');
   }
 
   async list(filter: RiderListFilter): Promise<{ items: RiderWithUser[]; total: number }> {
@@ -123,7 +163,11 @@ export class MongoRiderRepository implements RiderRepositoryPort {
     });
 
     const [facetResult] = (await RiderModel.aggregate(pipeline).exec()) as [
-      { metadata: { total: number }[]; data: (RiderDocument & { user?: { phone_e164?: string; status?: string } })[] } | undefined,
+      | {
+          metadata: { total: number }[];
+          data: (RiderDocument & { user?: { phone_e164?: string; status?: string } })[];
+        }
+      | undefined,
     ];
     const total = facetResult?.metadata?.[0]?.total ?? 0;
     const data = facetResult?.data ?? [];
@@ -140,6 +184,7 @@ export class MongoRiderRepository implements RiderRepositoryPort {
   }
 
   private toEntity(doc: RiderDocument): RiderEntity {
+    const ratingCount = doc.rating_count > 0 ? doc.rating_count : 0;
     return {
       id: doc._id,
       userId: doc.user_id,
@@ -152,8 +197,8 @@ export class MongoRiderRepository implements RiderRepositoryPort {
           }
         : null,
       preferredLanguage: doc.preferred_language,
-      ratingAverage: doc.rating_average,
-      ratingCount: doc.rating_count,
+      ratingAverage: ratingCount > 0 ? doc.rating_average : null,
+      ratingCount,
       trustScore: doc.trust_score ?? null,
       version: doc.version,
       createdAt: doc.created_at,
@@ -161,4 +206,3 @@ export class MongoRiderRepository implements RiderRepositoryPort {
     };
   }
 }
-

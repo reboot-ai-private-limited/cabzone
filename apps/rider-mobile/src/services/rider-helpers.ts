@@ -1,6 +1,7 @@
 import {
   isActiveRideStatus,
   VEHICLE_CATEGORY_REGISTRY,
+  formatPublicRatingLabel,
   type RideDto,
   type RideEventDto,
   type RideStatus,
@@ -22,6 +23,7 @@ export function formatAssignedDriverSummary(
   profilePhotoUrl: string | null;
   vehicleLabel: string;
   registrationNumber: string | null;
+  ratingLabel: string;
 } {
   const assigned = ride.assignedDriver;
   const driverName =
@@ -38,6 +40,7 @@ export function formatAssignedDriverSummary(
     : '';
   const vehicleLabel = makeModel || VEHICLE_CATEGORY_REGISTRY[ride.vehicleCategory].displayName;
   const registrationNumber = vehicle?.registrationNumber?.trim() || null;
+  const ratingLabel = formatPublicRatingLabel(assigned?.ratingAverage, assigned?.ratingCount);
 
   return {
     driverName,
@@ -45,6 +48,7 @@ export function formatAssignedDriverSummary(
     profilePhotoUrl,
     vehicleLabel,
     registrationNumber,
+    ratingLabel,
   };
 }
 
