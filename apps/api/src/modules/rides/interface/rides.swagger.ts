@@ -14,6 +14,7 @@ import {
   paymentDisputeSchema,
   paymentDisputeResolutionSchema,
   proposeFareSchema,
+  submitRideRatingSchema,
   upiPaymentProofSchema,
 } from './rides.validation.js';
 
@@ -30,6 +31,8 @@ export const rideViewSchema = z.object({
       name: z.string(),
       phoneE164: z.string(),
       profilePhotoUrl: z.string().nullable(),
+      ratingAverage: z.number().nullable().optional(),
+      ratingCount: z.number().int().optional(),
       vehicle: z
         .object({
           vehicleId: z.string(),
@@ -84,6 +87,90 @@ export const rideViewSchema = z.object({
 });
 
 export function registerRidesSwaggerPaths(): void {
+  const rideReviewSchema = z.object({
+    id: z.string().uuid(),
+    rideId: z.string().uuid(),
+    reviewerRole: z.enum(['RIDER', 'DRIVER']),
+    revieweeRole: z.enum(['RIDER', 'DRIVER']),
+    stars: z.number().int().min(1).max(5),
+    tags: z.array(z.string()),
+    comment: z.string().nullable(),
+    status: z.enum(['HIDDEN', 'REVEALED']),
+    windowExpiresAt: z.string(),
+    revealedAt: z.string().nullable(),
+    createdAt: z.string(),
+  });
+  const rideRatingStatusSchema = z.object({
+    rideId: z.string().uuid(),
+    eligible: z.boolean(),
+    canSubmit: z.boolean(),
+    windowExpiresAt: z.string().nullable(),
+    isWindowExpired: z.boolean(),
+    visibilityRule: z.literal('DOUBLE_BLIND_7D'),
+    myReview: rideReviewSchema.nullable(),
+    counterpartyReview: rideReviewSchema.nullable(),
+  });
+
+  registry.registerPath({
+    method: 'get',
+    path: '/v1/rides/{id}/rating',
+    tags: ['Rides'],
+    security: bearerAuth,
+    summary: 'Get double-blind post-ride rating status for a settled ride',
+    request: { params: rideIdParamSchema },
+    responses: {
+      200: {
+        description: 'Ride rating status retrieved successfully',
+        content: { 'application/json': { schema: successResponse(rideRatingStatusSchema) } },
+      },
+      401: {
+        description: 'Authentication required',
+        content: { 'application/json': { schema: errorResponse } },
+      },
+      404: {
+        description: 'Ride not found',
+        content: { 'application/json': { schema: errorResponse } },
+      },
+    },
+  });
+
+  registry.registerPath({
+    method: 'post',
+    path: '/v1/rides/{id}/rating',
+    tags: ['Rides'],
+    security: bearerAuth,
+    summary: 'Submit an immutable 1-5 star post-ride rating within 7 days of settlement',
+    request: {
+      params: rideIdParamSchema,
+      body: { content: { 'application/json': { schema: submitRideRatingSchema } } },
+    },
+    responses: {
+      201: {
+        description: 'Ride rating submitted successfully',
+        content: { 'application/json': { schema: successResponse(rideRatingStatusSchema) } },
+      },
+      200: {
+        description: 'Idempotent replay of already submitted identical rating',
+        content: { 'application/json': { schema: successResponse(rideRatingStatusSchema) } },
+      },
+      400: {
+        description: 'Invalid stars, tags, or comment',
+        content: { 'application/json': { schema: errorResponse } },
+      },
+      403: {
+        description: 'Only booking rider or assigned driver can rate',
+        content: { 'application/json': { schema: errorResponse } },
+      },
+      404: {
+        description: 'Ride not found',
+        content: { 'application/json': { schema: errorResponse } },
+      },
+      409: {
+        description: 'Ride not settled, 7-day window expired, or rating already submitted',
+        content: { 'application/json': { schema: errorResponse } },
+      },
+    },
+  });
   registry.registerPath({
     method: 'post',
     path: '/v1/rides/{id}/payment/cash',

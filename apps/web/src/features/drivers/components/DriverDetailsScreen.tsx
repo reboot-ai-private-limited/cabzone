@@ -35,6 +35,7 @@ import {
   Skeleton,
   cn,
 } from '@cabzone/design-system';
+import { formatPublicRatingLabel } from '@cabzone/contracts';
 import { formatPaise } from '@/lib/format';
 import { useDriverApplication, useUpdateDriverStatus } from '../hooks/useDriverApplications';
 import { useTransactionsList, useWalletDetail } from '../../finance/hooks/useFinance';
@@ -441,13 +442,13 @@ export function DriverDetailsScreen({ id }: DriverDetailsScreenProps) {
 
                 <DefinitionList>
                   <FieldRow label="Trust Score">
-                    <TrustScoreBadge score={d.driver?.trustScore ?? 98} size="sm" />
+                    <TrustScoreBadge score={d.driver?.trustScore} size="sm" />
                   </FieldRow>
                   <FieldRow label="Rating">
                     <div className="flex items-center gap-1 text-amber-500 font-semibold text-xs">
                       <Star className="size-3.5 fill-amber-500" />
-                      <span>{d.driver?.ratingAverage ? d.driver.ratingAverage.toFixed(2) : '4.90'}</span>
-                      <span className="text-text-subtle">({d.driver?.ratingCount ?? 22} rides)</span>
+                      <span>{formatPublicRatingLabel(d.driver?.ratingAverage, d.driver?.ratingCount)}</span>
+                      <span className="text-text-subtle">({d.driver?.ratingCount ?? 0} reviews)</span>
                     </div>
                   </FieldRow>
                   <FieldRow label="Joined On">

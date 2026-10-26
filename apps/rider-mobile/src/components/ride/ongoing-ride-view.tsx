@@ -372,6 +372,7 @@ export function OngoingRideView({
                 )}
               </View>
               <Text style={styles.driverName}>{driverInfo.driverName}</Text>
+              <Text style={styles.caption}>{`★ ${driverInfo.ratingLabel || 'New'}`}</Text>
             </View>
             {driverInfo.phoneE164 ? (
               <Pressable

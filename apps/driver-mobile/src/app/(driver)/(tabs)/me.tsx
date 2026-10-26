@@ -11,6 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { formatPublicRatingLabel } from '@cabzone/contracts';
 import { useAuth } from '@/context/auth-context';
 import { useDuty } from '@/context/duty-context';
 import { useRide } from '@/context/ride-context';
@@ -28,7 +29,7 @@ export default function DriverMeTab() {
 
   const driverName = driver?.name || 'Driver Partner';
   const phone = user?.phoneE164 || '';
-  const rating = driver?.ratingAverage != null ? driver.ratingAverage.toFixed(1) : '5.0';
+  const rating = formatPublicRatingLabel(driver?.ratingAverage, driver?.ratingCount);
 
   const handleConfirmLogout = async () => {
     if (activeRide) {

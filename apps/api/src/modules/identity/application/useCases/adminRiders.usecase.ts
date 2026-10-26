@@ -35,7 +35,16 @@ export class ListRidersUseCase {
       offset,
     });
 
-    let tripCounts = new Map<string, { totalRides: number; completedRides: number; cancelledRides: number }>();
+    let tripCounts = new Map<
+      string,
+      {
+        totalRides: number;
+        completedRides: number;
+        cancelledRides: number;
+        noShowsCount?: number | undefined;
+        disputesCount?: number | undefined;
+      }
+    >();
     if (this.deps.rideRepo && items.length > 0) {
       try {
         const riderIds = items.map((i) => i.rider.id);
@@ -46,13 +55,18 @@ export class ListRidersUseCase {
     }
 
     const riders: AdminRiderSummaryDto[] = items.map((item) => {
-      const counts = tripCounts.get(item.rider.id) ?? { totalRides: 0, completedRides: 0, cancelledRides: 0 };
-      const cancelledRides = counts.cancelledRides;
+      const counts = tripCounts.get(item.rider.id) ?? {
+        totalRides: 0,
+        completedRides: 0,
+        cancelledRides: 0,
+      };
       const trust = calculateTrustScore({
         completedRides: counts.completedRides,
-        cancelledRides,
+        cancelledRides: counts.cancelledRides,
         ratingAverage: item.rider.ratingAverage,
         ratingCount: item.rider.ratingCount,
+        noShowsCount: counts.noShowsCount ?? 0,
+        disputesCount: counts.disputesCount ?? 0,
       });
 
       return {
@@ -103,7 +117,14 @@ export class GetRiderDetailUseCase {
       throw AppError.notFound('USER_NOT_FOUND: Linked user account not found.');
     }
 
-    let stats = { totalRides: 0, completedRides: 0, cancelledRides: 0, totalSpentPaise: 0 };
+    let stats: {
+      totalRides: number;
+      completedRides: number;
+      cancelledRides: number;
+      totalSpentPaise: number;
+      noShowsCount?: number | undefined;
+      disputesCount?: number | undefined;
+    } = { totalRides: 0, completedRides: 0, cancelledRides: 0, totalSpentPaise: 0 };
     if (this.deps.rideRepo) {
       try {
         stats = await this.deps.rideRepo.getRiderStats(rider.id);
@@ -117,6 +138,8 @@ export class GetRiderDetailUseCase {
       cancelledRides: stats.cancelledRides,
       ratingAverage: rider.ratingAverage,
       ratingCount: rider.ratingCount,
+      noShowsCount: stats.noShowsCount ?? 0,
+      disputesCount: stats.disputesCount ?? 0,
     });
 
     return {
@@ -172,7 +195,6 @@ export class UpdateRiderStatusUseCase {
     });
 
     if (status === 'SUSPENDED') {
-      // Security enforcement: Revoke all existing sessions immediately
       await this.deps.sessionRepo.revokeAllForUser(user.id);
     }
 
@@ -180,7 +202,11 @@ export class UpdateRiderStatusUseCase {
     if (this.deps.rideRepo) {
       try {
         const stats = await this.deps.rideRepo.getRiderStats(rider.id);
-        counts = { totalRides: stats.totalRides, completedRides: stats.completedRides, cancelledRides: stats.cancelledRides };
+        counts = {
+          totalRides: stats.totalRides,
+          completedRides: stats.completedRides,
+          cancelledRides: stats.cancelledRides,
+        };
       } catch {
         // Fallback gracefully
       }

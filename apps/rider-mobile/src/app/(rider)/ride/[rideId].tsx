@@ -35,6 +35,7 @@ import {
 import { colors, radii, spacing, typography } from '@/design-system';
 import BookingMap from '@/components/booking/booking-map';
 import { OngoingRideView } from '@/components/ride/ongoing-ride-view';
+import { RideRatingCard } from '@/components/ride/ride-rating-card';
 import { UpiPaymentPanel } from '@/components/ride/upi-payment-panel';
 
 const RIDER_CANCEL_REASONS: { code: CancellationReason; label: string }[] = [
@@ -553,7 +554,7 @@ export default function ActiveRideScreen() {
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.driverCardTitle}>
-                      {formatAssignedDriverSummary(ride).driverName}
+                      {`${formatAssignedDriverSummary(ride).driverName} · ★ ${formatAssignedDriverSummary(ride).ratingLabel}`}
                     </Text>
                     <Text style={styles.driverCardSub}>
                       {formatAssignedDriverSummary(ride).vehicleLabel}
@@ -645,6 +646,13 @@ export default function ActiveRideScreen() {
                   ) : null}
                 </View>
               </View>
+            ) : null}
+
+            {ride.status === 'SETTLED' ? (
+              <RideRatingCard
+                rideId={ride.id}
+                driverName={formatAssignedDriverSummary(ride).driverName}
+              />
             ) : null}
 
             {/* Route & Fare Breakdown Card */}

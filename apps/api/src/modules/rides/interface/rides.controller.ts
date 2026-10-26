@@ -11,6 +11,7 @@ import type { DriverArrivedUseCase } from '../application/useCases/driverArrived
 import type { DriverEnRouteUseCase } from '../application/useCases/driverEnRoute.usecase.js';
 import type { StartRideUseCase } from '../application/useCases/startRide.usecase.js';
 import type { NegotiateFareUseCase } from '../application/useCases/negotiateFare.usecase.js';
+import type { RideRatingsUseCase } from '../application/useCases/rideRatings.usecase.js';
 import type { RideEntity, RideEventRepositoryPort, RideRepositoryPort } from '../domain/index.js';
 import { logger } from '../../../shared/logging/logger.js';
 import { derivePickupOtp, type RideNotifierPort } from '../domain/index.js';
@@ -26,6 +27,7 @@ import {
   proposeFareSchema,
   rideIdParamSchema,
   startRideRequestSchema,
+  submitRideRatingSchema,
 } from './rides.validation.js';
 
 /** Maps an authenticated user id to the rider / driver profile id that rides reference. */
@@ -324,7 +326,11 @@ export function makeRespondCounterController(
       );
     } else {
       await notify(
-        actors.notifier?.fareNegotiation(result.ride, 'ride.fare.counter_rejected', result.counter),
+        actors.notifier?.fareNegotiation(
+          result.ride,
+          'ride.fare.counter_rejected',
+          result.counter,
+        ),
       );
     }
     sendSuccess(
@@ -496,6 +502,89 @@ export function makeCancelRideController(
       res,
       { ride: await toEnrichedRideView(result.ride, actors), feeBreakdown: result.feeBreakdown },
       'Ride cancelled',
+    );
+  });
+}
+
+export function makeGetRideRatingController(
+  rideRepo: RideRepositoryPort,
+  ratingsUseCase: RideRatingsUseCase,
+  actors: RideHttpContext,
+): RequestHandler {
+  return asyncHandler(async (req: Request, res: Response) => {
+    const { id } = rideIdParamSchema.parse(req.params);
+    const ride = await rideRepo.findById(id);
+    if (!ride || !(await canView(req, ride, actors))) {
+      throw AppError.notFound('RIDE_NOT_FOUND: The requested ride was not found.');
+    }
+
+    const { role, userId } = auth(req);
+    let viewerRole: 'RIDER' | 'DRIVER' | 'ADMIN' = 'ADMIN';
+    let viewerProfileId: string | null = null;
+    if (role === 'RIDER') {
+      viewerRole = 'RIDER';
+      viewerProfileId = await actors.resolveRiderId(userId);
+    } else if (role === 'DRIVER') {
+      viewerRole = 'DRIVER';
+      viewerProfileId = await actors.resolveDriverId(userId);
+    }
+
+    const status = await ratingsUseCase.getRatingStatus({
+      ride,
+      viewerRole,
+      viewerProfileId,
+    });
+    sendSuccess(req, res, status, 'Ride rating status retrieved successfully');
+  });
+}
+
+export function makeSubmitRideRatingController(
+  rideRepo: RideRepositoryPort,
+  ratingsUseCase: RideRatingsUseCase,
+  actors: RideHttpContext,
+): RequestHandler {
+  return asyncHandler(async (req: Request, res: Response) => {
+    const { id } = rideIdParamSchema.parse(req.params);
+    const body = submitRideRatingSchema.parse(req.body);
+    const { role } = auth(req);
+
+    let actorRole: 'RIDER' | 'DRIVER';
+    let actorProfileId: string;
+    if (role === 'RIDER') {
+      actorRole = 'RIDER';
+      actorProfileId = await requireRiderId(req, actors);
+    } else if (role === 'DRIVER') {
+      actorRole = 'DRIVER';
+      actorProfileId = await requireDriverId(req, actors);
+    } else {
+      throw AppError.forbidden(
+        'RATING_PARTICIPANT_REQUIRED: Only riders and drivers can submit ride ratings.',
+      );
+    }
+
+    const result = await ratingsUseCase.submitRating({
+      rideId: id,
+      actorRole,
+      actorProfileId,
+      stars: body.stars,
+      tags: body.tags,
+      comment: body.comment,
+    });
+
+    // Double-blind privacy: only emit realtime notification when ratings are revealed
+    if (result.status.myReview?.status === 'REVEALED') {
+      const ride = await rideRepo.findById(id);
+      if (ride) {
+        await notify(actors.notifier?.rideUpdated(ride, 'ride.rating.revealed', { rideId: id }));
+      }
+    }
+
+    sendSuccess(
+      req,
+      res,
+      result.status,
+      result.created ? 'Ride rating submitted successfully' : 'Ride rating already recorded',
+      result.created ? 201 : 200,
     );
   });
 }

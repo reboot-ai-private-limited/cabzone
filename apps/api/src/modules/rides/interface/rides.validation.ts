@@ -1,10 +1,4 @@
 import { z } from 'zod';
-
-export const upiPaymentProofSchema = z.object({
-  orderId: z.string().regex(/^order_[a-zA-Z0-9]+$/),
-  paymentId: z.string().regex(/^pay_[a-zA-Z0-9]+$/),
-  signature: z.string().regex(/^[a-f0-9]{64}$/),
-}).strict();
 import {
   CANCELLATION_REASONS,
   E164_PHONE_REGEX,
@@ -12,6 +6,14 @@ import {
   RIDE_STATUSES,
   VEHICLE_CATEGORIES,
 } from '@cabzone/contracts';
+
+export const upiPaymentProofSchema = z
+  .object({
+    orderId: z.string().regex(/^order_[a-zA-Z0-9]+$/),
+    paymentId: z.string().regex(/^pay_[a-zA-Z0-9]+$/),
+    signature: z.string().regex(/^[a-f0-9]{64}$/),
+  })
+  .strict();
 
 export const locationPointSchema = z.object({
   lat: z.number().min(-90).max(90),
@@ -84,6 +86,14 @@ export const paymentDisputeResolutionSchema = z.object({
   outcome: z.enum(['RIDER_WINS', 'DRIVER_WINS']),
   reason: z.string().trim().min(10).max(1000),
 });
+
+export const submitRideRatingSchema = z
+  .object({
+    stars: z.number().int().min(1).max(5),
+    tags: z.array(z.string().trim().min(1).max(64)).max(5).optional(),
+    comment: z.string().trim().max(280).nullable().optional(),
+  })
+  .strict();
 
 export const listRidesQuerySchema = z.object({
   status: z

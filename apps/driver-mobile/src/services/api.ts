@@ -10,6 +10,8 @@ import type {
   RequestOtpResponseDto,
   RideDto,
   RideEventDto,
+  RideRatingStatusDto,
+  SubmitRideRatingRequestDto,
   RideStatus,
   SaveDriverProfileRequestDto,
   VehicleCategory,
@@ -567,6 +569,29 @@ export const ridesApi = {
     return request<CompleteRideResultDto>(
       `/api/v1/rides/${encodeURIComponent(rideId)}/complete`,
       { method: 'POST', body: JSON.stringify({}) },
+      token,
+    );
+  },
+
+  async getRideRating(token: string, rideId: string): Promise<RideRatingStatusDto> {
+    return request<RideRatingStatusDto>(
+      `/api/v1/rides/${encodeURIComponent(rideId)}/rating`,
+      { method: 'GET' },
+      token,
+    );
+  },
+
+  async submitRideRating(
+    token: string,
+    rideId: string,
+    payload: SubmitRideRatingRequestDto,
+  ): Promise<RideRatingStatusDto> {
+    return request<RideRatingStatusDto>(
+      `/api/v1/rides/${encodeURIComponent(rideId)}/rating`,
+      {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      },
       token,
     );
   },

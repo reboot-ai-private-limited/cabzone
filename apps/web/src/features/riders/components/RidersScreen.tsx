@@ -37,7 +37,12 @@ import {
   Skeleton,
   StatTile,
 } from '@cabzone/design-system';
-import type { AdminRiderSummaryDto, UserStatus } from '@cabzone/contracts';
+import {
+  MIN_PUBLIC_RATING_COUNT,
+  formatPublicRatingLabel,
+  type AdminRiderSummaryDto,
+  type UserStatus,
+} from '@cabzone/contracts';
 import { useRidersList } from '../hooks/useRiders';
 import { RiderStatusBadge } from './RiderStatusBadge';
 import { RiderDetailModal } from './RiderDetailModal';
@@ -606,7 +611,7 @@ export function RidersScreen() {
       if (r.status === 'ACTIVE') active++;
       if (r.status === 'SUSPENDED') suspended++;
       totalCompleted += r.completedRides;
-      if (r.ratingAverage !== null) {
+      if (r.ratingCount >= MIN_PUBLIC_RATING_COUNT && r.ratingAverage !== null) {
         ratingSum += r.ratingAverage;
         ratingCount++;
         if (r.ratingAverage >= 4.8) topRated++;
@@ -771,18 +776,18 @@ export function RidersScreen() {
           <div className="flex items-center gap-1.5 whitespace-nowrap">
             <span className="font-semibold text-sm text-text flex items-center gap-1">
               <Star className="size-3.5 fill-amber-400 text-amber-500 shrink-0" />
-              {r.ratingAverage !== null ? r.ratingAverage.toFixed(1) : 'Unrated'}
+              {formatPublicRatingLabel(r.ratingAverage, r.ratingCount)}
             </span>
             <span className="text-xs text-text-subtle whitespace-nowrap">
               ({r.ratingCount} {r.ratingCount === 1 ? 'trip' : 'trips'})
             </span>
           </div>
           <span className="text-[11px] text-text-subtle whitespace-nowrap">
-            {r.ratingAverage !== null && r.ratingAverage >= 4.8
+            {r.ratingCount >= MIN_PUBLIC_RATING_COUNT && r.ratingAverage !== null && r.ratingAverage >= 4.8
               ? 'Top Customer'
-              : r.ratingAverage !== null && r.ratingAverage < 4.0
+              : r.ratingCount >= MIN_PUBLIC_RATING_COUNT && r.ratingAverage !== null && r.ratingAverage < 4.0
                 ? 'Needs Attention'
-                : r.ratingAverage !== null
+                : r.ratingCount >= MIN_PUBLIC_RATING_COUNT && r.ratingAverage !== null
                   ? 'Good Standing'
                   : 'New Account'}
           </span>

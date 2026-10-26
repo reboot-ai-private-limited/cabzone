@@ -9,6 +9,7 @@ import type { VehicleCategory } from './vehicles.js';
  * - D-031: Timeout to EXPIRED.
  * - D-032: State-based cancellation.
  * - D-033: Cash payment confirmation and PAYMENT_DISPUTED workflow.
+ * - D-046: Double-blind post-ride ratings on SETTLED rides within 7 days.
  */
 export const RIDE_STATUSES = [
   'REQUESTED',
@@ -83,7 +84,120 @@ export interface RideAssignedDriverDto {
   name: string;
   phoneE164: string;
   profilePhotoUrl: string | null;
+  ratingAverage?: number | null;
+  ratingCount?: number;
   vehicle: RideAssignedDriverVehicleDto | null;
+}
+
+/**
+ * Post-ride double-blind rating rules & contracts (Decision D-046, OQ-018, OQ-019).
+ */
+export const RIDE_RATING_WINDOW_HOURS = 168;
+export const RIDE_RATING_WINDOW_MS = RIDE_RATING_WINDOW_HOURS * 60 * 60 * 1000;
+export const MIN_PUBLIC_RATING_COUNT = 5;
+export const MIN_PUBLIC_TRUST_SCORE_COMPLETED_RIDES = 5;
+
+export const RIDE_REVIEW_ROLES = ['RIDER', 'DRIVER'] as const;
+export type RideReviewRole = (typeof RIDE_REVIEW_ROLES)[number];
+
+export const RIDE_REVIEW_STATUSES = ['HIDDEN', 'REVEALED'] as const;
+export type RideReviewStatus = (typeof RIDE_REVIEW_STATUSES)[number];
+
+export const RIDER_TO_DRIVER_RATING_TAGS = [
+  'POLITE_DRIVER',
+  'CLEAN_VEHICLE',
+  'SAFE_DRIVING',
+  'ON_TIME_PICKUP',
+  'FAIR_NEGOTIATION',
+  'LATE_PICKUP',
+  'RASH_DRIVING',
+  'VEHICLE_CONDITION',
+] as const;
+export type RiderToDriverRatingTag = (typeof RIDER_TO_DRIVER_RATING_TAGS)[number];
+
+export const DRIVER_TO_RIDER_RATING_TAGS = [
+  'POLITE_RIDER',
+  'READY_AT_PICKUP',
+  'CLEAR_LOCATION',
+  'PROMPT_PAYMENT',
+  'LATE_AT_PICKUP',
+  'RUDE_BEHAVIOUR',
+  'PAYMENT_FRICTION',
+] as const;
+export type DriverToRiderRatingTag = (typeof DRIVER_TO_RIDER_RATING_TAGS)[number];
+
+export const RIDE_RATING_TAG_LABELS: Record<
+  RiderToDriverRatingTag | DriverToRiderRatingTag,
+  string
+> = {
+  POLITE_DRIVER: 'Polite & respectful',
+  CLEAN_VEHICLE: 'Clean vehicle',
+  SAFE_DRIVING: 'Safe driving',
+  ON_TIME_PICKUP: 'On-time pickup',
+  FAIR_NEGOTIATION: 'Fair fare agreement',
+  LATE_PICKUP: 'Late pickup',
+  RASH_DRIVING: 'Unsafe driving',
+  VEHICLE_CONDITION: 'Vehicle issue',
+  POLITE_RIDER: 'Polite passenger',
+  READY_AT_PICKUP: 'Ready at pickup',
+  CLEAR_LOCATION: 'Clear pickup pin',
+  PROMPT_PAYMENT: 'Smooth payment',
+  LATE_AT_PICKUP: 'Kept waiting',
+  RUDE_BEHAVIOUR: 'Disrespectful behaviour',
+  PAYMENT_FRICTION: 'Payment delay',
+};
+
+export interface SubmitRideRatingRequestDto {
+  stars: number;
+  tags?: string[];
+  comment?: string | null;
+}
+
+export interface RideReviewDto {
+  id: string;
+  rideId: string;
+  reviewerRole: RideReviewRole;
+  revieweeRole: RideReviewRole;
+  stars: number;
+  tags: string[];
+  comment: string | null;
+  status: RideReviewStatus;
+  windowExpiresAt: string;
+  revealedAt: string | null;
+  createdAt: string;
+}
+
+export interface RideRatingStatusDto {
+  rideId: string;
+  eligible: boolean;
+  canSubmit: boolean;
+  windowExpiresAt: string | null;
+  isWindowExpired: boolean;
+  visibilityRule: 'DOUBLE_BLIND_7D';
+  myReview: RideReviewDto | null;
+  counterpartyReview: RideReviewDto | null;
+}
+
+/**
+ * Formats a public-facing star rating label under D-046:
+ * Never exposes fabricated defaults (e.g. 5.0 when unrated) and displays "New"
+ * until at least MIN_PUBLIC_RATING_COUNT (5) revealed ratings exist.
+ */
+export function formatPublicRatingLabel(
+  ratingAverage: number | null | undefined,
+  ratingCount: number | null | undefined,
+  decimals = 1,
+): string {
+  const count = typeof ratingCount === 'number' && Number.isFinite(ratingCount) ? ratingCount : 0;
+  if (
+    count < MIN_PUBLIC_RATING_COUNT ||
+    typeof ratingAverage !== 'number' ||
+    !Number.isFinite(ratingAverage) ||
+    ratingAverage <= 0
+  ) {
+    return 'New';
+  }
+  return ratingAverage.toFixed(decimals);
 }
 
 export interface RideDto {

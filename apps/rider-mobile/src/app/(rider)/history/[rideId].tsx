@@ -9,6 +9,7 @@ import type { RiderRideViewDto } from '@/services/api';
 import { rideReceipt } from '@/services/ride-receipt';
 import { ReceiptSummary } from '@/components/ride/receipt-summary';
 import { ReceiptPreview } from '@/components/ride/receipt-preview';
+import { RideRatingCard } from '@/components/ride/ride-rating-card';
 import { colors, radii, spacing, typography } from '@/design-system';
 
 export default function RideReceiptDetailScreen() {
@@ -162,6 +163,14 @@ export default function RideReceiptDetailScreen() {
         onRepeat={() => handleBookRoute(false)}
         onReturn={() => handleBookRoute(true)}
       >
+        {ride.status === 'SETTLED' ? (
+          <View style={styles.ratingContainer}>
+            <RideRatingCard
+              rideId={ride.id}
+              driverName={receipt.driver?.driverName || 'your driver'}
+            />
+          </View>
+        ) : null}
         {ride.status === 'SETTLED' || ride.status === 'PAYMENT_CONFIRMED' ? (
           <View style={styles.dispute}>
             <Text style={styles.title}>Report a payment issue</Text>
@@ -224,6 +233,7 @@ const styles = StyleSheet.create({
   title: { ...typography.h2, color: colors.deepBrown },
   body: { ...typography.body, color: colors.secondary },
   error: { ...typography.caption, color: colors.error, padding: spacing.md },
+  ratingContainer: { paddingHorizontal: spacing.xl, paddingTop: spacing.xl },
   dispute: { padding: spacing.xl, gap: spacing.md },
   input: {
     minHeight: 96,

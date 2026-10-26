@@ -18,6 +18,14 @@ export interface RideListFilter {
   offset: number;
 }
 
+export interface RiderTripCountsSummary {
+  totalRides: number;
+  completedRides: number;
+  cancelledRides: number;
+  noShowsCount?: number | undefined;
+  disputesCount?: number | undefined;
+}
+
 export interface RideRepositoryPort {
   save(ride: RideEntity): Promise<RideEntity>;
   /** Updates an existing ride only when its version still matches. Never upserts. */
@@ -37,17 +45,14 @@ export interface RideRepositoryPort {
     pickupOtpExpiresAt: Date;
     assignedAt?: Date;
   }): Promise<RideEntity | null>;
-  countDailyRiderUnassignedCancellations(
-    riderId: string,
-    sinceDate: Date,
-  ): Promise<number>;
+  countDailyRiderUnassignedCancellations(riderId: string, sinceDate: Date): Promise<number>;
   getRiderStats(riderId: string): Promise<{
     totalRides: number;
     completedRides: number;
     cancelledRides: number;
     totalSpentPaise: number;
+    noShowsCount?: number | undefined;
+    disputesCount?: number | undefined;
   }>;
-  getRiderTripCountsBatch(
-    riderIds: string[],
-  ): Promise<Map<string, { totalRides: number; completedRides: number; cancelledRides: number }>>;
+  getRiderTripCountsBatch(riderIds: string[]): Promise<Map<string, RiderTripCountsSummary>>;
 }

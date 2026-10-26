@@ -34,7 +34,11 @@ import { MongoPushReceiptRepository } from '@/modules/dispatch/infrastructure/pu
 import { MongoWalletRepository } from '@/modules/ledger/index.js';
 import { buildLedgerContainer, type LedgerContainer } from '@/modules/ledger/ledger.container.js';
 import { RazorpayGateway } from '@/modules/rides/infrastructure/razorpay.adapter.js';
-import { MongoRideEventRepository, MongoRideRepository } from '@/modules/rides/index.js';
+import {
+  MongoRideEventRepository,
+  MongoRideRepository,
+  MongoRideReviewRepository,
+} from '@/modules/rides/index.js';
 import { buildRidesContainer, type RidesContainer } from '@/modules/rides/rides.container.js';
 import { getRedis } from '@/shared/queue/redis.js';
 import { getRealtimeHub } from '@/shared/realtime/index.js';
@@ -249,6 +253,42 @@ export function buildContainers(overrides?: Partial<AppContainers>): AppContaine
       unitOfWork,
       rideRepo,
       rideEventRepo: new MongoRideEventRepository(),
+      rideReviewRepo: new MongoRideReviewRepository(),
+      applyRevealedProfileRating: async (targetRole, targetId, stars) => {
+        if (targetRole === 'DRIVER') {
+          if (driverRepo.applyRevealedRating) {
+            await driverRepo.applyRevealedRating(targetId, stars);
+            return;
+          }
+          const driver = await driverRepo.findById(targetId);
+          if (!driver) return;
+          const prevCount = driver.ratingCount > 0 ? driver.ratingCount : 0;
+          const prevAvg = prevCount > 0 && driver.ratingAverage !== null ? driver.ratingAverage : 0;
+          const nextCount = prevCount + 1;
+          const nextAvg = Number(((prevAvg * prevCount + stars) / nextCount).toFixed(2));
+          await driverRepo.update({
+            ...driver,
+            ratingCount: nextCount,
+            ratingAverage: nextAvg,
+          });
+          return;
+        }
+        if (riderRepo.applyRevealedRating) {
+          await riderRepo.applyRevealedRating(targetId, stars);
+          return;
+        }
+        const rider = await riderRepo.findById(targetId);
+        if (!rider) return;
+        const prevCount = rider.ratingCount > 0 ? rider.ratingCount : 0;
+        const prevAvg = prevCount > 0 && rider.ratingAverage !== null ? rider.ratingAverage : 0;
+        const nextCount = prevCount + 1;
+        const nextAvg = Number(((prevAvg * prevCount + stars) / nextCount).toFixed(2));
+        await riderRepo.update({
+          ...rider,
+          ratingCount: nextCount,
+          ratingAverage: nextAvg,
+        });
+      },
       walletRepo: ledger.walletRepo,
       pricingConfigRepo: pricing.pricingConfigRepo,
       tokenSecret: env.JWT_ACCESS_SECRET,
@@ -269,6 +309,8 @@ export function buildContainers(overrides?: Partial<AppContainers>): AppContaine
           name,
           phoneE164: user?.phoneE164 ?? '',
           profilePhotoUrl: driver.profilePhotoUrl ?? null,
+          ratingAverage: driver.ratingCount > 0 ? driver.ratingAverage : null,
+          ratingCount: driver.ratingCount,
           vehicle: vehicle
             ? {
                 vehicleId: vehicle.id,

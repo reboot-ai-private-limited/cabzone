@@ -9,6 +9,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { formatPublicRatingLabel } from '@cabzone/contracts';
 import { useAuth } from '@/context/auth-context';
 import { colors, radii, spacing, typography } from '@/design-system';
 
@@ -51,7 +52,7 @@ export default function ProfileTabScreen() {
           <View style={styles.ratingBadge}>
             <Ionicons name="star" size={14} color={colors.deepBrown} />
             <Text style={styles.ratingText}>
-              {profile?.ratingAverage ? profile.ratingAverage.toFixed(1) : 'New'}
+              {formatPublicRatingLabel(profile?.ratingAverage, profile?.ratingCount)}
             </Text>
           </View>
         </View>

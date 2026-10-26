@@ -1,4 +1,9 @@
-import type { RideEntity, RideListFilter, RideRepositoryPort } from '../../domain/index.js';
+import type {
+  RideEntity,
+  RideListFilter,
+  RideRepositoryPort,
+  RiderTripCountsSummary,
+} from '../../domain/index.js';
 import { AppError } from '../../../../shared/errors/AppError.js';
 
 export class MemoryRideRepository implements RideRepositoryPort {
@@ -40,7 +45,9 @@ export class MemoryRideRepository implements RideRepositoryPort {
 
   async findExpiredOfferings(now: Date, limit: number): Promise<RideEntity[]> {
     return [...this.rides.values()]
-      .filter((r) => r.status === 'OFFERING' && r.offeringExpiresAt !== null && r.offeringExpiresAt < now)
+      .filter(
+        (r) => r.status === 'OFFERING' && r.offeringExpiresAt !== null && r.offeringExpiresAt < now,
+      )
       .sort((a, b) => a.offeringExpiresAt!.getTime() - b.offeringExpiresAt!.getTime())
       .slice(0, limit)
       .map((r) => structuredClone(r));
@@ -57,17 +64,22 @@ export class MemoryRideRepository implements RideRepositoryPort {
     assignedAt?: Date;
   }): Promise<RideEntity | null> {
     const ride = this.rides.get(opts.rideId);
-    if (!ride || (opts.expectedVersion !== undefined && ride.version !== opts.expectedVersion)) return null;
-    if (
-      (ride.status !== 'REQUESTED' && ride.status !== 'OFFERING') ||
-      ride.driverId !== null
-    ) {
+    if (!ride || (opts.expectedVersion !== undefined && ride.version !== opts.expectedVersion))
+      return null;
+    if ((ride.status !== 'REQUESTED' && ride.status !== 'OFFERING') || ride.driverId !== null) {
       return null;
     }
     const assignedAt = opts.assignedAt ?? new Date();
     if (ride.offeringExpiresAt && ride.offeringExpiresAt <= assignedAt) return null;
-    if ([...this.rides.values()].some((r) => r.driverId === opts.driverId &&
-      ['DRIVER_ASSIGNED', 'DRIVER_EN_ROUTE', 'DRIVER_ARRIVED', 'TRIP_STARTED'].includes(r.status))) {
+    if (
+      [...this.rides.values()].some(
+        (r) =>
+          r.driverId === opts.driverId &&
+          ['DRIVER_ASSIGNED', 'DRIVER_EN_ROUTE', 'DRIVER_ARRIVED', 'TRIP_STARTED'].includes(
+            r.status,
+          ),
+      )
+    ) {
       throw AppError.conflict('DRIVER_BUSY: Driver already has an active ride.');
     }
     const updated: RideEntity = {
@@ -91,14 +103,10 @@ export class MemoryRideRepository implements RideRepositoryPort {
     return structuredClone(updated);
   }
 
-  async countDailyRiderUnassignedCancellations(
-    riderId: string,
-    sinceDate: Date,
-  ): Promise<number> {
+  async countDailyRiderUnassignedCancellations(riderId: string, sinceDate: Date): Promise<number> {
     let count = 0;
     for (const ride of this.rides.values()) {
-      const isRider =
-        ride.bookerRiderId === riderId || ride.passenger.riderId === riderId;
+      const isRider = ride.bookerRiderId === riderId || ride.passenger.riderId === riderId;
       if (
         isRider &&
         ride.status === 'CANCELLED' &&
@@ -117,14 +125,22 @@ export class MemoryRideRepository implements RideRepositoryPort {
     completedRides: number;
     cancelledRides: number;
     totalSpentPaise: number;
+    noShowsCount: number;
+    disputesCount: number;
   }> {
     let totalRides = 0;
     let completedRides = 0;
     let cancelledRides = 0;
     let totalSpentPaise = 0;
+    let noShowsCount = 0;
+    let disputesCount = 0;
 
     const isCompleted = (status: string) =>
-      status === 'TRIP_COMPLETED' || status === 'PAYMENT_PENDING' || status === 'PAYMENT_DISPUTED' || status === 'SETTLED' || status === 'PAYMENT_CONFIRMED';
+      status === 'TRIP_COMPLETED' ||
+      status === 'PAYMENT_PENDING' ||
+      status === 'PAYMENT_DISPUTED' ||
+      status === 'SETTLED' ||
+      status === 'PAYMENT_CONFIRMED';
 
     for (const r of this.rides.values()) {
       if (r.bookerRiderId === riderId || r.passenger.riderId === riderId) {
@@ -132,22 +148,33 @@ export class MemoryRideRepository implements RideRepositoryPort {
         if (isCompleted(r.status)) {
           completedRides++;
           totalSpentPaise += r.agreedFarePaise ?? r.suggestedFarePaise;
+          if (r.status === 'PAYMENT_DISPUTED') disputesCount++;
         } else if (r.status === 'CANCELLED') {
           cancelledRides++;
+          if (r.cancellationReason === 'RIDER_NO_SHOW') noShowsCount++;
         }
       }
     }
 
-    return { totalRides, completedRides, cancelledRides, totalSpentPaise };
+    return {
+      totalRides,
+      completedRides,
+      cancelledRides,
+      totalSpentPaise,
+      noShowsCount,
+      disputesCount,
+    };
   }
 
-  async getRiderTripCountsBatch(
-    riderIds: string[],
-  ): Promise<Map<string, { totalRides: number; completedRides: number; cancelledRides: number }>> {
-    const map = new Map<string, { totalRides: number; completedRides: number; cancelledRides: number }>();
+  async getRiderTripCountsBatch(riderIds: string[]): Promise<Map<string, RiderTripCountsSummary>> {
+    const map = new Map<string, RiderTripCountsSummary>();
     const idSet = new Set(riderIds);
     const isCompleted = (status: string) =>
-      status === 'TRIP_COMPLETED' || status === 'PAYMENT_PENDING' || status === 'PAYMENT_DISPUTED' || status === 'SETTLED' || status === 'PAYMENT_CONFIRMED';
+      status === 'TRIP_COMPLETED' ||
+      status === 'PAYMENT_PENDING' ||
+      status === 'PAYMENT_DISPUTED' ||
+      status === 'SETTLED' ||
+      status === 'PAYMENT_CONFIRMED';
 
     for (const r of this.rides.values()) {
       const id = idSet.has(r.bookerRiderId)
@@ -157,14 +184,29 @@ export class MemoryRideRepository implements RideRepositoryPort {
           : null;
       if (!id) continue;
 
-      const current = map.get(id) ?? { totalRides: 0, completedRides: 0, cancelledRides: 0 };
+      const current = map.get(id) ?? {
+        totalRides: 0,
+        completedRides: 0,
+        cancelledRides: 0,
+        noShowsCount: 0,
+        disputesCount: 0,
+      };
       current.totalRides++;
-      if (r.status === 'CANCELLED') current.cancelledRides++;
-      if (isCompleted(r.status)) current.completedRides++;
+      if (r.status === 'CANCELLED') {
+        current.cancelledRides++;
+        if (r.cancellationReason === 'RIDER_NO_SHOW') {
+          current.noShowsCount = (current.noShowsCount ?? 0) + 1;
+        }
+      }
+      if (isCompleted(r.status)) {
+        current.completedRides++;
+        if (r.status === 'PAYMENT_DISPUTED') {
+          current.disputesCount = (current.disputesCount ?? 0) + 1;
+        }
+      }
       map.set(id, current);
     }
 
     return map;
   }
 }
-

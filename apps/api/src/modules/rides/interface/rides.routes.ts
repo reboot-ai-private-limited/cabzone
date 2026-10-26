@@ -11,6 +11,8 @@ export interface RidesRouterDeps {
   listRides: RequestHandler;
   getRide: RequestHandler;
   getRideEvents: RequestHandler;
+  getRideRating: RequestHandler;
+  submitRideRating: RequestHandler;
   acceptRide: RequestHandler;
   driverCounter: RequestHandler;
   raiseFare: RequestHandler;
@@ -56,6 +58,8 @@ export function buildRidesRouter(deps: RidesRouterDeps): Router {
   router.get('/', deps.requireCanRead, deps.listRides);
   router.get('/:id', deps.requireCanRead, deps.getRide);
   router.get('/:id/events', deps.requireCanRead, deps.getRideEvents);
+  router.get('/:id/rating', deps.requireCanRead, deps.getRideRating);
+  router.post('/:id/rating', deps.requireCanCancel, deps.submitRideRating);
   router.post('/:id/cancel', deps.requireCanCancel, deps.cancelRide);
 
   // Driver

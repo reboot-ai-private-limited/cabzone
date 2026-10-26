@@ -56,6 +56,7 @@ export interface TrustScoreBreakdownDto {
   score: number | null;
   tier: TrustTier;
   isPreliminary: boolean;
+  isPublic?: boolean | undefined;
   factors: {
     completedRides: number;
     cancelledRides: number;
@@ -63,6 +64,7 @@ export interface TrustScoreBreakdownDto {
     ratingAverage: number | null;
     ratingCount: number;
     disputesCount: number;
+    noShowsCount?: number | undefined;
   };
   summary: string;
 }

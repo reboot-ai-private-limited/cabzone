@@ -12,7 +12,9 @@ export type RideLifecycleEvent =
   | 'ride.payment.dispute_resolved'
   | 'ride.cancelled'
   | 'ride.fare.raised'
-  | 'ride.offer.expired';
+  | 'ride.fare.raised'
+  | 'ride.offer.expired'
+  | 'ride.rating.revealed';
 
 /** Best-effort realtime side effects. Implementations must never throw into the request path. */
 export interface RideNotifierPort {

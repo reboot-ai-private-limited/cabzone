@@ -20,6 +20,17 @@ vm.runInNewContext(code, {
           CAB: { displayName: 'Cab (4 Seats)' },
           E_RICKSHAW: { displayName: 'E-Rickshaw (Toto)' },
         },
+        formatPublicRatingLabel: (ratingAverage, ratingCount, fallback = 'New') => {
+          if (
+            typeof ratingCount !== 'number' ||
+            ratingCount < 5 ||
+            typeof ratingAverage !== 'number' ||
+            !Number.isFinite(ratingAverage)
+          ) {
+            return fallback;
+          }
+          return ratingAverage.toFixed(1);
+        },
       };
     }
     return {};
@@ -109,7 +120,7 @@ test('raising fare clears old and late stale-version counters', () => {
   assert.equal(counters[0].driverId, 'new');
 });
 
-test('formatAssignedDriverSummary returns enriched driver and vehicle labels with clean fallbacks', () => {
+test('formatAssignedDriverSummary returns enriched driver, vehicle, and >=5 rating threshold labels', () => {
   const enriched = formatAssignedDriverSummary({
     driverId: '0195f100-0000-7000-8000-000000000012',
     vehicleCategory: 'CAB',
@@ -118,6 +129,8 @@ test('formatAssignedDriverSummary returns enriched driver and vehicle labels wit
       name: 'Rajesh Barman',
       phoneE164: '+919000000013',
       profilePhotoUrl: null,
+      ratingAverage: 4.82,
+      ratingCount: 6,
       vehicle: {
         vehicleId: 'veh-13',
         make: 'Hyundai',
@@ -132,6 +145,22 @@ test('formatAssignedDriverSummary returns enriched driver and vehicle labels wit
   assert.equal(enriched.phoneE164, '+919000000013');
   assert.equal(enriched.vehicleLabel, 'Silver Hyundai Aura');
   assert.equal(enriched.registrationNumber, 'WB74CD5678');
+  assert.equal(enriched.ratingLabel, '4.8');
+
+  const belowSampleThreshold = formatAssignedDriverSummary({
+    driverId: '0195f100-0000-7000-8000-000000000012',
+    vehicleCategory: 'CAB',
+    assignedDriver: {
+      driverId: '0195f100-0000-7000-8000-000000000012',
+      name: 'Rajesh Barman',
+      phoneE164: '+919000000013',
+      profilePhotoUrl: null,
+      ratingAverage: 5.0,
+      ratingCount: 4,
+      vehicle: null,
+    },
+  });
+  assert.equal(belowSampleThreshold.ratingLabel, 'New');
 
   const fallback = formatAssignedDriverSummary({
     driverId: '0195f100-0000-7000-8000-000000000012',
@@ -141,4 +170,5 @@ test('formatAssignedDriverSummary returns enriched driver and vehicle labels wit
   assert.equal(fallback.driverName, 'Driver #0195F1');
   assert.equal(fallback.vehicleLabel, 'Cab (4 Seats)');
   assert.equal(fallback.registrationNumber, null);
+  assert.equal(fallback.ratingLabel, 'New');
 });
