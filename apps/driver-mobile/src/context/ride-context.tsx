@@ -85,12 +85,24 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
   const [counters, setCounters] = useState<Record<string, number>>({});
   const [rejectedCounters, setRejectedCounters] = useState<Record<string, number>>({});
   const [socketConnected, setSocketConnected] = useState(false);
+  const [appActive, setAppActive] = useState(
+    () => (AppState.currentState ?? 'active') === 'active',
+  );
 
   const pollOffersIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pollActiveRideIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const inFlightOffersRef = useRef<boolean>(false);
+  const queuedOffersRefreshRef = useRef<'none' | 'normal' | 'force'>('none');
+  const eligibleTokenRef = useRef<string | null>(null);
   const lastUserIdRef = useRef<string | null>(null);
   const seenOfferIdsRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      setAppActive(state === 'active');
+    });
+    return () => sub.remove();
+  }, []);
 
   // Register this device for push so offers reach the driver while the app is backgrounded.
   useEffect(() => {
@@ -125,6 +137,8 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
       setCounters({});
       setRejectedCounters({});
       seenOfferIdsRef.current.clear();
+      queuedOffersRefreshRef.current = 'none';
+      eligibleTokenRef.current = null;
       setActiveRide(null);
       setIsCheckingActiveRide(false);
       setIsMutatingRide(false);
@@ -194,7 +208,10 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
       if (!token || dutyStatus !== 'ONLINE' || activeRide) {
         return;
       }
-      if (inFlightOffersRef.current && !forceCheck) {
+      if (inFlightOffersRef.current) {
+        if (forceCheck || queuedOffersRefreshRef.current === 'none') {
+          queuedOffersRefreshRef.current = forceCheck ? 'force' : 'normal';
+        }
         return;
       }
       if (forceCheck) {
@@ -203,7 +220,12 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
       inFlightOffersRef.current = true;
       try {
         const rawOffers = await dispatchApi.listOffers(token);
-        const valid = rawOffers.filter(isRideOfferValid);
+        const seenRideIds = new Set<string>();
+        const valid = rawOffers.filter((offer) => {
+          if (!isRideOfferValid(offer) || seenRideIds.has(offer.rideId)) return false;
+          seenRideIds.add(offer.rideId);
+          return true;
+        });
         setRideError((previous) => previous?.startsWith(OFFER_CHECK_ERROR) ? null : previous);
 
         // Alert driver with sound/vibration/banner when a brand-new offer arrives
@@ -264,9 +286,11 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
               }
             }
           }
-          setCounters((prev) =>
-            Object.fromEntries(Object.entries(prev).filter(([id]) => open.has(id))),
-          );
+          setCounters((prev) => {
+            const entries = Object.entries(prev);
+            const kept = entries.filter(([id]) => open.has(id));
+            return kept.length === entries.length ? prev : Object.fromEntries(kept);
+          });
           // The rider taking our counter assigns us the ride: it then shows up as an active ride.
           const assigned = await refreshActiveRide();
           if (assigned && counters[assigned.id]) {
@@ -277,10 +301,36 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
         setRideError(`${OFFER_CHECK_ERROR}: ${err instanceof Error ? err.message : 'Check your connection and try again.'}`);
       } finally {
         inFlightOffersRef.current = false;
+        const nextRefresh = queuedOffersRefreshRef.current;
+        queuedOffersRefreshRef.current = 'none';
+        if (nextRefresh !== 'none') {
+          void refreshRef.current.offers(nextRefresh === 'force');
+        }
       }
     },
     [token, dutyStatus, activeRide, counters, driver, refreshActiveRide],
   );
+
+  const refreshRef = useRef({ offers: refreshOffers, activeRide: refreshActiveRide });
+  useEffect(() => {
+    refreshRef.current = { offers: refreshOffers, activeRide: refreshActiveRide };
+  }, [refreshOffers, refreshActiveRide]);
+
+  useEffect(() => {
+    const nextExpiryMs = offers.reduce<number | null>((earliest, offer) => {
+      if (!offer.expiresAt) return earliest;
+      const ms = new Date(offer.expiresAt).getTime();
+      if (Number.isNaN(ms)) return earliest;
+      return earliest === null || ms < earliest ? ms : earliest;
+    }, null);
+    if (nextExpiryMs === null) return;
+    const timer = setTimeout(() => {
+      setOffers((prev) => prev.filter(isRideOfferValid));
+    }, Math.max(0, nextExpiryMs - Date.now()));
+    return () => clearTimeout(timer);
+  }, [offers]);
+
+  const hasActiveRide = Boolean(activeRide);
 
   // REST polling remains a recovery path for missed events and disconnected sockets.
   useEffect(() => {
@@ -289,14 +339,26 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
       pollOffersIntervalRef.current = null;
     }
 
-    if (!token || dutyStatus !== 'ONLINE' || activeRide) {
+    const eligibleToken =
+      token && dutyStatus === 'ONLINE' && !hasActiveRide && appActive ? token : null;
+    if (!eligibleToken) {
+      eligibleTokenRef.current = null;
       return;
     }
 
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    void refreshOffers();
+    const becameEligible = eligibleTokenRef.current !== eligibleToken;
+    eligibleTokenRef.current = eligibleToken;
+
+    if (socketConnected) {
+      if (becameEligible) {
+        void refreshRef.current.offers();
+      }
+      return;
+    }
+
+    void refreshRef.current.offers();
     pollOffersIntervalRef.current = setInterval(() => {
-      void refreshOffers();
+      void refreshRef.current.offers();
     }, 3000);
 
     return () => {
@@ -305,7 +367,7 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
         pollOffersIntervalRef.current = null;
       }
     };
-  }, [token, dutyStatus, activeRide, refreshOffers, socketConnected]);
+  }, [token, dutyStatus, hasActiveRide, socketConnected, appActive]);
 
   // Poll active ride status every 4 seconds while an active ride exists (to detect rider cancellation or dispute)
   useEffect(() => {
@@ -339,11 +401,6 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
       }
     };
   }, [token, activeRide?.id, refreshSummary]);
-
-  const refreshRef = useRef({ offers: refreshOffers, activeRide: refreshActiveRide });
-  useEffect(() => {
-    refreshRef.current = { offers: refreshOffers, activeRide: refreshActiveRide };
-  }, [refreshOffers, refreshActiveRide]);
 
   useEffect(() => {
     if (!token || !isAuthenticated || !isKycVerified) return;
@@ -449,6 +506,7 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
     });
     return () => {
       stopped = true;
+      setSocketConnected(false);
       if (reconnectTimer) clearTimeout(reconnectTimer);
       appState.remove();
       socket?.close();
