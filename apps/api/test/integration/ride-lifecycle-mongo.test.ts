@@ -253,7 +253,7 @@ describe('MongoDB Atomic Claim & Lifecycle Integration Test (rs0 Replica Set)', 
     vi.restoreAllMocks();
   });
 
-  async function createInitialRide(): Promise<RideEntity> {
+  async function createInitialRide(riderId = RIDER_ID): Promise<RideEntity> {
     const pickup = { lat: 26.71, lng: 88.42, address: 'Hill Cart Road' };
     const drop = { lat: 26.75, lng: 88.45, address: 'Sevoke Road' };
 
@@ -266,7 +266,7 @@ describe('MongoDB Atomic Claim & Lifecycle Integration Test (rs0 Replica Set)', 
     return createRideUseCase.execute({
       quoteToken: quote.quoteToken,
       proposedFarePaise: quote.suggestedFarePaise,
-      riderId: RIDER_ID,
+      riderId,
       passengerName: 'Subir Roy',
       passengerPhoneE164: '+919876543210',
       pickup,
@@ -275,8 +275,8 @@ describe('MongoDB Atomic Claim & Lifecycle Integration Test (rs0 Replica Set)', 
     });
   }
 
-  async function createStartedRide(): Promise<RideEntity> {
-    const ride = await createInitialRide();
+  async function createStartedRide(riderId = RIDER_ID): Promise<RideEntity> {
+    const ride = await createInitialRide(riderId);
     const claim = await acceptRideUseCase.execute({ rideId: ride.id, driverId: DRIVER_ID_1 });
     await driverEnRouteUseCase.execute({ rideId: ride.id, driverId: DRIVER_ID_1 });
     await driverArrivedUseCase.execute({ rideId: ride.id, driverId: DRIVER_ID_1 });
@@ -287,8 +287,8 @@ describe('MongoDB Atomic Claim & Lifecycle Integration Test (rs0 Replica Set)', 
     });
   }
 
-  async function createPendingRide(): Promise<RideEntity> {
-    const ride = await createStartedRide();
+  async function createPendingRide(riderId = RIDER_ID): Promise<RideEntity> {
+    const ride = await createStartedRide(riderId);
     return (await completeRideUseCase.execute({ rideId: ride.id, driverId: DRIVER_ID_1 })).ride;
   }
 
@@ -426,7 +426,7 @@ describe('MongoDB Atomic Claim & Lifecycle Integration Test (rs0 Replica Set)', 
 
     it('retains both commissions when different rides settle concurrently against the same wallet', async () => {
       const firstRide = await createPendingRide();
-      const secondRide = await createPendingRide();
+      const secondRide = await createPendingRide('018f0a00-0000-7000-8000-000000000202');
       secondRide.agreedFarePaise = firstRide.agreedFarePaise! + 1000;
       await mongoRideRepo.save(secondRide);
 

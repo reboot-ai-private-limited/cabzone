@@ -58,6 +58,7 @@ export function getRealtimeWsUrl(token: string): string {
 interface ApiResponse<T> {
   success: boolean;
   data: T;
+  code?: string;
   message?: string;
   error?: {
     code?: string;
@@ -82,6 +83,7 @@ export class ApiError extends Error {
     },
   ) {
     super(message);
+    Object.setPrototypeOf(this, new.target.prototype);
     this.name = 'ApiError';
     this.status = opts?.status;
     this.code = opts?.code;
@@ -200,8 +202,8 @@ async function request<T>(
       json.message || json.error?.message || `Request failed with status ${res.status}`;
     throw new ApiError(errMsg, {
       status: res.status,
-      code: json.error?.code,
-      details: json.error?.details,
+      code: json.code ?? json.error?.code,
+      details: json.data !== undefined ? json.data : json.error?.details,
     });
   }
 
@@ -293,6 +295,7 @@ export const geoAndPricingApi = {
 export interface CreateRiderRidePayload {
   quoteToken: string;
   proposedFarePaise: number;
+  idempotencyKey?: string;
   passenger: {
     name: string;
     phoneE164: string;
@@ -370,11 +373,13 @@ export const riderRidesApi = {
     );
   },
   async createRide(token: string, payload: CreateRiderRidePayload): Promise<RiderRideViewDto> {
+    const { idempotencyKey, ...body } = payload;
     return request<RiderRideViewDto>(
       '/api/v1/rides',
       {
         method: 'POST',
-        body: JSON.stringify(payload),
+        ...(idempotencyKey ? { headers: { 'Idempotency-Key': idempotencyKey } } : {}),
+        body: JSON.stringify(body),
       },
       token,
     );

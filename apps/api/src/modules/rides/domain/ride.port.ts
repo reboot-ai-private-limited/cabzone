@@ -19,10 +19,17 @@ export interface RideListFilter {
 }
 
 export interface RideRepositoryPort {
+  ensureReady?(): Promise<void>;
+  create(ride: RideEntity): Promise<RideEntity>;
   save(ride: RideEntity): Promise<RideEntity>;
   /** Updates an existing ride only when its version still matches. Never upserts. */
   update(ride: RideEntity, expectedVersion: number): Promise<RideEntity | null>;
   findById(id: string): Promise<RideEntity | null>;
+  findActiveByBookerRiderId(bookerRiderId: string): Promise<RideEntity | null>;
+  findByBookerIdempotencyKey(
+    bookerRiderId: string,
+    idempotencyKey: string,
+  ): Promise<RideEntity | null>;
   /** Newest first. */
   list(filter: RideListFilter): Promise<RideEntity[]>;
   /** OFFERING rides whose offer window closed before `now`, oldest first. */

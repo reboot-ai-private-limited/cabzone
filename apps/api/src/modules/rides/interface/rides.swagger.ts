@@ -6,6 +6,7 @@ import {
   bearerAuth,
 } from '../../../shared/http/swagger.util.js';
 import {
+  createRideHeadersSchema,
   createRideRequestSchema,
   startRideRequestSchema,
   cancelRideSchema,
@@ -256,6 +257,7 @@ export function registerRidesSwaggerPaths(): void {
     summary: 'Request a new ride with a valid quote token',
     security: bearerAuth,
     request: {
+      headers: createRideHeadersSchema,
       body: {
         content: {
           'application/json': {
@@ -265,6 +267,10 @@ export function registerRidesSwaggerPaths(): void {
       },
     },
     responses: {
+      200: {
+        description: 'Idempotent replay of an existing ride request',
+        content: { 'application/json': { schema: successResponse(rideViewSchema) } },
+      },
       201: {
         description: 'Ride requested successfully',
         content: { 'application/json': { schema: successResponse(rideViewSchema) } },
@@ -282,7 +288,8 @@ export function registerRidesSwaggerPaths(): void {
         content: { 'application/json': { schema: errorResponse } },
       },
       409: {
-        description: 'Quote expired or pricing version mismatch',
+        description:
+          'Active ride already exists, idempotency key reused with different parameters, quote expired, or pricing version mismatch',
         content: { 'application/json': { schema: errorResponse } },
       },
     },

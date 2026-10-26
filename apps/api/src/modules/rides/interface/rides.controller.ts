@@ -19,6 +19,7 @@ import {
   cancelRideSchema,
   counterResponseSchema,
   driverCounterSchema,
+  createRideHeadersSchema,
   createRideRequestSchema,
   listRidesQuerySchema,
   paymentDisputeSchema,
@@ -117,9 +118,18 @@ export function makeCreateRideController(
   actors: RideHttpContext,
 ): RequestHandler {
   return asyncHandler(async (req: Request, res: Response) => {
+    const headers = createRideHeadersSchema.parse({
+      'idempotency-key': req.get('Idempotency-Key') || undefined,
+    });
     const body = createRideRequestSchema.parse(req.body);
+    const headerKey = headers['idempotency-key'];
+    if (headerKey && body.idempotencyKey && headerKey !== body.idempotencyKey) {
+      throw AppError.badRequest(
+        'IDEMPOTENCY_KEY_MISMATCH: Idempotency-Key header and body idempotencyKey must match.',
+      );
+    }
     const riderId = await requireRiderId(req, actors);
-    const ride = await useCase.execute({
+    const { ride, replayed } = await useCase.executeWithMeta({
       quoteToken: body.quoteToken,
       proposedFarePaise: body.proposedFarePaise,
       riderId,
@@ -128,14 +138,17 @@ export function makeCreateRideController(
       pickup: body.pickup,
       drop: body.drop,
       vehicleCategory: body.vehicleCategory,
+      idempotencyKey: headerKey ?? body.idempotencyKey,
     });
-    await notify(actors.notifier?.rideRequested(ride));
+    if (!replayed) {
+      await notify(actors.notifier?.rideRequested(ride));
+    }
     sendSuccess(
       req,
       res,
       await toEnrichedRideView(ride, actors),
-      'Ride requested successfully',
-      201,
+      replayed ? 'Ride request replayed' : 'Ride requested successfully',
+      replayed ? 200 : 201,
     );
   });
 }

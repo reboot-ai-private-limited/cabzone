@@ -9,9 +9,9 @@ function offeringRide(id: string): RideEntity {
   const now = new Date();
   return {
     id,
-    bookerRiderId: 'rider',
+    bookerRiderId: `rider-${id}`,
     passenger: {
-      riderId: 'rider',
+      riderId: `rider-${id}`,
       name: 'Passenger',
       phoneE164: '+919876543210',
       pickupOtpHash: null,

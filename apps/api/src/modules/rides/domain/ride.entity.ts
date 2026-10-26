@@ -41,6 +41,7 @@ export interface ZoneSnapshot {
 export interface RideEntity {
   id: string;
   bookerRiderId: string;
+  idempotencyKey?: string | null;
   passenger: PassengerInfo;
   driverId: string | null;
   vehicleId: string | null;

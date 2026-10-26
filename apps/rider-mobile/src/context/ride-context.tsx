@@ -17,6 +17,7 @@ import {
   type RiderRideViewDto,
 } from '@/services/api';
 import {
+  extractActiveRideConflictId,
   extractPendingDriverCounters,
   isRideActive,
   type PendingDriverCounter,
@@ -103,9 +104,11 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
       setSyncError(null);
       if (isRideActive(ride.status)) {
         if (activeRideIdRef.current !== ride.id) setDriverLiveLocation(null);
+        activeRideIdRef.current = ride.id;
         setActiveRide(ride);
         setActiveRideEvents(events);
       } else if (activeRideIdRef.current === ride.id) {
+        activeRideIdRef.current = null;
         setActiveRide(null);
         setActiveRideEvents([]);
       }
@@ -298,14 +301,24 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
   const createRide = useCallback(
     async (payload: CreateRiderRidePayload): Promise<RiderRideViewDto> => {
       if (!token) throw new Error('Authentication required');
-      const created = await riderRidesApi.createRide(token, payload);
+      let created: RiderRideViewDto;
+      try {
+        created = await riderRidesApi.createRide(token, payload);
+      } catch (error: unknown) {
+        const conflictRideId = extractActiveRideConflictId(error);
+        if (conflictRideId) {
+          await refreshRideById(conflictRideId).catch(handleSyncError);
+        }
+        throw error;
+      }
       setDriverLiveLocation(null);
+      activeRideIdRef.current = created.id;
       setActiveRide(created);
       setActiveRideEvents([]);
       setRideHistory((prev) => [created, ...prev.filter((r) => r.id !== created.id)]);
       return created;
     },
-    [token],
+    [handleSyncError, refreshRideById, token],
   );
 
   const respondToCounter = useCallback(
@@ -321,6 +334,7 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
     async (rideId: string, reason: CancellationReason): Promise<RiderRideViewDto> => {
       if (!token) throw new Error('Authentication required');
       const cancelled = await riderRidesApi.cancelRide(token, rideId, reason);
+      activeRideIdRef.current = null;
       setActiveRide(null);
       setActiveRideEvents([]);
       setDriverLiveLocation(null);
@@ -344,10 +358,19 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
     async (rideId: string, reason: string): Promise<RiderRideViewDto> => {
       if (!token) throw new Error('Authentication required');
       const disputed = await riderRidesApi.disputePayment(token, rideId, reason);
+      if (
+        (activeRideIdRef.current === disputed.id || activeRide?.id === disputed.id) &&
+        !isRideActive(disputed.status)
+      ) {
+        activeRideIdRef.current = null;
+        setActiveRide(null);
+        setActiveRideEvents([]);
+        setDriverLiveLocation(null);
+      }
       setRideHistory((prev) => prev.map((r) => (r.id === disputed.id ? disputed : r)));
       return disputed;
     },
-    [token],
+    [activeRide?.id, token],
   );
 
   const pendingCounters = useMemo(

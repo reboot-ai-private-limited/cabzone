@@ -21,10 +21,12 @@ import type { QuoteDto, VehicleCategory } from '@cabzone/contracts';
 import { colors, radii, spacing, typography } from '@/design-system';
 import { useAuth } from '@/context/auth-context';
 import { useRide } from '@/context/ride-context';
-import { geoAndPricingApi } from '@/services/api';
+import { geoAndPricingApi, isApiError } from '@/services/api';
 import {
   PLACE_PRESETS,
   clampProposedFarePaise,
+  createBookingIdempotencyKey,
+  extractActiveRideConflictId,
   formatRupeesFromPaise,
   getRideStatusMeta,
   normalizeIndianPhoneE164,
@@ -90,6 +92,7 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
   const [isSubmittingRide, setIsSubmittingRide] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [templateSavedToast, setTemplateSavedToast] = useState<string | null>(null);
+  const pendingBookingAttemptRef = useRef<{ fingerprint: string; key: string } | null>(null);
 
   const openPlacePicker = (target: 'PICKUP' | 'DROP') => {
     setPickerTarget(target);
@@ -327,11 +330,33 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
       passengerPhone = normalizedPhone;
     }
 
+    const fingerprint = JSON.stringify([
+      activeQuote.quoteToken,
+      proposedFarePaise,
+      passengerName,
+      passengerPhone,
+      selectedCategory,
+      pickup.lat,
+      pickup.lng,
+      pickup.address,
+      drop.lat,
+      drop.lng,
+      drop.address,
+    ]);
+    if (pendingBookingAttemptRef.current?.fingerprint !== fingerprint) {
+      pendingBookingAttemptRef.current = {
+        fingerprint,
+        key: createBookingIdempotencyKey(),
+      };
+    }
+    const idempotencyKey = pendingBookingAttemptRef.current.key;
+
     setIsSubmittingRide(true);
     try {
       const created = await createRide({
         quoteToken: activeQuote.quoteToken,
         proposedFarePaise,
+        idempotencyKey,
         passenger: {
           name: passengerName,
           phoneE164: passengerPhone,
@@ -348,8 +373,17 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
           address: drop.address,
         },
       });
+      pendingBookingAttemptRef.current = null;
       router.push(`/(rider)/ride/${created.id}`);
     } catch (err: unknown) {
+      if (!(isApiError(err) && err.isNetworkError)) {
+        pendingBookingAttemptRef.current = null;
+      }
+      const conflictRideId = extractActiveRideConflictId(err);
+      if (conflictRideId) {
+        router.push(`/(rider)/ride/${conflictRideId}`);
+        return;
+      }
       setSubmitError(
         err instanceof Error ? err.message : 'Could not create ride. Please try again.',
       );

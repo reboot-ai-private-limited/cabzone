@@ -1,8 +1,18 @@
+import { ACTIVE_RIDE_STATUSES } from '@cabzone/contracts';
 import type { RideEntity, RideListFilter, RideRepositoryPort } from '../../domain/index.js';
 import { RideModel, type RideDocument } from './ride.model.js';
 import { AppError } from '../../../../shared/errors/AppError.js';
 
 export class MongoRideRepository implements RideRepositoryPort {
+  async ensureReady(): Promise<void> {
+    await RideModel.init();
+  }
+
+  async create(ride: RideEntity): Promise<RideEntity> {
+    const [doc] = await RideModel.create([this.toPersistence(ride)]);
+    return this.toEntity(doc!.toObject());
+  }
+
   async update(ride: RideEntity, expectedVersion: number): Promise<RideEntity | null> {
     const doc = await RideModel.findOneAndUpdate(
       { _id: ride.id, version: expectedVersion },
@@ -28,6 +38,29 @@ export class MongoRideRepository implements RideRepositoryPort {
 
   async findById(id: string): Promise<RideEntity | null> {
     const doc = await RideModel.findById(id).lean<RideDocument | null>().exec();
+    return doc ? this.toEntity(doc) : null;
+  }
+
+  async findActiveByBookerRiderId(bookerRiderId: string): Promise<RideEntity | null> {
+    const doc = await RideModel.findOne({
+      booker_rider_id: bookerRiderId,
+      status: { $in: [...ACTIVE_RIDE_STATUSES] },
+    })
+      .lean<RideDocument | null>()
+      .exec();
+    return doc ? this.toEntity(doc) : null;
+  }
+
+  async findByBookerIdempotencyKey(
+    bookerRiderId: string,
+    idempotencyKey: string,
+  ): Promise<RideEntity | null> {
+    const doc = await RideModel.findOne({
+      booker_rider_id: bookerRiderId,
+      idempotency_key: idempotencyKey,
+    })
+      .lean<RideDocument | null>()
+      .exec();
     return doc ? this.toEntity(doc) : null;
   }
 
@@ -241,6 +274,7 @@ export class MongoRideRepository implements RideRepositoryPort {
     return {
       _id: ride.id,
       booker_rider_id: ride.bookerRiderId,
+      idempotency_key: ride.idempotencyKey ?? null,
       passenger: {
         rider_id: ride.passenger.riderId,
         name: ride.passenger.name,
@@ -286,6 +320,7 @@ export class MongoRideRepository implements RideRepositoryPort {
     return {
       id: doc._id,
       bookerRiderId: doc.booker_rider_id,
+      idempotencyKey: doc.idempotency_key ?? null,
       passenger: {
         riderId: doc.passenger.rider_id,
         name: doc.passenger.name,
