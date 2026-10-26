@@ -51,7 +51,7 @@ export class MongoWalletRepository implements WalletRepositoryPort {
         rider_id: wallet.riderId || null,
         balance_paise: wallet.balancePaise,
         earnings_balance_paise: wallet.earningsBalancePaise ?? 0,
-        owed_paise: wallet.owedPaise ?? 0,
+        owed_paise: Math.max(0, -wallet.balancePaise),
         status: wallet.status,
         version: wallet.version,
       },

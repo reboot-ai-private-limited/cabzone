@@ -45,13 +45,23 @@ export class MemoryWalletRepository implements WalletRepositoryPort {
   }
 
   async save(wallet: WalletEntity): Promise<WalletEntity> {
-    this.wallets.set(wallet.id, { ...wallet, updatedAt: new Date() });
+    const owedPaise = Math.max(0, -wallet.balancePaise);
+    this.wallets.set(wallet.id, { ...wallet, owedPaise, updatedAt: new Date() });
     return { ...this.wallets.get(wallet.id)! };
   }
 
   async recordTransaction(
     transaction: WalletTransactionEntity,
   ): Promise<WalletTransactionEntity> {
+    if (
+      transaction.idempotencyKey &&
+      this.transactions.some((entry) => entry.idempotencyKey === transaction.idempotencyKey)
+    ) {
+      throw Object.assign(
+        new Error(`E11000 duplicate key error idempotency_key: ${transaction.idempotencyKey}`),
+        { code: 11000 },
+      );
+    }
     const copy = { ...transaction };
     this.transactions.push(copy);
     return { ...copy };

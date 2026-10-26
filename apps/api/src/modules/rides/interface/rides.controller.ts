@@ -26,6 +26,7 @@ import {
   proposeFareSchema,
   rideIdParamSchema,
   startRideRequestSchema,
+  waiveCancellationFeeSchema,
 } from './rides.validation.js';
 
 /** Maps an authenticated user id to the rider / driver profile id that rides reference. */
@@ -128,6 +129,7 @@ export function makeCreateRideController(
       pickup: body.pickup,
       drop: body.drop,
       vehicleCategory: body.vehicleCategory,
+      paymentMethod: body.paymentMethod,
     });
     await notify(actors.notifier?.rideRequested(ride));
     sendSuccess(
@@ -387,11 +389,13 @@ export function makeCompleteRideController(
     const result = await (confirmPayment
       ? useCase.confirmPayment({ rideId: id, driverId })
       : useCase.execute({ rideId: id, driverId }));
+    const arrearsCollectedPaise = result.arrearsCollectedPaise ?? 0;
+    const totalPayablePaise = result.totalPayablePaise ?? result.farePaise;
     await notify(
       actors.notifier?.rideUpdated(
         result.ride,
         confirmPayment ? 'ride.payment.confirmed' : 'ride.completed',
-        { farePaise: result.farePaise },
+        { farePaise: result.farePaise, arrearsCollectedPaise, totalPayablePaise },
       ),
     );
     sendSuccess(
@@ -401,6 +405,8 @@ export function makeCompleteRideController(
         ride: await toEnrichedRideView(result.ride, actors),
         farePaise: result.farePaise,
         commissionPaise: result.commissionPaise,
+        arrearsCollectedPaise,
+        totalPayablePaise,
         walletBalancePaise: result.driverWallet.balancePaise,
       },
       confirmPayment
@@ -490,12 +496,48 @@ export function makeCancelRideController(
     }
 
     const result = await useCase.execute({ rideId: id, actorType, actorId, reason });
+    const riderArrearsPaise = result.riderWallet ? Math.max(0, -result.riderWallet.balancePaise) : 0;
     await notify(actors.notifier?.rideUpdated(result.ride, 'ride.cancelled', { reason }));
     sendSuccess(
       req,
       res,
-      { ride: await toEnrichedRideView(result.ride, actors), feeBreakdown: result.feeBreakdown },
+      {
+        ride: await toEnrichedRideView(result.ride, actors),
+        feeBreakdown: result.feeBreakdown,
+        riderArrearsPaise,
+      },
       'Ride cancelled',
+    );
+  });
+}
+
+export function makeWaiveCancellationFeeController(
+  useCase: CancelRideUseCase,
+  actors: RideHttpContext,
+): RequestHandler {
+  return asyncHandler(async (req: Request, res: Response) => {
+    const { id } = rideIdParamSchema.parse(req.params);
+    const { reason } = waiveCancellationFeeSchema.parse(req.body);
+    const result = await useCase.waiveCancellationFee({
+      rideId: id,
+      adminId: auth(req).userId,
+      reason,
+    });
+    await notify(
+      actors.notifier?.rideUpdated(result.ride, 'ride.cancellation_fee.waived', {
+        waivedPaise: result.waivedPaise,
+      }),
+    );
+    sendSuccess(
+      req,
+      res,
+      {
+        ride: await toEnrichedRideView(result.ride, actors),
+        waivedPaise: result.waivedPaise,
+        riderWalletBalancePaise: result.riderWallet.balancePaise,
+        riderArrearsPaise: Math.max(0, -result.riderWallet.balancePaise),
+      },
+      'Cancellation fee waived',
     );
   });
 }

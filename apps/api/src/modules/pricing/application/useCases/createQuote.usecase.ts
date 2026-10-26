@@ -7,14 +7,27 @@ import type {
   StateDistanceBreakdown,
   VehicleCategory,
 } from '@cabzone/contracts';
-import { calculateNegotiationBounds, SERVICE_CLASSIFICATION_TYPES, VEHICLE_CATEGORIES } from '@cabzone/contracts';
+import {
+  calculateNegotiationBounds,
+  DEFAULT_CANCELLATION_FEE_PAISE,
+  SERVICE_CLASSIFICATION_TYPES,
+  VEHICLE_CATEGORIES,
+} from '@cabzone/contracts';
 import { AppError } from '../../../../shared/errors/AppError.js';
 import { newUuid } from '../../../../shared/ids.js';
+import {
+  getRiderUnpaidArrearsPaise,
+  type WalletRepositoryPort,
+} from '../../../ledger/ledger.public.js';
 import {
   haversineDistanceM,
   type ServiceClassificationUseCase,
 } from '../../../zone/zone.public.js';
-import { calculateBaseFareEstimate, type PricingConfigRepositoryPort } from '../../domain/index.js';
+import {
+  calculateBaseFareEstimate,
+  resolveCancellationPolicy,
+  type PricingConfigRepositoryPort,
+} from '../../domain/index.js';
 import { isPointInIndia } from '@cabzone/geo';
 import {
   calculateStateDistanceBreakdown,
@@ -27,6 +40,7 @@ export interface CreateQuoteInput {
   drop: GeoPoint;
   vehicleCategory: VehicleCategory;
   requestedService?: ServiceClassificationType | undefined;
+  riderId?: string | null | undefined;
 }
 
 export interface QuoteTokenPayload {
@@ -81,6 +95,7 @@ const quotePayloadSchema = z.object({
 export interface CreateQuoteDeps {
   serviceClassificationUseCase: ServiceClassificationUseCase;
   pricingConfigRepo: PricingConfigRepositoryPort;
+  walletRepo?: WalletRepositoryPort | undefined;
   routingUseCase?: { execute(req: RouteRequest): Promise<RouteResult> } | undefined;
   tokenSecret: string;
   quoteTtlSeconds?: number | undefined; // default 300 (5 minutes)
@@ -202,6 +217,19 @@ export class CreateQuoteUseCase {
       ceilingPercent: config.negotiationCeilingPercent,
     });
 
+    const policy = resolveCancellationPolicy(config);
+    const riderWallet =
+      input.riderId && this.deps.walletRepo
+        ? await this.deps.walletRepo.findByRiderId(input.riderId)
+        : null;
+    const arrearsPaise = getRiderUnpaidArrearsPaise(riderWallet);
+    const totalEstimatedPayablePaise = suggestedFarePaise + arrearsPaise;
+    const cashBlockThresholdPaise =
+      policy.cancellationFeePaise > 0
+        ? policy.cancellationFeePaise
+        : DEFAULT_CANCELLATION_FEE_PAISE;
+    const cashAllowed = arrearsPaise < cashBlockThresholdPaise;
+
     const quoteId = newUuid();
     const expiresAt = new Date(Date.now() + this.ttlSeconds * 1000);
     const expiresAtMs = expiresAt.getTime();
@@ -248,6 +276,9 @@ export class CreateQuoteUseCase {
       bufferApplied: classification.bufferApplied,
       vehicleCategory: input.vehicleCategory,
       suggestedFarePaise,
+      arrearsPaise,
+      totalEstimatedPayablePaise,
+      cashAllowed,
       pricingConfigId: config.id,
       pricingConfigVersion: config.version,
       routeScope: classification.routeScope ?? null,

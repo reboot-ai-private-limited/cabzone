@@ -15,6 +15,7 @@ import {
   paymentDisputeResolutionSchema,
   proposeFareSchema,
   upiPaymentProofSchema,
+  waiveCancellationFeeSchema,
 } from './rides.validation.js';
 
 export const rideViewSchema = z.object({
@@ -69,6 +70,8 @@ export const rideViewSchema = z.object({
   suggestedFarePaise: z.number().int(),
   proposedFarePaise: z.number().int().nullable(),
   agreedFarePaise: z.number().int().nullable(),
+  arrearsPaise: z.number().int(),
+  totalPayablePaise: z.number().int().nullable(),
   cancellationReason: z.string().nullable(),
   offeringExpiresAt: z.string().nullable(),
   acceptedAt: z.string().nullable(),
@@ -363,6 +366,7 @@ export function registerRidesSwaggerPaths(): void {
               z.object({
                 ride: rideViewSchema,
                 feeBreakdown: z.any().optional(),
+                riderArrearsPaise: z.number().int().optional(),
               }),
             ),
           },
@@ -541,6 +545,8 @@ export function registerRidesSwaggerPaths(): void {
                   ride: rideViewSchema,
                   farePaise: z.number().int(),
                   commissionPaise: z.number().int(),
+                  arrearsCollectedPaise: z.number().int().optional(),
+                  totalPayablePaise: z.number().int().optional(),
                   walletBalancePaise: z.number().int(),
                 }),
               ),
@@ -634,6 +640,51 @@ export function registerRidesSwaggerPaths(): void {
       },
       403: {
         description: 'Admin role required',
+        content: { 'application/json': { schema: errorResponse } },
+      },
+    },
+  });
+  registry.registerPath({
+    method: 'post',
+    path: '/v1/rides/{id}/cancellation-fee/waive',
+    tags: ['Rides'],
+    summary:
+      'Waive an unpaid rider cancellation or no-show fee via compensating credit (Support/Finance/Super Admin)',
+    security: bearerAuth,
+    request: {
+      params: rideIdParamSchema,
+      body: { content: { 'application/json': { schema: waiveCancellationFeeSchema } } },
+    },
+    responses: {
+      200: {
+        description: 'Cancellation fee waived',
+        content: {
+          'application/json': {
+            schema: successResponse(
+              z.object({
+                ride: rideViewSchema,
+                waivedPaise: z.number().int(),
+                riderWalletBalancePaise: z.number().int(),
+                riderArrearsPaise: z.number().int(),
+              }),
+            ),
+          },
+        },
+      },
+      400: {
+        description: 'Ride is not cancelled or had no cancellation fee',
+        content: { 'application/json': { schema: errorResponse } },
+      },
+      403: {
+        description: 'Admin role required',
+        content: { 'application/json': { schema: errorResponse } },
+      },
+      404: {
+        description: 'Ride not found',
+        content: { 'application/json': { schema: errorResponse } },
+      },
+      409: {
+        description: 'Arrears already settled on a subsequent ride',
         content: { 'application/json': { schema: errorResponse } },
       },
     },

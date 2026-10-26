@@ -7,6 +7,7 @@ export interface RidesRouterDeps {
   requireCanCancel: RequestHandler;
   requireCanRead: RequestHandler;
   requireDisputeAdmin: RequestHandler;
+  requireWaiverAdmin: RequestHandler;
   createRide: RequestHandler;
   listRides: RequestHandler;
   getRide: RequestHandler;
@@ -36,6 +37,7 @@ export interface RidesRouterDeps {
   resolvePaymentDispute: RequestHandler;
   listPaymentDisputes: RequestHandler;
   cancelRide: RequestHandler;
+  waiveCancellationFee: RequestHandler;
 }
 
 export function buildRidesRouter(deps: RidesRouterDeps): Router {
@@ -57,6 +59,7 @@ export function buildRidesRouter(deps: RidesRouterDeps): Router {
   router.get('/:id', deps.requireCanRead, deps.getRide);
   router.get('/:id/events', deps.requireCanRead, deps.getRideEvents);
   router.post('/:id/cancel', deps.requireCanCancel, deps.cancelRide);
+  router.post('/:id/cancellation-fee/waive', deps.requireWaiverAdmin, deps.waiveCancellationFee);
 
   // Driver
   router.post('/:id/accept', deps.requireDriver, deps.acceptRide);
