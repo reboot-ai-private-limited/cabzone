@@ -9,6 +9,7 @@ import type { AppContainers } from './container.js';
 
 const OFFER_SWEEP_MS = 15_000;
 const PUSH_RECEIPT_SWEEP_MS = 60_000;
+const KYC_EXPIRY_SWEEP_MS = 5 * 60_000;
 const RATING_REVEAL_SWEEP_MS = 60_000;
 
 async function main(): Promise<void> {
@@ -57,6 +58,15 @@ async function main(): Promise<void> {
   }, RATING_REVEAL_SWEEP_MS);
   ratingRevealSweep.unref();
 
+  const runKycExpirySweep = () => {
+    containers.identity.sweepKycExpiry
+      ?.execute()
+      .catch((err: unknown) => logger.warn({ err: String(err) }, 'kyc expiry sweep failed'));
+  };
+  runKycExpirySweep();
+  const kycExpirySweep = setInterval(runKycExpirySweep, KYC_EXPIRY_SWEEP_MS);
+  kycExpirySweep.unref();
+
   const shutdown = (signal: string) => {
     logger.info({ signal }, 'signal received, draining');
     const force = setTimeout(() => {
@@ -67,6 +77,7 @@ async function main(): Promise<void> {
 
     clearInterval(sweep);
     clearInterval(receiptSweep);
+    clearInterval(kycExpirySweep);
     clearInterval(ratingRevealSweep);
     hub.close();
     server.close(() => {

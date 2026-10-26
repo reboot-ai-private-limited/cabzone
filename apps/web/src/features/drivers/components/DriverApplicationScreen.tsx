@@ -30,9 +30,11 @@ import {
   useDriverApplication,
   useReviewApplication,
 } from '../hooks/useDriverApplications';
+import { resolveSafeProfilePhotoUrl } from '@/lib/api/endpoints/drivers';
 import { DocumentViewerCard } from './DocumentViewerCard';
 import {
   DriverStatusBadge,
+  KycStatusBadge,
   REVIEWABLE,
   StatusBadge,
   VehicleStatusBadge,
@@ -136,8 +138,16 @@ export function DriverApplicationScreen({ applicationId }: DriverApplicationScre
       {/* Overview Status Banner */}
       <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-xl bg-surface border border-border shadow-xs">
         <div className="flex flex-wrap items-center gap-3">
-          <div className="size-11 rounded-lg bg-surface-muted border border-border flex items-center justify-center shrink-0">
-            <User className="size-6 text-interactive" />
+          <div className="size-11 rounded-lg bg-surface-muted border border-border flex items-center justify-center shrink-0 overflow-hidden">
+            {resolveSafeProfilePhotoUrl(d.driver?.profilePhotoUrl) ? (
+              <img
+                src={resolveSafeProfilePhotoUrl(d.driver?.profilePhotoUrl)!}
+                alt={d.driver?.name ?? 'Applicant'}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <User className="size-6 text-interactive" />
+            )}
           </div>
           <div className="flex flex-col">
             <div className="flex items-center gap-2.5">
@@ -236,6 +246,7 @@ export function DriverApplicationScreen({ applicationId }: DriverApplicationScre
                 {d.documents.map((doc) => (
                   <DocumentViewerCard
                     key={doc.id}
+                    applicationId={d.application.id}
                     document={doc}
                     driverPhone={d.phoneE164}
                   />
@@ -434,7 +445,7 @@ export function DriverApplicationScreen({ applicationId }: DriverApplicationScre
                 </span>
               </FieldRow>
               <FieldRow label="KYC State">
-                <span className="text-xs font-medium text-text">{d.driver?.kycStatus ?? 'PENDING'}</span>
+                <KycStatusBadge status={d.driver?.kycStatus ?? 'PENDING'} />
               </FieldRow>
               <FieldRow label="Performance">
                 <div className="flex items-center gap-1 text-xs">

@@ -26,6 +26,7 @@ import {
   buildDispatchContainer,
   type DispatchContainer,
 } from '@/modules/dispatch/dispatch.container.js';
+import { ACTIVE_RIDE_STATUSES } from '@/modules/dispatch/application/useCases/driverOfferEligibility.js';
 import { RedisPresenceRepository } from '@/modules/dispatch/infrastructure/redisPresence.repository.js';
 import { DEFAULT_DISPATCH_CONFIG } from '@/modules/dispatch/application/dispatch.types.js';
 import { RedisOfferRecipientsRepository } from '@/modules/dispatch/infrastructure/offerRecipients.repository.js';
@@ -66,6 +67,7 @@ export function buildContainers(overrides?: Partial<AppContainers>): AppContaine
   const documentRepo = new MongoDriverDocumentRepository();
   const rideRepo = new MongoRideRepository();
   const walletRepo = new MongoWalletRepository();
+  const presenceRepo = new RedisPresenceRepository(getRedis, 120, isProdLike);
 
   const health = overrides?.health ?? buildHealthContainer();
   const routing = overrides?.routing ?? buildRoutingContainer();
@@ -120,15 +122,43 @@ export function buildContainers(overrides?: Partial<AppContainers>): AppContaine
     }
   };
 
+  const dispatchRef: { current?: DispatchContainer } = {};
+
   const identity =
     overrides?.identity ??
     buildIdentityContainer({
+      unitOfWork,
       riderRepo,
       driverRepo,
+      documentRepo,
       vehicleRepo,
       rideRepo,
       zoneRepo: zone.zoneRepo,
       ensureDriverWallet: ensureDevDriverWallet,
+      hasActiveRide: async (driverId: string) => {
+        const active = await rideRepo.list({
+          driverId,
+          statuses: ACTIVE_RIDE_STATUSES,
+          limit: 1,
+          offset: 0,
+        });
+        return active.length > 0;
+      },
+      removeDriverPresence: async (driverId: string) => {
+        await (dispatchRef.current?.presence ?? presenceRepo).remove(driverId);
+      },
+      notifyDriver: async (notification) => {
+        getRealtimeHub().publishToUser(
+          notification.userId,
+          notification.event,
+          notification.payload,
+        );
+        await dispatchRef.current?.push.notify([notification.userId], {
+          title: notification.title,
+          body: notification.body,
+          data: { event: notification.event, ...notification.payload },
+        });
+      },
     });
   const pricing =
     overrides?.pricing ??
@@ -156,7 +186,11 @@ export function buildContainers(overrides?: Partial<AppContainers>): AppContaine
   const ledger =
     overrides?.ledger ??
     buildLedgerContainer({
-      walletPaymentGateway: new RazorpayGateway(env.RAZORPAY_KEY_ID ?? '', env.RAZORPAY_KEY_SECRET ?? '', !isProdLike && env.RAZORPAY_MODE === 'test'),
+      walletPaymentGateway: new RazorpayGateway(
+        env.RAZORPAY_KEY_ID ?? '',
+        env.RAZORPAY_KEY_SECRET ?? '',
+        !isProdLike && env.RAZORPAY_MODE === 'test',
+      ),
       unitOfWork,
       walletRepo,
       resolveDriverId,
@@ -187,7 +221,9 @@ export function buildContainers(overrides?: Partial<AppContainers>): AppContaine
               id: d._id,
               name,
               phoneE164: u?.phone_e164 ?? '',
-              vehicleNumber: v?.registration_number ? `${vCat}${v.registration_number}` : v?.vehicle_type ?? null,
+              vehicleNumber: v?.registration_number
+                ? `${vCat}${v.registration_number}`
+                : (v?.vehicle_type ?? null),
               zoneName: 'Siliguri City',
             };
           });
@@ -209,7 +245,7 @@ export function buildContainers(overrides?: Partial<AppContainers>): AppContaine
   const dispatch =
     overrides?.dispatch ??
     buildDispatchContainer({
-      presence: new RedisPresenceRepository(getRedis, 120, isProdLike),
+      presence: presenceRepo,
       offerRecipients: new RedisOfferRecipientsRepository(getRedis),
       pushTokens: new MongoPushTokenRepository(),
       pushReceipts: new MongoPushReceiptRepository(),
@@ -227,10 +263,11 @@ export function buildContainers(overrides?: Partial<AppContainers>): AppContaine
               await ensureDevDriverWallet(driver.id);
             }
           }
-          const vehicle = driver.currentVehicleId
-            ? await vehicleRepo.findById(driver.currentVehicleId)
-            : null;
-          const eligibility = canDriverGoOnline(driver);
+          const [vehicle, documents] = await Promise.all([
+            driver.currentVehicleId ? vehicleRepo.findById(driver.currentVehicleId) : null,
+            documentRepo.findByDriverId(driver.id),
+          ]);
+          const eligibility = canDriverGoOnline(driver, { vehicle, documents });
           return {
             driverId: driver.id,
             userId: driver.userId,
@@ -262,6 +299,7 @@ export function buildContainers(overrides?: Partial<AppContainers>): AppContaine
         },
       },
     });
+  dispatchRef.current = dispatch;
 
   const rides =
     overrides?.rides ??
@@ -368,7 +406,8 @@ export function buildContainers(overrides?: Partial<AppContainers>): AppContaine
           isDevRuntime ||
           isDriverEligibleForRide(driver, user, vehicle, documents, ride.vehicleCategory, now);
         const basicEligible =
-          canDriverGoOnline(driver).eligible &&
+          canDriverGoOnline(driver, isDevRuntime ? undefined : { vehicle, documents, now })
+            .eligible &&
           user !== null &&
           vehicle !== null &&
           isVehicleApproved(vehicle) &&

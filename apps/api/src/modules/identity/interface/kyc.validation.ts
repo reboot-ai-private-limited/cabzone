@@ -51,6 +51,12 @@ export const createDriverProfileRequestSchema = z
   })
   .strict();
 
+export const createDriverApplicationRequestSchema = z
+  .object({
+    renew: z.boolean().optional(),
+  })
+  .optional();
+
 export const createVehicleSchema = z.object({
   driverId: z.string().uuid('Invalid driverId UUID'),
   vehicleType: z.enum(VEHICLE_CATEGORIES),
@@ -119,7 +125,11 @@ export const uploadDriverDocumentRequestSchema = z.object({
 
 export const uploadDriverLicenseFileRequestSchema = z.object({
   fileDataUrl: z.string().min(1).max(700_000).optional(),
-  dlNumber: z.string().trim().toUpperCase().regex(/^[A-Z0-9]{8,16}$/, 'Invalid driving licence number'),
+  dlNumber: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .regex(/^[A-Z0-9]{8,16}$/, 'Invalid driving licence number'),
   expiresAt: z.coerce.date(),
 });
 
@@ -154,4 +164,9 @@ export const listDriverApplicationsQuerySchema = z.object({
 export const updateDriverStatusRequestSchema = z.object({
   status: z.enum(['ACTIVE', 'SUSPENDED'] as const),
   reason: z.string().trim().max(255).nullish(),
+});
+
+export const streamDocumentContentQuerySchema = z.object({
+  exp: z.string().min(1).max(32),
+  sig: z.string().min(1).max(256),
 });

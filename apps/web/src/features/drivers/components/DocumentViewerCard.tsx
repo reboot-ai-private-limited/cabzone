@@ -3,22 +3,24 @@
 import { useState } from 'react';
 import {
   AlertCircle,
-  ExternalLink,
   Eye,
   FileText,
   IdCard,
+  Lock,
 } from 'lucide-react';
-import { Button } from '@cabzone/design-system';
-import type { DriverDocumentAdminDto } from '@/lib/api/endpoints/drivers';
-import { DocumentStatusBadge } from './StatusBadge';
+import { Badge, Button } from '@cabzone/design-system';
+import {
+  hasDocumentPreviewFile,
+  type DriverDocumentAdminDto,
+} from '@/lib/api/endpoints/drivers';
+import { DocumentStatusBadge, computeDocumentExpiryBadge } from './StatusBadge';
 import {
   DOCUMENT_TYPE_LABELS,
   DocumentPreviewDialog,
-  isPdfDocument,
-  resolveDocumentFileUrl,
 } from './DocumentPreviewDialog';
 
 export interface DocumentViewerCardProps {
+  applicationId: string;
   document: DriverDocumentAdminDto;
   driverPhone?: string | null;
 }
@@ -26,45 +28,38 @@ export interface DocumentViewerCardProps {
 const formatDate = (iso: string | null): string =>
   iso === null ? '—' : new Date(iso).toLocaleDateString('en-IN', { dateStyle: 'medium' });
 
-export function DocumentViewerCard({ document, driverPhone }: DocumentViewerCardProps) {
+export function DocumentViewerCard({
+  applicationId,
+  document,
+  driverPhone,
+}: DocumentViewerCardProps) {
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
   const isDL = document.type === 'DRIVING_LICENSE';
-  const isExpired =
-    document.expiresAt !== null && new Date(document.expiresAt).getTime() < Date.now();
+  const expiryBadge = computeDocumentExpiryBadge(
+    document.expiresAt,
+    document.verificationStatus,
+  );
+  const hasFile = hasDocumentPreviewFile(document);
 
   const title = DOCUMENT_TYPE_LABELS[document.type] ?? document.type.replace(/_/g, ' ');
   const Icon = isDL ? IdCard : FileText;
-  const fileUrl = resolveDocumentFileUrl(document);
-  const isPdf = isPdfDocument(document, fileUrl);
 
   return (
     <>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-lg border border-border bg-surface hover:bg-surface-muted/40 transition-colors">
         <div className="flex items-start gap-3">
-          {fileUrl && !isPdf ? (
-            <button
-              type="button"
-              onClick={() => setIsPreviewOpen(true)}
-              className="w-16 h-12 rounded-md bg-zinc-900 border border-border overflow-hidden shrink-0 cursor-pointer group relative"
-              title="Click to inspect full document"
-            >
-              <img
-                src={fileUrl}
-                alt={title}
-                className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-              />
-            </button>
-          ) : (
-            <div className="size-10 rounded-md bg-surface-muted border border-border flex items-center justify-center shrink-0 text-text-subtle">
-              <Icon className="size-5 text-interactive" />
-            </div>
-          )}
+          <div className="size-10 rounded-md bg-surface-muted border border-border flex items-center justify-center shrink-0 text-text-subtle">
+            <Icon className="size-5 text-interactive" />
+          </div>
 
           <div className="flex flex-col gap-0.5">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <span className="font-semibold text-sm text-text">{title}</span>
               <DocumentStatusBadge status={document.verificationStatus} />
+              {expiryBadge && (
+                <Badge tone={expiryBadge.tone}>{expiryBadge.label}</Badge>
+              )}
             </div>
 
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-subtle">
@@ -74,11 +69,23 @@ export function DocumentViewerCard({ document, driverPhone }: DocumentViewerCard
                 </span>
               )}
               {document.expiresAt && (
-                <span className={`inline-flex items-center gap-1 ${isExpired ? 'text-danger font-medium' : ''}`}>
-                  {isExpired && <AlertCircle className="size-3" />}
+                <span
+                  className={`inline-flex items-center gap-1 ${
+                    expiryBadge?.tone === 'danger'
+                      ? 'text-danger font-medium'
+                      : expiryBadge?.tone === 'warning'
+                        ? 'text-warning font-medium'
+                        : ''
+                  }`}
+                >
+                  {expiryBadge !== null && <AlertCircle className="size-3" />}
                   Expires: {formatDate(document.expiresAt)}
                 </span>
               )}
+              <span className="inline-flex items-center gap-1 text-[11px] text-text-subtle">
+                <Lock className="size-3" />
+                {hasFile ? 'Private KYC vault file' : 'Metadata only'}
+              </span>
             </div>
 
             <span className="font-mono text-[11px] text-text-subtle/80 truncate max-w-xs sm:max-w-md">
@@ -88,29 +95,19 @@ export function DocumentViewerCard({ document, driverPhone }: DocumentViewerCard
         </div>
 
         <div className="flex items-center gap-2 self-end sm:self-center">
-          {fileUrl && (
-            <a
-              href={fileUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-border bg-surface text-xs font-medium text-text-subtle hover:text-text hover:bg-surface-muted transition-colors"
-              title="Open original document in new tab"
-            >
-              <ExternalLink className="size-3.5" />
-            </a>
-          )}
           <Button
             size="sm"
             variant="secondary"
             icon={<Eye className="size-3.5 text-interactive" />}
             onClick={() => setIsPreviewOpen(true)}
           >
-            View Document
+            Inspect Document
           </Button>
         </div>
       </div>
 
       <DocumentPreviewDialog
+        applicationId={applicationId}
         document={document}
         driverPhone={driverPhone}
         open={isPreviewOpen}

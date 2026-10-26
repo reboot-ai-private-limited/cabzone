@@ -75,7 +75,10 @@ export function registerIdentitySwaggerPaths(): void {
           'application/json': { schema: successResponse(z.object({ status: z.string() })) },
         },
       },
-      400: { description: 'Invalid input', content: { 'application/json': { schema: errorResponse } } },
+      400: {
+        description: 'Invalid input',
+        content: { 'application/json': { schema: errorResponse } },
+      },
     },
   });
 
@@ -318,7 +321,9 @@ export function registerIdentitySwaggerPaths(): void {
     summary: 'Upload a private Government ID PDF or JPEG (maximum 500 KB)',
     security: bearerAuth,
     request: {
-      body: { content: { 'application/json': { schema: uploadIdentityDocumentFileRequestSchema } } },
+      body: {
+        content: { 'application/json': { schema: uploadIdentityDocumentFileRequestSchema } },
+      },
     },
     responses: {
       201: { description: 'Government ID stored and linked to the driver application' },
@@ -376,6 +381,28 @@ export function registerIdentitySwaggerPaths(): void {
             ),
           },
         },
+      },
+    },
+  });
+
+  registry.registerPath({
+    method: 'post',
+    path: '/v1/driver/application/renew',
+    tags: ['Driver Onboarding'],
+    summary: 'Open a renewal application for an expiring or expired driver document',
+    security: bearerAuth,
+    responses: {
+      201: {
+        description: 'Renewal application created',
+        content: { 'application/json': { schema: successResponse(z.any()) } },
+      },
+      403: {
+        description: 'Driver required',
+        content: { 'application/json': { schema: errorResponse } },
+      },
+      409: {
+        description: 'Renewal unavailable',
+        content: { 'application/json': { schema: errorResponse } },
       },
     },
   });
@@ -442,8 +469,7 @@ export function registerIdentitySwaggerPaths(): void {
     method: 'get',
     path: '/v1/admin/driver-applications/{id}',
     tags: ['Admin Onboarding'],
-    summary:
-      'Get driver dossier and KYC documents (document file URLs redacted for FINANCE_ADMIN)',
+    summary: 'Get driver dossier and KYC metadata without eager private file URLs',
     security: bearerAuth,
     request: { params: z.object({ id: z.string() }) },
     responses: {
@@ -453,6 +479,48 @@ export function registerIdentitySwaggerPaths(): void {
       },
       403: { description: 'Forbidden', content: { 'application/json': { schema: errorResponse } } },
       404: { description: 'Not found', content: { 'application/json': { schema: errorResponse } } },
+    },
+  });
+
+  registry.registerPath({
+    method: 'post',
+    path: '/v1/admin/driver-applications/{id}/documents/{documentId}/preview',
+    tags: ['Admin Onboarding'],
+    summary: 'Issue an audited short-lived private document preview (SUPER_ADMIN)',
+    security: bearerAuth,
+    request: { params: z.object({ id: z.string(), documentId: z.string() }) },
+    responses: {
+      200: {
+        description: 'Signed preview URL and expiry',
+        content: { 'application/json': { schema: successResponse(z.any()) } },
+      },
+      403: { description: 'Forbidden', content: { 'application/json': { schema: errorResponse } } },
+      404: {
+        description: 'Document unavailable',
+        content: { 'application/json': { schema: errorResponse } },
+      },
+    },
+  });
+
+  registry.registerPath({
+    method: 'get',
+    path: '/v1/admin/driver-documents/{documentId}/content',
+    tags: ['Admin Onboarding'],
+    summary: 'Stream private KYC document bytes with a short-lived signed URL',
+    request: {
+      params: z.object({ documentId: z.string() }),
+      query: z.object({ exp: z.coerce.number().int(), sig: z.string() }),
+    },
+    responses: {
+      200: { description: 'Private document bytes, no-store' },
+      403: {
+        description: 'Invalid or expired signature',
+        content: { 'application/json': { schema: errorResponse } },
+      },
+      404: {
+        description: 'Document unavailable',
+        content: { 'application/json': { schema: errorResponse } },
+      },
     },
   });
 
@@ -739,7 +807,8 @@ export function registerIdentitySwaggerPaths(): void {
     method: 'patch',
     path: '/v1/admin/users/{id}/status',
     tags: ['Admin Users & Roles'],
-    summary: 'Suspend or reactivate administrative staff account and revoke active sessions (SUPER_ADMIN)',
+    summary:
+      'Suspend or reactivate administrative staff account and revoke active sessions (SUPER_ADMIN)',
     security: bearerAuth,
     request: {
       params: adminUserIdParamSchema,

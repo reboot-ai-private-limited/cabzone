@@ -1,14 +1,27 @@
 import type { Router } from 'express';
 import { env, allowDevShortcuts, isProdLike } from '@/config/env.js';
 import type { OtpStorePort, SmsGatewayPort } from './domain/otp.port.js';
+import type { DriverLicenseStoragePort } from './domain/driverLicenseStorage.port.js';
 import { MongoOtpStoreAdapter } from './infrastructure/mongoOtpStore.adapter.js';
 import { CloudinaryDriverPhotoAdapter } from './infrastructure/cloudinaryDriverPhoto.adapter.js';
 import { CloudinaryDriverLicenseAdapter } from './infrastructure/cloudinaryDriverLicense.adapter.js';
 import { MongoUnitOfWork } from '@/shared/db/unitOfWork.js';
 import type { UnitOfWorkPort } from '@/shared/db/unitOfWork.port.js';
 import { makeRequireAdminScope } from './interface/middlewares/requireAdminScope.middleware.js';
+import type {
+  AdminUserRepositoryPort,
+  DriverApplicationRepositoryPort,
+  DriverDocumentRepositoryPort,
+  DriverRepositoryPort,
+  KycAuditRepositoryPort,
+  RiderRepositoryPort,
+  SessionRepositoryPort,
+  UserRepositoryPort,
+  VehicleRepositoryPort,
+} from './domain/index.js';
 import {
   AdminLoginUseCase,
+  CreateAdminDocumentPreviewUseCase,
   CreateAdminUserUseCase,
   CreateDriverApplicationUseCase,
   CreateDriverProfileUseCase,
@@ -22,7 +35,9 @@ import {
   GetDriverApplicationDetailUseCase,
   ListDriverApplicationsUseCase,
   ReviewDriverApplicationUseCase,
+  StreamAdminDocumentContentUseCase,
   SubmitDriverApplicationUseCase,
+  SweepDriverKycExpiryUseCase,
   UpdateDriverStatusUseCase,
   UpdateAdminUserStatusUseCase,
   UpdateAdminUserUseCase,
@@ -34,6 +49,7 @@ import {
   UpdateRiderProfileUseCase,
   UpdateRiderStatusUseCase,
   UpdateSelfRiderProfileUseCase,
+  type DriverKycExpiryNotification,
 } from './application/useCases/index.js';
 import {
   ConsoleSmsGatewayAdapter,
@@ -43,6 +59,7 @@ import {
   MongoDriverApplicationRepository,
   MongoDriverDocumentRepository,
   MongoDriverRepository,
+  MongoKycAuditRepository,
   MongoRiderRepository,
   MongoSessionRepository,
   MongoUserRepository,
@@ -57,13 +74,16 @@ import {
 } from './interface/auth.controller.js';
 import { buildAuthRouter } from './interface/auth.routes.js';
 import {
+  makeCreateAdminDocumentPreviewController,
   makeCreateDriverApplicationController,
   makeCreateDriverProfileController,
   makeGetDriverProfileController,
   makeRegisterDriverVehicleController,
+  makeRenewDriverApplicationController,
   makeGetDriverApplicationController,
   makeListDriverApplicationsController,
   makeReviewDriverApplicationController,
+  makeStreamAdminDocumentContentController,
   makeSubmitDriverApplicationController,
   makeUpdateDriverStatusController,
   makeUploadDriverDocumentController,
@@ -108,6 +128,7 @@ export interface IdentityContainer {
   buildRiderRouter?: () => Router;
   buildAdminRiderRouter?: () => Router;
   buildAdminUserRouter?: () => Router;
+  sweepKycExpiry?: SweepDriverKycExpiryUseCase;
   authenticate: ReturnType<typeof makeAuthenticate>;
   /** Token check for non-HTTP transports (WebSocket upgrade). */
   verifyToken?: ReturnType<typeof makeTokenVerifier>;
@@ -118,20 +139,26 @@ export interface IdentityContainer {
 
 export interface IdentityContainerDeps {
   unitOfWork?: UnitOfWorkPort;
-  userRepo?: MongoUserRepository;
-  riderRepo?: MongoRiderRepository;
-  sessionRepo?: MongoSessionRepository;
-  adminRepo?: MongoAdminUserRepository;
-  driverRepo?: MongoDriverRepository;
-  applicationRepo?: MongoDriverApplicationRepository;
-  documentRepo?: MongoDriverDocumentRepository;
-  vehicleRepo?: MongoVehicleRepository;
+  userRepo?: UserRepositoryPort;
+  riderRepo?: RiderRepositoryPort;
+  sessionRepo?: SessionRepositoryPort;
+  adminRepo?: AdminUserRepositoryPort;
+  driverRepo?: DriverRepositoryPort;
+  applicationRepo?: DriverApplicationRepositoryPort;
+  documentRepo?: DriverDocumentRepositoryPort;
+  vehicleRepo?: VehicleRepositoryPort;
+  auditRepo?: KycAuditRepositoryPort;
+  licenseStorage?: DriverLicenseStoragePort;
+  previewSigningSecret?: string;
   rideRepo?: RideRepositoryPort;
   zoneRepo?: ZoneRepositoryPort;
   tokenAdapter?: JoseTokenAdapter;
   otpStore?: OtpStorePort;
   smsGateway?: SmsGatewayPort;
   ensureDriverWallet?: (driverId: string) => Promise<void>;
+  hasActiveRide?: (driverId: string) => Promise<boolean>;
+  removeDriverPresence?: (driverId: string) => Promise<void>;
+  notifyDriver?: (notification: DriverKycExpiryNotification) => Promise<void>;
 }
 
 export function buildIdentityContainer(deps?: IdentityContainerDeps): IdentityContainer {
@@ -144,6 +171,7 @@ export function buildIdentityContainer(deps?: IdentityContainerDeps): IdentityCo
   const applicationRepo = deps?.applicationRepo ?? new MongoDriverApplicationRepository();
   const documentRepo = deps?.documentRepo ?? new MongoDriverDocumentRepository();
   const vehicleRepo = deps?.vehicleRepo ?? new MongoVehicleRepository();
+  const auditRepo = deps?.auditRepo ?? new MongoKycAuditRepository();
   const tokenAdapter = deps?.tokenAdapter ?? new JoseTokenAdapter(env.JWT_ACCESS_SECRET);
   if (
     isProdLike &&
@@ -158,6 +186,14 @@ export function buildIdentityContainer(deps?: IdentityContainerDeps): IdentityCo
     deps?.otpStore ??
     (isProdLike && !allowDevShortcuts ? new MongoOtpStoreAdapter() : new MemoryOtpStoreAdapter());
   const smsGateway = deps?.smsGateway ?? new ConsoleSmsGatewayAdapter();
+
+  const licenseStorage =
+    deps?.licenseStorage ??
+    new CloudinaryDriverLicenseAdapter({
+      cloudName: env.CLOUDINARY_CLOUD_NAME,
+      apiKey: env.CLOUDINARY_API_KEY,
+      apiSecret: env.CLOUDINARY_API_SECRET,
+    });
 
   const requestOtpUseCase = new RequestOtpUseCase({
     otpStore,
@@ -209,22 +245,22 @@ export function buildIdentityContainer(deps?: IdentityContainerDeps): IdentityCo
   const createDriverApplicationUseCase = new CreateDriverApplicationUseCase({
     driverRepo,
     applicationRepo,
+    documentRepo,
+    vehicleRepo,
   });
 
   const uploadDriverDocumentUseCase = new UploadDriverDocumentUseCase({
     driverRepo,
     applicationRepo,
     documentRepo,
-    licenseStorage: new CloudinaryDriverLicenseAdapter({
-      cloudName: env.CLOUDINARY_CLOUD_NAME,
-      apiKey: env.CLOUDINARY_API_KEY,
-      apiSecret: env.CLOUDINARY_API_SECRET,
-    }),
+    licenseStorage,
   });
 
   const registerDriverVehicleUseCase = new RegisterDriverVehicleUseCase({
     driverRepo,
     vehicleRepo,
+    applicationRepo,
+    documentRepo,
   });
 
   const submitDriverApplicationUseCase = new SubmitDriverApplicationUseCase({
@@ -240,12 +276,18 @@ export function buildIdentityContainer(deps?: IdentityContainerDeps): IdentityCo
     applicationRepo,
     documentRepo,
     vehicleRepo,
+    auditRepo,
+    removeDriverPresence: deps?.removeDriverPresence,
   });
 
-  const licenseStorage = new CloudinaryDriverLicenseAdapter({
-    cloudName: env.CLOUDINARY_CLOUD_NAME,
-    apiKey: env.CLOUDINARY_API_KEY,
-    apiSecret: env.CLOUDINARY_API_SECRET,
+  const sweepKycExpiry = new SweepDriverKycExpiryUseCase({
+    documentRepo,
+    driverRepo,
+    vehicleRepo,
+    auditRepo,
+    hasActiveRide: deps?.hasActiveRide,
+    removeDriverPresence: deps?.removeDriverPresence,
+    notifyDriver: deps?.notifyDriver,
   });
 
   const adminApplicationDeps = {
@@ -255,6 +297,10 @@ export function buildIdentityContainer(deps?: IdentityContainerDeps): IdentityCo
     vehicleRepo,
     documentRepo,
     licenseStorage,
+    auditRepo,
+    zoneRepo: deps?.zoneRepo,
+    previewSigningSecret: deps?.previewSigningSecret ?? env.JWT_ACCESS_SECRET,
+    removeDriverPresence: deps?.removeDriverPresence,
   };
 
   const adminRiderDeps = {
@@ -282,6 +328,8 @@ export function buildIdentityContainer(deps?: IdentityContainerDeps): IdentityCo
   const requireZoneAccess = makeRequireZoneAccess({
     adminRepo,
   });
+
+  const requireAdminScope = makeRequireAdminScope(adminRepo);
 
   const adminUserDeps = {
     adminUserRepo: adminRepo,
@@ -319,10 +367,15 @@ export function buildIdentityContainer(deps?: IdentityContainerDeps): IdentityCo
         createProfile: makeCreateDriverProfileController(createDriverProfileUseCase),
         getProfile: makeGetDriverProfileController(getDriverProfileUseCase),
         createApplication: makeCreateDriverApplicationController(createDriverApplicationUseCase),
+        renewApplication: makeRenewDriverApplicationController(createDriverApplicationUseCase),
         uploadDocument: makeUploadDriverDocumentController(uploadDriverDocumentUseCase),
         uploadLicenseFile: makeUploadDriverLicenseFileController(uploadDriverDocumentUseCase),
-        uploadVehicleDocumentFile: makeUploadVehicleDocumentFileController(uploadDriverDocumentUseCase),
-        uploadIdentityDocumentFile: makeUploadIdentityDocumentFileController(uploadDriverDocumentUseCase),
+        uploadVehicleDocumentFile: makeUploadVehicleDocumentFileController(
+          uploadDriverDocumentUseCase,
+        ),
+        uploadIdentityDocumentFile: makeUploadIdentityDocumentFileController(
+          uploadDriverDocumentUseCase,
+        ),
         registerVehicle: makeRegisterDriverVehicleController(registerDriverVehicleUseCase),
         submitApplication: makeSubmitDriverApplicationController(submitDriverApplicationUseCase),
         testApproveApplication: allowDevShortcuts
@@ -354,6 +407,12 @@ export function buildIdentityContainer(deps?: IdentityContainerDeps): IdentityCo
         ),
         getApplication: makeGetDriverApplicationController(
           new GetDriverApplicationDetailUseCase(adminApplicationDeps),
+        ),
+        previewDocument: makeCreateAdminDocumentPreviewController(
+          new CreateAdminDocumentPreviewUseCase(adminApplicationDeps),
+        ),
+        streamDocumentContent: makeStreamAdminDocumentContentController(
+          new StreamAdminDocumentContentUseCase(adminApplicationDeps),
         ),
       }),
     buildRiderRouter: () =>
@@ -389,10 +448,11 @@ export function buildIdentityContainer(deps?: IdentityContainerDeps): IdentityCo
         updateAdminUserStatus: makeUpdateAdminUserStatusController(updateAdminUserStatusUseCase),
         getRolePermissions: makeGetAdminRolePermissionsController(),
       }),
+    sweepKycExpiry,
     authenticate,
     verifyToken: makeTokenVerifier({ tokenVerifier: tokenAdapter, sessionRepo, adminRepo }),
     requireRole,
     requireZoneAccess,
-    requireAdminScope: makeRequireAdminScope(adminRepo),
+    requireAdminScope,
   };
 }

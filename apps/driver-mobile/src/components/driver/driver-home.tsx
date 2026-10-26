@@ -16,10 +16,12 @@ import { useDuty } from '@/context/duty-context';
 import { useRide } from '@/context/ride-context';
 import { colors, typography } from '@/design-system';
 import { Ionicons } from '@expo/vector-icons';
+import { deriveKycBannerState } from '@/services/profile';
 
 export function DriverHome() {
   const router = useRouter();
-  const { user, driver } = useAuth();
+  const { user, driver, driverProfile } = useAuth();
+  const kycBanner = deriveKycBannerState(driverProfile);
   const {
     status,
     isToggling,
@@ -159,6 +161,46 @@ export function DriverHome() {
             </View>
             <View style={styles.activeRideCta}>
               <Text style={styles.activeRideCtaText}>Open →</Text>
+            </View>
+          </Pressable>
+        ) : null}
+
+        {kycBanner ? (
+          <Pressable
+            style={[
+              styles.kycBanner,
+              kycBanner.tone === 'danger'
+                ? styles.kycBannerDanger
+                : kycBanner.tone === 'info'
+                  ? styles.kycBannerInfo
+                  : styles.kycBannerWarning,
+            ]}
+            onPress={() => router.push('/(driver)/account/documents')}
+            accessibilityRole="button"
+            accessibilityLabel={kycBanner.ctaLabel}>
+            <Ionicons
+              name={
+                kycBanner.tone === 'danger'
+                  ? 'warning-outline'
+                  : kycBanner.tone === 'info'
+                    ? 'time-outline'
+                    : 'alert-circle-outline'
+              }
+              size={22}
+              color={
+                kycBanner.tone === 'danger'
+                  ? colors.error
+                  : kycBanner.tone === 'info'
+                    ? colors.deepBrown
+                    : colors.brandBrown
+              }
+            />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.kycBannerTitle}>{kycBanner.title}</Text>
+              <Text style={styles.kycBannerSub}>{kycBanner.message}</Text>
+            </View>
+            <View style={styles.kycBannerCta}>
+              <Text style={styles.kycBannerCtaText}>{kycBanner.ctaLabel}</Text>
             </View>
           </Pressable>
         ) : null}
@@ -390,11 +432,17 @@ export function DriverHome() {
                 accessibilityRole="button"
                 accessibilityLabel="Go online"
                 accessibilityState={{ disabled: isToggling || isVerifyingOnline, busy: isToggling || isVerifyingOnline }}
-                onPress={handleGoOnline}>
+                onPress={
+                  isKycVerified
+                    ? handleGoOnline
+                    : () => router.push('/(driver)/account/documents')
+                }>
                 {isToggling || isVerifyingOnline ? (
                   <ActivityIndicator color={colors.deepBrown} />
                 ) : (
-                  <Text style={styles.onlineButtonText}>GO ONLINE →</Text>
+                  <Text style={styles.onlineButtonText}>
+                    {isKycVerified ? 'GO ONLINE →' : 'RENEW DOCUMENTS TO GO ONLINE →'}
+                  </Text>
                 )}
               </Pressable>
             </View>
@@ -880,6 +928,49 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     gap: 12,
+  },
+  kycBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 16,
+    gap: 12,
+    borderWidth: 1,
+  },
+  kycBannerDanger: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#FCA5A5',
+  },
+  kycBannerWarning: {
+    backgroundColor: '#FFFBEB',
+    borderColor: colors.amber,
+  },
+  kycBannerInfo: {
+    backgroundColor: colors.cream,
+    borderColor: colors.border,
+  },
+  kycBannerTitle: {
+    fontSize: typography.sizes.xs,
+    fontWeight: '800',
+    color: colors.deepBrown,
+  },
+  kycBannerSub: {
+    fontSize: 11,
+    color: colors.secondary,
+    marginTop: 2,
+    lineHeight: 15,
+  },
+  kycBannerCta: {
+    backgroundColor: colors.deepBrown,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 10,
+  },
+  kycBannerCtaText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: colors.white,
   },
   devSimTitle: {
     fontSize: typography.sizes.sm,

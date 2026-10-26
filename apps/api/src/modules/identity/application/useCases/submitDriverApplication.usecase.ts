@@ -1,6 +1,8 @@
+import { DOCUMENT_TYPES } from '@cabzone/contracts';
 import { AppError } from '../../../../shared/errors/AppError.js';
 import {
   canSubmitApplication,
+  isVehicleScopedDocumentType,
   type DriverApplicationEntity,
   type DriverApplicationRepositoryPort,
   type DriverDocumentRepositoryPort,
@@ -56,15 +58,19 @@ export class SubmitDriverApplicationUseCase {
       throw AppError.badRequest('Registered vehicle not found.');
     }
 
+    const now = new Date();
     const missing = DOCUMENT_TYPES.filter(
       (type) =>
         !docs.some(
           (doc) =>
             doc.type === type &&
             !doc.storageKey.startsWith('mock/') &&
+            (!isVehicleScopedDocumentType(type) ||
+              doc.vehicleId == null ||
+              doc.vehicleId === vehicle.id) &&
             (type === 'GOVERNMENT_ID'
-              ? !doc.expiresAt || doc.expiresAt > new Date()
-              : doc.expiresAt !== null && doc.expiresAt > new Date()),
+              ? !doc.expiresAt || doc.expiresAt > now
+              : doc.expiresAt !== null && doc.expiresAt > now),
         ),
     );
     if (missing.length > 0) {
@@ -73,13 +79,32 @@ export class SubmitDriverApplicationUseCase {
       );
     }
 
+    if (
+      docs.every((doc) => doc.verificationStatus === 'VERIFIED') &&
+      vehicle.verificationStatus === 'APPROVED' &&
+      driver.status === 'ACTIVE'
+    ) {
+      throw AppError.badRequest(
+        'RENEWAL_DOCUMENT_REQUIRED: Upload at least one updated document before submitting a renewal.',
+      );
+    }
+
+    for (const doc of docs) {
+      if (isVehicleScopedDocumentType(doc.type) && doc.vehicleId == null) {
+        await this.deps.documentRepo.update({
+          ...doc,
+          vehicleId: vehicle.id,
+          updatedAt: now,
+        });
+      }
+    }
+
     const updatedApp: DriverApplicationEntity = {
       ...application,
       status: 'SUBMITTED',
-      submittedAt: new Date(),
+      submittedAt: now,
     };
 
     return this.deps.applicationRepo.update(updatedApp);
   }
 }
-import { DOCUMENT_TYPES } from '@cabzone/contracts';

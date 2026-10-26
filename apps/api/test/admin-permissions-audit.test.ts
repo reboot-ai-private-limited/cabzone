@@ -630,12 +630,12 @@ describe('Step 15 Admin Permissions, City Scope & Operations Audit', () => {
       ).status,
     ).toBe(403);
 
-    // SUPPORT_ADMIN can read full dossier including KYC preview URL, but cannot review or suspend
+    // SUPPORT_ADMIN can read the dossier without an eager private document URL.
     const supportDetail = await request(f.app)
       .get(`/api/v1/admin/driver-applications/${f.appId}`)
       .set('Authorization', supportAdmin.auth);
     expect(supportDetail.status).toBe(200);
-    expect(supportDetail.body.data.documents[0].fileUrl).toContain('private-cdn.example');
+    expect(supportDetail.body.data.documents[0].fileUrl).toBeNull();
 
     expect(
       (

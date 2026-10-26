@@ -2,21 +2,20 @@ import { Buffer } from 'node:buffer';
 import { createHash } from 'node:crypto';
 import { newUuid } from '../../../shared/ids.js';
 import { AppError } from '../../../shared/errors/AppError.js';
+import {
+  isPrivateKycStorageKey,
+  type DocumentFileExtension,
+} from '../application/driverLicenseFile.js';
 import type { DriverLicenseStoragePort } from '../domain/driverLicenseStorage.port.js';
+
+const MAX_READ_BYTES = 5 * 1024 * 1024;
 
 export class CloudinaryDriverLicenseAdapter implements DriverLicenseStoragePort {
   constructor(private readonly config: { cloudName: string; apiKey: string; apiSecret: string }) {}
 
-  resolveUrl(storageKey: string): string | null {
-    if (!storageKey || storageKey.startsWith('mock/')) {
-      return null;
-    }
-    if (
-      storageKey.startsWith('http://') ||
-      storageKey.startsWith('https://') ||
-      storageKey.startsWith('data:')
-    ) {
-      return storageKey;
+  private buildAuthenticatedDeliveryUrl(storageKey: string): string {
+    if (!isPrivateKycStorageKey(storageKey)) {
+      throw AppError.badRequest('Document storage key is not a valid private KYC asset');
     }
     const signature = createHash('sha1')
       .update(`${storageKey}${this.config.apiSecret}`)
@@ -25,7 +24,31 @@ export class CloudinaryDriverLicenseAdapter implements DriverLicenseStoragePort 
     return `https://res.cloudinary.com/${encodeURIComponent(this.config.cloudName)}/raw/authenticated/s--${signature}--/${storageKey}`;
   }
 
-  async upload(dataUrl: string, extension: 'pdf' | 'jpg'): Promise<string> {
+  async read(storageKey: string): Promise<Buffer> {
+    const upstreamUrl = this.buildAuthenticatedDeliveryUrl(storageKey);
+    try {
+      const response = await fetch(upstreamUrl, {
+        method: 'GET',
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (!response.ok) {
+        throw new Error(`Storage read failed with status ${response.status}`);
+      }
+      const arrayBuffer = await response.arrayBuffer();
+      if (arrayBuffer.byteLength === 0 || arrayBuffer.byteLength > MAX_READ_BYTES) {
+        throw new Error('Invalid document byte length');
+      }
+      return Buffer.from(arrayBuffer);
+    } catch {
+      throw new AppError({
+        statusCode: 502,
+        code: 'INTERNAL',
+        message: 'Could not retrieve private KYC document.',
+      });
+    }
+  }
+
+  async upload(dataUrl: string, extension: DocumentFileExtension): Promise<string> {
     // shortcut: replaced or failed-persistence assets need an orphan cleanup job.
     const publicId = `driver-kyc/${newUuid()}.${extension}`;
     const body = new FormData();

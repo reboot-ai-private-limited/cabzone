@@ -1,11 +1,16 @@
 import type {
   DocumentVerificationStatus,
   DriverApplicationStatus,
+  DriverKycStatus,
   DriverOperationalStatus,
   DriverStatus,
   VehicleVerificationStatus,
 } from '@cabzone/contracts';
 import { Badge, type BadgeTone } from '@cabzone/design-system';
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+export const KYC_WARNING_DAYS = 30;
+export const KYC_URGENT_DAYS = 7;
 
 const APPLICATION_TONES: Record<DriverApplicationStatus, BadgeTone> = {
   DRAFT: 'neutral',
@@ -57,6 +62,62 @@ const DRIVER_STATUS_TONES: Record<DriverStatus, BadgeTone> = {
 export function DriverStatusBadge({ status }: { status: DriverStatus | string }) {
   const tone = (DRIVER_STATUS_TONES as Record<string, BadgeTone>)[status] ?? 'neutral';
   return <Badge tone={tone}>{status}</Badge>;
+}
+
+const DRIVER_KYC_TONES: Record<DriverKycStatus, BadgeTone> = {
+  VERIFIED: 'success',
+  PENDING: 'warning',
+  FAILED: 'danger',
+  EXPIRED: 'danger',
+};
+
+const DRIVER_KYC_LABELS: Record<DriverKycStatus, string> = {
+  VERIFIED: 'KYC Verified',
+  PENDING: 'KYC Pending',
+  FAILED: 'KYC Failed',
+  EXPIRED: 'KYC Expired',
+};
+
+export function KycStatusBadge({ status }: { status: DriverKycStatus | string | null | undefined }) {
+  if (!status) return <Badge tone="neutral">Unknown</Badge>;
+  const tone = (DRIVER_KYC_TONES as Record<string, BadgeTone>)[status] ?? 'neutral';
+  const label = (DRIVER_KYC_LABELS as Record<string, string>)[status] ?? status;
+  return <Badge tone={tone}>{label}</Badge>;
+}
+
+export interface DocumentExpiryBadgeState {
+  label: string;
+  tone: 'danger' | 'warning';
+  daysRemaining: number;
+}
+
+export function computeDocumentExpiryBadge(
+  expiresAt: string | null | undefined,
+  verificationStatus?: DocumentVerificationStatus | string | null,
+  nowMs: number = Date.now(),
+): DocumentExpiryBadgeState | null {
+  if (verificationStatus === 'EXPIRED') {
+    const parsed = expiresAt ? Date.parse(expiresAt) : Number.NaN;
+    const daysRemaining = Number.isNaN(parsed)
+      ? 0
+      : Math.min(0, Math.ceil((parsed - nowMs) / DAY_MS));
+    return { label: 'Expired', tone: 'danger', daysRemaining };
+  }
+  if (!expiresAt) return null;
+  const parsed = Date.parse(expiresAt);
+  if (Number.isNaN(parsed)) return null;
+
+  const daysRemaining = Math.ceil((parsed - nowMs) / DAY_MS);
+  if (daysRemaining <= 0) {
+    return { label: 'Expired', tone: 'danger', daysRemaining };
+  }
+  if (daysRemaining <= KYC_URGENT_DAYS) {
+    return { label: `Expires in ${daysRemaining}d`, tone: 'danger', daysRemaining };
+  }
+  if (daysRemaining <= KYC_WARNING_DAYS) {
+    return { label: `Expiring (${daysRemaining}d)`, tone: 'warning', daysRemaining };
+  }
+  return null;
 }
 
 export function OperationalStatusBadge({

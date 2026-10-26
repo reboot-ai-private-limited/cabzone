@@ -1,15 +1,20 @@
 import type { VehicleCategory } from '@cabzone/contracts';
 import { newUuid } from '../../../../shared/ids.js';
 import { AppError } from '../../../../shared/errors/AppError.js';
-import type {
-  DriverRepositoryPort,
-  VehicleEntity,
-  VehicleRepositoryPort,
+import {
+  isVehicleScopedDocumentType,
+  type DriverApplicationRepositoryPort,
+  type DriverDocumentRepositoryPort,
+  type DriverRepositoryPort,
+  type VehicleEntity,
+  type VehicleRepositoryPort,
 } from '../../domain/index.js';
 
 export interface RegisterDriverVehicleDeps {
   driverRepo: DriverRepositoryPort;
   vehicleRepo: VehicleRepositoryPort;
+  applicationRepo?: DriverApplicationRepositoryPort | undefined;
+  documentRepo?: DriverDocumentRepositoryPort | undefined;
 }
 
 export interface RegisterDriverVehicleDto {
@@ -75,6 +80,26 @@ export class RegisterDriverVehicleUseCase {
         ...driver,
         currentVehicleId: vehicle.id,
       });
+    }
+
+    if (this.deps.applicationRepo && this.deps.documentRepo) {
+      const activeApp = await this.deps.applicationRepo.findByDriverId(driver.id);
+      if (activeApp && ['DRAFT', 'REAPPLIED'].includes(activeApp.status)) {
+        const docs = await this.deps.documentRepo.findByApplicationId(activeApp.id);
+        for (const doc of docs) {
+          if (
+            isVehicleScopedDocumentType(doc.type) &&
+            doc.verificationStatus === 'PENDING' &&
+            doc.vehicleId == null
+          ) {
+            await this.deps.documentRepo.update({
+              ...doc,
+              vehicleId: vehicle.id,
+              updatedAt: now,
+            });
+          }
+        }
+      }
     }
 
     return vehicle;

@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
   AlertTriangle,
   Calendar,
@@ -8,16 +9,25 @@ import {
   Copy,
   ExternalLink,
   FileText,
+  Lock,
+  RefreshCw,
   RotateCw,
   ZoomIn,
   ZoomOut,
 } from 'lucide-react';
-import { Badge, Button, Dialog } from '@cabzone/design-system';
+import { Badge, Button, Dialog, Skeleton } from '@cabzone/design-system';
 import type { DocumentType } from '@cabzone/contracts';
-import type { DriverDocumentAdminDto } from '@/lib/api/endpoints/drivers';
-import { DocumentStatusBadge } from './StatusBadge';
+import {
+  driversApi,
+  hasDocumentPreviewFile,
+  isPdfPreview,
+  resolvePreviewContentUrl,
+  type DriverDocumentAdminDto,
+} from '@/lib/api/endpoints/drivers';
+import { DocumentStatusBadge, computeDocumentExpiryBadge } from './StatusBadge';
 
 export interface DocumentPreviewDialogProps {
+  applicationId: string | null;
   document: DriverDocumentAdminDto | null;
   driverPhone?: string | null;
   open: boolean;
@@ -35,29 +45,15 @@ export const DOCUMENT_TYPE_LABELS: Record<DocumentType, string> = {
 const formatDate = (iso: string | null): string =>
   iso === null ? '—' : new Date(iso).toLocaleDateString('en-IN', { dateStyle: 'medium' });
 
-export function resolveDocumentFileUrl(doc: DriverDocumentAdminDto): string | null {
-  if (doc.fileUrl) return doc.fileUrl;
-  if (
-    doc.storageKey.startsWith('http://') ||
-    doc.storageKey.startsWith('https://') ||
-    doc.storageKey.startsWith('data:')
-  ) {
-    return doc.storageKey;
-  }
-  return null;
-}
+const formatExpiryTime = (iso: string | null | undefined): string =>
+  !iso
+    ? '5 min'
+    : new Date(iso).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
 
-export function isPdfDocument(doc: DriverDocumentAdminDto, fileUrl: string | null): boolean {
-  const keyLower = doc.storageKey.toLowerCase();
-  const urlLower = (fileUrl ?? '').toLowerCase();
-  return (
-    keyLower.endsWith('.pdf') ||
-    urlLower.endsWith('.pdf') ||
-    urlLower.startsWith('data:application/pdf')
-  );
-}
+export { isPdfPreview };
 
 export function DocumentPreviewDialog({
+  applicationId,
   document,
   driverPhone,
   open,
@@ -66,22 +62,31 @@ export function DocumentPreviewDialog({
   const [zoom, setZoom] = useState(1);
   const [rotation, setRotation] = useState(0);
   const [copied, setCopied] = useState(false);
-  const [imageError, setImageError] = useState(false);
+  const [failedPreviewUrl, setFailedPreviewUrl] = useState<string | null>(null);
 
-  useEffect(() => {
-    setImageError(false);
-  }, [document?.id, document?.fileUrl]);
+  const hasFile = document ? hasDocumentPreviewFile(document) : false;
+
+  const previewQuery = useQuery({
+    queryKey: ['admin-kyc-document-preview', applicationId, document?.id] as const,
+    queryFn: ({ signal }) =>
+      driversApi.previewDocument(applicationId!, document!.id, undefined, signal),
+    enabled: open && Boolean(applicationId) && Boolean(document?.id) && hasFile,
+    staleTime: 0,
+    gcTime: 0,
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
 
   if (!document) return null;
 
   const docTitle = DOCUMENT_TYPE_LABELS[document.type] ?? document.type.replace(/_/g, ' ');
-  const isExpired =
-    document.expiresAt !== null && new Date(document.expiresAt).getTime() < Date.now();
+  const expiryBadge = computeDocumentExpiryBadge(document.expiresAt, document.verificationStatus);
   const isRedacted = document.storageKey === 'REDACTED';
-  const fileUrl = resolveDocumentFileUrl(document);
-  const isPdf = isPdfDocument(document, fileUrl);
+  const signedUrl = isRedacted ? null : resolvePreviewContentUrl(previewQuery.data?.url);
+  const isPdf = isPdfPreview(previewQuery.data?.mimeType, document.storageKey);
+  const imageError = signedUrl !== null && failedPreviewUrl === signedUrl;
 
-  const handleCopyHash = () => {
+  const handleCopyKey = () => {
     void navigator.clipboard.writeText(document.storageKey);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -99,8 +104,8 @@ export function DocumentPreviewDialog({
         if (!next) resetView();
         onOpenChange(next);
       }}
-      title={`${docTitle} — Original Document`}
-      description={`Uploaded KYC document for driver ${driverPhone ?? 'applicant'}`}
+      title={`${docTitle} — Audited Preview`}
+      description={`Private KYC document for driver ${driverPhone ?? 'applicant'} (access logged)`}
       className="max-w-4xl"
     >
       <div className="flex flex-col gap-4">
@@ -116,25 +121,33 @@ export function DocumentPreviewDialog({
                 {document.documentNumberMasked}
               </span>
             )}
-            {isExpired && (
-              <Badge tone="danger">
+            {expiryBadge && (
+              <Badge tone={expiryBadge.tone}>
                 <span className="flex items-center gap-1">
                   <AlertTriangle className="size-3" />
-                  Expired
+                  {expiryBadge.label}
                 </span>
               </Badge>
             )}
           </div>
-          <div className="flex items-center gap-2 text-xs text-text-subtle">
-            <Calendar className="size-3.5" />
-            <span>Expires: {formatDate(document.expiresAt)}</span>
+          <div className="flex items-center gap-3 text-xs text-text-subtle">
+            <span className="inline-flex items-center gap-1">
+              <Lock className="size-3.5 text-interactive" />
+              {previewQuery.data?.expiresAt
+                ? `Signed link valid until ${formatExpiryTime(previewQuery.data.expiresAt)}`
+                : 'Short-lived signed preview'}
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <Calendar className="size-3.5" />
+              Expires: {formatDate(document.expiresAt)}
+            </span>
           </div>
         </div>
 
         {/* Viewer Toolbar */}
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border pb-2 text-xs">
           <div className="flex flex-wrap items-center gap-1.5">
-            {!isPdf && fileUrl && (
+            {!isPdf && signedUrl && (
               <>
                 <Button
                   size="sm"
@@ -169,19 +182,36 @@ export function DocumentPreviewDialog({
             )}
           </div>
 
-          <div className="flex items-center gap-3">
-            {!isPdf && fileUrl && (
+          <div className="flex items-center gap-2.5">
+            {!isPdf && signedUrl && (
               <span className="text-text-subtle tnum">Scale: {Math.round(zoom * 100)}%</span>
             )}
-            {fileUrl && (
+            {hasFile && applicationId && (
+              <Button
+                size="sm"
+                icon={
+                  <RefreshCw
+                    className={`size-3.5 ${previewQuery.isFetching ? 'animate-spin' : ''}`}
+                  />
+                }
+                loading={previewQuery.isFetching}
+                onClick={() => {
+                  setFailedPreviewUrl(null);
+                  void previewQuery.refetch();
+                }}
+              >
+                Refresh Link
+              </Button>
+            )}
+            {signedUrl && (
               <a
-                href={fileUrl}
+                href={signedUrl}
                 target="_blank"
-                rel="noreferrer"
+                rel="noopener noreferrer"
                 className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-interactive/10 text-interactive hover:bg-interactive/15 font-semibold text-xs transition-colors"
               >
                 <ExternalLink className="size-3.5" />
-                Open Original
+                Open Signed Copy
               </a>
             )}
           </div>
@@ -189,18 +219,42 @@ export function DocumentPreviewDialog({
 
         {/* Original Uploaded Document Viewer Canvas */}
         <div className="relative min-h-[380px] max-h-[540px] flex items-center justify-center p-4 bg-zinc-950/95 rounded-xl border border-border overflow-auto">
-          {fileUrl && isPdf ? (
+          {previewQuery.isFetching ? (
+            <div className="w-full flex flex-col items-center justify-center gap-3 py-12">
+              <Skeleton className="w-full max-w-lg h-64 rounded-lg opacity-30" />
+              <span className="text-xs text-zinc-400">
+                Generating audited short-lived preview token…
+              </span>
+            </div>
+          ) : previewQuery.isError ? (
+            <div className="flex flex-col items-center justify-center text-center gap-3 p-8 max-w-md text-zinc-300">
+              <div className="size-12 rounded-full bg-danger/20 border border-danger/40 flex items-center justify-center text-danger">
+                <AlertTriangle className="size-6" />
+              </div>
+              <p className="text-sm font-semibold text-white">
+                Could not authorize document preview
+              </p>
+              <p className="text-xs text-zinc-400 leading-relaxed">
+                {previewQuery.error instanceof Error
+                  ? previewQuery.error.message
+                  : 'Your admin role may not have access to this driver city or the file is unavailable.'}
+              </p>
+              <Button size="sm" onClick={() => void previewQuery.refetch()}>
+                Retry Preview
+              </Button>
+            </div>
+          ) : signedUrl && isPdf ? (
             <iframe
-              src={fileUrl}
+              src={signedUrl}
               title={docTitle}
               className="w-full h-[480px] rounded-lg bg-white border border-zinc-800"
             />
-          ) : fileUrl && !imageError ? (
+          ) : signedUrl && !imageError ? (
             <div className="flex items-center justify-center w-full h-full overflow-auto py-2">
               <img
-                src={fileUrl}
+                src={signedUrl}
                 alt={`${docTitle} uploaded by ${driverPhone ?? 'driver'}`}
-                onError={() => setImageError(true)}
+                onError={() => setFailedPreviewUrl(signedUrl)}
                 className="max-h-[480px] max-w-full w-auto object-contain rounded-lg shadow-2xl transition-transform duration-200 ease-out origin-center"
                 style={{
                   transform: `scale(${zoom}) rotate(${rotation}deg)`,
@@ -216,15 +270,15 @@ export function DocumentPreviewDialog({
                 {isRedacted
                   ? 'Document preview restricted for your role'
                   : imageError
-                    ? 'Could not load original document image'
-                    : 'No original file attached (Test / Seeded Record)'}
+                    ? 'Signed preview expired or could not render'
+                    : 'No private KYC file attached (Seeded Record)'}
               </p>
               <p className="text-xs text-zinc-400 leading-relaxed">
                 {isRedacted
-                  ? 'Original KYC document images are restricted to Super Admin and Support Admin operators.'
+                  ? 'Original KYC documents require an authorized review role.'
                   : imageError
-                    ? 'The uploaded document could not be rendered inline. Try opening the original file link above.'
-                    : `This document entry (${document.storageKey}) was created via a development seed/shortcut without an uploaded file.`}
+                    ? 'Click Refresh Link above to issue a fresh 5-minute signed preview URL.'
+                    : `This document entry (${document.storageKey}) has no private binary stored in KYC vault.`}
               </p>
             </div>
           )}
@@ -233,7 +287,7 @@ export function DocumentPreviewDialog({
         {/* Storage Key Footer */}
         <div className="flex items-center justify-between gap-2 rounded-lg bg-surface p-2.5 border border-border text-xs">
           <div className="flex items-center gap-2 min-w-0">
-            <span className="font-semibold text-text shrink-0">Storage Key:</span>
+            <span className="font-semibold text-text shrink-0">Vault Key:</span>
             <code className="px-2 py-0.5 rounded bg-surface-muted text-text-subtle font-mono text-[11px] truncate border border-border">
               {document.storageKey}
             </code>
@@ -244,7 +298,7 @@ export function DocumentPreviewDialog({
               icon={
                 copied ? <Check className="size-3.5 text-success" /> : <Copy className="size-3.5" />
               }
-              onClick={handleCopyHash}
+              onClick={handleCopyKey}
             >
               {copied ? 'Copied' : 'Copy Key'}
             </Button>

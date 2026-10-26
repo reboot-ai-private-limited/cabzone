@@ -27,6 +27,18 @@ export class CreateDriverProfileUseCase {
   async execute(input: string | CreateDriverProfileInput): Promise<DriverEntity> {
     const data: CreateDriverProfileInput = typeof input === 'string' ? { userId: input } : input;
     const existing = await this.deps.driverRepo.findByUserId(data.userId);
+    if (existing && existing.kycStatus === 'VERIFIED') {
+      const dlNumberChanged =
+        data.dlNumber !== undefined && data.dlNumber !== (existing.dlNumber ?? null);
+      const dlExpiryChanged =
+        data.dlExpiry !== undefined && data.dlExpiry !== (existing.dlExpiry ?? null);
+      if (dlNumberChanged || dlExpiryChanged) {
+        throw AppError.forbidden(
+          'DL_LOCKED_AFTER_VERIFICATION: Submit a driving licence renewal to update licence details.',
+        );
+      }
+    }
+
     let profilePhotoUrl = existing?.profilePhotoUrl ?? null;
     if (data.profilePhotoDataUrl === null) profilePhotoUrl = null;
     if (data.profilePhotoDataUrl) {

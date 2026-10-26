@@ -10,6 +10,7 @@ export * from './registerDriverVehicle.usecase.js';
 export * from './submitDriverApplication.usecase.js';
 export * from './reviewDriverApplication.usecase.js';
 export * from './adminDriverApplications.usecase.js';
+export * from './sweepDriverKycExpiry.usecase.js';
 export * from './adminRiders.usecase.js';
 export * from './riderProfile.usecase.js';
 export * from './adminUsers.usecase.js';

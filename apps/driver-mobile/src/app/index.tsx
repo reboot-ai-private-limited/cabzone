@@ -16,13 +16,17 @@ export default function IndexGateScreen() {
     retryBootstrap,
     logout,
     application,
-    isKycVerified,
+    canAccessDriverShell,
   } = useAuth();
   const { activeRide, isCheckingActiveRide } = useRide();
   const [launchFinished, setLaunchFinished] = useState(false);
 
   // 1. Wait for launch splash + session restoration + active ride check
-  if (!launchFinished || isLoading || (isAuthenticated && isKycVerified && isCheckingActiveRide)) {
+  if (
+    !launchFinished ||
+    isLoading ||
+    (isAuthenticated && canAccessDriverShell && isCheckingActiveRide)
+  ) {
     return (
       <View style={styles.container}>
         <CabzonLaunch onFinish={() => setLaunchFinished(true)} />
@@ -66,8 +70,8 @@ export default function IndexGateScreen() {
     return <Redirect href="/(auth)/welcome" />;
   }
 
-  // 4. Authenticated & Approved Driver
-  if (isKycVerified) {
+  // 4. Authenticated & Active Driver (including EXPIRED KYC who renew inside Compliance Documents)
+  if (canAccessDriverShell) {
     if (activeRide) {
       return (
         <Redirect

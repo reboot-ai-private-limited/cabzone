@@ -15,7 +15,7 @@ export class MongoDriverApplicationRepository implements DriverApplicationReposi
 
   async findByDriverId(driverId: string): Promise<DriverApplicationEntity | null> {
     const doc = await DriverApplicationModel.findOne({ driver_id: driverId })
-      .sort({ created_at: -1 })
+      .sort({ created_at: -1, _id: -1 })
       .lean<DriverApplicationDocument | null>()
       .exec();
     if (!doc) return null;
@@ -24,7 +24,7 @@ export class MongoDriverApplicationRepository implements DriverApplicationReposi
 
   async list(filter: DriverApplicationListFilter): Promise<DriverApplicationEntity[]> {
     const docs = await DriverApplicationModel.find(filter.status ? { status: filter.status } : {})
-      .sort({ created_at: -1 })
+      .sort({ created_at: -1, _id: -1 })
       .skip(filter.offset)
       .limit(filter.limit)
       .lean<DriverApplicationDocument[]>()
