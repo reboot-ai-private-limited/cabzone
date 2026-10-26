@@ -1,0 +1,22 @@
+{
+  "graph": "devtostagestate",
+  "method": "Graphify local structural extraction",
+  "sources": [
+    "docs/engineering/devtostagestate.md",
+    "docs/engineering/real-world-gap-analysis-report.md",
+    "docs/engineering/project-tracker-graph-context.md",
+    "docs/decision-log.md",
+    "docs/LLD/open-questions.md",
+    "docs/prd.md",
+    "docs/engineering/rider-app-architecture-and-implementation-plan.md",
+    "docs/engineering/driver-app-architecture-and-implementation-plan.md",
+    "docs/engineering/driver-wallet-money-movement.md",
+    "docs/engineering/razorpay-upi-test-checkout.md",
+    "docs/engineering/driver-realtime-websocket-fcm-plan.md",
+    "docs/engineering/driver-onboarding-flow-audit.md",
+    "docs/engineering/build-and-deploy.md",
+    "daily-work/24thoct.md",
+    "audit.md",
+    "graphify-out/documentation/DOCUMENTATION_REVIEW.md"
+  ]
+}
