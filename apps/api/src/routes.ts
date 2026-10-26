@@ -44,6 +44,15 @@ export function buildApiRouter(c: AppContainers): Router {
         const cities: string[] = [];
         if (id && id !== 'validate') {
           if (!zone) return null;
+          if (
+            zone.zoneType === 'CITY' &&
+            (req.method === 'DELETE' ||
+              req.path.endsWith('/deactivate') ||
+              req.path.endsWith('/activate') ||
+              req.path.endsWith('/geometry'))
+          ) {
+            return null;
+          }
           cities.push(zone.zoneType === 'CITY' ? zone.id : (zone.parentCityZoneId ?? ''));
         } else {
           if (req.body?.zoneType === 'CITY' || !req.body?.parentCityZoneId) return null;

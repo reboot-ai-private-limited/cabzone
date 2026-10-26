@@ -86,6 +86,14 @@ export interface WalletTransactionDto {
   createdAt: string;
 }
 
+export interface PaginatedWalletTransactionsDto {
+  items: WalletTransactionDto[];
+  total: number;
+  limit: number;
+  offset: number;
+  hasMore: boolean;
+}
+
 export interface WalletOperationDto {
   id: string;
   driverId: string;
@@ -161,7 +169,10 @@ export interface ListTransactionsQueryDto {
   riderId?: string | undefined;
   ownerType?: WalletOwnerType | undefined;
   type?: WalletTransactionType | undefined;
+  types?: readonly WalletTransactionType[] | undefined;
   referenceType?: TransactionReferenceType | undefined;
+  referenceTypes?: readonly TransactionReferenceType[] | undefined;
+  referenceIds?: readonly string[] | undefined;
   search?: string | undefined;
   limit?: number | undefined;
   offset?: number | undefined;

@@ -39,7 +39,9 @@ export const listWalletsQuerySchema = z.object({
   status: z.enum(['ALL', 'ACTIVE', 'BLOCKED', 'OWED', 'CREDIT']).optional(),
   balanceFilter: z.enum(['ALL', 'OWING', 'PAYABLE', 'ZERO']).optional(),
   suspendedFilter: z.enum(['ANY', 'SUSPENDED', 'NOT_SUSPENDED']).optional(),
-  sortBy: z.enum(['DEEPEST_DEBT', 'HIGHEST_BALANCE', 'LIFETIME_EARNINGS', 'RECENT_ENTRY']).optional(),
+  sortBy: z
+    .enum(['DEEPEST_DEBT', 'HIGHEST_BALANCE', 'LIFETIME_EARNINGS', 'RECENT_ENTRY'])
+    .optional(),
   limit: z.coerce.number().int().min(1).max(100).default(50),
   offset: z.coerce.number().int().min(0).default(0),
 });
@@ -54,6 +56,18 @@ export const listTransactionsQuerySchema = z.object({
   referenceType: z.enum(TRANSACTION_REFERENCE_TYPES).optional(),
   search: z.string().trim().optional(),
   limit: z.coerce.number().int().min(1).max(100).default(50),
+  offset: z.coerce.number().int().min(0).default(0),
+});
+
+export const driverMyWalletQuerySchema = z.object({
+  txLimit: z.coerce.number().int().min(1).max(100).optional(),
+});
+
+export const driverListTransactionsQuerySchema = z.object({
+  direction: z.enum(['ALL', 'DEBIT', 'CREDIT']).default('ALL'),
+  type: z.enum(WALLET_TRANSACTION_TYPES).optional(),
+  referenceType: z.enum(TRANSACTION_REFERENCE_TYPES).optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
   offset: z.coerce.number().int().min(0).default(0),
 });
 

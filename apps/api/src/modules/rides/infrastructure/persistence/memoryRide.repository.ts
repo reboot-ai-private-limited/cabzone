@@ -1,11 +1,32 @@
-import type { RideEntity, RideListFilter, RideRepositoryPort } from '../../domain/index.js';
+import type {
+  RideCountFilter,
+  RideEntity,
+  RideListFilter,
+  RideRepositoryPort,
+} from '../../domain/index.js';
 import { AppError } from '../../../../shared/errors/AppError.js';
 
 export class MemoryRideRepository implements RideRepositoryPort {
   private readonly rides = new Map<string, RideEntity>();
 
+  private matches(r: RideEntity, filter: RideCountFilter): boolean {
+    return (
+      (filter.riderId === undefined ||
+        r.bookerRiderId === filter.riderId ||
+        r.passenger.riderId === filter.riderId) &&
+      (filter.driverId === undefined || r.driverId === filter.driverId) &&
+      (filter.statuses === undefined || filter.statuses.includes(r.status)) &&
+      (filter.vehicleCategory === undefined || r.vehicleCategory === filter.vehicleCategory) &&
+      (filter.cityZoneIds === undefined ||
+        (Boolean(r.zoneSnapshot?.cityZoneId) &&
+          filter.cityZoneIds.includes(r.zoneSnapshot.cityZoneId!))) &&
+      (filter.offeringExpiresAfter === undefined ||
+        (r.offeringExpiresAt !== null && r.offeringExpiresAt > filter.offeringExpiresAfter))
+    );
+  }
+
   async save(ride: RideEntity): Promise<RideEntity> {
-    this.rides.set(ride.id, structuredClone({ ...ride, updatedAt: new Date() }));
+    this.rides.set(ride.id, structuredClone({ ...ride, updatedAt: ride.updatedAt ?? new Date() }));
     return structuredClone(this.rides.get(ride.id)!);
   }
 
@@ -22,25 +43,42 @@ export class MemoryRideRepository implements RideRepositoryPort {
 
   async list(filter: RideListFilter): Promise<RideEntity[]> {
     return [...this.rides.values()]
-      .filter(
-        (r) =>
-          (filter.riderId === undefined ||
-            r.bookerRiderId === filter.riderId ||
-            r.passenger.riderId === filter.riderId) &&
-          (filter.driverId === undefined || r.driverId === filter.driverId) &&
-          (filter.statuses === undefined || filter.statuses.includes(r.status)) &&
-          (filter.vehicleCategory === undefined || r.vehicleCategory === filter.vehicleCategory) &&
-          (filter.offeringExpiresAfter === undefined ||
-            (r.offeringExpiresAt !== null && r.offeringExpiresAt > filter.offeringExpiresAfter)),
-      )
+      .filter((r) => this.matches(r, filter))
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
       .slice(filter.offset, filter.offset + filter.limit)
       .map((r) => structuredClone(r));
   }
 
+  async count(filter: RideCountFilter): Promise<number> {
+    let total = 0;
+    for (const r of this.rides.values()) {
+      if (this.matches(r, filter)) total += 1;
+    }
+    return total;
+  }
+
+  async listDriverRidesInWindow(driverId: string, since: Date | null): Promise<RideEntity[]> {
+    return [...this.rides.values()]
+      .filter((r) => {
+        if (r.driverId !== driverId) return false;
+        if (!since) return true;
+        return (
+          (r.settledAt !== null && r.settledAt >= since) ||
+          (r.completedAt !== null && r.completedAt >= since) ||
+          (r.cancelledAt !== null && r.cancelledAt >= since) ||
+          r.updatedAt >= since ||
+          r.createdAt >= since
+        );
+      })
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .map((r) => structuredClone(r));
+  }
+
   async findExpiredOfferings(now: Date, limit: number): Promise<RideEntity[]> {
     return [...this.rides.values()]
-      .filter((r) => r.status === 'OFFERING' && r.offeringExpiresAt !== null && r.offeringExpiresAt < now)
+      .filter(
+        (r) => r.status === 'OFFERING' && r.offeringExpiresAt !== null && r.offeringExpiresAt < now,
+      )
       .sort((a, b) => a.offeringExpiresAt!.getTime() - b.offeringExpiresAt!.getTime())
       .slice(0, limit)
       .map((r) => structuredClone(r));
@@ -57,17 +95,22 @@ export class MemoryRideRepository implements RideRepositoryPort {
     assignedAt?: Date;
   }): Promise<RideEntity | null> {
     const ride = this.rides.get(opts.rideId);
-    if (!ride || (opts.expectedVersion !== undefined && ride.version !== opts.expectedVersion)) return null;
-    if (
-      (ride.status !== 'REQUESTED' && ride.status !== 'OFFERING') ||
-      ride.driverId !== null
-    ) {
+    if (!ride || (opts.expectedVersion !== undefined && ride.version !== opts.expectedVersion))
+      return null;
+    if ((ride.status !== 'REQUESTED' && ride.status !== 'OFFERING') || ride.driverId !== null) {
       return null;
     }
     const assignedAt = opts.assignedAt ?? new Date();
     if (ride.offeringExpiresAt && ride.offeringExpiresAt <= assignedAt) return null;
-    if ([...this.rides.values()].some((r) => r.driverId === opts.driverId &&
-      ['DRIVER_ASSIGNED', 'DRIVER_EN_ROUTE', 'DRIVER_ARRIVED', 'TRIP_STARTED'].includes(r.status))) {
+    if (
+      [...this.rides.values()].some(
+        (r) =>
+          r.driverId === opts.driverId &&
+          ['DRIVER_ASSIGNED', 'DRIVER_EN_ROUTE', 'DRIVER_ARRIVED', 'TRIP_STARTED'].includes(
+            r.status,
+          ),
+      )
+    ) {
       throw AppError.conflict('DRIVER_BUSY: Driver already has an active ride.');
     }
     const updated: RideEntity = {
@@ -91,14 +134,10 @@ export class MemoryRideRepository implements RideRepositoryPort {
     return structuredClone(updated);
   }
 
-  async countDailyRiderUnassignedCancellations(
-    riderId: string,
-    sinceDate: Date,
-  ): Promise<number> {
+  async countDailyRiderUnassignedCancellations(riderId: string, sinceDate: Date): Promise<number> {
     let count = 0;
     for (const ride of this.rides.values()) {
-      const isRider =
-        ride.bookerRiderId === riderId || ride.passenger.riderId === riderId;
+      const isRider = ride.bookerRiderId === riderId || ride.passenger.riderId === riderId;
       if (
         isRider &&
         ride.status === 'CANCELLED' &&
@@ -124,7 +163,11 @@ export class MemoryRideRepository implements RideRepositoryPort {
     let totalSpentPaise = 0;
 
     const isCompleted = (status: string) =>
-      status === 'TRIP_COMPLETED' || status === 'PAYMENT_PENDING' || status === 'PAYMENT_DISPUTED' || status === 'SETTLED' || status === 'PAYMENT_CONFIRMED';
+      status === 'TRIP_COMPLETED' ||
+      status === 'PAYMENT_PENDING' ||
+      status === 'PAYMENT_DISPUTED' ||
+      status === 'SETTLED' ||
+      status === 'PAYMENT_CONFIRMED';
 
     for (const r of this.rides.values()) {
       if (r.bookerRiderId === riderId || r.passenger.riderId === riderId) {
@@ -144,10 +187,17 @@ export class MemoryRideRepository implements RideRepositoryPort {
   async getRiderTripCountsBatch(
     riderIds: string[],
   ): Promise<Map<string, { totalRides: number; completedRides: number; cancelledRides: number }>> {
-    const map = new Map<string, { totalRides: number; completedRides: number; cancelledRides: number }>();
+    const map = new Map<
+      string,
+      { totalRides: number; completedRides: number; cancelledRides: number }
+    >();
     const idSet = new Set(riderIds);
     const isCompleted = (status: string) =>
-      status === 'TRIP_COMPLETED' || status === 'PAYMENT_PENDING' || status === 'PAYMENT_DISPUTED' || status === 'SETTLED' || status === 'PAYMENT_CONFIRMED';
+      status === 'TRIP_COMPLETED' ||
+      status === 'PAYMENT_PENDING' ||
+      status === 'PAYMENT_DISPUTED' ||
+      status === 'SETTLED' ||
+      status === 'PAYMENT_CONFIRMED';
 
     for (const r of this.rides.values()) {
       const id = idSet.has(r.bookerRiderId)
@@ -167,4 +217,3 @@ export class MemoryRideRepository implements RideRepositoryPort {
     return map;
   }
 }
-

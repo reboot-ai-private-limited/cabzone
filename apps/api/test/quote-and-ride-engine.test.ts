@@ -7,6 +7,7 @@ import {
 } from '../src/modules/ledger/index.js';
 import {
   calculateBaseFareEstimate,
+  CreatePricingConfigUseCase,
   CreateQuoteUseCase,
   MemoryPricingConfigRepository,
   type PricingConfigEntity,
@@ -264,6 +265,43 @@ describe('Quote Lifecycle & First-to-Accept Ride Engine', () => {
     expect(ride.proposedFarePaise).toBe(quote.suggestedFarePaise);
     expect(ride.suggestedFarePaise).toBe(quote.suggestedFarePaise);
     expect(ride.pricingSnapshot.pricingConfigVersion).toBe(cabPricingConfig.version);
+  });
+
+  it('uses an admin-saved active price through quote and ride creation', async () => {
+    const { pricingConfigRepo, quoteUseCase, createRideUseCase } = setupEngine();
+    const saved = await new CreatePricingConfigUseCase(pricingConfigRepo, unitOfWork).execute({
+      level: 'CITY',
+      cityZoneId: siliguriCityZone.id,
+      vehicleType: 'CAB',
+      baseFarePaise: 7000,
+      ratePerKmPaise: 2000,
+      minimumFarePaise: 8000,
+      outstationBaseFarePaise: 9000,
+      outstationRatePerKmPaise: 2400,
+      outstationMinimumFarePaise: 15000,
+      status: 'ACTIVE',
+    }, 'admin-1');
+    const pickup = { lat: 26.72, lng: 88.42 };
+    const drop = { lat: 26.75, lng: 88.45 };
+    const quote = await quoteUseCase.execute({ pickup, drop, vehicleCategory: 'CAB' });
+    const ride = await createRideUseCase.execute({
+      quoteToken: quote.quoteToken,
+      proposedFarePaise: quote.suggestedFarePaise,
+      riderId: 'rider-1',
+      passengerName: 'Rider',
+      passengerPhoneE164: '+919000000000',
+      pickup,
+      drop,
+      vehicleCategory: 'CAB',
+    });
+
+    expect(quote.pricingConfigId).toBe(saved.id);
+    expect(ride.pricingSnapshot).toMatchObject({
+      pricingConfigId: saved.id,
+      pricingConfigVersion: saved.version,
+      baseFarePaise: 7000,
+      ratePerKmPaise: 2000,
+    });
   });
 
   it('rejects proposed fare below negotiation floor or above ceiling', async () => {

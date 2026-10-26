@@ -1,11 +1,12 @@
 import type { VehicleCategory, DispatchFleetDriverDto } from '@cabzone/contracts';
 import type { DriverPresencePort } from '../../domain/presence.port.js';
 import type { DispatchLookups } from '../dispatch.types.js';
-import type { RideRepositoryPort } from '../../../rides/rides.public.js';
+import type { RideEntity, RideRepositoryPort } from '../../../rides/rides.public.js';
 
 export interface ListFleetQuery {
   vehicleCategory?: VehicleCategory | undefined;
   maxAgeMs?: number | undefined;
+  cityZoneIds?: readonly string[] | undefined;
 }
 
 export class ListFleetDriversUseCase {
@@ -16,6 +17,10 @@ export class ListFleetDriversUseCase {
   ) {}
 
   async execute(query?: ListFleetQuery): Promise<DispatchFleetDriverDto[]> {
+    if (query?.cityZoneIds !== undefined && query.cityZoneIds.length === 0) {
+      return [];
+    }
+
     const onlineDrivers = await this.presence.listAll(query);
     if (onlineDrivers.length === 0) return [];
 
@@ -26,16 +31,29 @@ export class ListFleetDriversUseCase {
       offset: 0,
     });
 
-    const driverActiveRideMap = new Map<string, string>();
+    const driverActiveRideMap = new Map<string, RideEntity>();
     for (const ride of activeRides) {
       if (ride.driverId) {
-        driverActiveRideMap.set(ride.driverId, ride.id);
+        driverActiveRideMap.set(ride.driverId, ride);
       }
     }
 
     const result: DispatchFleetDriverDto[] = [];
     for (const d of onlineDrivers) {
-      const activeRideId = driverActiveRideMap.get(d.driverId) ?? null;
+      const activeRide = driverActiveRideMap.get(d.driverId) ?? null;
+
+      if (query?.cityZoneIds !== undefined) {
+        const activeCityId = activeRide?.zoneSnapshot?.cityZoneId ?? null;
+        const inActiveRideCity = activeCityId !== null && query.cityZoneIds.includes(activeCityId);
+        if (!inActiveRideCity) {
+          const inZone = this.lookups.isPointInCityZones
+            ? await this.lookups.isPointInCityZones(d.lat, d.lng, query.cityZoneIds)
+            : false;
+          if (!inZone) continue;
+        }
+      }
+
+      const activeRideId = activeRide?.id ?? null;
       let driverName: string | undefined;
       let phoneE164: string | undefined;
       let vehicleRegistration: string | undefined;

@@ -26,6 +26,7 @@ export const keys = {
     all: () => ['rides'] as const,
     list: (filter?: unknown) => ['rides', 'list', filter] as const,
     events: (id: string) => ['rides', 'events', id] as const,
+    disputes: (status: string) => ['rides', 'disputes', status] as const,
   },
   drivers: {
     all: () => ['drivers'] as const,
@@ -58,5 +59,11 @@ export const keys = {
   dispatch: {
     all: () => ['dispatch'] as const,
     fleet: (query?: unknown) => ['dispatch', 'fleet', query] as const,
+  },
+  health: {
+    all: () => ['health'] as const,
+    service: () => ['health', 'service'] as const,
+    routingHealth: () => ['health', 'routing-health'] as const,
+    routingMetrics: () => ['health', 'routing-metrics'] as const,
   },
 };

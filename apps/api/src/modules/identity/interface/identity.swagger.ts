@@ -7,6 +7,7 @@ import {
   VEHICLE_CATEGORIES,
   VEHICLE_VERIFICATION_STATUSES,
 } from '@cabzone/contracts';
+import { allowDevShortcuts } from '@/config/env.js';
 import {
   registry,
   successResponse,
@@ -18,17 +19,23 @@ import {
   adminUserIdParamSchema,
   createAdminUserSchema,
   listAdminUsersQuerySchema,
+  listRidersQuerySchema,
   refreshTokenSchema,
   requestOtpSchema,
+  riderIdParamSchema,
   updateAdminUserSchema,
   updateAdminUserStatusSchema,
+  updateRiderProfileSchema,
+  updateRiderStatusSchema,
   verifyOtpSchema,
 } from './identity.validation.js';
 import {
   createDriverProfileRequestSchema,
-  createVehicleSchema,
-  submitDriverApplicationSchema,
-  reviewDriverApplicationSchema,
+  listDriverApplicationsQuerySchema,
+  registerVehicleRequestSchema,
+  reviewApplicationRequestSchema,
+  updateDriverStatusRequestSchema,
+  uploadDriverDocumentRequestSchema,
   uploadDriverLicenseFileRequestSchema,
   uploadVehicleDocumentFileRequestSchema,
   uploadIdentityDocumentFileRequestSchema,
@@ -46,7 +53,12 @@ const driverProfileSchema = z.object({
   operationalStatus: z.enum(DRIVER_OPERATIONAL_STATUSES),
 });
 
+let registered = false;
+
 export function registerIdentitySwaggerPaths(): void {
+  if (registered) return;
+  registered = true;
+
   // Auth OTP Request
   registry.registerPath({
     method: 'post',
@@ -54,27 +66,16 @@ export function registerIdentitySwaggerPaths(): void {
     tags: ['Auth'],
     summary: 'Request OTP for mobile authentication',
     request: {
-      body: {
-        content: {
-          'application/json': {
-            schema: requestOtpSchema,
-          },
-        },
-      },
+      body: { content: { 'application/json': { schema: requestOtpSchema } } },
     },
     responses: {
       200: {
         description: 'OTP dispatched',
         content: {
-          'application/json': {
-            schema: successResponse(z.object({ status: z.string() })),
-          },
+          'application/json': { schema: successResponse(z.object({ status: z.string() })) },
         },
       },
-      400: {
-        description: 'Invalid input',
-        content: { 'application/json': { schema: errorResponse } },
-      },
+      400: { description: 'Invalid input', content: { 'application/json': { schema: errorResponse } } },
     },
   });
 
@@ -85,13 +86,7 @@ export function registerIdentitySwaggerPaths(): void {
     tags: ['Auth'],
     summary: 'Verify OTP and obtain JWT tokens',
     request: {
-      body: {
-        content: {
-          'application/json': {
-            schema: verifyOtpSchema,
-          },
-        },
-      },
+      body: { content: { 'application/json': { schema: verifyOtpSchema } } },
     },
     responses: {
       200: {
@@ -126,13 +121,7 @@ export function registerIdentitySwaggerPaths(): void {
     tags: ['Auth'],
     summary: 'Refresh access token with refresh token',
     request: {
-      body: {
-        content: {
-          'application/json': {
-            schema: refreshTokenSchema,
-          },
-        },
-      },
+      body: { content: { 'application/json': { schema: refreshTokenSchema } } },
     },
     responses: {
       200: {
@@ -140,10 +129,7 @@ export function registerIdentitySwaggerPaths(): void {
         content: {
           'application/json': {
             schema: successResponse(
-              z.object({
-                accessToken: z.string(),
-                refreshToken: z.string(),
-              }),
+              z.object({ accessToken: z.string(), refreshToken: z.string() }),
             ),
           },
         },
@@ -166,9 +152,7 @@ export function registerIdentitySwaggerPaths(): void {
       200: {
         description: 'Successfully logged out',
         content: {
-          'application/json': {
-            schema: successResponse(z.object({ loggedOut: z.boolean() })),
-          },
+          'application/json': { schema: successResponse(z.object({ loggedOut: z.boolean() })) },
         },
       },
     },
@@ -181,13 +165,7 @@ export function registerIdentitySwaggerPaths(): void {
     tags: ['Auth'],
     summary: 'Administrative staff authentication via password',
     request: {
-      body: {
-        content: {
-          'application/json': {
-            schema: adminLoginSchema,
-          },
-        },
-      },
+      body: { content: { 'application/json': { schema: adminLoginSchema } } },
     },
     responses: {
       200: {
@@ -230,22 +208,12 @@ export function registerIdentitySwaggerPaths(): void {
     summary: 'Create or update personal driver profile and optional photo',
     security: bearerAuth,
     request: {
-      body: {
-        content: {
-          'application/json': {
-            schema: createDriverProfileRequestSchema,
-          },
-        },
-      },
+      body: { content: { 'application/json': { schema: createDriverProfileRequestSchema } } },
     },
     responses: {
       201: {
         description: 'Driver profile created',
-        content: {
-          'application/json': {
-            schema: successResponse(driverProfileSchema),
-          },
-        },
+        content: { 'application/json': { schema: successResponse(driverProfileSchema) } },
       },
     },
   });
@@ -276,6 +244,39 @@ export function registerIdentitySwaggerPaths(): void {
     },
   });
 
+  // Driver Initialize Application
+  registry.registerPath({
+    method: 'post',
+    path: '/v1/driver/application',
+    tags: ['Driver Onboarding'],
+    summary: 'Initialize or resume a DRAFT driver KYC application',
+    security: bearerAuth,
+    responses: {
+      201: {
+        description: 'Driver application initialized',
+        content: { 'application/json': { schema: successResponse(z.any()) } },
+      },
+    },
+  });
+
+  // Deprecated generic document endpoint (enforces dedicated file routes)
+  registry.registerPath({
+    method: 'post',
+    path: '/v1/driver/documents',
+    tags: ['Driver Onboarding'],
+    summary: 'Deprecated metadata-only upload endpoint (returns 400 instructing file upload)',
+    security: bearerAuth,
+    request: {
+      body: { content: { 'application/json': { schema: uploadDriverDocumentRequestSchema } } },
+    },
+    responses: {
+      400: {
+        description: 'Use dedicated file upload endpoints',
+        content: { 'application/json': { schema: errorResponse } },
+      },
+    },
+  });
+
   // Driver Licence File
   registry.registerPath({
     method: 'post',
@@ -291,34 +292,44 @@ export function registerIdentitySwaggerPaths(): void {
         description: 'Driving licence stored and linked to the authenticated driver application',
         content: {
           'application/json': {
-            schema: successResponse(z.object({
-              id: z.string().uuid(),
-              type: z.literal('DRIVING_LICENSE'),
-              storageKey: z.string(),
-              documentHash: z.string(),
-            })),
+            schema: successResponse(
+              z.object({
+                id: z.string().uuid(),
+                type: z.literal('DRIVING_LICENSE'),
+                storageKey: z.string(),
+                documentHash: z.string(),
+              }),
+            ),
           },
         },
       },
-      400: { description: 'Invalid file or application state', content: { 'application/json': { schema: errorResponse } } },
+      400: {
+        description: 'Invalid file or application state',
+        content: { 'application/json': { schema: errorResponse } },
+      },
     },
   });
 
-  // Driver Register Vehicle
+  // Driver Government ID File
   registry.registerPath({
     method: 'post',
     path: '/v1/driver/documents/identity',
     tags: ['Driver Onboarding'],
     summary: 'Upload a private Government ID PDF or JPEG (maximum 500 KB)',
     security: bearerAuth,
-    request: { body: { content: { 'application/json': { schema: uploadIdentityDocumentFileRequestSchema } } } },
+    request: {
+      body: { content: { 'application/json': { schema: uploadIdentityDocumentFileRequestSchema } } },
+    },
     responses: {
       201: { description: 'Government ID stored and linked to the driver application' },
-      400: { description: 'Invalid file or application state', content: { 'application/json': { schema: errorResponse } } },
+      400: {
+        description: 'Invalid file or application state',
+        content: { 'application/json': { schema: errorResponse } },
+      },
     },
   });
 
-  // Driver Register Vehicle
+  // Driver Vehicle Document File
   registry.registerPath({
     method: 'post',
     path: '/v1/driver/documents/vehicle',
@@ -330,7 +341,10 @@ export function registerIdentitySwaggerPaths(): void {
     },
     responses: {
       201: { description: 'Vehicle document stored and linked to the driver application' },
-      400: { description: 'Invalid file, expiry, or application state', content: { 'application/json': { schema: errorResponse } } },
+      400: {
+        description: 'Invalid file, expiry, or application state',
+        content: { 'application/json': { schema: errorResponse } },
+      },
     },
   });
 
@@ -342,13 +356,7 @@ export function registerIdentitySwaggerPaths(): void {
     summary: 'Register driver vehicle',
     security: bearerAuth,
     request: {
-      body: {
-        content: {
-          'application/json': {
-            schema: createVehicleSchema,
-          },
-        },
-      },
+      body: { content: { 'application/json': { schema: registerVehicleRequestSchema } } },
     },
     responses: {
       201: {
@@ -377,17 +385,8 @@ export function registerIdentitySwaggerPaths(): void {
     method: 'post',
     path: '/v1/driver/application/submit',
     tags: ['Driver Onboarding'],
-    summary: 'Submit driver application for admin review',
+    summary: 'Submit authenticated driver application for admin review',
     security: bearerAuth,
-    request: {
-      body: {
-        content: {
-          'application/json': {
-            schema: submitDriverApplicationSchema,
-          },
-        },
-      },
-    },
     responses: {
       200: {
         description: 'Application submitted',
@@ -405,22 +404,68 @@ export function registerIdentitySwaggerPaths(): void {
     },
   });
 
+  if (allowDevShortcuts) {
+    registry.registerPath({
+      method: 'post',
+      path: '/v1/driver/application/test-approve',
+      tags: ['Driver Onboarding'],
+      summary: 'Approve driver profile and seed starter wallet in development environments',
+      security: bearerAuth,
+      responses: {
+        200: {
+          description: 'Driver approved for local testing',
+          content: { 'application/json': { schema: successResponse(z.any()) } },
+        },
+      },
+    });
+  }
+
+  // Admin List Driver Applications
+  registry.registerPath({
+    method: 'get',
+    path: '/v1/admin/driver-applications',
+    tags: ['Admin Onboarding'],
+    summary: 'List driver KYC applications (Super, Support, or Finance Admin)',
+    security: bearerAuth,
+    request: { query: listDriverApplicationsQuerySchema },
+    responses: {
+      200: {
+        description: 'Driver applications list',
+        content: { 'application/json': { schema: successResponse(z.array(z.any())) } },
+      },
+      403: { description: 'Forbidden', content: { 'application/json': { schema: errorResponse } } },
+    },
+  });
+
+  // Admin Get Driver Application Detail
+  registry.registerPath({
+    method: 'get',
+    path: '/v1/admin/driver-applications/{id}',
+    tags: ['Admin Onboarding'],
+    summary:
+      'Get driver dossier and KYC documents (document file URLs redacted for FINANCE_ADMIN)',
+    security: bearerAuth,
+    request: { params: z.object({ id: z.string() }) },
+    responses: {
+      200: {
+        description: 'Driver application dossier',
+        content: { 'application/json': { schema: successResponse(z.any()) } },
+      },
+      403: { description: 'Forbidden', content: { 'application/json': { schema: errorResponse } } },
+      404: { description: 'Not found', content: { 'application/json': { schema: errorResponse } } },
+    },
+  });
+
   // Admin Review Driver Application
   registry.registerPath({
     method: 'post',
     path: '/v1/admin/driver-applications/{id}/review',
     tags: ['Admin Onboarding'],
-    summary: 'Review and approve/reject driver application',
+    summary: 'Review and approve/reject driver application (SUPER_ADMIN)',
     security: bearerAuth,
     request: {
       params: z.object({ id: z.string().uuid() }),
-      body: {
-        content: {
-          'application/json': {
-            schema: reviewDriverApplicationSchema,
-          },
-        },
-      },
+      body: { content: { 'application/json': { schema: reviewApplicationRequestSchema } } },
     },
     responses: {
       200: {
@@ -436,6 +481,27 @@ export function registerIdentitySwaggerPaths(): void {
           },
         },
       },
+      403: { description: 'Forbidden', content: { 'application/json': { schema: errorResponse } } },
+    },
+  });
+
+  // Admin Update Driver Status
+  registry.registerPath({
+    method: 'patch',
+    path: '/v1/admin/driver-applications/{id}/status',
+    tags: ['Admin Onboarding'],
+    summary: 'Suspend or reactivate driver account (SUPER_ADMIN)',
+    security: bearerAuth,
+    request: {
+      params: z.object({ id: z.string() }),
+      body: { content: { 'application/json': { schema: updateDriverStatusRequestSchema } } },
+    },
+    responses: {
+      200: {
+        description: 'Driver status updated',
+        content: { 'application/json': { schema: successResponse(z.any()) } },
+      },
+      403: { description: 'Forbidden', content: { 'application/json': { schema: errorResponse } } },
     },
   });
 
@@ -470,13 +536,32 @@ export function registerIdentitySwaggerPaths(): void {
     },
   });
 
+  // Rider Update Profile (Me)
+  registry.registerPath({
+    method: 'patch',
+    path: '/v1/riders/me',
+    tags: ['Rider Profile'],
+    summary: 'Update current authenticated rider profile',
+    security: bearerAuth,
+    request: {
+      body: { content: { 'application/json': { schema: updateRiderProfileSchema } } },
+    },
+    responses: {
+      200: {
+        description: 'Rider profile updated',
+        content: { 'application/json': { schema: successResponse(z.any()) } },
+      },
+    },
+  });
+
   // Admin List Riders
   registry.registerPath({
     method: 'get',
     path: '/v1/admin/riders',
     tags: ['Admin Customers'],
-    summary: 'List customers / riders with filtering and pagination',
+    summary: 'List customers / riders with filtering and pagination (Super or Support Admin)',
     security: bearerAuth,
+    request: { query: listRidersQuerySchema },
     responses: {
       200: {
         description: 'List of customers',
@@ -493,6 +578,7 @@ export function registerIdentitySwaggerPaths(): void {
           },
         },
       },
+      403: { description: 'Forbidden', content: { 'application/json': { schema: errorResponse } } },
     },
   });
 
@@ -501,20 +587,35 @@ export function registerIdentitySwaggerPaths(): void {
     method: 'get',
     path: '/v1/admin/riders/{id}',
     tags: ['Admin Customers'],
-    summary: 'Get full customer / rider dossier and stats',
+    summary: 'Get full customer / rider dossier and stats (Super or Support Admin)',
     security: bearerAuth,
-    request: {
-      params: z.object({ id: z.string().uuid() }),
-    },
+    request: { params: riderIdParamSchema },
     responses: {
       200: {
         description: 'Customer detail dossier',
-        content: {
-          'application/json': {
-            schema: successResponse(z.any()),
-          },
-        },
+        content: { 'application/json': { schema: successResponse(z.any()) } },
       },
+      403: { description: 'Forbidden', content: { 'application/json': { schema: errorResponse } } },
+    },
+  });
+
+  // Admin Update Rider Profile
+  registry.registerPath({
+    method: 'patch',
+    path: '/v1/admin/riders/{id}',
+    tags: ['Admin Customers'],
+    summary: 'Update customer profile fields (Super or Support Admin)',
+    security: bearerAuth,
+    request: {
+      params: riderIdParamSchema,
+      body: { content: { 'application/json': { schema: updateRiderProfileSchema } } },
+    },
+    responses: {
+      200: {
+        description: 'Customer profile updated',
+        content: { 'application/json': { schema: successResponse(z.any()) } },
+      },
+      403: { description: 'Forbidden', content: { 'application/json': { schema: errorResponse } } },
     },
   });
 
@@ -523,27 +624,18 @@ export function registerIdentitySwaggerPaths(): void {
     method: 'patch',
     path: '/v1/admin/riders/{id}/status',
     tags: ['Admin Customers'],
-    summary: 'Suspend or reactivate customer account',
+    summary: 'Suspend or reactivate customer account (Super or Support Admin)',
     security: bearerAuth,
     request: {
-      params: z.object({ id: z.string().uuid() }),
-      body: {
-        content: {
-          'application/json': {
-            schema: z.object({ status: z.enum(['ACTIVE', 'SUSPENDED']) }),
-          },
-        },
-      },
+      params: riderIdParamSchema,
+      body: { content: { 'application/json': { schema: updateRiderStatusSchema } } },
     },
     responses: {
       200: {
         description: 'Customer status updated',
-        content: {
-          'application/json': {
-            schema: successResponse(z.any()),
-          },
-        },
+        content: { 'application/json': { schema: successResponse(z.any()) } },
       },
+      403: { description: 'Forbidden', content: { 'application/json': { schema: errorResponse } } },
     },
   });
 
@@ -557,11 +649,7 @@ export function registerIdentitySwaggerPaths(): void {
     responses: {
       200: {
         description: 'Role permissions matrix',
-        content: {
-          'application/json': {
-            schema: successResponse(z.array(z.any())),
-          },
-        },
+        content: { 'application/json': { schema: successResponse(z.array(z.any())) } },
       },
     },
   });
@@ -573,9 +661,7 @@ export function registerIdentitySwaggerPaths(): void {
     tags: ['Admin Users & Roles'],
     summary: 'List administrative staff with search, role, status, and zone filters',
     security: bearerAuth,
-    request: {
-      query: listAdminUsersQuerySchema,
-    },
+    request: { query: listAdminUsersQuerySchema },
     responses: {
       200: {
         description: 'List of admin users',
@@ -602,17 +688,11 @@ export function registerIdentitySwaggerPaths(): void {
     tags: ['Admin Users & Roles'],
     summary: 'Get full admin user profile dossier and assigned zones',
     security: bearerAuth,
-    request: {
-      params: adminUserIdParamSchema,
-    },
+    request: { params: adminUserIdParamSchema },
     responses: {
       200: {
         description: 'Admin user detail dossier',
-        content: {
-          'application/json': {
-            schema: successResponse(z.any()),
-          },
-        },
+        content: { 'application/json': { schema: successResponse(z.any()) } },
       },
     },
   });
@@ -622,25 +702,15 @@ export function registerIdentitySwaggerPaths(): void {
     method: 'post',
     path: '/v1/admin/users',
     tags: ['Admin Users & Roles'],
-    summary: 'Create and provision new administrative staff member',
+    summary: 'Create and provision new administrative staff member (SUPER_ADMIN)',
     security: bearerAuth,
     request: {
-      body: {
-        content: {
-          'application/json': {
-            schema: createAdminUserSchema,
-          },
-        },
-      },
+      body: { content: { 'application/json': { schema: createAdminUserSchema } } },
     },
     responses: {
       201: {
         description: 'Admin user provisioned successfully',
-        content: {
-          'application/json': {
-            schema: successResponse(z.any()),
-          },
-        },
+        content: { 'application/json': { schema: successResponse(z.any()) } },
       },
     },
   });
@@ -650,26 +720,16 @@ export function registerIdentitySwaggerPaths(): void {
     method: 'patch',
     path: '/v1/admin/users/{id}',
     tags: ['Admin Users & Roles'],
-    summary: 'Update administrative staff details, role, or assigned zones',
+    summary: 'Update administrative staff details, role, or assigned zones (SUPER_ADMIN)',
     security: bearerAuth,
     request: {
       params: adminUserIdParamSchema,
-      body: {
-        content: {
-          'application/json': {
-            schema: updateAdminUserSchema,
-          },
-        },
-      },
+      body: { content: { 'application/json': { schema: updateAdminUserSchema } } },
     },
     responses: {
       200: {
         description: 'Admin user updated successfully',
-        content: {
-          'application/json': {
-            schema: successResponse(z.any()),
-          },
-        },
+        content: { 'application/json': { schema: successResponse(z.any()) } },
       },
     },
   });
@@ -679,26 +739,16 @@ export function registerIdentitySwaggerPaths(): void {
     method: 'patch',
     path: '/v1/admin/users/{id}/status',
     tags: ['Admin Users & Roles'],
-    summary: 'Suspend or reactivate administrative staff account and revoke active sessions',
+    summary: 'Suspend or reactivate administrative staff account and revoke active sessions (SUPER_ADMIN)',
     security: bearerAuth,
     request: {
       params: adminUserIdParamSchema,
-      body: {
-        content: {
-          'application/json': {
-            schema: updateAdminUserStatusSchema,
-          },
-        },
-      },
+      body: { content: { 'application/json': { schema: updateAdminUserStatusSchema } } },
     },
     responses: {
       200: {
         description: 'Admin user status updated successfully',
-        content: {
-          'application/json': {
-            schema: successResponse(z.any()),
-          },
-        },
+        content: { 'application/json': { schema: successResponse(z.any()) } },
       },
     },
   });

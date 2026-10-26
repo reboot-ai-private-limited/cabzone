@@ -1,11 +1,18 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import type { AdminRole } from '@cabzone/contracts';
 import { ExternalLink, LogIn, LogOut, Shield } from 'lucide-react';
-import { navSections } from './nav-items';
-import { getStoredPhone, logout } from '../features/auth/lib/authApi';
+import { filterNavSectionsForRole, navSections } from './nav-items';
+import {
+  ADMIN_ROLE_LABELS,
+  getStoredAdminName,
+  getStoredAdminRole,
+  getStoredPhone,
+  logout,
+} from '../features/auth/lib/authApi';
 
 interface SideNavProps {
   onOpenLogin?: () => void;
@@ -14,21 +21,38 @@ interface SideNavProps {
 export function SideNav({ onOpenLogin }: SideNavProps = {}) {
   const pathname = usePathname();
   const [adminPhone, setAdminPhone] = useState<string | null>(null);
+  const [adminRole, setAdminRole] = useState<AdminRole | null>(null);
+  const [adminName, setAdminName] = useState<string | null>(null);
 
   useEffect(() => {
     setAdminPhone(getStoredPhone());
+    setAdminRole(getStoredAdminRole());
+    setAdminName(getStoredAdminName());
   }, []);
+
+  const visibleSections = useMemo(
+    () => filterNavSectionsForRole(navSections, adminRole),
+    [adminRole],
+  );
 
   const handleLogout = () => {
     logout();
     setAdminPhone(null);
+    setAdminRole(null);
+    setAdminName(null);
     window.location.reload();
   };
+
+  const roleBadgeLabel = !adminPhone
+    ? 'Guest Operator'
+    : adminRole
+      ? ADMIN_ROLE_LABELS[adminRole]
+      : 'Signed-in Operator';
 
   return (
     <aside className="w-60 shrink-0 border-r border-border bg-surface-sunken flex flex-col justify-between min-h-[calc(100vh-3.5rem)] select-none">
       <div className="p-3 flex flex-col gap-5">
-        {navSections.map((section) => (
+        {visibleSections.map((section) => (
           <div key={section.title} className="flex flex-col gap-1">
             <div className="px-3 text-[11px] font-semibold uppercase tracking-wider text-text-subtle">
               {section.title}
@@ -118,7 +142,7 @@ export function SideNav({ onOpenLogin }: SideNavProps = {}) {
           </div>
           <div className="flex flex-col min-w-0">
             <span className="text-xs font-semibold text-text truncate">
-              {adminPhone ? 'Super Admin' : 'Guest Operator'}
+              {adminName ? `${adminName} · ${roleBadgeLabel}` : roleBadgeLabel}
             </span>
             <span className="text-[11px] font-mono text-text-subtle truncate">
               {adminPhone ?? 'Unauthenticated'}

@@ -23,7 +23,42 @@ export class MongoRideEventRepository implements RideEventRepositoryPort {
       .lean<RideEventDocument[]>()
       .exec();
 
-    return docs.map((doc) => ({
+    return docs.map((doc) => this.toEntity(doc));
+  }
+
+  async findByRideIds(
+    rideIds: readonly string[],
+    eventTypes?: readonly string[],
+  ): Promise<RideEventEntity[]> {
+    if (rideIds.length === 0) return [];
+    const query: Record<string, unknown> = { ride_id: { $in: rideIds } };
+    if (eventTypes && eventTypes.length > 0) {
+      query.event_type = { $in: eventTypes };
+    }
+    const docs = await RideEventModel.find(query)
+      .sort({ created_at: -1 })
+      .lean<RideEventDocument[]>()
+      .exec();
+    return docs.map((doc) => this.toEntity(doc));
+  }
+
+  async findByEventTypes(
+    eventTypes: readonly string[],
+    limit: number,
+    offset = 0,
+  ): Promise<RideEventEntity[]> {
+    if (eventTypes.length === 0 || limit <= 0) return [];
+    const docs = await RideEventModel.find({ event_type: { $in: eventTypes } })
+      .sort({ created_at: -1 })
+      .skip(offset)
+      .limit(limit)
+      .lean<RideEventDocument[]>()
+      .exec();
+    return docs.map((doc) => this.toEntity(doc));
+  }
+
+  private toEntity(doc: RideEventDocument): RideEventEntity {
+    return {
       id: doc._id,
       rideId: doc.ride_id,
       eventType: doc.event_type,
@@ -33,6 +68,6 @@ export class MongoRideEventRepository implements RideEventRepositoryPort {
       newStatus: doc.new_status,
       metadata: doc.metadata ?? {},
       createdAt: doc.created_at,
-    }));
+    };
   }
 }

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -11,9 +11,11 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import type { RideDto, RideStatus } from '@cabzone/contracts';
+import type { DriverEarningsSummaryDto, RideDto, RideStatus } from '@cabzone/contracts';
+import { useAuth } from '@/context/auth-context';
 import { computeRideEarningsBreakdown, useDuty } from '@/context/duty-context';
 import { ACTIVE_RIDE_STATUSES, useRide } from '@/context/ride-context';
+import { ridesApi } from '@/services/api';
 import { colors, typography } from '@/design-system';
 
 type FilterTab = 'ALL' | 'ACTIVE' | 'COMPLETED' | 'CANCELLED' | 'DISPUTED';
@@ -26,7 +28,16 @@ const FILTER_TABS: { key: FilterTab; label: string }[] = [
   { key: 'DISPUTED', label: 'Disputed' },
 ];
 
+const HISTORY_PAGE_SIZE = 20;
 const COUNTER_STEP_PAISE = 1000;
+
+function statusesForFilter(filter: FilterTab): RideStatus[] | undefined {
+  if (filter === 'ACTIVE') return Array.from(ACTIVE_RIDE_STATUSES) as RideStatus[];
+  if (filter === 'COMPLETED') return ['SETTLED', 'PAYMENT_CONFIRMED'];
+  if (filter === 'CANCELLED') return ['CANCELLED', 'EXPIRED'];
+  if (filter === 'DISPUTED') return ['PAYMENT_DISPUTED'];
+  return undefined;
+}
 
 function getStatusPillStyle(status: RideStatus): {
   label: string;
@@ -68,7 +79,8 @@ function getStatusPillStyle(status: RideStatus): {
 
 export default function DriverRidesTab() {
   const router = useRouter();
-  const { status: dutyStatus, myRides, refreshSummary } = useDuty();
+  const { token } = useAuth();
+  const { status: dutyStatus, refreshSummary } = useDuty();
   const {
     offers,
     activeRide,
@@ -82,50 +94,163 @@ export default function DriverRidesTab() {
   } = useRide();
 
   const [filter, setFilter] = useState<FilterTab>('ALL');
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [allTimeSummary, setAllTimeSummary] = useState<DriverEarningsSummaryDto | null>(null);
+  const [historyItems, setHistoryItems] = useState<RideDto[]>([]);
+  const [historyTotal, setHistoryTotal] = useState<number>(0);
+  const [hasMore, setHasMore] = useState<boolean>(false);
+  const [isLoadingHistory, setIsLoadingHistory] = useState<boolean>(true);
+  const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [counterDrafts, setCounterDrafts] = useState<Record<string, number>>({});
+
+  const historySeqRef = useRef(0);
+
+  const loadAllTimeStats = useCallback(async () => {
+    if (!token) {
+      setAllTimeSummary(null);
+      return;
+    }
+    try {
+      const summary = await ridesApi.getDriverEarnings(token, 'ALL');
+      setAllTimeSummary(summary);
+    } catch {
+      // Top strip stays '—' if never loaded; list error banner handles retry
+    }
+  }, [token]);
+
+  const loadFirstPage = useCallback(
+    async (targetFilter: FilterTab, opts?: { clearCurrent?: boolean }) => {
+      if (!token) {
+        setHistoryItems([]);
+        setHistoryTotal(0);
+        setHasMore(false);
+        setIsLoadingHistory(false);
+        return;
+      }
+      const seq = ++historySeqRef.current;
+      if (opts?.clearCurrent) {
+        setHistoryItems([]);
+        setHistoryTotal(0);
+        setHasMore(false);
+      }
+      setIsLoadingHistory(true);
+      setHistoryError(null);
+      try {
+        const page = await ridesApi.listDriverHistory(token, {
+          status: statusesForFilter(targetFilter),
+          limit: HISTORY_PAGE_SIZE,
+          offset: 0,
+        });
+        if (historySeqRef.current !== seq) return;
+        setHistoryItems(page.items);
+        setHistoryTotal(page.total);
+        setHasMore(page.hasMore);
+      } catch (err: unknown) {
+        if (historySeqRef.current !== seq) return;
+        setHistoryError(err instanceof Error ? err.message : 'Unable to load ride history.');
+      } finally {
+        if (historySeqRef.current === seq) {
+          setIsLoadingHistory(false);
+        }
+      }
+    },
+    [token],
+  );
+
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    ridesApi
+      .getDriverEarnings(token, 'ALL')
+      .then((summary) => {
+        if (!cancelled) setAllTimeSummary(summary);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
+
+  useEffect(() => {
+    if (!token) return;
+    const seq = ++historySeqRef.current;
+    ridesApi
+      .listDriverHistory(token, {
+        status: statusesForFilter(filter),
+        limit: HISTORY_PAGE_SIZE,
+        offset: 0,
+      })
+      .then((page) => {
+        if (historySeqRef.current !== seq) return;
+        setHistoryItems(page.items);
+        setHistoryTotal(page.total);
+        setHasMore(page.hasMore);
+        setHistoryError(null);
+      })
+      .catch((err: unknown) => {
+        if (historySeqRef.current !== seq) return;
+        setHistoryError(err instanceof Error ? err.message : 'Unable to load ride history.');
+      })
+      .finally(() => {
+        if (historySeqRef.current === seq) {
+          setIsLoadingHistory(false);
+        }
+      });
+  }, [token, filter]);
+
+  const handleSelectFilter = (next: FilterTab) => {
+    if (next === filter) return;
+    setHistoryItems([]);
+    setHistoryTotal(0);
+    setHasMore(false);
+    setHistoryError(null);
+    setIsLoadingHistory(true);
+    setFilter(next);
+  };
+
+  const handleLoadMore = async () => {
+    if (!token || isLoadingMore || !hasMore) return;
+    const seq = historySeqRef.current;
+    setIsLoadingMore(true);
+    setHistoryError(null);
+    try {
+      const page = await ridesApi.listDriverHistory(token, {
+        status: statusesForFilter(filter),
+        limit: HISTORY_PAGE_SIZE,
+        offset: historyItems.length,
+      });
+      if (historySeqRef.current !== seq) return;
+      setHistoryItems((prev) => {
+        const seen = new Set(prev.map((item) => item.id));
+        const appended = page.items.filter((item) => !seen.has(item.id));
+        return [...prev, ...appended];
+      });
+      setHistoryTotal(page.total);
+      setHasMore(page.hasMore);
+    } catch (err: unknown) {
+      if (historySeqRef.current !== seq) return;
+      setHistoryError(err instanceof Error ? err.message : 'Unable to load more rides.');
+    } finally {
+      if (historySeqRef.current === seq) {
+        setIsLoadingMore(false);
+      }
+    }
+  };
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
-      await Promise.all([refreshSummary(), refreshOffers(true)]);
+      await Promise.all([
+        loadAllTimeStats(),
+        loadFirstPage(filter),
+        refreshSummary(),
+        refreshOffers(true),
+      ]);
     } finally {
       setIsRefreshing(false);
     }
   };
-
-  const summaryStats = useMemo(() => {
-    let completed = 0;
-    let totalNetPaise = 0;
-    for (const r of myRides) {
-      if (r.status === 'SETTLED' || r.status === 'PAYMENT_CONFIRMED') {
-        completed += 1;
-        totalNetPaise += computeRideEarningsBreakdown(r).netPaise;
-      }
-    }
-    return {
-      total: myRides.length,
-      completed,
-      totalNetPaise,
-    };
-  }, [myRides]);
-
-  const filteredRides = useMemo(() => {
-    return myRides.filter((r) => {
-      if (filter === 'ALL') return true;
-      if (filter === 'ACTIVE') return ACTIVE_RIDE_STATUSES.has(r.status);
-      if (filter === 'COMPLETED') {
-        return r.status === 'SETTLED' || r.status === 'PAYMENT_CONFIRMED';
-      }
-      if (filter === 'CANCELLED') {
-        return r.status === 'CANCELLED' || r.status === 'EXPIRED';
-      }
-      if (filter === 'DISPUTED') {
-        return r.status === 'PAYMENT_DISPUTED';
-      }
-      return true;
-    });
-  }, [myRides, filter]);
 
   const handlePressRide = (ride: RideDto) => {
     if (ACTIVE_RIDE_STATUSES.has(ride.status)) {
@@ -175,20 +300,26 @@ export default function DriverRidesTab() {
         </Pressable>
       </View>
 
-      {/* Summary Stats Strip */}
+      {/* Server-Owned Summary Stats Strip */}
       <View style={styles.summaryStrip}>
         <View style={styles.summaryChip}>
           <Text style={styles.summaryLabel}>Total Trips</Text>
-          <Text style={styles.summaryValue}>{summaryStats.total}</Text>
+          <Text style={styles.summaryValue}>
+            {allTimeSummary != null ? allTimeSummary.totalAssignedRidesCount : '—'}
+          </Text>
         </View>
         <View style={styles.summaryChip}>
           <Text style={styles.summaryLabel}>Completed</Text>
-          <Text style={styles.summaryValue}>{summaryStats.completed}</Text>
+          <Text style={styles.summaryValue}>
+            {allTimeSummary != null ? allTimeSummary.completedTripsCount : '—'}
+          </Text>
         </View>
         <View style={[styles.summaryChip, styles.summaryChipHighlight]}>
           <Text style={styles.summaryLabel}>Net Earned</Text>
           <Text style={styles.summaryValue}>
-            ₹{(summaryStats.totalNetPaise / 100).toFixed(0)}
+            {allTimeSummary != null
+              ? `₹${(allTimeSummary.netEarningsPaise / 100).toFixed(0)}`
+              : '—'}
           </Text>
         </View>
       </View>
@@ -205,7 +336,9 @@ export default function DriverRidesTab() {
               <Pressable
                 key={tab.key}
                 style={[styles.filterPill, active && styles.filterPillActive]}
-                onPress={() => setFilter(tab.key)}>
+                accessibilityRole="button"
+                accessibilityLabel={tab.label}
+                onPress={() => handleSelectFilter(tab.key)}>
                 <Text style={[styles.filterPillText, active && styles.filterPillTextActive]}>
                   {tab.label}
                 </Text>
@@ -433,8 +566,31 @@ export default function DriverRidesTab() {
           </View>
         ) : null}
 
-        {/* Filtered Ride History List */}
-        {filteredRides.length === 0 ? (
+        {/* Paginated Ride History List */}
+        {historyError && historyItems.length === 0 ? (
+          <View style={styles.errorCard}>
+            <Ionicons name="cloud-offline-outline" size={32} color={colors.brandBrown} />
+            <Text style={styles.emptyTitle}>Ride history unavailable</Text>
+            <Text style={styles.emptySub}>{historyError}</Text>
+            <Pressable
+              style={styles.goHomeBtn}
+              accessibilityRole="button"
+              accessibilityLabel="Retry loading rides"
+              onPress={() => {
+                void loadAllTimeStats();
+                void loadFirstPage(filter, { clearCurrent: true });
+              }}>
+              <Text style={styles.goHomeBtnText}>Retry</Text>
+            </Pressable>
+          </View>
+        ) : isLoadingHistory && historyItems.length === 0 ? (
+          <View style={styles.emptyCard}>
+            <ActivityIndicator size="small" color={colors.deepBrown} />
+            <Text style={[styles.emptySub, { marginTop: 10, marginBottom: 0 }]}>
+              Loading ride history...
+            </Text>
+          </View>
+        ) : historyItems.length === 0 ? (
           <View style={styles.emptyCard}>
             <View style={styles.emptyIconCircle}>
               <Ionicons name="car-sport-outline" size={36} color={colors.deepBrown} />
@@ -452,84 +608,128 @@ export default function DriverRidesTab() {
             </Pressable>
           </View>
         ) : (
-          filteredRides.map((ride) => {
-            const pill = getStatusPillStyle(ride.status);
-            const breakdown = computeRideEarningsBreakdown(ride);
-            const wasNegotiated =
-              ride.suggestedFarePaise > 0 && breakdown.grossPaise !== ride.suggestedFarePaise;
-            const dateStr = new Date(
-              ride.settledAt || ride.completedAt || ride.createdAt,
-            ).toLocaleString('en-IN', {
-              day: 'numeric',
-              month: 'short',
-              hour: '2-digit',
-              minute: '2-digit',
-            });
+          <>
+            {historyError ? (
+              <View style={styles.inlineErrorBox}>
+                <Text style={styles.inlineErrorText}>{historyError}</Text>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => void handleLoadMore()}>
+                  <Text style={styles.inlineRetryText}>Retry</Text>
+                </Pressable>
+              </View>
+            ) : null}
 
-            return (
-              <Pressable
-                key={ride.id}
-                style={styles.rideCard}
-                onPress={() => handlePressRide(ride)}>
-                <View style={styles.rideCardTop}>
-                  <View>
-                    <Text style={styles.rideDate}>{dateStr}</Text>
-                    <Text style={styles.rideCategory}>
-                      {ride.vehicleCategory} · {(ride.routeSnapshot.distanceM / 1000).toFixed(1)} km
-                    </Text>
-                  </View>
-                  <View style={styles.badgeGroup}>
-                    {wasNegotiated ? (
-                      <View style={styles.negotiatedPill}>
-                        <Text style={styles.negotiatedPillText}>Negotiated</Text>
+            <Text style={styles.paginationMeta}>
+              Showing {historyItems.length} of {historyTotal}{' '}
+              {historyTotal === 1 ? 'trip' : 'trips'}
+            </Text>
+
+            {historyItems.map((ride) => {
+              const pill = getStatusPillStyle(ride.status);
+              const breakdown = computeRideEarningsBreakdown(ride);
+              const isSettled = ride.driverSettlement
+                ? ride.driverSettlement.settledVia !== 'UNSETTLED'
+                : ride.status === 'SETTLED' || ride.status === 'PAYMENT_CONFIRMED';
+              const wasNegotiated =
+                ride.suggestedFarePaise > 0 && breakdown.grossPaise !== ride.suggestedFarePaise;
+              const dateStr = new Date(
+                ride.settledAt || ride.completedAt || ride.createdAt,
+              ).toLocaleString('en-IN', {
+                day: 'numeric',
+                month: 'short',
+                hour: '2-digit',
+                minute: '2-digit',
+              });
+
+              return (
+                <Pressable
+                  key={ride.id}
+                  style={styles.rideCard}
+                  accessibilityRole="button"
+                  onPress={() => handlePressRide(ride)}>
+                  <View style={styles.rideCardTop}>
+                    <View>
+                      <Text style={styles.rideDate}>{dateStr}</Text>
+                      <Text style={styles.rideCategory}>
+                        {ride.vehicleCategory} · {(ride.routeSnapshot.distanceM / 1000).toFixed(1)}{' '}
+                        km
+                      </Text>
+                    </View>
+                    <View style={styles.badgeGroup}>
+                      {wasNegotiated ? (
+                        <View style={styles.negotiatedPill}>
+                          <Text style={styles.negotiatedPillText}>Negotiated</Text>
+                        </View>
+                      ) : null}
+                      <View
+                        style={[
+                          styles.statusBadge,
+                          { backgroundColor: pill.bg, borderColor: pill.border },
+                        ]}>
+                        <Text style={[styles.statusBadgeText, { color: pill.text }]}>
+                          {pill.label}
+                        </Text>
                       </View>
-                    ) : null}
-                    <View
-                      style={[
-                        styles.statusBadge,
-                        { backgroundColor: pill.bg, borderColor: pill.border },
-                      ]}>
-                      <Text style={[styles.statusBadgeText, { color: pill.text }]}>
-                        {pill.label}
+                    </View>
+                  </View>
+
+                  <View style={styles.routeSection}>
+                    <View style={styles.pointRow}>
+                      <View style={[styles.dot, { backgroundColor: colors.success }]} />
+                      <Text style={styles.pointText} numberOfLines={1}>
+                        {ride.pickup.address ||
+                          `${ride.pickup.lat.toFixed(4)}, ${ride.pickup.lng.toFixed(4)}`}
+                      </Text>
+                    </View>
+                    <View style={styles.pointRow}>
+                      <View style={[styles.dot, { backgroundColor: colors.error }]} />
+                      <Text style={styles.pointText} numberOfLines={1}>
+                        {ride.drop.address ||
+                          `${ride.drop.lat.toFixed(4)}, ${ride.drop.lng.toFixed(4)}`}
                       </Text>
                     </View>
                   </View>
-                </View>
 
-                <View style={styles.routeSection}>
-                  <View style={styles.pointRow}>
-                    <View style={[styles.dot, { backgroundColor: colors.success }]} />
-                    <Text style={styles.pointText} numberOfLines={1}>
-                      {ride.pickup.address ||
-                        `${ride.pickup.lat.toFixed(4)}, ${ride.pickup.lng.toFixed(4)}`}
-                    </Text>
+                  <View style={styles.rideCardFooter}>
+                    <View>
+                      <Text style={styles.fareMetaLabel}>Passenger Fare</Text>
+                      <Text style={styles.fareGrossValue}>
+                        ₹{(breakdown.grossPaise / 100).toFixed(0)}
+                      </Text>
+                    </View>
+                    <View style={{ alignItems: 'flex-end' }}>
+                      <Text style={styles.fareMetaLabel}>
+                        {isSettled ? 'Net Driver Earnings' : 'Settled Earnings'}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.fareNetValue,
+                          !isSettled && { color: colors.secondary },
+                        ]}>
+                        {isSettled ? `₹${(breakdown.netPaise / 100).toFixed(0)}` : 'Pending / ₹0'}
+                      </Text>
+                    </View>
                   </View>
-                  <View style={styles.pointRow}>
-                    <View style={[styles.dot, { backgroundColor: colors.error }]} />
-                    <Text style={styles.pointText} numberOfLines={1}>
-                      {ride.drop.address ||
-                        `${ride.drop.lat.toFixed(4)}, ${ride.drop.lng.toFixed(4)}`}
-                    </Text>
-                  </View>
-                </View>
+                </Pressable>
+              );
+            })}
 
-                <View style={styles.rideCardFooter}>
-                  <View>
-                    <Text style={styles.fareMetaLabel}>Passenger Fare</Text>
-                    <Text style={styles.fareGrossValue}>
-                      ₹{(breakdown.grossPaise / 100).toFixed(0)}
-                    </Text>
-                  </View>
-                  <View style={{ alignItems: 'flex-end' }}>
-                    <Text style={styles.fareMetaLabel}>Net Driver Earnings</Text>
-                    <Text style={styles.fareNetValue}>
-                      ₹{(breakdown.netPaise / 100).toFixed(0)}
-                    </Text>
-                  </View>
-                </View>
+            {hasMore ? (
+              <Pressable
+                style={[styles.loadMoreBtn, isLoadingMore && styles.disabledBtn]}
+                disabled={isLoadingMore}
+                accessibilityRole="button"
+                accessibilityLabel="Load more trips"
+                onPress={handleLoadMore}>
+                {isLoadingMore ? (
+                  <ActivityIndicator size="small" color={colors.deepBrown} />
+                ) : (
+                  <Text style={styles.loadMoreBtnText}>Load more trips</Text>
+                )}
               </Pressable>
-            );
-          })
+            ) : null}
+          </>
         )}
       </ScrollView>
     </SafeAreaView>
@@ -826,6 +1026,43 @@ const styles = StyleSheet.create({
   disabledBtn: {
     opacity: 0.45,
   },
+  errorCard: {
+    backgroundColor: '#FFFBEB',
+    borderRadius: 20,
+    padding: 28,
+    borderWidth: 1,
+    borderColor: colors.amber,
+    alignItems: 'center',
+    marginTop: 20,
+    gap: 8,
+  },
+  inlineErrorBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+    backgroundColor: '#FFFBEB',
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: colors.amber,
+  },
+  inlineErrorText: {
+    flex: 1,
+    fontSize: 11,
+    color: colors.deepBrown,
+    fontWeight: '600',
+  },
+  inlineRetryText: {
+    fontSize: typography.sizes.xs,
+    fontWeight: '800',
+    color: colors.brandBrown,
+  },
+  paginationMeta: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.secondary,
+  },
   emptyCard: {
     backgroundColor: colors.cream,
     borderRadius: 20,
@@ -965,5 +1202,19 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: colors.success,
     marginTop: 2,
+  },
+  loadMoreBtn: {
+    backgroundColor: colors.lightCream,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 14,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadMoreBtnText: {
+    fontSize: typography.sizes.xs,
+    fontWeight: '800',
+    color: colors.deepBrown,
   },
 });
