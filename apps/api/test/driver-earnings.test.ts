@@ -148,6 +148,7 @@ function buildTestApp(deps: {
     requireCanCancel: requireRole('RIDER', 'DRIVER', 'SUPER_ADMIN'),
     requireCanRead: requireRole('RIDER', 'DRIVER', 'SUPER_ADMIN', 'FINANCE_ADMIN'),
     requireDisputeAdmin: requireRole('SUPPORT_ADMIN', 'SUPER_ADMIN'),
+    requireWaiverAdmin: requireRole('SUPER_ADMIN', 'SUPPORT_ADMIN', 'FINANCE_ADMIN'),
     requireFinanceAdmin: requireRole('FINANCE_ADMIN', 'SUPER_ADMIN'),
     createRide: noopHandler,
     listRides: makeListRidesController(deps.rideRepo, actors),
@@ -181,6 +182,7 @@ function buildTestApp(deps: {
     resolvePaymentDispute: noopHandler,
     listPaymentDisputes: noopHandler,
     cancelRide: noopHandler,
+    waiveCancellationFee: noopHandler,
   });
 
   const getWalletUseCase = new GetWalletUseCase(deps.walletRepo);

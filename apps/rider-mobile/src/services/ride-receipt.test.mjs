@@ -104,3 +104,15 @@ test('empty route names and cancelled rides have clear fallbacks', () => {
   assert.equal(receipt.pickup, 'Pickup location');
   assert.equal(receipt.drop, 'Destination');
 });
+
+
+test('itemizes previous cancellation fee arrears separately from passenger fare on receipt', () => {
+  const receipt = exports.rideReceipt({ ...ride(), arrearsPaise: 5000 }, []);
+  assert.equal(receipt.amount, '₹165.25');
+  assert.equal(receipt.arrearsAmount, '₹50.00');
+  assert.equal(receipt.totalAmount, '₹215.25');
+  const html = exports.receiptHtml(receipt, 'data:image/png;base64,test');
+  assert.ok(html.includes('Previous cancellation fee'));
+  assert.ok(html.includes('₹50.00'));
+  assert.ok(html.includes('₹215.25'));
+});

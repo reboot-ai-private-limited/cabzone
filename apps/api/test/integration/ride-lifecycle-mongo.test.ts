@@ -38,6 +38,7 @@ import { AppError } from '../../src/shared/errors/AppError.js';
 import { MongoUnitOfWork } from '../../src/shared/db/unitOfWork.js';
 import { AdminAdjustWalletUseCase } from '../../src/modules/ledger/application/useCases/adminAdjustWallet.usecase.js';
 import { ExpireOffersUseCase } from '../../src/modules/rides/application/useCases/expireOffers.usecase.js';
+import { RideUpiPaymentUseCase } from '../../src/modules/rides/application/useCases/rideUpiPayment.usecase.js';
 
 describe('MongoDB Atomic Claim & Lifecycle Integration Test (rs0 Replica Set)', () => {
   let replSet: MongoMemoryReplSet;
@@ -197,9 +198,11 @@ describe('MongoDB Atomic Claim & Lifecycle Integration Test (rs0 Replica Set)', 
       pricingConfigRepo,
       tokenSecret: TEST_SECRET,
       quoteTtlSeconds: 300,
+      walletRepo,
     });
 
     createRideUseCase = new CreateRideUseCase({
+      walletRepo,
       unitOfWork: new MongoUnitOfWork(),
       rideEventRepo: mongoRideEventRepo,
       rideRepo: mongoRideRepo,
@@ -936,7 +939,8 @@ describe('MongoDB Atomic Claim & Lifecycle Integration Test (rs0 Replica Set)', 
       const result = await cancelRideUseCase.execute(input);
       expect(result.ride.status).toBe('CANCELLED');
       expect(result.driverWallet?.balancePaise).toBe(driver1Wallet.balancePaise + 3500);
-      expect(await WalletTransactionModel.countDocuments({ reference_id: ride.id })).toBe(1);
+      expect(result.riderWallet?.balancePaise).toBe(-5000);
+      expect(await WalletTransactionModel.countDocuments({ reference_id: ride.id })).toBe(2);
       expect(
         await RideEventModel.countDocuments({ ride_id: ride.id, event_type: 'RIDE_CANCELLED' }),
       ).toBe(1);
@@ -981,6 +985,339 @@ describe('MongoDB Atomic Claim & Lifecycle Integration Test (rs0 Replica Set)', 
       expect(cancelCompTx?.type).toBe('CREDIT');
       expect(cancelCompTx?.amount_paise).toBe(3500);
       expect(cancelCompTx?.balance_after_paise).toBe(driver1Wallet.balancePaise + 3500);
+
+      // Verify rider arrears debited to RIDER wallet in MongoDB with owed_paise synced
+      const mongoRiderWallet = await WalletModel.findOne({
+        rider_id: RIDER_ID,
+        owner_type: 'RIDER',
+      }).lean();
+      expect(mongoRiderWallet?.balance_paise).toBe(-5000);
+      expect(mongoRiderWallet?.owed_paise).toBe(5000);
+
+      const arrearsTx = await WalletTransactionModel.findOne({
+        reference_id: createdRide.id,
+        reference_type: 'CANCELLATION_FEE_ARREARS',
+      }).lean();
+      expect(arrearsTx).not.toBeNull();
+      expect(arrearsTx?.type).toBe('DEBIT');
+      expect(arrearsTx?.amount_paise).toBe(5000);
+      expect(arrearsTx?.idempotency_key).toBe(`cancel_arrears_${createdRide.id}`);
+      expect(arrearsTx?.balance_after_paise).toBe(-5000);
+    });
+
+    it('handles simultaneous concurrent cancellation attempts in MongoDB rs0 without double-debiting rider or double-crediting driver', async () => {
+      const createdRide = await createInitialRide();
+      const acceptResult = await acceptRideUseCase.execute({
+        rideId: createdRide.id,
+        driverId: DRIVER_ID_1,
+      });
+      const threeMinLater = new Date(acceptResult.ride.acceptedAt!.getTime() + 180000);
+      const cancelInput = {
+        rideId: createdRide.id,
+        actorType: 'RIDER' as const,
+        actorId: RIDER_ID,
+        reason: 'RIDER_CHANGED_MIND' as const,
+        cancelledAt: threeMinLater,
+      };
+
+      const [r1, r2, r3] = await Promise.all([
+        cancelRideUseCase.execute(cancelInput),
+        cancelRideUseCase.execute(cancelInput),
+        cancelRideUseCase.execute(cancelInput),
+      ]);
+
+      expect(r1.ride.status).toBe('CANCELLED');
+      expect(r2.ride.status).toBe('CANCELLED');
+      expect(r3.ride.status).toBe('CANCELLED');
+      expect(r1.feeBreakdown).toEqual(r2.feeBreakdown);
+      expect(r2.feeBreakdown).toEqual(r3.feeBreakdown);
+
+      expect(
+        await WalletTransactionModel.countDocuments({
+          reference_id: createdRide.id,
+          reference_type: 'CANCELLATION_COMPENSATION',
+        }),
+      ).toBe(1);
+      expect(
+        await WalletTransactionModel.countDocuments({
+          reference_id: createdRide.id,
+          reference_type: 'CANCELLATION_FEE_ARREARS',
+        }),
+      ).toBe(1);
+
+      const driverWalletDoc = await WalletModel.findById(driver1Wallet.id).lean();
+      expect(driverWalletDoc?.balance_paise).toBe(driver1Wallet.balancePaise + 3500);
+      const riderWalletDoc = await WalletModel.findOne({
+        rider_id: RIDER_ID,
+        owner_type: 'RIDER',
+      }).lean();
+      expect(riderWalletDoc?.balance_paise).toBe(-5000);
+      expect(riderWalletDoc?.owed_paise).toBe(5000);
+    });
+
+    it('blocks cash at >= threshold, recovers full arrears via UPI without charging commission on arrears, and unblocks cash thereafter', async () => {
+      // 1. Incur ₹50 late cancellation fee on ride 1
+      const ride1 = await createInitialRide();
+      const claim1 = await acceptRideUseCase.execute({ rideId: ride1.id, driverId: DRIVER_ID_1 });
+      await cancelRideUseCase.execute({
+        rideId: ride1.id,
+        actorType: 'RIDER',
+        actorId: RIDER_ID,
+        reason: 'RIDER_CHANGED_MIND',
+        cancelledAt: new Date(claim1.ride.acceptedAt!.getTime() + 180000),
+      });
+
+      // 2. Next quote surfaces arrears & cashAllowed = false; cash booking rejected
+      const pickup = { lat: 26.71, lng: 88.42, address: 'Hill Cart Road' };
+      const drop = { lat: 26.75, lng: 88.45, address: 'Sevoke Road' };
+      const quote2 = await quoteUseCase.execute({
+        pickup,
+        drop,
+        vehicleCategory: 'CAB',
+        riderId: RIDER_ID,
+      });
+      expect(quote2.arrearsPaise).toBe(5000);
+      expect(quote2.totalEstimatedPayablePaise).toBe(quote2.suggestedFarePaise + 5000);
+      expect(quote2.cashAllowed).toBe(false);
+
+      await expect(
+        createRideUseCase.execute({
+          quoteToken: quote2.quoteToken,
+          proposedFarePaise: quote2.suggestedFarePaise,
+          riderId: RIDER_ID,
+          passengerName: 'Subir Roy',
+          passengerPhoneE164: '+919876543210',
+          pickup,
+          drop,
+          vehicleCategory: 'CAB',
+          paymentMethod: 'CASH',
+        }),
+      ).rejects.toThrow('RIDER_ARREARS_CASH_BLOCKED');
+
+      // 3. Create ride 2 (UPI), progress to PAYMENT_PENDING
+      const ride2 = await createRideUseCase.execute({
+        quoteToken: quote2.quoteToken,
+        proposedFarePaise: quote2.suggestedFarePaise,
+        riderId: RIDER_ID,
+        passengerName: 'Subir Roy',
+        passengerPhoneE164: '+919876543210',
+        pickup,
+        drop,
+        vehicleCategory: 'CAB',
+      });
+      expect(ride2.arrearsPaise).toBe(5000);
+
+      const claim2 = await acceptRideUseCase.execute({ rideId: ride2.id, driverId: DRIVER_ID_1 });
+      await driverEnRouteUseCase.execute({ rideId: ride2.id, driverId: DRIVER_ID_1 });
+      await driverArrivedUseCase.execute({ rideId: ride2.id, driverId: DRIVER_ID_1 });
+      await startRideUseCase.execute({
+        rideId: ride2.id,
+        driverId: DRIVER_ID_1,
+        otp: claim2._riderPickupOtp!,
+      });
+      await completeRideUseCase.execute({ rideId: ride2.id, driverId: DRIVER_ID_1 });
+
+      // Direct cash confirmPayment and switchToCash are both blocked while arrears >= 5000
+      await expect(
+        completeRideUseCase.confirmPayment({ rideId: ride2.id, driverId: DRIVER_ID_1 }),
+      ).rejects.toThrow('RIDER_ARREARS_CASH_BLOCKED');
+
+      const expectedTotal = claim2.ride.agreedFarePaise! + 5000;
+      const upiPayment = new RideUpiPaymentUseCase({
+        unitOfWork: new MongoUnitOfWork(),
+        rideRepo: mongoRideRepo,
+        rideEventRepo: mongoRideEventRepo,
+        walletRepo,
+        gateway: {
+          live: false,
+          keyId: 'rzp_test_key',
+          createOrder: async () => 'order_step3mongo1',
+          verifySignature: () => {},
+          findCapturedPayment: async (_orderId, amountPaise) =>
+            amountPaise === expectedTotal ? 'pay_step3mongo1' : null,
+          createQr: async () => {
+            throw new Error('unused');
+          },
+          findQrPayment: async () => null,
+          closeQrForCash: async () => {},
+        },
+      });
+
+      await expect(
+        upiPayment.switchToCash(ride2.id, { role: 'RIDER', id: RIDER_ID }),
+      ).rejects.toThrow('RIDER_ARREARS_CASH_BLOCKED');
+
+      const driverBefore = (await walletRepo.findByDriverId(DRIVER_ID_1))!.balancePaise;
+      const checkout = await upiPayment.create(ride2.id, RIDER_ID);
+      expect(checkout.amountPaise).toBe(expectedTotal);
+
+      // Concurrent reconcile calls settle once and credit rider arrears once
+      const [s1, s2] = await Promise.all([
+        upiPayment.reconcile(ride2.id, RIDER_ID),
+        upiPayment.reconcile(ride2.id, RIDER_ID),
+      ]);
+      expect(s1.status).toBe('SETTLED');
+      expect(s2.status).toBe('SETTLED');
+
+      const expectedCommission = Math.round((claim2.ride.agreedFarePaise! * 8) / 100);
+      const expectedNetDriverEarnings = claim2.ride.agreedFarePaise! - expectedCommission;
+      const driverAfter = await WalletModel.findById(driver1Wallet.id).lean();
+      expect(driverAfter?.balance_paise).toBe(driverBefore);
+      expect(driverAfter?.earnings_balance_paise).toBe(expectedNetDriverEarnings);
+
+      const riderAfter = await WalletModel.findOne({
+        rider_id: RIDER_ID,
+        owner_type: 'RIDER',
+      }).lean();
+      expect(riderAfter?.balance_paise).toBe(0);
+      expect(riderAfter?.owed_paise).toBe(0);
+      expect(
+        await WalletTransactionModel.countDocuments({
+          reference_id: ride2.id,
+          reference_type: 'ARREARS_PAYMENT',
+        }),
+      ).toBe(1);
+
+      // 4. Subsequent quote allows cash again
+      const quote3 = await quoteUseCase.execute({
+        pickup,
+        drop,
+        vehicleCategory: 'CAB',
+        riderId: RIDER_ID,
+      });
+      expect(quote3.arrearsPaise).toBe(0);
+      expect(quote3.cashAllowed).toBe(true);
+    });
+
+    it('handles partial arrears cash collection, RIDER_WINS dispute reversal, and atomic admin cancellation fee waiver in MongoDB rs0', async () => {
+      // 1. Incur ₹50 cancellation fee, then test admin waiver rollback & idempotent replay first on a separate ride
+      const waivedRide = await createInitialRide();
+      await acceptRideUseCase.execute({
+        rideId: waivedRide.id,
+        driverId: DRIVER_ID_1,
+      });
+      await cancelRideUseCase.execute({
+        rideId: waivedRide.id,
+        actorType: 'DRIVER',
+        actorId: DRIVER_ID_1,
+        reason: 'RIDER_NO_SHOW',
+      }).catch(() => {});
+      await driverEnRouteUseCase.execute({ rideId: waivedRide.id, driverId: DRIVER_ID_1 });
+      const arrivedWaived = await driverArrivedUseCase.execute({
+        rideId: waivedRide.id,
+        driverId: DRIVER_ID_1,
+      });
+      await cancelRideUseCase.execute({
+        rideId: waivedRide.id,
+        actorType: 'DRIVER',
+        actorId: DRIVER_ID_1,
+        reason: 'RIDER_NO_SHOW',
+        cancelledAt: new Date(arrivedWaived.arrivedAt!.getTime() + 305_000),
+      });
+
+      // Inject event failure during waiveCancellationFee -> rolls back RIDER_REFUND credit
+      const originalSaveEvent = mongoRideEventRepo.save.bind(mongoRideEventRepo);
+      vi.spyOn(mongoRideEventRepo, 'save').mockImplementationOnce(async (ev) => {
+        if (ev.eventType === 'CANCELLATION_FEE_WAIVED') {
+          throw new Error('waiver audit failure');
+        }
+        return originalSaveEvent(ev);
+      });
+      await expect(
+        cancelRideUseCase.waiveCancellationFee({
+          rideId: waivedRide.id,
+          adminId: cabPricingConfig.createdByAdminId,
+          reason: 'GPS drift verified by support',
+        }),
+      ).rejects.toThrow('waiver audit failure');
+      vi.restoreAllMocks();
+
+      expect(
+        (await WalletModel.findOne({ rider_id: RIDER_ID, owner_type: 'RIDER' }).lean())
+          ?.balance_paise,
+      ).toBe(-5000);
+
+      // Retry waiver + replay idempotently
+      const w1 = await cancelRideUseCase.waiveCancellationFee({
+        rideId: waivedRide.id,
+        adminId: cabPricingConfig.createdByAdminId,
+        reason: 'GPS drift verified by support',
+      });
+      const w2 = await cancelRideUseCase.waiveCancellationFee({
+        rideId: waivedRide.id,
+        adminId: cabPricingConfig.createdByAdminId,
+        reason: 'GPS drift verified by support',
+      });
+      expect(w1.waivedPaise).toBe(5000);
+      expect(w2.transaction.id).toBe(w1.transaction.id);
+      expect(w2.riderWallet.balancePaise).toBe(0);
+      expect(
+        await WalletTransactionModel.countDocuments({
+          idempotency_key: `cancel_arrears_waive_${waivedRide.id}`,
+        }),
+      ).toBe(1);
+
+      // 2. Now incur ₹50 late cancel on another ride, apply ₹20 partial goodwill credit so unpaid arrears = ₹30 (< ₹50 threshold)
+      const cancelRide2 = await createInitialRide();
+      const claimCancel2 = await acceptRideUseCase.execute({
+        rideId: cancelRide2.id,
+        driverId: DRIVER_ID_1,
+      });
+      await cancelRideUseCase.execute({
+        rideId: cancelRide2.id,
+        actorType: 'RIDER',
+        actorId: RIDER_ID,
+        reason: 'RIDER_CHANGED_MIND',
+        cancelledAt: new Date(claimCancel2.ride.acceptedAt!.getTime() + 180_000),
+      });
+
+      const adjustWallet = new AdminAdjustWalletUseCase(walletRepo, new MongoUnitOfWork());
+      await adjustWallet.execute({
+        riderId: RIDER_ID,
+        ownerType: 'RIDER',
+        amountPaise: 2000,
+        type: 'CREDIT',
+        reason: 'Partial courtesy credit',
+        adminId: cabPricingConfig.createdByAdminId,
+        idempotencyKey: 'partial_courtesy_2000',
+      });
+
+      // Unpaid arrears = 3000 (< 5000), so cash ride is allowed and collects fare + 3000
+      const cashRide = await createPendingRide();
+      expect(cashRide.arrearsPaise).toBe(3000);
+
+      const driverBeforeCash = (await walletRepo.findByDriverId(DRIVER_ID_1))!.balancePaise;
+      const settledCash = await completeRideUseCase.confirmPayment({
+        rideId: cashRide.id,
+        driverId: DRIVER_ID_1,
+      });
+      const expectedCommission = Math.round((settledCash.farePaise * 8) / 100);
+      expect(settledCash.arrearsCollectedPaise).toBe(3000);
+      expect(settledCash.totalPayablePaise).toBe(settledCash.farePaise + 3000);
+      expect(settledCash.driverWallet.balancePaise).toBe(
+        driverBeforeCash - expectedCommission - 3000,
+      );
+      expect((await walletRepo.findByRiderId(RIDER_ID))?.balancePaise).toBe(0);
+
+      // Dispute & RIDER_WINS reverses both driver debits and reinstates ₹30 unpaid arrears on rider
+      await completeRideUseCase.disputePayment({
+        rideId: cashRide.id,
+        riderId: RIDER_ID,
+        reason: 'Driver collected wrong cash amount',
+      });
+      await completeRideUseCase.resolveDispute({
+        rideId: cashRide.id,
+        adminId: cabPricingConfig.createdByAdminId,
+        outcome: 'RIDER_WINS',
+        reason: 'Verified cash collection error',
+      });
+      expect((await walletRepo.findByDriverId(DRIVER_ID_1))?.balancePaise).toBe(driverBeforeCash);
+      const riderReinstated = await WalletModel.findOne({
+        rider_id: RIDER_ID,
+        owner_type: 'RIDER',
+      }).lean();
+      expect(riderReinstated?.balance_paise).toBe(-3000);
+      expect(riderReinstated?.owed_paise).toBe(3000);
     });
   });
 

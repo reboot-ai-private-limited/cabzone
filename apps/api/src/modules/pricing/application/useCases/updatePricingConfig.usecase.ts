@@ -1,7 +1,11 @@
 import type { PricingConfigDto, UpdatePricingConfigRequest } from '@cabzone/contracts';
 import { AppError } from '../../../../shared/errors/AppError.js';
 import type { UnitOfWorkPort } from '../../../../shared/db/unitOfWork.port.js';
-import type { PricingConfigRepositoryPort } from '../../domain/index.js';
+import {
+  resolveCancellationFeeSplit,
+  resolveCancellationPolicy,
+  type PricingConfigRepositoryPort,
+} from '../../domain/index.js';
 import { getStateNameFromCode } from '@cabzone/geo';
 import { toPricingConfigDto } from './createPricingConfig.usecase.js';
 
@@ -45,6 +49,20 @@ export class UpdatePricingConfigUseCase {
       );
     }
 
+    const currentPolicy = resolveCancellationPolicy(config);
+    const cancellationSplit = resolveCancellationFeeSplit(
+      {
+        cancellationFeePaise: patch.cancellationFeePaise,
+        driverCompensationPaise: patch.driverCompensationPaise,
+        platformCancellationFeePaise: patch.platformCancellationFeePaise,
+      },
+      {
+        cancellationFeePaise: currentPolicy.cancellationFeePaise,
+        driverCompensationPaise: currentPolicy.driverCompensationPaise,
+        platformCancellationFeePaise: currentPolicy.platformCancellationFeePaise,
+      },
+    );
+
     config.baseFarePaise = baseFarePaise;
     config.ratePerKmPaise = patch.ratePerKmPaise ?? config.ratePerKmPaise;
     config.minimumFarePaise = minimumFarePaise;
@@ -58,6 +76,13 @@ export class UpdatePricingConfigUseCase {
     config.negotiationWindowSeconds =
       patch.negotiationWindowSeconds ?? config.negotiationWindowSeconds;
     config.commissionPercent = patch.commissionPercent ?? config.commissionPercent;
+    config.cancellationFeePaise = cancellationSplit.cancellationFeePaise;
+    config.driverCompensationPaise = cancellationSplit.driverCompensationPaise;
+    config.platformCancellationFeePaise = cancellationSplit.platformCancellationFeePaise;
+    config.riderCancellationGraceSeconds =
+      patch.riderCancellationGraceSeconds ?? currentPolicy.riderCancellationGraceSeconds;
+    config.driverNoShowWaitSeconds =
+      patch.driverNoShowWaitSeconds ?? currentPolicy.driverNoShowWaitSeconds;
     config.effectiveFrom = patch.effectiveFrom
       ? new Date(patch.effectiveFrom)
       : config.effectiveFrom;

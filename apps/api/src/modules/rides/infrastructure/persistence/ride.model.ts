@@ -33,6 +33,7 @@ export interface RideDocument extends Document<string> {
   suggested_fare_paise: number;
   proposed_fare_paise: number | null;
   agreed_fare_paise: number | null;
+  arrears_paise?: number;
   status: RideStatus;
   cancellation_reason: CancellationReason | null;
   offering_expires_at: Date | null;
@@ -89,6 +90,7 @@ const rideSchema = new Schema<RideDocument>(
     suggested_fare_paise: { type: Number, required: true, min: 0 },
     proposed_fare_paise: { type: Number, default: null },
     agreed_fare_paise: { type: Number, default: null },
+    arrears_paise: { type: Number, default: 0, min: 0 },
     status: {
       type: String,
       enum: RIDE_STATUSES,

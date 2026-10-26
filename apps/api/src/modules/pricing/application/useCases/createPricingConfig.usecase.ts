@@ -1,14 +1,22 @@
-import type {
-  CreatePricingConfigRequest,
-  PricingConfigDto,
-  PricingConfigLevel,
+import {
+  DEFAULT_DRIVER_NO_SHOW_WAIT_SECONDS,
+  DEFAULT_RIDER_CANCELLATION_GRACE_SECONDS,
+  type CreatePricingConfigRequest,
+  type PricingConfigDto,
+  type PricingConfigLevel,
 } from '@cabzone/contracts';
 import { newUuid } from '../../../../shared/ids.js';
 import type { UnitOfWorkPort } from '../../../../shared/db/unitOfWork.port.js';
-import type { PricingConfigEntity, PricingConfigRepositoryPort } from '../../domain/index.js';
+import {
+  resolveCancellationFeeSplit,
+  resolveCancellationPolicy,
+  type PricingConfigEntity,
+  type PricingConfigRepositoryPort,
+} from '../../domain/index.js';
 import { getStateNameFromCode } from '@cabzone/geo';
 
 export function toPricingConfigDto(entity: PricingConfigEntity): PricingConfigDto {
+  const policy = resolveCancellationPolicy(entity);
   return {
     id: entity.id,
     level: entity.level,
@@ -29,6 +37,11 @@ export function toPricingConfigDto(entity: PricingConfigEntity): PricingConfigDt
     negotiationCeilingPercent: entity.negotiationCeilingPercent,
     negotiationWindowSeconds: entity.negotiationWindowSeconds,
     commissionPercent: entity.commissionPercent,
+    cancellationFeePaise: policy.cancellationFeePaise,
+    driverCompensationPaise: policy.driverCompensationPaise,
+    platformCancellationFeePaise: policy.platformCancellationFeePaise,
+    riderCancellationGraceSeconds: policy.riderCancellationGraceSeconds,
+    driverNoShowWaitSeconds: policy.driverNoShowWaitSeconds,
     effectiveFrom: entity.effectiveFrom.toISOString(),
     effectiveTo: entity.effectiveTo ? entity.effectiveTo.toISOString() : null,
     status: entity.status,
@@ -57,6 +70,12 @@ export class CreatePricingConfigUseCase {
     const stateCode = level === 'STATE' && input.stateCode ? input.stateCode.toUpperCase() : null;
     const stateName = stateCode ? getStateNameFromCode(stateCode) : null;
     const cityZoneId = level === 'CITY' ? (input.cityZoneId ?? null) : null;
+
+    const cancellationSplit = resolveCancellationFeeSplit({
+      cancellationFeePaise: input.cancellationFeePaise,
+      driverCompensationPaise: input.driverCompensationPaise,
+      platformCancellationFeePaise: input.platformCancellationFeePaise,
+    });
 
     const latestVersion = await this.pricingConfigRepo.findLatestVersion(
       { cityZoneId, stateCode, level },
@@ -103,6 +122,13 @@ export class CreatePricingConfigUseCase {
       negotiationCeilingPercent: input.negotiationCeilingPercent ?? 150,
       negotiationWindowSeconds: input.negotiationWindowSeconds ?? 90,
       commissionPercent: input.commissionPercent ?? 8,
+      cancellationFeePaise: cancellationSplit.cancellationFeePaise,
+      driverCompensationPaise: cancellationSplit.driverCompensationPaise,
+      platformCancellationFeePaise: cancellationSplit.platformCancellationFeePaise,
+      riderCancellationGraceSeconds:
+        input.riderCancellationGraceSeconds ?? DEFAULT_RIDER_CANCELLATION_GRACE_SECONDS,
+      driverNoShowWaitSeconds:
+        input.driverNoShowWaitSeconds ?? DEFAULT_DRIVER_NO_SHOW_WAIT_SECONDS,
       effectiveFrom: input.effectiveFrom ? new Date(input.effectiveFrom) : now,
       effectiveTo: null,
       status,

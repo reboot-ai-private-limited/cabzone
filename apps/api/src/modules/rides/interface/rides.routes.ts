@@ -8,6 +8,7 @@ export interface RidesRouterDeps {
   requireParticipant?: RequestHandler | undefined;
   requireCanRead: RequestHandler;
   requireDisputeAdmin: RequestHandler;
+  requireWaiverAdmin: RequestHandler;
   requireDisputeReadAdmin?: RequestHandler | undefined;
   requireFinanceAdmin: RequestHandler;
   createRide: RequestHandler;
@@ -42,6 +43,7 @@ export interface RidesRouterDeps {
   resolvePaymentDispute: RequestHandler;
   listPaymentDisputes: RequestHandler;
   cancelRide: RequestHandler;
+  waiveCancellationFee: RequestHandler;
 }
 
 export function buildRidesRouter(deps: RidesRouterDeps): Router {
@@ -62,17 +64,14 @@ export function buildRidesRouter(deps: RidesRouterDeps): Router {
   router.get('/payment/disputes', disputeReadGuard, deps.listPaymentDisputes);
   router.get('/driver/earnings', deps.requireDriver, deps.driverEarnings);
   router.get('/driver/history', deps.requireDriver, deps.driverHistory);
-  router.post(
-    '/admin/reconcile-earnings',
-    deps.requireFinanceAdmin,
-    deps.reconcileDriverEarnings,
-  );
+  router.post('/admin/reconcile-earnings', deps.requireFinanceAdmin, deps.reconcileDriverEarnings);
 
   // Rider / driver / admin
   router.get('/', deps.requireCanRead, deps.listRides);
   router.get('/:id', deps.requireCanRead, deps.getRide);
   router.get('/:id/events', deps.requireCanRead, deps.getRideEvents);
   router.post('/:id/cancel', deps.requireCanCancel, deps.cancelRide);
+  router.post('/:id/cancellation-fee/waive', deps.requireWaiverAdmin, deps.waiveCancellationFee);
 
   // Driver / Rider participants
   router.post('/:id/accept', deps.requireDriver, deps.acceptRide);

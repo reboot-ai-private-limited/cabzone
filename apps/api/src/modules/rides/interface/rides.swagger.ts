@@ -19,6 +19,7 @@ import {
   paymentDisputeResolutionSchema,
   proposeFareSchema,
   upiPaymentProofSchema,
+  waiveCancellationFeeSchema,
   driverEarningsQuerySchema,
   driverHistoryQuerySchema,
   reconcileDriverEarningsSchema,
@@ -85,6 +86,8 @@ export const rideViewSchema = z.object({
   suggestedFarePaise: z.number().int(),
   proposedFarePaise: z.number().int().nullable(),
   agreedFarePaise: z.number().int().nullable(),
+  arrearsPaise: z.number().int(),
+  totalPayablePaise: z.number().int().nullable(),
   cancellationReason: z.string().nullable(),
   offeringExpiresAt: z.string().nullable(),
   acceptedAt: z.string().nullable(),
@@ -173,7 +176,10 @@ export function registerRidesSwaggerPaths(): void {
     request: { query: qrTicketQuery },
     responses: {
       200: { description: 'HTML checkout page' },
-      403: { description: 'Invalid or expired QR ticket', content: { 'application/json': { schema: errorResponse } } },
+      403: {
+        description: 'Invalid or expired QR ticket',
+        content: { 'application/json': { schema: errorResponse } },
+      },
     },
   });
   registry.registerPath({
@@ -183,8 +189,14 @@ export function registerRidesSwaggerPaths(): void {
     summary: 'Create or resume UPI checkout session from a signed passenger QR ticket',
     request: { body: { content: { 'application/json': { schema: qrTicketBody } } } },
     responses: {
-      200: { description: 'QR ticket payment session', content: { 'application/json': { schema: successResponse(z.any()) } } },
-      403: { description: 'Invalid or expired QR ticket', content: { 'application/json': { schema: errorResponse } } },
+      200: {
+        description: 'QR ticket payment session',
+        content: { 'application/json': { schema: successResponse(z.any()) } },
+      },
+      403: {
+        description: 'Invalid or expired QR ticket',
+        content: { 'application/json': { schema: errorResponse } },
+      },
     },
   });
   registry.registerPath({
@@ -200,8 +212,16 @@ export function registerRidesSwaggerPaths(): void {
       },
     },
     responses: {
-      200: { description: 'Verified payment result', content: { 'application/json': { schema: successResponse(z.object({ paid: z.boolean() })) } } },
-      403: { description: 'Invalid or expired QR ticket', content: { 'application/json': { schema: errorResponse } } },
+      200: {
+        description: 'Verified payment result',
+        content: {
+          'application/json': { schema: successResponse(z.object({ paid: z.boolean() })) },
+        },
+      },
+      403: {
+        description: 'Invalid or expired QR ticket',
+        content: { 'application/json': { schema: errorResponse } },
+      },
     },
   });
   registry.registerPath({
@@ -211,8 +231,16 @@ export function registerRidesSwaggerPaths(): void {
     summary: 'Poll ride payment capture status using a signed QR ticket',
     request: { body: { content: { 'application/json': { schema: qrTicketBody } } } },
     responses: {
-      200: { description: 'Payment status', content: { 'application/json': { schema: successResponse(z.object({ paid: z.boolean() })) } } },
-      403: { description: 'Invalid or expired QR ticket', content: { 'application/json': { schema: errorResponse } } },
+      200: {
+        description: 'Payment status',
+        content: {
+          'application/json': { schema: successResponse(z.object({ paid: z.boolean() })) },
+        },
+      },
+      403: {
+        description: 'Invalid or expired QR ticket',
+        content: { 'application/json': { schema: errorResponse } },
+      },
     },
   });
   registry.registerPath({
@@ -223,8 +251,14 @@ export function registerRidesSwaggerPaths(): void {
     summary: 'Generate signed driver-side UPI QR code for in-cab passenger scan (Driver only)',
     request: { params: rideIdParamSchema },
     responses: {
-      200: { description: 'Driver payment QR payload', content: { 'application/json': { schema: successResponse(z.any()) } } },
-      403: { description: 'Assigned driver required', content: { 'application/json': { schema: errorResponse } } },
+      200: {
+        description: 'Driver payment QR payload',
+        content: { 'application/json': { schema: successResponse(z.any()) } },
+      },
+      403: {
+        description: 'Assigned driver required',
+        content: { 'application/json': { schema: errorResponse } },
+      },
     },
   });
   registry.registerPath({
@@ -235,8 +269,16 @@ export function registerRidesSwaggerPaths(): void {
     summary: 'Poll online payment settlement status for the assigned driver (Driver only)',
     request: { params: rideIdParamSchema },
     responses: {
-      200: { description: 'Driver payment status', content: { 'application/json': { schema: successResponse(z.object({ paid: z.boolean() })) } } },
-      403: { description: 'Assigned driver required', content: { 'application/json': { schema: errorResponse } } },
+      200: {
+        description: 'Driver payment status',
+        content: {
+          'application/json': { schema: successResponse(z.object({ paid: z.boolean() })) },
+        },
+      },
+      403: {
+        description: 'Assigned driver required',
+        content: { 'application/json': { schema: errorResponse } },
+      },
     },
   });
   registry.registerPath({
@@ -247,9 +289,18 @@ export function registerRidesSwaggerPaths(): void {
     summary: 'Ordered ride event audit trail (scoped to assigned cities for CITY_ADMIN)',
     request: { params: rideIdParamSchema },
     responses: {
-      200: { description: 'Ordered ride events', content: { 'application/json': { schema: successResponse(z.array(z.any())) } } },
-      403: { description: 'City scope denied', content: { 'application/json': { schema: errorResponse } } },
-      404: { description: 'Ride not found', content: { 'application/json': { schema: errorResponse } } },
+      200: {
+        description: 'Ordered ride events',
+        content: { 'application/json': { schema: successResponse(z.array(z.any())) } },
+      },
+      403: {
+        description: 'City scope denied',
+        content: { 'application/json': { schema: errorResponse } },
+      },
+      404: {
+        description: 'Ride not found',
+        content: { 'application/json': { schema: errorResponse } },
+      },
     },
   });
   registry.registerPath({
@@ -263,8 +314,14 @@ export function registerRidesSwaggerPaths(): void {
       body: { content: { 'application/json': { schema: driverCounterSchema } } },
     },
     responses: {
-      201: { description: 'Counter-offer sent to rider', content: { 'application/json': { schema: successResponse(z.any()) } } },
-      400: { description: 'Out of negotiation bounds', content: { 'application/json': { schema: errorResponse } } },
+      201: {
+        description: 'Counter-offer sent to rider',
+        content: { 'application/json': { schema: successResponse(z.any()) } },
+      },
+      400: {
+        description: 'Out of negotiation bounds',
+        content: { 'application/json': { schema: errorResponse } },
+      },
     },
   });
   registry.registerPath({
@@ -278,8 +335,14 @@ export function registerRidesSwaggerPaths(): void {
       body: { content: { 'application/json': { schema: counterResponseSchema } } },
     },
     responses: {
-      200: { description: 'Counter-offer response applied', content: { 'application/json': { schema: successResponse(rideViewSchema) } } },
-      409: { description: 'Counter expired or ride already assigned', content: { 'application/json': { schema: errorResponse } } },
+      200: {
+        description: 'Counter-offer response applied',
+        content: { 'application/json': { schema: successResponse(rideViewSchema) } },
+      },
+      409: {
+        description: 'Counter expired or ride already assigned',
+        content: { 'application/json': { schema: errorResponse } },
+      },
     },
   });
   registry.registerPath({
@@ -655,6 +718,7 @@ export function registerRidesSwaggerPaths(): void {
               z.object({
                 ride: rideViewSchema,
                 feeBreakdown: z.any().optional(),
+                riderArrearsPaise: z.number().int().optional(),
               }),
             ),
           },
@@ -833,6 +897,8 @@ export function registerRidesSwaggerPaths(): void {
                   ride: rideViewSchema,
                   farePaise: z.number().int(),
                   commissionPaise: z.number().int(),
+                  arrearsCollectedPaise: z.number().int().optional(),
+                  totalPayablePaise: z.number().int().optional(),
                   walletBalancePaise: z.number().int(),
                 }),
               ),
@@ -913,7 +979,8 @@ export function registerRidesSwaggerPaths(): void {
     method: 'get',
     path: '/v1/rides/payment/disputes',
     tags: ['Rides'],
-    summary: 'List open or resolved payment disputes with settlement and refund evidence (Super, Support, or Finance Admin)',
+    summary:
+      'List open or resolved payment disputes with settlement and refund evidence (Super, Support, or Finance Admin)',
     request: { query: listPaymentDisputesQuerySchema },
     security: bearerAuth,
     responses: {
@@ -947,6 +1014,51 @@ export function registerRidesSwaggerPaths(): void {
       },
       403: {
         description: 'Admin role required',
+        content: { 'application/json': { schema: errorResponse } },
+      },
+    },
+  });
+  registry.registerPath({
+    method: 'post',
+    path: '/v1/rides/{id}/cancellation-fee/waive',
+    tags: ['Rides'],
+    summary:
+      'Waive an unpaid rider cancellation or no-show fee via compensating credit (Support/Finance/Super Admin)',
+    security: bearerAuth,
+    request: {
+      params: rideIdParamSchema,
+      body: { content: { 'application/json': { schema: waiveCancellationFeeSchema } } },
+    },
+    responses: {
+      200: {
+        description: 'Cancellation fee waived',
+        content: {
+          'application/json': {
+            schema: successResponse(
+              z.object({
+                ride: rideViewSchema,
+                waivedPaise: z.number().int(),
+                riderWalletBalancePaise: z.number().int(),
+                riderArrearsPaise: z.number().int(),
+              }),
+            ),
+          },
+        },
+      },
+      400: {
+        description: 'Ride is not cancelled or had no cancellation fee',
+        content: { 'application/json': { schema: errorResponse } },
+      },
+      403: {
+        description: 'Admin role required',
+        content: { 'application/json': { schema: errorResponse } },
+      },
+      404: {
+        description: 'Ride not found',
+        content: { 'application/json': { schema: errorResponse } },
+      },
+      409: {
+        description: 'Arrears already settled on a subsequent ride',
         content: { 'application/json': { schema: errorResponse } },
       },
     },

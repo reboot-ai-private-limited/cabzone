@@ -39,6 +39,7 @@ import {
   makeListRidesController,
   makeRideEventsController,
   makeStartRideController,
+  makeWaiveCancellationFeeController,
   type RideHttpContext,
 } from './interface/rides.controller.js';
 import { buildRidesRouter } from './interface/rides.routes.js';
@@ -109,6 +110,7 @@ export function buildRidesContainer(deps: RidesContainerDeps): RidesContainer {
     rideEventRepo,
     rideRepo,
     pricingConfigRepo: deps.pricingConfigRepo,
+    walletRepo,
     tokenSecret: deps.tokenSecret,
   });
   const acceptRideUseCase = new AcceptRideUseCase({
@@ -202,6 +204,7 @@ export function buildRidesContainer(deps: RidesContainerDeps): RidesContainer {
         requireParticipant: auth.requireRole('RIDER', 'DRIVER'),
         requireCanRead: auth.requireRole('RIDER', 'DRIVER', ...ADMIN_ROLES),
         requireDisputeAdmin: auth.requireRole('SUPER_ADMIN', 'SUPPORT_ADMIN'),
+        requireWaiverAdmin: auth.requireRole('SUPER_ADMIN', 'SUPPORT_ADMIN', 'FINANCE_ADMIN'),
         requireDisputeReadAdmin: auth.requireRole('SUPER_ADMIN', 'SUPPORT_ADMIN', 'FINANCE_ADMIN'),
         requireFinanceAdmin: auth.requireRole('SUPER_ADMIN', 'FINANCE_ADMIN'),
         requireCanCancel: auth.requireRole(
@@ -248,6 +251,7 @@ export function buildRidesContainer(deps: RidesContainerDeps): RidesContainer {
           walletRepo,
         ),
         cancelRide: makeCancelRideController(cancelRideUseCase, actors, rideRepo),
+        waiveCancellationFee: makeWaiveCancellationFeeController(cancelRideUseCase, actors),
       }),
   };
 }

@@ -131,6 +131,17 @@ export function buildContainers(overrides?: Partial<AppContainers>): AppContaine
     buildPricingContainer({
       unitOfWork,
       pricingConfigRepo: new MongoPricingConfigRepository(),
+      walletRepo,
+      resolveRiderIdFromAuthHeader: async (authHeader) => {
+        if (!authHeader?.startsWith('Bearer ') || !identity.verifyToken) return null;
+        try {
+          const auth = await identity.verifyToken(authHeader.slice(7).trim());
+          if (auth.role !== 'RIDER') return null;
+          return (await riderRepo.findByUserId(auth.userId))?.id ?? null;
+        } catch {
+          return null;
+        }
+      },
       serviceClassificationUseCase: zone.serviceClassificationUseCase,
       tokenSecret: env.JWT_ACCESS_SECRET,
       routingUseCase: routing.getRouteUseCase,

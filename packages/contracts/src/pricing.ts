@@ -1,5 +1,11 @@
 import type { VehicleCategory } from './vehicles.js';
 
+export const DEFAULT_CANCELLATION_FEE_PAISE = 5000; // ₹50
+export const DEFAULT_DRIVER_COMPENSATION_PAISE = 3500; // ₹35
+export const DEFAULT_PLATFORM_CANCELLATION_FEE_PAISE = 1500; // ₹15
+export const DEFAULT_RIDER_CANCELLATION_GRACE_SECONDS = 120; // 2 minutes
+export const DEFAULT_DRIVER_NO_SHOW_WAIT_SECONDS = 300; // 5 minutes
+
 /**
  * Vehicle category pricing configuration.
  *
@@ -8,6 +14,7 @@ import type { VehicleCategory } from './vehicles.js';
  * - D-026: Percentage-based commission model.
  * - D-027: City override buffer with global default.
  * - D-028: Negotiation bounds (Floor: MAX(min_fare, 80%), Ceiling: 150%, Window: 90s).
+ * - D-044: Configurable cancellation/no-show fees and timers per pricing config.
  */
 export interface VehiclePricingConfig {
   vehicleCategory: VehicleCategory;
@@ -22,6 +29,11 @@ export interface VehiclePricingConfig {
   negotiationCeilingPercent: number; // default: 150
   negotiationWindowSeconds: number; // default: 90
   commissionPercent: number; // platform commission percentage
+  cancellationFeePaise?: number; // default: 5000
+  driverCompensationPaise?: number; // default: 3500
+  platformCancellationFeePaise?: number; // default: 1500
+  riderCancellationGraceSeconds?: number; // default: 120
+  driverNoShowWaitSeconds?: number; // default: 300
 }
 
 export interface QuoteRequestDto {
@@ -70,6 +82,12 @@ export interface QuoteDto {
   bufferApplied: boolean;
   vehicleCategory: VehicleCategory;
   suggestedFarePaise: number;
+  /** Unpaid rider cancellation/no-show fee arrears itemized above the ride fare (D-044). */
+  arrearsPaise?: number | undefined;
+  /** Suggested fare plus unpaid rider arrears (suggestedFarePaise + arrearsPaise). */
+  totalEstimatedPayablePaise?: number | undefined;
+  /** False when unpaid arrears >= effective cancellationFeePaise, blocking cash settlement (D-044). */
+  cashAllowed?: boolean | undefined;
   pricingConfigId: string;
   pricingConfigVersion: number;
   /** Route label; state segment rates are recorded in stateBreakdown. */
@@ -152,6 +170,11 @@ export interface PricingConfigDto {
   negotiationCeilingPercent: number;
   negotiationWindowSeconds: number;
   commissionPercent: number;
+  cancellationFeePaise: number;
+  driverCompensationPaise: number;
+  platformCancellationFeePaise: number;
+  riderCancellationGraceSeconds: number;
+  driverNoShowWaitSeconds: number;
   effectiveFrom: string;
   effectiveTo: string | null;
   status: PricingConfigStatus;
@@ -175,6 +198,11 @@ export interface CreatePricingConfigRequest {
   negotiationCeilingPercent?: number | undefined;
   negotiationWindowSeconds?: number | undefined;
   commissionPercent?: number | undefined;
+  cancellationFeePaise?: number | undefined;
+  driverCompensationPaise?: number | undefined;
+  platformCancellationFeePaise?: number | undefined;
+  riderCancellationGraceSeconds?: number | undefined;
+  driverNoShowWaitSeconds?: number | undefined;
   status?: 'DRAFT' | 'ACTIVE' | undefined;
   effectiveFrom?: string | undefined;
 }
@@ -193,6 +221,11 @@ export interface UpdatePricingConfigRequest {
   negotiationCeilingPercent?: number | undefined;
   negotiationWindowSeconds?: number | undefined;
   commissionPercent?: number | undefined;
+  cancellationFeePaise?: number | undefined;
+  driverCompensationPaise?: number | undefined;
+  platformCancellationFeePaise?: number | undefined;
+  riderCancellationGraceSeconds?: number | undefined;
+  driverNoShowWaitSeconds?: number | undefined;
   effectiveFrom?: string | undefined;
   status?: PricingConfigStatus | undefined;
 }

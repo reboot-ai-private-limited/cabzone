@@ -142,6 +142,7 @@ export class AdminAdjustWalletUseCase {
     const saved = await this.walletRepo.save({
       ...wallet,
       balancePaise: balanceAfter,
+      owedPaise: Math.max(0, -balanceAfter),
       version: wallet.version + 1,
       updatedAt: now,
     });

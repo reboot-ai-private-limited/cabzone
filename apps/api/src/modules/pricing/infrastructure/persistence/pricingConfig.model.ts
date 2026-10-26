@@ -1,5 +1,10 @@
 import mongoose, { type Document, Schema } from 'mongoose';
 import {
+  DEFAULT_CANCELLATION_FEE_PAISE,
+  DEFAULT_DRIVER_COMPENSATION_PAISE,
+  DEFAULT_DRIVER_NO_SHOW_WAIT_SECONDS,
+  DEFAULT_PLATFORM_CANCELLATION_FEE_PAISE,
+  DEFAULT_RIDER_CANCELLATION_GRACE_SECONDS,
   PRICING_CONFIG_LEVELS,
   PRICING_CONFIG_STATUSES,
   VEHICLE_CATEGORIES,
@@ -27,6 +32,11 @@ export interface PricingConfigDocument extends Document<string> {
   negotiation_ceiling_percent: number;
   negotiation_window_seconds: number;
   commission_percent: number;
+  cancellation_fee_paise?: number;
+  driver_compensation_paise?: number;
+  platform_cancellation_fee_paise?: number;
+  rider_cancellation_grace_seconds?: number;
+  driver_no_show_wait_seconds?: number;
   effective_from: Date;
   effective_to: Date | null;
   status: PricingConfigStatus;
@@ -63,6 +73,25 @@ const pricingConfigSchema = new Schema<PricingConfigDocument>(
     negotiation_ceiling_percent: { type: Number, default: 150, min: 100, max: 300 },
     negotiation_window_seconds: { type: Number, default: 90, min: 15, max: 300 },
     commission_percent: { type: Number, default: 0, min: 0, max: 100 },
+    cancellation_fee_paise: { type: Number, default: DEFAULT_CANCELLATION_FEE_PAISE, min: 0 },
+    driver_compensation_paise: { type: Number, default: DEFAULT_DRIVER_COMPENSATION_PAISE, min: 0 },
+    platform_cancellation_fee_paise: {
+      type: Number,
+      default: DEFAULT_PLATFORM_CANCELLATION_FEE_PAISE,
+      min: 0,
+    },
+    rider_cancellation_grace_seconds: {
+      type: Number,
+      default: DEFAULT_RIDER_CANCELLATION_GRACE_SECONDS,
+      min: 0,
+      max: 3600,
+    },
+    driver_no_show_wait_seconds: {
+      type: Number,
+      default: DEFAULT_DRIVER_NO_SHOW_WAIT_SECONDS,
+      min: 0,
+      max: 3600,
+    },
     effective_from: { type: Date, required: true, index: true },
     effective_to: { type: Date, default: null },
     status: {

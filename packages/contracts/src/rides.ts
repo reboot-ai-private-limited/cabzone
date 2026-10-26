@@ -51,7 +51,7 @@ export interface StateSegmentDto {
 
 /**
  * Immutable pricing snapshot locked at ride creation.
- * Per Decision D-034.
+ * Per Decisions D-034 and D-044.
  */
 export interface RidePricingSnapshot {
   pricingConfigId: string;
@@ -64,6 +64,11 @@ export interface RidePricingSnapshot {
   negotiationFloorPercent: number;
   negotiationCeilingPercent: number;
   commissionPercent: number;
+  cancellationFeePaise?: number;
+  driverCompensationPaise?: number;
+  platformCancellationFeePaise?: number;
+  riderCancellationGraceSeconds?: number;
+  driverNoShowWaitSeconds?: number;
   zoneType: ZoneClassificationType;
   stateSegments?: StateSegmentDto[];
   stateBreakdown?: StateDistanceBreakdown[];
@@ -138,6 +143,10 @@ export interface RideDto {
   suggestedFarePaise: number;
   proposedFarePaise: number | null;
   agreedFarePaise: number | null;
+  /** Unpaid rider cancellation/no-show fee arrears attached to this ride (D-044). */
+  arrearsPaise?: number;
+  /** Total amount payable for this ride: active fare + arrearsPaise (D-044). */
+  totalPayablePaise?: number;
   pricingSnapshot: RidePricingSnapshot;
   cancellationReason: CancellationReason | null;
   offeringExpiresAt: string | null;

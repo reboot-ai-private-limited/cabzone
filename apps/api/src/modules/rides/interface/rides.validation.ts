@@ -4,6 +4,7 @@ import {
   DRIVER_EARNINGS_PERIODS,
   E164_PHONE_REGEX,
   NEGOTIATION_ACTIONS,
+  PAYMENT_METHODS,
   RIDE_STATUSES,
   VEHICLE_CATEGORIES,
 } from '@cabzone/contracts';
@@ -58,6 +59,10 @@ export const cancelRideSchema = z.object({
   reason: z.enum(CANCELLATION_REASONS),
 });
 
+export const waiveCancellationFeeSchema = z.object({
+  reason: z.string().trim().min(5, 'Reason must be at least 5 characters').max(1000),
+});
+
 export const rideStatusSchema = z.enum(RIDE_STATUSES);
 export const negotiationActionSchema = z.enum(NEGOTIATION_ACTIONS);
 export const cancellationReasonSchema = z.enum(CANCELLATION_REASONS);
@@ -70,6 +75,7 @@ export const createRideRequestSchema = z.object({
   pickup: locationPointSchema,
   drop: locationPointSchema,
   riderId: z.string().uuid().optional(),
+  paymentMethod: z.enum(PAYMENT_METHODS).optional(),
 });
 
 export const startRideRequestSchema = z.object({
