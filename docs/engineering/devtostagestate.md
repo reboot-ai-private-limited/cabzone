@@ -67,6 +67,8 @@ The tracker has 27 tasks focused on financial accuracy, device testing, KYC, not
 
 **Already in tracker.** Repair duplicate active-pricing data before the unique index deployment; verify city → state → global fallback and D-039 interstate segments against signed quotes and saved rides. Run a real admin outstation-tier save/quote check rather than implementing the report's stale UI finding. Sync conflicting pricing docs after verification. Source: [D-039](../decision-log.md), [audit](../../audit.md).
 
+**26 October verification:** See [pricing verification](pricing-verification-2026-10-26.md). The development database had no duplicate ACTIVE scopes and already had the unique index; code regressions cover fallback, interstate rates, and saved ride snapshots. The authenticated admin browser and staging database checks remain open.
+
 ### 12. Implement toll and permit quote disclosure (Approved — D-045)
 
 **Unblocked by D-045.** Snapshot `TollInfo` from `RouteProvider` onto signed quotes and `RideEntity` as a separate non-commissioned estimate payable by the rider at actuals, never coercing unknown tolls (`exists: true, estimatedAmountPaise: null`) into `₹0`, and display across rider/driver quote, offer, active-ride, and receipt views. Source: [D-045](../decision-log.md#d-045--highway-toll--interstate-permit-quoteride-treatment), [OQ-022](../LLD/open-questions.md).
