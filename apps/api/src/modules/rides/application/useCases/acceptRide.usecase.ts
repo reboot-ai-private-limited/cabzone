@@ -1,10 +1,21 @@
 import { createHash, randomInt } from 'node:crypto';
+import type { RideStatus } from '@cabzone/contracts';
 import { AppError } from '../../../../shared/errors/AppError.js';
 import { isDriverEligibleForNewRides, type WalletRepositoryPort } from '../../../ledger/ledger.public.js';
 import { derivePickupOtp, type RideEntity, type RideRepositoryPort } from '../../domain/index.js';
 import type { RideEventRepositoryPort } from '../../domain/index.js';
 import type { UnitOfWorkPort } from '../../../../shared/db/unitOfWork.port.js';
 import { newUuid } from '../../../../shared/ids.js';
+
+export const DRIVER_BUSY_STATUSES: readonly RideStatus[] = [
+  'DRIVER_ASSIGNED',
+  'DRIVER_EN_ROUTE',
+  'DRIVER_ARRIVED',
+  'TRIP_STARTED',
+  'TRIP_COMPLETED',
+  'PAYMENT_PENDING',
+  'PAYMENT_CONFIRMED',
+];
 
 export interface AcceptRideInput {
   rideId: string;
@@ -37,23 +48,39 @@ export class AcceptRideUseCase {
     this.otpTtlMinutes = deps.otpTtlMinutes ?? 20;
   }
 
-  async execute(input: AcceptRideInput): Promise<AcceptRideResult> {
-    return this.deps.unitOfWork.run(() => this.accept(input));
-  }
-
-  private async accept(input: AcceptRideInput): Promise<AcceptRideResult> {
-    // 1. Authoritative wallet check (Decision D-008 & D-036)
-    const wallet = await this.deps.walletRepo.findByDriverId(input.driverId);
+  async ensureDriverCanClaim(driverId: string, ride: RideEntity): Promise<string> {
+    const wallet = await this.deps.walletRepo.findByDriverId(driverId);
     if (!wallet || !isDriverEligibleForNewRides(wallet)) {
       throw AppError.forbidden(
         'DRIVER_WALLET_ZERO_BALANCE: Strictly positive wallet balance is required to accept new ride requests.',
       );
     }
+    const busy = await this.deps.rideRepo.list({
+      driverId,
+      statuses: DRIVER_BUSY_STATUSES,
+      limit: 1,
+      offset: 0,
+    });
+    if (busy.some((existing) => existing.id !== ride.id)) {
+      throw AppError.conflict(
+        'DRIVER_BUSY: Complete and settle your current ride before accepting another.',
+      );
+    }
+    return this.deps.requireDriverEligibility(driverId, ride);
+  }
 
+  async execute(input: AcceptRideInput): Promise<AcceptRideResult> {
+    return this.deps.unitOfWork.run(() => this.accept(input));
+  }
+
+  private async accept(input: AcceptRideInput): Promise<AcceptRideResult> {
     const ride = await this.deps.rideRepo.findById(input.rideId);
     if (!ride) {
       throw AppError.notFound('RIDE_NOT_FOUND: The requested ride was not found.');
     }
+
+    // 1. Authoritative wallet, busy-ride, and driver eligibility check (Decision D-008 & D-036)
+    const vehicleId = await this.ensureDriverCanClaim(input.driverId, ride);
 
     if (ride.status === 'DRIVER_ASSIGNED' || ride.driverId) {
       throw AppError.conflict(
@@ -70,8 +97,6 @@ export class AcceptRideUseCase {
     if (ride.offeringExpiresAt && new Date() > ride.offeringExpiresAt) {
       throw AppError.conflict('OFFER_EXPIRED: The offer window for this ride has closed.');
     }
-
-    const vehicleId = await this.deps.requireDriverEligibility(input.driverId, ride);
 
     const agreedFarePaise = ride.proposedFarePaise ?? ride.suggestedFarePaise;
 

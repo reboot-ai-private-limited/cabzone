@@ -20,6 +20,8 @@ export function makeRidePaymentQrControllers(deps: {
   const notifyPaid = async (ride: Awaited<ReturnType<RideUpiPaymentUseCase['reconcile']>>) => {
     if (ride.status === 'SETTLED')
       await actors.notifier?.rideUpdated(ride, 'ride.payment.confirmed').catch(() => {});
+    else if (ride.status === 'PAYMENT_DISPUTED')
+      await actors.notifier?.rideUpdated(ride, 'ride.payment.disputed').catch(() => {});
   };
   const driverAction = (action: 'qr' | 'status') =>
     asyncHandler(async (req, res) => {

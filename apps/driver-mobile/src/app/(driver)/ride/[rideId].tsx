@@ -132,7 +132,9 @@ export default function ActiveRideScreen() {
     cancelTrip,
   } = useRide();
 
-  const [fetchedRide, setFetchedRide] = useState<RideDto | null>(null);
+  const [fetchedRide, setFetchedRide] = useState<RideDto | null>(
+    activeRide && activeRide.id === rideId ? activeRide : null,
+  );
   const [isLoadingRide, setIsLoadingRide] = useState<boolean>(
     !(activeRide && activeRide.id === rideId),
   );
@@ -169,7 +171,14 @@ export default function ActiveRideScreen() {
 
   useEffect(() => {
     if (activeRide && activeRide.id === rideId) {
-      return;
+      const syncTimer = setTimeout(() => {
+        setFetchedRide((prev) =>
+          prev && prev.id === activeRide.id && prev.version > activeRide.version
+            ? prev
+            : activeRide,
+        );
+      }, 0);
+      return () => clearTimeout(syncTimer);
     }
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadRide();
@@ -204,7 +213,7 @@ export default function ActiveRideScreen() {
 
   const meta = getStatusMeta(ride.status);
   const onlinePayment = ride.paymentCollection === 'RAZORPAY_TEST';
-  if (ride.status === 'PAYMENT_PENDING') {
+  if (ride.status === 'PAYMENT_PENDING' || ride.status === 'TRIP_COMPLETED') {
     meta.badge = 'AWAITING PAYMENT';
     meta.headline = 'Collect payment from your rider';
     meta.subtitle = 'Use UPI or change payment to cash. Confirm cash only after receiving it.';
@@ -405,7 +414,7 @@ export default function ActiveRideScreen() {
           </View>
         </View>
 
-        {ride.status === 'PAYMENT_PENDING' ? (
+        {ride.status === 'PAYMENT_PENDING' || ride.status === 'TRIP_COMPLETED' ? (
           <RidePaymentQr
             key={ride.id}
             rideId={ride.id}

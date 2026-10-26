@@ -49,6 +49,7 @@ import {
 } from './interface/rideUpiPayment.controller.js';
 import { makeRideUpiWebhook } from './interface/rideUpiWebhook.controller.js';
 import { RazorpayGateway } from './infrastructure/razorpay.adapter.js';
+import type { RidePaymentGateway } from './domain/ridePayment.port.js';
 import { env, isProduction } from '../../config/env.js';
 import { RidePaymentQrAdapter } from './infrastructure/ridePaymentQr.adapter.js';
 import { makeRidePaymentQrControllers } from './interface/ridePaymentQr.controller.js';
@@ -64,6 +65,8 @@ export interface RidesContainerDeps extends RideHttpContext {
   notifier?: RideNotifierPort | undefined;
   /** Secret used to derive rider-visible pickup OTPs. */
   pickupOtpSecret?: string | undefined;
+  paymentGateway?: RidePaymentGateway | undefined;
+  webhookSecret?: string | undefined;
 }
 
 export interface RidesContainerAuth {
@@ -94,7 +97,9 @@ export function buildRidesContainer(deps: RidesContainerDeps): RidesContainer {
     rideRepo,
     rideEventRepo,
     unitOfWork: deps.unitOfWork,
-    gateway: new RazorpayGateway(
+    gateway:
+      deps.paymentGateway ??
+      new RazorpayGateway(
       env.RAZORPAY_KEY_ID ?? '',
       env.RAZORPAY_KEY_SECRET ?? '',
       !isProduction || env.RAZORPAY_MODE === 'live',
@@ -220,7 +225,11 @@ export function buildRidesContainer(deps: RidesContainerDeps): RidesContainer {
         createUpiPayment: makeRideUpiController(upiPayment, actors, 'create'),
         upiSession: makeRideUpiController(upiPayment, actors, 'session'),
         switchToCash: makeSwitchToCashController(upiPayment, actors, rideRepo),
-        upiWebhook: makeRideUpiWebhook(upiPayment, actors, env.RAZORPAY_WEBHOOK_SECRET),
+        upiWebhook: makeRideUpiWebhook(
+          upiPayment,
+          actors,
+          deps.webhookSecret ?? env.RAZORPAY_WEBHOOK_SECRET,
+        ),
         verifyUpiPayment: makeRideUpiController(upiPayment, actors, 'verify'),
         upiPaymentStatus: makeRideUpiController(upiPayment, actors, 'status'),
         driverPaymentQr: qrControllers.driverQr,

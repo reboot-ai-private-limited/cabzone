@@ -62,6 +62,7 @@ export default function ActiveRideScreen() {
   const {
     activeRide,
     activeRideEvents,
+    rideHistory,
     isRealtimeConnected,
     syncError,
     driverLiveLocation,
@@ -86,6 +87,11 @@ export default function ActiveRideScreen() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const previousCounterCount = useRef<number | null>(null);
   const checkedExpiry = useRef<string | null>(null);
+  const lastLoadedTerminalKey = useRef<string | null>(null);
+  const historyRide = useMemo(
+    () => rideHistory.find((item) => item.id === rideId) ?? null,
+    [rideHistory, rideId],
+  );
 
   // Countdown for OFFERING
   const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
@@ -125,13 +131,32 @@ export default function ActiveRideScreen() {
 
   // Keep synced with context activeRide when it matches rideId
   useEffect(() => {
-    if (!activeRide || activeRide.id !== rideId) return;
+    if (!activeRide || activeRide.id !== rideId) {
+      if (!historyRide || isRideActive(historyRide.status)) return;
+      const terminalKey = `${historyRide.id}:${historyRide.status}:${historyRide.version}`;
+      const terminalTimer = setTimeout(() => {
+        setRide((prev) =>
+          prev && prev.id === historyRide.id && prev.version > historyRide.version
+            ? prev
+            : historyRide,
+        );
+        if (lastLoadedTerminalKey.current !== terminalKey) {
+          lastLoadedTerminalKey.current = terminalKey;
+          void loadRide();
+        }
+      }, 0);
+      return () => clearTimeout(terminalTimer);
+    }
     const timer = setTimeout(() => {
-      setRide(activeRide);
+      setRide((prev) =>
+        prev && prev.id === activeRide.id && prev.version > activeRide.version
+          ? prev
+          : activeRide,
+      );
       setEvents(activeRideEvents);
     }, 0);
     return () => clearTimeout(timer);
-  }, [activeRide, activeRideEvents, rideId]);
+  }, [activeRide, activeRideEvents, historyRide, loadRide, rideId]);
 
   // Offer expiry countdown
   useEffect(() => {
@@ -637,7 +662,7 @@ export default function ActiveRideScreen() {
                     <Text style={styles.receiptBtnText}>Full Receipt</Text>
                   </Pressable>
 
-                  {ride.status !== 'PAYMENT_DISPUTED' ? (
+                  {ride.status === 'SETTLED' ? (
                     <Pressable style={styles.disputeBtn} onPress={() => setShowDisputeModal(true)}>
                       <Ionicons name="flag-outline" size={16} color={colors.error} />
                       <Text style={styles.disputeBtnText}>Report Payment Issue</Text>

@@ -22,7 +22,7 @@ export default function IndexGateScreen() {
   const [launchFinished, setLaunchFinished] = useState(false);
 
   // 1. Wait for launch splash + session restoration + active ride check
-  if (!launchFinished || isLoading || (isAuthenticated && isKycVerified && isCheckingActiveRide)) {
+  if (!launchFinished || isLoading || (isAuthenticated && isCheckingActiveRide)) {
     return (
       <View style={styles.container}>
         <CabzonLaunch onFinish={() => setLaunchFinished(true)} />
@@ -66,22 +66,24 @@ export default function IndexGateScreen() {
     return <Redirect href="/(auth)/welcome" />;
   }
 
-  // 4. Authenticated & Approved Driver
+  // 4. Active or unresolved-payment ride always recovers first, even if KYC/approval became restricted mid-trip
+  if (activeRide) {
+    return (
+      <Redirect
+        href={{
+          pathname: '/(driver)/ride/[rideId]',
+          params: { rideId: activeRide.id },
+        }}
+      />
+    );
+  }
+
+  // 5. Authenticated & Approved Driver
   if (isKycVerified) {
-    if (activeRide) {
-      return (
-        <Redirect
-          href={{
-            pathname: '/(driver)/ride/[rideId]',
-            params: { rideId: activeRide.id },
-          }}
-        />
-      );
-    }
     return <Redirect href="/(driver)/(tabs)/home" />;
   }
 
-  // 5. Authenticated & Application Under Review
+  // 6. Authenticated & Application Under Review
   const appStatus = application?.status;
   const isUnderReview =
     appStatus === 'SUBMITTED' ||
@@ -93,7 +95,7 @@ export default function IndexGateScreen() {
     return <Redirect href="/(onboarding)/application-status" />;
   }
 
-  // 6. Authenticated & Needs Onboarding or Fixable Rejection Resubmission
+  // 7. Authenticated & Needs Onboarding or Fixable Rejection Resubmission
   return <Redirect href="/(onboarding)/onboarding" />;
 }
 

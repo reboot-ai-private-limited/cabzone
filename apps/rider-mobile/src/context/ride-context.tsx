@@ -73,7 +73,8 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
   const [activeRide, setActiveRide] = useState<RiderRideViewDto | null>(null);
   const [activeRideEvents, setActiveRideEvents] = useState<RideEventDto[]>([]);
   const [rideHistory, setRideHistory] = useState<RiderRideViewDto[]>([]);
-  const [isLoadingRides, setIsLoadingRides] = useState(false);
+  const [isFetchingRides, setIsFetchingRides] = useState(false);
+  const [hydratedToken, setHydratedToken] = useState<string | null>(null);
   const [isRealtimeConnected, setIsRealtimeConnected] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
   const [driverLiveLocation, setDriverLiveLocation] = useState<{
@@ -83,10 +84,37 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
   } | null>(null);
   const [bookingDraft, setBookingDraft] = useState<BookingDraft | null>(null);
 
+  const isLoadingRides = isFetchingRides || Boolean(token && hydratedToken !== token);
+
   const activeRideIdRef = useRef<string | null>(null);
+  const rideHistoryRef = useRef<RiderRideViewDto[]>([]);
+  const maxVersionByRideRef = useRef<Record<string, number>>({});
+  const lastTokenRef = useRef<string | null>(null);
+
   useEffect(() => {
     activeRideIdRef.current = activeRide?.id ?? null;
   }, [activeRide?.id]);
+
+  useEffect(() => {
+    rideHistoryRef.current = rideHistory;
+  }, [rideHistory]);
+
+  useEffect(() => {
+    if (lastTokenRef.current !== token) {
+      lastTokenRef.current = token;
+      maxVersionByRideRef.current = {};
+    }
+  }, [token]);
+
+  const recordRideVersion = useCallback((ride: RiderRideViewDto): boolean => {
+    if (typeof ride.version !== 'number') return true;
+    const seen = maxVersionByRideRef.current[ride.id];
+    if (seen !== undefined && ride.version < seen) {
+      return false;
+    }
+    maxVersionByRideRef.current[ride.id] = ride.version;
+    return true;
+  }, []);
 
   const handleSyncError = useCallback((error: unknown) => {
     if (isApiError(error) && error.code === 'SESSION_CHANGED') return;
@@ -101,39 +129,55 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
         riderRidesApi.getRideEvents(token, rideId).catch(() => [] as RideEventDto[]),
       ]);
       setSyncError(null);
+      if (!recordRideVersion(ride)) {
+        const cached = rideHistoryRef.current.find((r) => r.id === ride.id);
+        return cached ? { ride: cached, events } : null;
+      }
       if (isRideActive(ride.status)) {
         if (activeRideIdRef.current !== ride.id) setDriverLiveLocation(null);
+        activeRideIdRef.current = ride.id;
         setActiveRide(ride);
         setActiveRideEvents(events);
       } else if (activeRideIdRef.current === ride.id) {
+        activeRideIdRef.current = null;
         setActiveRide(null);
         setActiveRideEvents([]);
       }
       setRideHistory((prev) => {
         const exists = prev.some((r) => r.id === ride.id);
-        if (!exists) return [ride, ...prev];
-        return prev.map((r) => (r.id === ride.id ? ride : r));
+        const next = !exists ? [ride, ...prev] : prev.map((r) => (r.id === ride.id ? ride : r));
+        rideHistoryRef.current = next;
+        return next;
       });
       return { ride, events };
     },
-    [token],
+    [recordRideVersion, token],
   );
 
   const refreshRides = useCallback(async (): Promise<RiderRideViewDto | null> => {
     if (!token) {
+      activeRideIdRef.current = null;
+      rideHistoryRef.current = [];
+      maxVersionByRideRef.current = {};
       setActiveRide(null);
       setActiveRideEvents([]);
       setRideHistory([]);
       setSyncError(null);
+      setHydratedToken(null);
       return null;
     }
-    setIsLoadingRides(true);
+    setIsFetchingRides(true);
     try {
       const rides = await riderRidesApi.listRides(token, { limit: 40 });
       setSyncError(null);
-      const sorted = [...rides].sort(
+      const reconciled = rides.map((r) => {
+        if (recordRideVersion(r)) return r;
+        return rideHistoryRef.current.find((cached) => cached.id === r.id) ?? r;
+      });
+      const sorted = [...reconciled].sort(
         (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
       );
+      rideHistoryRef.current = sorted;
       setRideHistory(sorted);
 
       const currentActive = sorted.find((r) => isRideActive(r.status)) ?? null;
@@ -142,6 +186,7 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
         const detail = await refreshRideById(currentActive.id);
         return detail?.ride ?? currentActive;
       } else {
+        activeRideIdRef.current = null;
         setActiveRide(null);
         setActiveRideEvents([]);
         setDriverLiveLocation(null);
@@ -151,18 +196,23 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
       handleSyncError(error);
       return null;
     } finally {
-      setIsLoadingRides(false);
+      setIsFetchingRides(false);
+      setHydratedToken(token);
     }
-  }, [handleSyncError, refreshRideById, token]);
+  }, [handleSyncError, recordRideVersion, refreshRideById, token]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
       if (!token) {
+        activeRideIdRef.current = null;
+        rideHistoryRef.current = [];
+        maxVersionByRideRef.current = {};
         setActiveRide(null);
         setActiveRideEvents([]);
         setRideHistory([]);
         setIsRealtimeConnected(false);
         setDriverLiveLocation(null);
+        setHydratedToken(null);
         return;
       }
       void refreshRides();
@@ -299,13 +349,19 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
     async (payload: CreateRiderRidePayload): Promise<RiderRideViewDto> => {
       if (!token) throw new Error('Authentication required');
       const created = await riderRidesApi.createRide(token, payload);
+      recordRideVersion(created);
+      activeRideIdRef.current = created.id;
       setDriverLiveLocation(null);
       setActiveRide(created);
       setActiveRideEvents([]);
-      setRideHistory((prev) => [created, ...prev.filter((r) => r.id !== created.id)]);
+      setRideHistory((prev) => {
+        const next = [created, ...prev.filter((r) => r.id !== created.id)];
+        rideHistoryRef.current = next;
+        return next;
+      });
       return created;
     },
-    [token],
+    [recordRideVersion, token],
   );
 
   const respondToCounter = useCallback(
@@ -321,33 +377,53 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
     async (rideId: string, reason: CancellationReason): Promise<RiderRideViewDto> => {
       if (!token) throw new Error('Authentication required');
       const cancelled = await riderRidesApi.cancelRide(token, rideId, reason);
+      recordRideVersion(cancelled);
+      if (activeRideIdRef.current === cancelled.id) {
+        activeRideIdRef.current = null;
+      }
       setActiveRide(null);
       setActiveRideEvents([]);
       setDriverLiveLocation(null);
-      setRideHistory((prev) => prev.map((r) => (r.id === cancelled.id ? cancelled : r)));
+      setRideHistory((prev) => {
+        const exists = prev.some((r) => r.id === cancelled.id);
+        const next = exists
+          ? prev.map((r) => (r.id === cancelled.id ? cancelled : r))
+          : [cancelled, ...prev];
+        rideHistoryRef.current = next;
+        return next;
+      });
       return cancelled;
     },
-    [token],
+    [recordRideVersion, token],
   );
 
   const raiseFare = useCallback(
     async (rideId: string, proposedFarePaise: number): Promise<RiderRideViewDto> => {
       if (!token) throw new Error('Authentication required');
       const updated = await riderRidesApi.raiseFare(token, rideId, proposedFarePaise);
+      recordRideVersion(updated);
       await refreshRideById(rideId);
       return updated;
     },
-    [refreshRideById, token],
+    [recordRideVersion, refreshRideById, token],
   );
 
   const disputePayment = useCallback(
     async (rideId: string, reason: string): Promise<RiderRideViewDto> => {
       if (!token) throw new Error('Authentication required');
       const disputed = await riderRidesApi.disputePayment(token, rideId, reason);
-      setRideHistory((prev) => prev.map((r) => (r.id === disputed.id ? disputed : r)));
+      recordRideVersion(disputed);
+      setRideHistory((prev) => {
+        const exists = prev.some((r) => r.id === disputed.id);
+        const next = exists
+          ? prev.map((r) => (r.id === disputed.id ? disputed : r))
+          : [disputed, ...prev];
+        rideHistoryRef.current = next;
+        return next;
+      });
       return disputed;
     },
-    [token],
+    [recordRideVersion, token],
   );
 
   const pendingCounters = useMemo(

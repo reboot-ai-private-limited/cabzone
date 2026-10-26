@@ -177,6 +177,7 @@ const ACTIVE_RIDE_STATUSES: ReadonlySet<RideStatus> = new Set([
   'TRIP_STARTED',
   'TRIP_COMPLETED',
   'PAYMENT_PENDING',
+  'PAYMENT_CONFIRMED',
 ]);
 
 export function isRideActive(status: RideStatus): boolean {

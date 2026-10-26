@@ -29,7 +29,7 @@ function makeOffer(rideId, proposedFarePaise = 15000) {
   };
 }
 
-function harness(initialDuty = 'ONLINE') {
+function harness(initialDuty = 'ONLINE', initialKycVerified = true) {
   const hooks = [];
   let cursor = 0;
   let value;
@@ -38,7 +38,7 @@ function harness(initialDuty = 'ONLINE') {
     user: { id: 'user-1' },
     driver: { id: 'driver-1' },
     isAuthenticated: true,
-    isKycVerified: true,
+    isKycVerified: initialKycVerified,
   };
   const duty = { status: initialDuty, refreshSummary: async () => {} };
   const appStateListeners = new Set();
@@ -92,6 +92,13 @@ function harness(initialDuty = 'ONLINE') {
       throw new Error('not found');
     },
     getRideEvents: async () => [],
+    markArrived: async (token, rideId) => ({ id: rideId, status: 'DRIVER_ARRIVED', version: 4 }),
+    confirmPayment: async (_token, rideId) => ({
+      ride: { id: rideId, status: 'SETTLED', version: 7 },
+      farePaise: 15000,
+      commissionPaise: 1200,
+      walletBalancePaise: 23800,
+    }),
   };
 
   const React = {
@@ -197,6 +204,12 @@ function harness(initialDuty = 'ONLINE') {
     },
   });
 
+  function renderOnly() {
+    cursor = 0;
+    module.exports.RideProvider({ children: null });
+    return value;
+  }
+
   function render() {
     cursor = 0;
     module.exports.RideProvider({ children: null });
@@ -218,12 +231,19 @@ function harness(initialDuty = 'ONLINE') {
     sockets,
     intervals,
     timeouts,
+    renderOnly,
     render,
     getOfferCalls: () => offerCalls,
     hasOfferPollInterval: () => [...intervals.values()].some((entry) => entry.ms === 3000),
     async tickOfferPoll() {
       for (const entry of [...intervals.values()]) {
         if (entry.ms === 3000) entry.fn();
+      }
+      await flush();
+    },
+    async tickActiveRidePoll() {
+      for (const entry of [...intervals.values()]) {
+        if (entry.ms === 4000) await entry.fn();
       }
       await flush();
     },
@@ -379,4 +399,55 @@ test('does not run 3s offer polling while backgrounded and recovers on foregroun
     h.render().offers.map((o) => o.rideId),
     ['ride-foreground-resume'],
   );
+});
+
+test('holds isCheckingActiveRide true before effects run and recovers active rides even when KYC became restricted mid-trip', async () => {
+  const h = harness('OFFLINE', false);
+  h.ridesApi.listMyRides = async () => [
+    { id: 'ride-midtrip', status: 'PAYMENT_PENDING', version: 6 },
+  ];
+
+  // First render before useEffect runs must already signal isCheckingActiveRide = true
+  assert.equal(h.renderOnly().isCheckingActiveRide, true);
+
+  h.render();
+  await flush();
+  const ctx = h.render();
+  assert.equal(ctx.isCheckingActiveRide, false);
+  assert.equal(ctx.activeRide?.id, 'ride-midtrip');
+  assert.equal(ctx.activeRide?.status, 'PAYMENT_PENDING');
+  // WebSocket connects so mid-trip restricted driver still receives live payment/cancel updates
+  assert.equal(h.sockets.length, 1);
+});
+
+test('ignores stale lower-version polls across markArrived and confirmDirectPayment settlement', async () => {
+  const h = harness('ONLINE');
+  h.ridesApi.listMyRides = async () => [
+    { id: 'ride-sync', status: 'DRIVER_EN_ROUTE', version: 3 },
+  ];
+
+  h.render();
+  await flush();
+  assert.equal(h.render().activeRide?.status, 'DRIVER_EN_ROUTE');
+
+  // Driver marks arrived (version 4)
+  await h.render().markArrived('ride-sync');
+  assert.equal(h.render().activeRide?.status, 'DRIVER_ARRIVED');
+
+  // Late 4s poll returns older version 3 -> must NOT regress activeRide
+  h.ridesApi.getRide = async () => ({ id: 'ride-sync', status: 'DRIVER_EN_ROUTE', version: 3 });
+  await h.tickActiveRidePoll();
+  assert.equal(h.render().activeRide?.status, 'DRIVER_ARRIVED');
+  assert.equal(h.render().activeRide?.version, 4);
+
+  // Driver confirms direct cash payment (version 7, SETTLED) -> activeRide clears
+  await h.render().confirmDirectPayment('ride-sync');
+  assert.equal(h.render().activeRide, null);
+
+  // Late listMyRides carrying version 6 PAYMENT_PENDING must NOT resurrect the settled ride
+  h.ridesApi.listMyRides = async () => [
+    { id: 'ride-sync', status: 'PAYMENT_PENDING', version: 6 },
+  ];
+  await h.render().refreshActiveRide();
+  assert.equal(h.render().activeRide, null);
 });

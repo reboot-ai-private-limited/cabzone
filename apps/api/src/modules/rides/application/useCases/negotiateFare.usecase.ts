@@ -7,7 +7,11 @@ import type {
   RideEventRepositoryPort,
   RideRepositoryPort,
 } from '../../domain/index.js';
-import type { AcceptRideResult, AcceptRideUseCase } from './acceptRide.usecase.js';
+import {
+  DRIVER_BUSY_STATUSES,
+  type AcceptRideResult,
+  type AcceptRideUseCase,
+} from './acceptRide.usecase.js';
 import type { UnitOfWorkPort } from '../../../../shared/db/unitOfWork.port.js';
 
 export const COUNTER_PROPOSED = 'FARE_COUNTER_PROPOSED';
@@ -152,6 +156,17 @@ export class NegotiateFareUseCase {
     vehicleLabel?: string | null | undefined;
   }): Promise<{ ride: RideEntity; counter: FareCounter }> {
     const ride = await this.openRide(input.rideId);
+    const busy = await this.deps.rideRepo.list({
+      driverId: input.driverId,
+      statuses: DRIVER_BUSY_STATUSES,
+      limit: 1,
+      offset: 0,
+    });
+    if (busy.some((existing) => existing.id !== ride.id)) {
+      throw AppError.conflict(
+        'DRIVER_BUSY: Complete and settle your current ride before proposing a counter-offer.',
+      );
+    }
     await this.deps.requireDriverEligibility(input.driverId, ride);
 
     const snap = ride.pricingSnapshot;
@@ -233,6 +248,8 @@ export class NegotiateFareUseCase {
       await save(COUNTER_REJECTED);
       return { ride, counter };
     }
+
+    await this.deps.acceptRide.ensureDriverCanClaim(counter.driverId, ride);
 
     // AcceptRideUseCase opens its own unit of work, so this stays outside one (no nesting).
     const updated = await this.deps.rideRepo.update(

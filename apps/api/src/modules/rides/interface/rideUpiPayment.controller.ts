@@ -53,6 +53,8 @@ export function makeRideUpiController(
     );
     if (ride.status === 'SETTLED')
       await actors.notifier?.rideUpdated(ride, 'ride.payment.confirmed').catch(() => {});
+    else if (ride.status === 'PAYMENT_DISPUTED')
+      await actors.notifier?.rideUpdated(ride, 'ride.payment.disputed').catch(() => {});
     sendSuccess(req, res, await useCase.paymentState(id));
   });
 }

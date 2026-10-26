@@ -36,6 +36,7 @@ const ACTIVE_RIDE_STATUSES: ReadonlySet<string> = new Set([
   'TRIP_STARTED',
   'TRIP_COMPLETED',
   'PAYMENT_PENDING',
+  'PAYMENT_CONFIRMED',
 ]);
 
 interface DutyContextType {

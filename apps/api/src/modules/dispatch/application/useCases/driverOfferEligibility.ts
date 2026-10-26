@@ -9,6 +9,13 @@ export const ACTIVE_RIDE_STATUSES: readonly RideStatus[] = [
   'TRIP_STARTED',
 ];
 
+export const DRIVER_BUSY_RIDE_STATUSES: readonly RideStatus[] = [
+  ...ACTIVE_RIDE_STATUSES,
+  'TRIP_COMPLETED',
+  'PAYMENT_PENDING',
+  'PAYMENT_CONFIRMED',
+];
+
 /** Dispatch-time gates that are not about where the driver is: wallet balance and being free. */
 export class DriverOfferEligibility {
   constructor(
@@ -19,7 +26,7 @@ export class DriverOfferEligibility {
   async hasActiveRide(driverId: string): Promise<boolean> {
     const active = await this.rideRepo.list({
       driverId,
-      statuses: ACTIVE_RIDE_STATUSES,
+      statuses: DRIVER_BUSY_RIDE_STATUSES,
       limit: 1,
       offset: 0,
     });

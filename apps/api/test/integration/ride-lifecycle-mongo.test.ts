@@ -426,7 +426,10 @@ describe('MongoDB Atomic Claim & Lifecycle Integration Test (rs0 Replica Set)', 
 
     it('retains both commissions when different rides settle concurrently against the same wallet', async () => {
       const firstRide = await createPendingRide();
+      await expect(createPendingRide()).rejects.toThrow('DRIVER_BUSY');
+      await RideModel.updateOne({ _id: firstRide.id }, { status: 'SETTLED' });
       const secondRide = await createPendingRide();
+      await RideModel.updateOne({ _id: firstRide.id }, { status: 'PAYMENT_PENDING' });
       secondRide.agreedFarePaise = firstRide.agreedFarePaise! + 1000;
       await mongoRideRepo.save(secondRide);
 

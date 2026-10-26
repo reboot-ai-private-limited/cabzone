@@ -30,6 +30,7 @@ const {
   normalizeIndianPhoneE164,
   extractPendingDriverCounters,
   formatAssignedDriverSummary,
+  isRideActive,
 } = module.exports;
 
 test('clampProposedFarePaise respects floor and ceiling bounds', () => {
@@ -42,6 +43,25 @@ test('normalizeIndianPhoneE164 validates Indian mobile numbers', () => {
   assert.equal(normalizeIndianPhoneE164('9876543210'), '+919876543210');
   assert.equal(normalizeIndianPhoneE164('+91 98765-43210'), '+919876543210');
   assert.equal(normalizeIndianPhoneE164('12345'), null);
+});
+
+test('isRideActive covers every active and in-flight settlement status and excludes terminal statuses', () => {
+  for (const status of [
+    'REQUESTED',
+    'OFFERING',
+    'DRIVER_ASSIGNED',
+    'DRIVER_EN_ROUTE',
+    'DRIVER_ARRIVED',
+    'TRIP_STARTED',
+    'TRIP_COMPLETED',
+    'PAYMENT_PENDING',
+    'PAYMENT_CONFIRMED',
+  ]) {
+    assert.equal(isRideActive(status), true, `expected ${status} to be active`);
+  }
+  for (const terminal of ['SETTLED', 'PAYMENT_DISPUTED', 'CANCELLED', 'EXPIRED']) {
+    assert.equal(isRideActive(terminal), false, `expected ${terminal} to be terminal`);
+  }
 });
 
 test('extractPendingDriverCounters filters out answered and malformed events and preserves driver info', () => {
@@ -95,7 +115,7 @@ test('raising fare clears old and late stale-version counters', () => {
     },
     {
       eventType: 'FARE_COUNTER_PROPOSED',
-      createdAt: '2026-10-22T10:00:02.000Z',
+      createdAt: at,
       metadata: { driverId: 'late-old', proposedFarePaise: 9500, rideVersion: 1 },
     },
     {

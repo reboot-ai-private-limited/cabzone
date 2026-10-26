@@ -34,6 +34,7 @@ export const ACTIVE_RIDE_STATUSES: ReadonlySet<RideStatus> = new Set([
   'TRIP_STARTED',
   'TRIP_COMPLETED',
   'PAYMENT_PENDING',
+  'PAYMENT_CONFIRMED',
 ]);
 
 interface RideContextType {
@@ -79,7 +80,8 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
   const [offers, setOffers] = useState<RideOfferDto[]>([]);
   const [ignoredOfferIds, setIgnoredOfferIds] = useState<Set<string>>(() => new Set());
   const [activeRide, setActiveRide] = useState<RideDto | null>(null);
-  const [isCheckingActiveRide, setIsCheckingActiveRide] = useState<boolean>(false);
+  const [checkingActiveRide, setCheckingActiveRide] = useState<boolean>(false);
+  const [checkedRideToken, setCheckedRideToken] = useState<string | null>(null);
   const [isMutatingRide, setIsMutatingRide] = useState<boolean>(false);
   const [rideError, setRideError] = useState<string | null>(null);
   const [counters, setCounters] = useState<Record<string, number>>({});
@@ -89,6 +91,10 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
     () => (AppState.currentState ?? 'active') === 'active',
   );
 
+  const isCheckingActiveRide =
+    checkingActiveRide || Boolean(isAuthenticated && token && checkedRideToken !== token);
+  const canConnectRealtime = Boolean(token && isAuthenticated && (isKycVerified || activeRide));
+
   const pollOffersIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pollActiveRideIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const inFlightOffersRef = useRef<boolean>(false);
@@ -96,6 +102,17 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
   const eligibleTokenRef = useRef<string | null>(null);
   const lastUserIdRef = useRef<string | null>(null);
   const seenOfferIdsRef = useRef<Set<string>>(new Set());
+  const maxVersionByRideRef = useRef<Record<string, number>>({});
+
+  const recordRideVersion = useCallback((ride: RideDto): boolean => {
+    if (typeof ride.version !== 'number') return true;
+    const seen = maxVersionByRideRef.current[ride.id];
+    if (seen !== undefined && ride.version < seen) {
+      return false;
+    }
+    maxVersionByRideRef.current[ride.id] = ride.version;
+    return true;
+  }, []);
 
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
@@ -137,10 +154,12 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
       setCounters({});
       setRejectedCounters({});
       seenOfferIdsRef.current.clear();
+      maxVersionByRideRef.current = {};
       queuedOffersRefreshRef.current = 'none';
       eligibleTokenRef.current = null;
       setActiveRide(null);
-      setIsCheckingActiveRide(false);
+      setCheckingActiveRide(false);
+      setCheckedRideToken(null);
       setIsMutatingRide(false);
       setRideError(null);
     }
@@ -155,6 +174,9 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
       try {
         if (rideIdOverride) {
           const ride = await ridesApi.getRide(token, rideIdOverride);
+          if (!recordRideVersion(ride)) {
+            return null;
+          }
           if (ACTIVE_RIDE_STATUSES.has(ride.status)) {
             setActiveRide(ride);
           } else {
@@ -167,41 +189,63 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
           status: Array.from(ACTIVE_RIDE_STATUSES),
           limit: 5,
         });
-        const found = list.find((r) => ACTIVE_RIDE_STATUSES.has(r.status)) ?? null;
-        setActiveRide(found);
-        return found;
+        const freshActive = list.filter(
+          (r) => ACTIVE_RIDE_STATUSES.has(r.status) && recordRideVersion(r),
+        );
+        if (freshActive.length > 0) {
+          setActiveRide(freshActive[0]!);
+          return freshActive[0]!;
+        }
+        setActiveRide((prev) => {
+          if (!prev) return null;
+          const staleMatch = list.some((r) => r.id === prev.id);
+          return staleMatch ? prev : null;
+        });
+        return null;
       } catch {
         return null;
       }
     },
-    [token, isAuthenticated],
+    [token, isAuthenticated, recordRideVersion],
   );
 
+  // Check for active or unresolved-payment rides whenever authenticated (even if KYC became restricted mid-trip)
   useEffect(() => {
-    if (!isAuthenticated || !token || !isKycVerified) {
+    if (!isAuthenticated || !token) {
       return;
     }
     let cancelled = false;
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setIsCheckingActiveRide(true);
+    setCheckingActiveRide(true);
     ridesApi
       .listMyRides(token, { status: Array.from(ACTIVE_RIDE_STATUSES), limit: 5 })
       .then((list) => {
         if (cancelled) return;
-        const found = list.find((r) => ACTIVE_RIDE_STATUSES.has(r.status)) ?? null;
-        setActiveRide(found);
+        const freshActive = list.filter(
+          (r) => ACTIVE_RIDE_STATUSES.has(r.status) && recordRideVersion(r),
+        );
+        if (freshActive.length > 0) {
+          setActiveRide(freshActive[0]!);
+          return;
+        }
+        setActiveRide((prev) => {
+          if (!prev) return null;
+          const staleMatch = list.some((r) => r.id === prev.id);
+          return staleMatch ? prev : null;
+        });
       })
       .catch(() => {})
       .finally(() => {
         if (!cancelled) {
-          setIsCheckingActiveRide(false);
+          setCheckingActiveRide(false);
+          setCheckedRideToken(token);
         }
       });
 
     return () => {
       cancelled = true;
     };
-  }, [isAuthenticated, token, isKycVerified]);
+  }, [isAuthenticated, token, recordRideVersion]);
 
   const refreshOffers = useCallback(
     async (forceCheck = false) => {
@@ -226,7 +270,7 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
           seenRideIds.add(offer.rideId);
           return true;
         });
-        setRideError((previous) => previous?.startsWith(OFFER_CHECK_ERROR) ? null : previous);
+        setRideError((previous) => (previous?.startsWith(OFFER_CHECK_ERROR) ? null : previous));
 
         // Alert driver with sound/vibration/banner when a brand-new offer arrives
         for (const offer of valid) {
@@ -298,7 +342,9 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
           }
         }
       } catch (err: unknown) {
-        setRideError(`${OFFER_CHECK_ERROR}: ${err instanceof Error ? err.message : 'Check your connection and try again.'}`);
+        setRideError(
+          `${OFFER_CHECK_ERROR}: ${err instanceof Error ? err.message : 'Check your connection and try again.'}`,
+        );
       } finally {
         inFlightOffersRef.current = false;
         const nextRefresh = queuedOffersRefreshRef.current;
@@ -383,6 +429,7 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
     pollActiveRideIntervalRef.current = setInterval(async () => {
       try {
         const fresh = await ridesApi.getRide(token, activeRide.id);
+        if (!recordRideVersion(fresh)) return;
         if (ACTIVE_RIDE_STATUSES.has(fresh.status)) {
           setActiveRide(fresh);
         } else {
@@ -400,10 +447,10 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
         pollActiveRideIntervalRef.current = null;
       }
     };
-  }, [token, activeRide?.id, refreshSummary]);
+  }, [token, activeRide?.id, recordRideVersion, refreshSummary]);
 
   useEffect(() => {
-    if (!token || !isAuthenticated || !isKycVerified) return;
+    if (!token || !isAuthenticated || !canConnectRealtime) return;
     let stopped = false;
     let socket: WebSocket | null = null;
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -488,7 +535,10 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
       socket.onclose = () => {
         setSocketConnected(false);
         if (!stopped && AppState.currentState === 'active') {
-          reconnectTimer = setTimeout(connect, Math.min(30_000, 1000 * 2 ** Math.min(retries++, 5)));
+          reconnectTimer = setTimeout(
+            connect,
+            Math.min(30_000, 1000 * 2 ** Math.min(retries++, 5)),
+          );
         }
       };
       socket.onerror = () => socket?.close();
@@ -511,7 +561,7 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
       appState.remove();
       socket?.close();
     };
-  }, [token, isAuthenticated, isKycVerified]);
+  }, [token, isAuthenticated, canConnectRealtime]);
 
   const ignoreOffer = useCallback((rideId: string) => {
     setIgnoredOfferIds((prev) => {
@@ -535,6 +585,7 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
       setRideError(null);
       try {
         const accepted = await ridesApi.acceptRide(token, rideId);
+        recordRideVersion(accepted);
         setActiveRide(accepted);
         setOffers([]);
         void refreshSummary();
@@ -551,7 +602,7 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
         setIsMutatingRide(false);
       }
     },
-    [token, isMutatingRide, ignoreOffer, refreshSummary],
+    [token, isMutatingRide, ignoreOffer, recordRideVersion, refreshSummary],
   );
 
   const counterOffer = useCallback(
@@ -585,6 +636,7 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
       setRideError(null);
       try {
         const updated = await ridesApi.markEnRoute(token, rideId);
+        recordRideVersion(updated);
         setActiveRide(updated);
         return updated;
       } catch (err: unknown) {
@@ -594,7 +646,7 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
         setIsMutatingRide(false);
       }
     },
-    [token, isMutatingRide],
+    [token, isMutatingRide, recordRideVersion],
   );
 
   const markArrived = useCallback(
@@ -604,6 +656,7 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
       setRideError(null);
       try {
         const updated = await ridesApi.markArrived(token, rideId);
+        recordRideVersion(updated);
         setActiveRide(updated);
         return updated;
       } catch (err: unknown) {
@@ -613,7 +666,7 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
         setIsMutatingRide(false);
       }
     },
-    [token, isMutatingRide],
+    [token, isMutatingRide, recordRideVersion],
   );
 
   const startTripWithOtp = useCallback(
@@ -628,6 +681,7 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
       setRideError(null);
       try {
         const updated = await ridesApi.startRide(token, rideId, cleaned);
+        recordRideVersion(updated);
         setActiveRide(updated);
         return updated;
       } catch (err: unknown) {
@@ -639,7 +693,7 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
         setIsMutatingRide(false);
       }
     },
-    [token, isMutatingRide],
+    [token, isMutatingRide, recordRideVersion],
   );
 
   const completeTrip = useCallback(
@@ -649,6 +703,7 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
       setRideError(null);
       try {
         const res = await ridesApi.completeRide(token, rideId);
+        recordRideVersion(res.ride);
         setActiveRide(res.ride);
         void refreshSummary();
         return res;
@@ -659,7 +714,7 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
         setIsMutatingRide(false);
       }
     },
-    [token, isMutatingRide, refreshSummary],
+    [token, isMutatingRide, recordRideVersion, refreshSummary],
   );
 
   const confirmDirectPayment = useCallback(
@@ -669,6 +724,7 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
       setRideError(null);
       try {
         const res = await ridesApi.confirmPayment(token, rideId);
+        recordRideVersion(res.ride);
         if (ACTIVE_RIDE_STATUSES.has(res.ride.status)) {
           setActiveRide(res.ride);
         } else {
@@ -683,7 +739,7 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
         setIsMutatingRide(false);
       }
     },
-    [token, isMutatingRide, refreshSummary],
+    [token, isMutatingRide, recordRideVersion, refreshSummary],
   );
 
   const cancelTrip = useCallback(
@@ -693,6 +749,7 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
       setRideError(null);
       try {
         const res = await ridesApi.cancelRide(token, rideId, reason);
+        recordRideVersion(res.ride);
         setActiveRide(null);
         await refreshSummary();
         return res.ride;
@@ -703,7 +760,7 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
         setIsMutatingRide(false);
       }
     },
-    [token, isMutatingRide, refreshSummary],
+    [token, isMutatingRide, recordRideVersion, refreshSummary],
   );
 
   const fetchRideDetail = useCallback(
@@ -714,13 +771,14 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
           ridesApi.getRide(token, rideId),
           ridesApi.getRideEvents(token, rideId).catch(() => [] as RideEventDto[]),
         ]);
+        recordRideVersion(ride);
         return { ride, events };
       } catch (err: unknown) {
         setRideError(err instanceof Error ? err.message : 'Failed to load ride details');
         return null;
       }
     },
-    [token],
+    [recordRideVersion, token],
   );
 
   return (
