@@ -67,6 +67,7 @@ export interface RidePricingSnapshot {
   zoneType: ZoneClassificationType;
   stateSegments?: StateSegmentDto[];
   stateBreakdown?: StateDistanceBreakdown[];
+  statePricingVersions?: { stateCode: string; configId: string; version: number }[];
 }
 
 export interface RideAssignedDriverVehicleDto {
