@@ -13,9 +13,12 @@ export interface WalletView {
 export class GetWalletUseCase {
   constructor(private readonly walletRepo: WalletRepositoryPort) {}
 
-  async execute(driverId: string): Promise<WalletView> {
+  async execute(driverId: string, txLimit?: number): Promise<WalletView> {
     const wallet = await this.walletRepo.findByDriverId(driverId);
     if (!wallet) return { wallet: null, transactions: [] };
-    return { wallet, transactions: await this.walletRepo.findTransactionsByWalletId(wallet.id) };
+    return {
+      wallet,
+      transactions: await this.walletRepo.findTransactionsByWalletId(wallet.id, txLimit),
+    };
   }
 }

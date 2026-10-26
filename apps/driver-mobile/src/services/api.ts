@@ -5,7 +5,12 @@ import type {
   CancellationReason,
   DriverDocumentDto,
   DriverDto,
+  DriverEarningsPeriod,
+  DriverEarningsSummaryDto,
   DriverProfileDetailDto,
+  DriverWalletActivityDto,
+  PaginatedRidesDto,
+  PaginatedWalletTransactionsDto,
   RefreshTokenResponseDto,
   RequestOtpResponseDto,
   RideDto,
@@ -16,9 +21,8 @@ import type {
   VerifyOtpRequestDto,
   VerifyOtpResponseDto,
   WalletDto,
-  WalletTransactionDto,
-  DriverWalletActivityDto,
   WalletOperationDto,
+  WalletTransactionDto,
 } from '@cabzone/contracts';
 
 export type { DriverProfileDetailDto };
@@ -481,6 +485,39 @@ export const ridesApi = {
       token,
     );
   },
+  async getDriverEarnings(
+    token: string,
+    period: DriverEarningsPeriod = 'TODAY',
+  ): Promise<DriverEarningsSummaryDto> {
+    const query = new URLSearchParams({ period });
+    return request<DriverEarningsSummaryDto>(
+      `/api/v1/rides/driver/earnings?${query.toString()}`,
+      { method: 'GET' },
+      token,
+    );
+  },
+  async listDriverHistory(
+    token: string,
+    params?: { status?: RideStatus | RideStatus[]; limit?: number; offset?: number },
+  ): Promise<PaginatedRidesDto> {
+    const query = new URLSearchParams();
+    if (params?.status) {
+      const statusList = Array.isArray(params.status) ? params.status.join(',') : params.status;
+      query.set('status', statusList);
+    }
+    if (params?.limit != null) {
+      query.set('limit', String(params.limit));
+    }
+    if (params?.offset != null) {
+      query.set('offset', String(params.offset));
+    }
+    const qs = query.toString();
+    return request<PaginatedRidesDto>(
+      `/api/v1/rides/driver/history${qs ? `?${qs}` : ''}`,
+      { method: 'GET' },
+      token,
+    );
+  },
   async listMyRides(
     token: string,
     params?: { status?: RideStatus | RideStatus[]; limit?: number; offset?: number },
@@ -604,20 +641,62 @@ export const walletApi = {
   async activity(token: string): Promise<DriverWalletActivityDto> {
     return request('/api/v1/driver/wallet/me/activity', { method: 'GET' }, token);
   },
-  async recharge(token: string, amountPaise: number, idempotencyKey: string): Promise<{ operation: WalletOperationDto; checkoutUrl: string }> {
-    return request('/api/v1/driver/wallet/me/recharges', { method: 'POST', body: JSON.stringify({ amountPaise, idempotencyKey }) }, token);
+  async recharge(
+    token: string,
+    amountPaise: number,
+    idempotencyKey: string,
+  ): Promise<{ operation: WalletOperationDto; checkoutUrl: string }> {
+    return request(
+      '/api/v1/driver/wallet/me/recharges',
+      { method: 'POST', body: JSON.stringify({ amountPaise, idempotencyKey }) },
+      token,
+    );
   },
-  async rechargeStatus(token: string, id: string): Promise<{ operation: WalletOperationDto; checkoutUrl: string }> {
-    return request(`/api/v1/driver/wallet/me/recharges/${encodeURIComponent(id)}/status`, { method: 'POST' }, token);
+  async rechargeStatus(
+    token: string,
+    id: string,
+  ): Promise<{ operation: WalletOperationDto; checkoutUrl: string }> {
+    return request(
+      `/api/v1/driver/wallet/me/recharges/${encodeURIComponent(id)}/status`,
+      { method: 'POST' },
+      token,
+    );
   },
-  async cashout(token: string, amountPaise: number, destinationUpi: string, idempotencyKey: string): Promise<WalletOperationDto> {
-    return request('/api/v1/driver/wallet/me/cashouts', { method: 'POST', body: JSON.stringify({ amountPaise, destinationUpi, idempotencyKey }) }, token);
+  async cashout(
+    token: string,
+    amountPaise: number,
+    destinationUpi: string,
+    idempotencyKey: string,
+  ): Promise<WalletOperationDto> {
+    return request(
+      '/api/v1/driver/wallet/me/cashouts',
+      { method: 'POST', body: JSON.stringify({ amountPaise, destinationUpi, idempotencyKey }) },
+      token,
+    );
   },
-  async getMyWallet(token: string): Promise<WalletViewDto | null> {
-    try {
-      return await request<WalletViewDto>('/api/v1/driver/wallet/me', { method: 'GET' }, token);
-    } catch {
-      return null;
+  async getMyWallet(token: string, opts?: { txLimit?: number }): Promise<WalletViewDto> {
+    const qs = opts?.txLimit != null ? `?txLimit=${encodeURIComponent(String(opts.txLimit))}` : '';
+    return request<WalletViewDto>(`/api/v1/driver/wallet/me${qs}`, { method: 'GET' }, token);
+  },
+  async listMyTransactions(
+    token: string,
+    params?: { direction?: 'ALL' | 'DEBIT' | 'CREDIT'; limit?: number; offset?: number },
+  ): Promise<PaginatedWalletTransactionsDto> {
+    const query = new URLSearchParams();
+    if (params?.direction) {
+      query.set('direction', params.direction);
     }
+    if (params?.limit != null) {
+      query.set('limit', String(params.limit));
+    }
+    if (params?.offset != null) {
+      query.set('offset', String(params.offset));
+    }
+    const qs = query.toString();
+    return request<PaginatedWalletTransactionsDto>(
+      `/api/v1/driver/wallet/me/transactions${qs ? `?${qs}` : ''}`,
+      { method: 'GET' },
+      token,
+    );
   },
 };

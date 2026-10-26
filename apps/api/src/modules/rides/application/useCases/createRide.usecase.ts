@@ -16,7 +16,11 @@ import {
   resolveCancellationPolicy,
   type PricingConfigRepositoryPort,
 } from '../../../pricing/pricing.public.js';
-import type { RideEntity, RideRepositoryPort, RideEventRepositoryPort } from '../../domain/index.js';
+import type {
+  RideEntity,
+  RideRepositoryPort,
+  RideEventRepositoryPort,
+} from '../../domain/index.js';
 import type { UnitOfWorkPort } from '../../../../shared/db/unitOfWork.port.js';
 
 export interface CreateRideInput {
@@ -199,6 +203,7 @@ export class CreateRideUseCase {
         driverNoShowWaitSeconds: cancellationPolicy.driverNoShowWaitSeconds,
         zoneType: quote.serviceType,
         stateBreakdown: quote.stateBreakdown ?? [],
+        statePricingVersions: quote.statePricingVersions ?? [],
       },
       suggestedFarePaise: quote.suggestedFarePaise,
       proposedFarePaise: input.proposedFarePaise,

@@ -1,4 +1,10 @@
-import type { RideStatus, VehicleCategory } from '@cabzone/contracts';
+import type {
+  CancellationReason,
+  DriverEarningsReconciliationDto,
+  DriverRideSettlementDto,
+  RideStatus,
+  VehicleCategory,
+} from '@cabzone/contracts';
 import { request } from '../client.js';
 
 export interface AdminRideDto {
@@ -10,10 +16,16 @@ export interface AdminRideDto {
   pickup: { lat: number; lng: number; address: string | null };
   drop: { lat: number; lng: number; address: string | null };
   routeSnapshot: { distanceM: number; durationSeconds: number };
-  zoneSnapshot: { classification: string; destinationStateCode?: string | null };
+  zoneSnapshot: {
+    classification: string;
+    cityZoneId?: string | null;
+    destinationStateCode?: string | null;
+  };
   suggestedFarePaise: number;
   proposedFarePaise: number | null;
   agreedFarePaise: number | null;
+  paymentCollection?: 'DIRECT' | 'CASH' | 'RAZORPAY_TEST' | 'RAZORPAY_UPI';
+  driverSettlement?: DriverRideSettlementDto;
   status: RideStatus;
   cancellationReason: string | null;
   acceptedAt: string | null;
@@ -58,12 +70,42 @@ export interface RideEventDto {
   createdAt: string;
 }
 
+export type DisputeQueueStatus = 'OPEN' | 'RESOLVED' | 'ALL';
+
+export interface PaymentDisputeEvidenceDto {
+  paymentCollection: string | null;
+  paymentMethod: string | null;
+  paymentConfirmedAt: string | null;
+  providerOrderId: string | null;
+  providerPaymentId: string | null;
+  providerQrId: string | null;
+  commissionChargedPaise: number;
+  commissionRefundedPaise: number;
+  refundTransactionId: string | null;
+  onlineEarningsCreditedPaise: number;
+}
+
+export interface PaymentDisputeQueueItemDto {
+  ride: AdminRideDto;
+  ticket: RideEventDto;
+  resolution: RideEventDto | null;
+  evidence: PaymentDisputeEvidenceDto;
+}
+
 export const ACTIVE_RIDE_STATUSES: RideStatus[] = [
   'OFFERING',
   'DRIVER_ASSIGNED',
   'DRIVER_EN_ROUTE',
   'DRIVER_ARRIVED',
   'TRIP_STARTED',
+];
+
+export const CANCELLABLE_RIDE_STATUSES: RideStatus[] = [
+  'REQUESTED',
+  'OFFERING',
+  'DRIVER_ASSIGNED',
+  'DRIVER_EN_ROUTE',
+  'DRIVER_ARRIVED',
 ];
 
 let cachedRiderSession: { phoneE164: string; accessToken: string; expiresAt: number } | null = null;
@@ -179,10 +221,36 @@ export const ridesApi = {
     }),
 
   get: (rideId: string, token?: string, signal?: AbortSignal) =>
-    request<AdminRideDto & { pickupOtp?: string }>(`/v1/rides/${rideId}`, { method: 'GET', token, signal }),
+    request<AdminRideDto & { pickupOtp?: string }>(`/v1/rides/${rideId}`, {
+      method: 'GET',
+      token,
+      signal,
+    }),
 
   events: (rideId: string, token?: string, signal?: AbortSignal) =>
     request<RideEventDto[]>(`/v1/rides/${rideId}/events`, { method: 'GET', token, signal }),
+
+  listPaymentDisputes: (
+    status: DisputeQueueStatus = 'OPEN',
+    token?: string,
+    signal?: AbortSignal,
+  ) =>
+    request<PaymentDisputeQueueItemDto[]>('/v1/rides/payment/disputes', {
+      method: 'GET',
+      query: { status, limit: 100, offset: 0 },
+      token,
+      signal,
+    }),
+
+  reconcileEarnings: (
+    body: { mode?: 'AUDIT' | 'BACKFILL_ONLINE_EARNINGS'; driverId?: string } = { mode: 'AUDIT' },
+    token?: string,
+  ) =>
+    request<DriverEarningsReconciliationDto>('/v1/rides/admin/reconcile-earnings', {
+      method: 'POST',
+      body,
+      token,
+    }),
 
   counter: (rideId: string, proposedFarePaise: number, token?: string) =>
     request<{ driverId: string; proposedFarePaise: number }>(`/v1/rides/${rideId}/counter`, {
@@ -195,7 +263,12 @@ export const ridesApi = {
     rideId: string,
     body: { driverId: string; action: 'ACCEPTED' | 'REJECTED' },
     token?: string,
-  ) => request<AdminRideDto>(`/v1/rides/${rideId}/counter/respond`, { method: 'POST', body, token }),
+  ) =>
+    request<AdminRideDto>(`/v1/rides/${rideId}/counter/respond`, {
+      method: 'POST',
+      body,
+      token,
+    }),
 
   create: (body: CreateRidePayload, token?: string) =>
     request<AdminRideDto>('/v1/rides', { method: 'POST', body, token }),
@@ -261,7 +334,7 @@ export const ridesApi = {
       token,
     }),
 
-  cancel: (rideId: string, reason: string, token?: string) =>
+  cancel: (rideId: string, reason: CancellationReason | string, token?: string) =>
     request<{ ride: AdminRideDto }>(`/v1/rides/${rideId}/cancel`, {
       method: 'POST',
       body: { reason },
@@ -285,4 +358,3 @@ export const ridesApi = {
       token,
     }),
 };
-

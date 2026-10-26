@@ -236,6 +236,11 @@ export function buildContainers(overrides?: Partial<AppContainers>): AppContaine
           };
         },
         getUserIdForRider: async (riderId) => (await riderRepo.findById(riderId))?.userId ?? null,
+        isPointInCityZones: async (lat, lng, cityZoneIds) => {
+          if (cityZoneIds.length === 0) return false;
+          const containing = await zone.zoneRepo.findActiveCitiesContainingPoint({ lat, lng });
+          return containing.some((z) => cityZoneIds.includes(z.id));
+        },
         getUserIdForDriver: async (driverId) =>
           (await driverRepo.findById(driverId))?.userId ?? null,
         getDriverInfo: async (driverId) => {

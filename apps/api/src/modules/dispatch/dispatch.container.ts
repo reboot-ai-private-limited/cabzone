@@ -38,6 +38,7 @@ import {
 } from './interface/adminDispatch.controller.js';
 import { buildDispatchRouter } from './interface/dispatch.routes.js';
 import { buildAdminDispatchRouter } from './interface/adminDispatch.routes.js';
+import { registerDispatchSwaggerPaths } from './interface/dispatch.swagger.js';
 
 export interface DispatchContainerDeps {
   presence: DriverPresencePort;
@@ -71,6 +72,7 @@ export interface DispatchContainer {
 }
 
 export function buildDispatchContainer(deps: DispatchContainerDeps): DispatchContainer {
+  registerDispatchSwaggerPaths();
   const config: DispatchConfig = { ...DEFAULT_DISPATCH_CONFIG, ...deps.config };
   const eligibility = new DriverOfferEligibility(deps.walletRepo, deps.rideRepo);
   const findCandidates = new FindCandidateDriversUseCase(deps.presence, eligibility, config);
@@ -127,6 +129,7 @@ export function buildDispatchContainer(deps: DispatchContainerDeps): DispatchCon
       buildAdminDispatchRouter({
         authenticate: auth.authenticate,
         requireAdminRole: auth.requireRole('SUPER_ADMIN', 'CITY_ADMIN', 'SUPPORT_ADMIN'),
+        requireSimulateRole: auth.requireRole('SUPER_ADMIN', 'CITY_ADMIN'),
         listFleet: makeListFleetController(listFleetDriversUseCase),
         simulateFleet: makeSimulateFleetController(simulateFleetUseCase),
       }),

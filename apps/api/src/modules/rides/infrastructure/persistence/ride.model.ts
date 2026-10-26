@@ -121,14 +121,18 @@ const rideSchema = new Schema<RideDocument>(
 
 rideSchema.index({ booker_rider_id: 1, created_at: -1 });
 rideSchema.index({ driver_id: 1, created_at: -1 });
-rideSchema.index({ driver_id: 1 }, {
-  name: 'one_active_ride_per_driver',
-  unique: true,
-  partialFilterExpression: {
-    driver_id: { $type: 'string' },
-    status: { $in: ['DRIVER_ASSIGNED', 'DRIVER_EN_ROUTE', 'DRIVER_ARRIVED', 'TRIP_STARTED'] },
+rideSchema.index({ driver_id: 1, settled_at: -1 });
+rideSchema.index(
+  { driver_id: 1 },
+  {
+    name: 'one_active_ride_per_driver',
+    unique: true,
+    partialFilterExpression: {
+      driver_id: { $type: 'string' },
+      status: { $in: ['DRIVER_ASSIGNED', 'DRIVER_EN_ROUTE', 'DRIVER_ARRIVED', 'TRIP_STARTED'] },
+    },
   },
-});
+);
 rideSchema.index({ status: 1, created_at: -1 });
 rideSchema.index({ status: 1, offering_expires_at: 1 });
 rideSchema.index({ vehicle_id: 1, created_at: -1 });

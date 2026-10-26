@@ -30,7 +30,11 @@ export const resolvedLocationSchema = z.object({
   formattedAddress: z.string().optional().nullable(),
 });
 
+let registered = false;
+
 export function registerRoutingSwaggerPaths(): void {
+  if (registered) return;
+  registered = true;
   registry.registerPath({
     method: 'get',
     path: '/v1/routing/reverse-geocode',

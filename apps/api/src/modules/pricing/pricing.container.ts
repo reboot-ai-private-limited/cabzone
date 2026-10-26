@@ -21,6 +21,7 @@ import {
   makeUpdatePricingConfigController,
 } from './interface/pricing.controller.js';
 import { buildAdminPricingRouter, buildPricingRouter } from './interface/pricing.routes.js';
+import { registerPricingSwaggerPaths } from './interface/pricing.swagger.js';
 
 export interface PricingContainerDeps {
   unitOfWork: UnitOfWorkPort;
@@ -49,6 +50,7 @@ export interface PricingContainer {
 }
 
 export function buildPricingContainer(deps: PricingContainerDeps): PricingContainer {
+  registerPricingSwaggerPaths();
   const createPricingConfigUseCase = new CreatePricingConfigUseCase(
     deps.pricingConfigRepo,
     deps.unitOfWork,
