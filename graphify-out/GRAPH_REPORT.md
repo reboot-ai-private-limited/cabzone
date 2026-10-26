@@ -1,48 +1,48 @@
-# Graph Report - cabzonenew  (2026-10-26)
+# Graph Report - cabzone-pricing-step11  (2026-10-26)
 
 ## Corpus Check
-- 893 files · ~2,061,457 words
+- 896 files · ~2,062,863 words
 - Verdict: corpus is large enough that graph structure adds value.
-- Unclassified: 24 file(s) not represented in the graph (top: (none) 9, .example 5, .toml 4)
+- Unclassified: 25 file(s) not represented in the graph (top: (none) 10, .example 5, .toml 4)
 
 ## Summary
-- 7947 nodes · 20419 edges · 434 communities (317 shown, 117 thin omitted)
+- 7986 nodes · 20482 edges · 442 communities (322 shown, 120 thin omitted)
 - Extraction: 97% EXTRACTED · 3% INFERRED · 0% AMBIGUOUS · INFERRED: 577 edges (avg confidence: 0.88)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `d36572bc`
+- Built from commit: `9a6d132d`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
 ## Community Hubs (Navigation)
 - kyc.validation.ts
 - admin-users-api.test.ts
-- adminDriverApplications.usecase.ts
+- AppError
 - live-browser.js
-- identity/domain/index.ts
-- expo-router
+- dispatch-realtime.test.ts
+- ref_react
 - connectSSE
 - useAuth
 - SessionEntity
 - geo.test.ts
-- driver-mobile/package.json
+- layers/index.ts
 - identity.container.ts
-- newUuid
-- authenticate.middleware.ts
-- react
+- .badRequest
 - AdminsScreen.tsx
-- driver-onboarding-api.test.ts
-- RideDispatchMap.tsx
-- contracts/src/index.ts
-- ride.model.ts
+- ref_react_native
+- ref_lucide_react
+- driver-mobile/src/services/api.ts
+- ZoneMap.tsx
+- RidesScreen.tsx
+- driver-mobile/package.json
 - DriverEntity
-- CustomerAppSimulatorSection.tsx
-- zone.swagger.ts
-- RidersScreen.tsx
+- contracts/src/index.ts
+- ZoneEntity
+- design-system/src/index.ts
 - initGlobalBar
 - ZonesScreen.tsx
-- asyncHandler
+- zone.container.ts
 - initPageChat
 - modern-screenshot.umd.js
 - RideEntity
@@ -54,35 +54,35 @@
 - rider-mobile/src/services/api.ts
 - rides.validation.ts
 - package.json
-- validateZone.usecase.ts
-- RiderEntity
+- identity.validation.ts
+- buildContainers
 - cabzon-zones-full-implementation-plan.md
 - sfx.ts
-- coords.ts
+- pricing.container.ts
 - Cabzon Driver App — UI Animation & Micro-Interaction Specification v1
 - brandkit/SKILL.md
-- MemoryWalletRepository
+- WalletOperationRepository
 - Ride (Central Transactional Aggregate)
-- PricingConfigEntity
+- VehicleCategory
 - rider-mobile/package.json
-- kyc-review-mongo.test.ts
+- DriverDocumentEntity
 - rideExtension.model.ts
-- mongoose
-- AdminUserEntity
+- OtpStorePort
+- identity.ts
 - Cabzone — Zones & Geographic Configuration Module
 - DriverDetailsScreen.tsx
-- MemoryZoneRepository
+- MemorySessionRepository
 - Cabzone Driver App — Pages, Components, Navigation and Implementation Plan
-- fareNegotiation.model.ts
+- riders-admin-api.test.ts
 - redisPresence.repository.ts
 - Cabzonee — Development & Infrastructure Setup Guide
 - live.md
 - Cabzon Driver App — Technical Specification v1
 - zone-pricing.test.ts
-- driver-mobile/src/services/api.ts
+- driver-mobile/src/context/ride-context.tsx
 - new-work.md
 - dependencies
-- VehicleCategory
+- RazorpayGateway
 - wallet-ledger.test.ts
 - dependencies
 - useFinance.ts
@@ -96,54 +96,54 @@
 - api/package.json
 - Cabzonee Platform
 - mongoWallet.repository.ts
-- VehicleEntity
-- OtpStorePort
+- seed.ts
+- identity.test.ts
 - High-Agency Frontend Skill
-- Must fix
-- pricingConfig.model.ts
+- CompleteRideUseCase
+- DriverApplicationEntity
 - dispatch.container.ts
-- dispatch-realtime.test.ts
+- ridePaymentQr.controller.ts
 - expo
 - WalletMoneyUseCase
 - tasks
 - impeccable/SKILL.md
 - ledger.container.ts
-- pricing.container.ts
+- PricingConfigRepositoryPort
 - MemorySessionRepository
 - expo
 - Priority 1 — fix the six-step form and UX contract
 - Cabzone Platform — Real-World Application Gap Analysis & Production Readiness Report
 - showToast
-- useRiders.ts
-- identity.test.ts
-- wallet-money-mongo.test.ts
+- RidersScreen.tsx
+- UserEntity
+- mongoose
 - createQuote.usecase.ts
-- seed.ts
+- env.ts
 - ride-negotiation.test.ts
 - document.md
 - onAnnotDown
-- mongoPricingConfig.repository.ts
+- Detailed Chronology of Work Completed
 - adapt.md
 - handleManualEditActivity
 - New visual work
 - onboard.md
-- WalletEntity
+- WalletRepositoryPort
 - web/package.json
-- AppError
+- RideRepositoryPort
 - Ordered next steps
 - compilerOptions
 - dependencies
 - GeoPoint
-- CoverageRequestRepositoryPort
+- src/zones.ts
 - Ride Lifecycle
 - The Toolkit
 - captureElementToBlob
 - config/package.json
 - Design Audit
-- routing.test.ts
+- trustScore.calculator.ts
 - Analysis & Synthesis Instructions
-- rawBody.ts
-- Cabzonee Backend Engineering Audit Plan
+- express
+- FinanceStatsDto
 - Cabzone Driver: WebSocket + FCM implementation plan
 - Agent Skill: Principal UI/UX Architect & Motion Choreographer (Awwwards-Tier)
 - actOnAgentTarget
@@ -151,7 +151,7 @@
 - devDependencies
 - Routing, State Pricing, Quote & Ride API — Implementation Plan for an AI Agent
 - SKILL: Industrial Brutalism & Tactical Telemetry UI
-- paymentEvent.model.ts
+- user.model.ts
 - 48. Implementation Phases
 - 2. Step-by-step
 - 2. Complete User Journey & Screen Flows (Curated from Mobbin)
@@ -160,10 +160,10 @@
 - geo/package.json
 - animate.md
 - Handle `generate`
-- Daily Work Log - Cabzonee Platform
+- 18. Non-Functional Requirements
 - createLiveBrowserDomHelpers
 - quoteRateLimiter.ts
-- refreshToken.usecase.ts
+- RedisOfferRecipientsRepository
 - docker-compose.prod.yml
 - 9thoct.md
 - booking-home.test.mjs
@@ -174,7 +174,7 @@
 - Product Requirements Document (PRD)
 - Generate Report
 - Design System: Taste Standard
-- response.util.ts
+- asyncHandler
 - tokens.drift.test.ts
 - CORE DIRECTIVE: AWWWARDS-LEVEL IMAGE ART DIRECTION
 - 2. THE COMBINATORIAL VARIATION ENGINE
@@ -183,8 +183,8 @@
 - scripts
 - Monorepo Layout
 - theme.ts
-- walletMoney.controller.ts
-- calculateBaseFareEstimate
+- zod
+- rateLimit.ts
 - scripts
 - dependencies
 - DateFilter.tsx
@@ -196,7 +196,7 @@
 - critique.md
 - Simplify the Design
 - Hardening Dimensions
-- RideRealtimeNotifier
+- .rideRequested
 - devDependencies
 - clarify.md
 - Nielsen's 10 Heuristics
@@ -226,6 +226,7 @@
 - iOS platform
 - Operate mode depth (and Read notes)
 - Shape
+- FaultCode
 - wallet-money.test.mjs
 - upi-payment-panel.test.mjs
 - Daily Work Log - Cabzone Platform
@@ -234,6 +235,7 @@
 - 12. THE COMBINATORIAL VARIATION ENGINE
 - 8. ANTI-AI-SLOP RULES
 - Android platform
+- 17. Screen Specifications and Acceptance Criteria
 - Persona-Based Design Testing
 - Impeccable Asset Producer
 - Extract Flow
@@ -242,10 +244,11 @@
 - driver-mobile/tsconfig.json
 - rider-mobile/tsconfig.json
 - animated-icon.tsx
+- 8. Counter-Offers and Intercity
 - docs/engineering/mobile-in-monorepo.md
 - Driver Mobile App Setup Guide
 - APPENDICES - Real Source-Backed Reference Material
-- access-log.middleware.ts
+- esbuild.config.mjs
 - animated-icon.web.tsx
 - 11. REDESIGN PROTOCOL
 - docs/setup-development.md
@@ -271,8 +274,10 @@
 - 44. Testing Strategy
 - 33. Logical API Contract Categories
 - Customer ride fares: UPI app handoff, driver QR, and test checkout
+- auth-screen.tsx
 - 7. Booking, Quote and Fare Negotiation
 - docs/engineering/shared-packages.md
+- external-link.tsx
 - 41. Test Matrix
 - contracts/tsconfig.json
 - geo/tsconfig.json
@@ -280,12 +285,13 @@
 - 5. IMAGE COUNT & PAGE SLICING
 - Visualize: Direction Comps & Asset Production
 - impeccable
+- 10. Payments and Disputes
 - AGENTS.md
 - Cabzone Driver visual system
 - devDependencies
 - Interstate Route Segmentation
 - devDependencies
-- ZoneEntity
+- newUuid
 - 45. Critical Geographic Tests
 - Graphify Always-On Rule
 - Work completed
@@ -340,12 +346,14 @@
 - apps_api_src_modules_stateboundary_infrastructure_index_mongostateboundaryrepository
 - apps_api_src_modules_zone_application_usecases_index_serviceabilityguard
 - enableInlineEdit
-- ref_node_fs
+- driver-mobile/src/context/ride-context.test.mjs
+- 9. Realtime and Recovery
 - declarations.d.ts
 - 3. Zone Types
 - 52. Recommended PR Breakdown
 - 4. Driver State Model
 - 13. State Management and Storage Architecture
+- 11. Safety and OTP Security
 - apps_web_src_features_zones_types_zones_createzoneinputdto
 - apps_web_src_features_zones_types_zones_geojsongeometry
 - apps_web_src_features_zones_types_zones_geojsonpolygon
@@ -374,6 +382,7 @@
 - driver.location.updated Event
 - Negotiable Fares (Differentiator)
 - Zone-Based Pricing Model
+- 16. Design Tokens and Shared Components
 - 41. Test Matrix
 - 12. Destination Classification
 - devDependencies
@@ -382,6 +391,7 @@
 - 33. DEFAULT SECTION PACKS
 - 14. HERO MINIMALISM RULES
 - 37. EXAMPLE INTERPRETATIONS
+- 3. Out of Scope and Open Questions
 - packages_contracts_src_index_auth_roles
 - packages_contracts_src_index_createstatepricingrequest
 - packages_contracts_src_index_normalizegeojson
@@ -403,7 +413,6 @@
 - 37. Testing
 - 43. End-to-End Example
 - packages_geo_src_index_repairpolygonalgeometry
-- health.ts
 - ref_auth_components_adminlogindialog_js
 - ref_deactivatezonedialog_js
 - ref_features_quotes_components_tripsimulatorscreen_js
@@ -429,8 +438,7 @@
 - api/.eslintrc.cjs
 - driver-mobile/src/design-system/spacing.ts
 - Cabzonee Zones Tab & Backend — Full Implementation Plan
-- endpoints/wallets.ts
-- 14thoct.md
+- WalletTransactionDto
 - docs/engineering/design-language.md
 - ride-lifecycle-mongo.test.ts
 - 10. Realtime Communication
@@ -443,28 +451,28 @@
 - next-env.d.ts
 
 ## God Nodes (most connected - your core abstractions)
-1. `react` - 187 edges
-2. `asyncHandler()` - 115 edges
-3. `react-native` - 105 edges
-4. `sendSuccess()` - 103 edges
-5. `AppError` - 97 edges
-6. `VehicleCategory` - 97 edges
-7. `RideEntity` - 93 edges
-8. `buildIdentityContainer()` - 89 edges
-9. `newUuid()` - 84 edges
-10. `GeoPoint` - 66 edges
+1. `asyncHandler()` - 115 edges
+2. `sendSuccess()` - 103 edges
+3. `AppError` - 97 edges
+4. `VehicleCategory` - 97 edges
+5. `RideEntity` - 93 edges
+6. `buildIdentityContainer()` - 89 edges
+7. `newUuid()` - 84 edges
+8. `GeoPoint` - 67 edges
+9. `express` - 61 edges
+10. `RideRepositoryPort` - 60 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `5.3 Vehicle Document Model Separation (OQ-021)` --references--> `DriverDocument`  [INFERRED]
-  docs/engineering/real-world-gap-analysis-report.md → apps/api/src/modules/identity/infrastructure/persistence/driver.model.ts
+- `3. Contract and invariants` --references--> `RideRealtimeNotifier`  [INFERRED]
+  docs/engineering/driver-realtime-websocket-fcm-plan.md → apps/api/src/modules/dispatch/application/rideRealtimeNotifier.ts
+- `2. What exists today (repository inspection, 14 October 2026)` --references--> `RedisPresenceRepository`  [INFERRED]
+  docs/engineering/driver-realtime-websocket-fcm-plan.md → apps/api/src/modules/dispatch/infrastructure/redisPresence.repository.ts
 - `Flow and persistence map` --references--> `SubmitDriverApplicationUseCase`  [INFERRED]
   docs/engineering/driver-onboarding-flow-audit.md → apps/api/src/modules/identity/application/useCases/submitDriverApplication.usecase.ts
-- `1. Wallet posting and ride completion are not one atomic settlement` --references--> `MongoWalletRepository`  [INFERRED]
-  audit.md → apps/api/src/modules/ledger/infrastructure/persistence/mongoWallet.repository.ts
-- `External HTTP (Google Routes) — mandatory rules` --references--> `AppError`  [INFERRED]
-  docs/LLD/routing-and-state-pricing-implementation-plan.md → apps/api/src/shared/errors/AppError.ts
-- `9. Money and ride state do not implement the documented payment-confirmation flow` --references--> `CompleteRideUseCase`  [INFERRED]
-  audit.md → apps/api/src/modules/rides/application/useCases/completeRide.usecase.ts
+- `5.3 Vehicle Document Model Separation (OQ-021)` --references--> `DriverDocument`  [INFERRED]
+  docs/engineering/real-world-gap-analysis-report.md → apps/api/src/modules/identity/infrastructure/persistence/driver.model.ts
+- `10. Admin wallet writes and top-up/reversal flows lack a complete enforced ledger contract` --references--> `AdminAdjustWalletUseCase`  [INFERRED]
+  audit.md → apps/api/src/modules/ledger/application/useCases/adminAdjustWallet.usecase.ts
 
 ## Import Cycles
 - None detected.
@@ -479,31 +487,31 @@
 - **Architectural Boundary Enforcement Triangle** — docs_engineering_boundaries_and_enforcement_domain_boundary, docs_engineering_clean_architecture_and_solid_domain_layer, docs_engineering_module_anatomy_rules [INFERRED 0.95]
 - **Core Ride Processing: Zone Engine + Fare Snapshot + State Machine** — docs_lld_ride_lifecycle_ride_state_machine, docs_lld_ride_lifecycle_pricing_snapshot, docs_lld_zone_engine_zone_classification [INFERRED 0.95]
 
-## Communities (434 total, 117 thin omitted)
+## Communities (442 total, 120 thin omitted)
 
 ### Community 0 - "kyc.validation.ts"
 Cohesion: 0.05
-Nodes (41): canDriverReapply(), canSubmitApplication(), apps_api_src_modules_identity_index_candriverreapply, apps_api_src_modules_identity_index_cansubmitapplication, apps_api_src_modules_identity_index_createvehicleschema, apps_api_src_modules_identity_index_driverapplicationentity, apps_api_src_modules_identity_index_driverapplicationmodel, apps_api_src_modules_identity_index_driverdocumententity (+33 more)
+Nodes (40): canSubmitApplication(), apps_api_src_modules_identity_index_candriverreapply, apps_api_src_modules_identity_index_cansubmitapplication, apps_api_src_modules_identity_index_createvehicleschema, apps_api_src_modules_identity_index_driverapplicationentity, apps_api_src_modules_identity_index_driverapplicationmodel, apps_api_src_modules_identity_index_driverdocumententity, apps_api_src_modules_identity_index_driverdocumentmodel (+32 more)
 
 ### Community 1 - "admin-users-api.test.ts"
-Cohesion: 0.05
-Nodes (49): ADMIN_ROLE_PERMISSIONS, CreateAdminUserUseCase, GetAdminUserDetailUseCase, ListAdminUsersUseCase, UpdateAdminUserStatusUseCase, UpdateAdminUserUseCase, apps_api_src_modules_identity_application_usecases_index_admin_role_permissions, apps_api_src_modules_identity_application_usecases_index_createadminuserusecase (+41 more)
-
-### Community 2 - "adminDriverApplications.usecase.ts"
 Cohesion: 0.06
-Nodes (37): AdminDriverApplicationDeps, DriverApplicationDetail, DriverApplicationSummary, DriverDocumentWithUrl, CreateDriverApplicationDeps, DriverProfileDetail, GetDriverProfileDeps, RegisterDriverVehicleDeps (+29 more)
+Nodes (29): CreateAdminUserUseCase, GetAdminUserDetailUseCase, ListAdminUsersUseCase, UpdateAdminUserStatusUseCase, UpdateAdminUserUseCase, apps_api_src_modules_identity_application_usecases_index_admin_role_permissions, apps_api_src_modules_identity_application_usecases_index_createadminuserusecase, apps_api_src_modules_identity_application_usecases_index_getadminuserdetailusecase (+21 more)
+
+### Community 2 - "AppError"
+Cohesion: 0.04
+Nodes (80): ParsedDriverLicenseFile, AdminDriverApplicationDeps, AdminLoginDeps, AdminRiderDeps, AdminUserDeps, CreateDriverApplicationDeps, CreateDriverProfileDeps, CreateDriverProfileInput (+72 more)
 
 ### Community 3 - "live-browser.js"
 Cohesion: 0.03
 Nodes (134): addManualContextText(), applyEditing(), applyGlobalBarLabelState(), applyLiveBarPreference(), applyPlaceholderSizingStyles(), bindEditBadgeProxy(), bufferToBase64(), buildCollapsible() (+126 more)
 
-### Community 4 - "identity/domain/index.ts"
-Cohesion: 0.12
-Nodes (35): createApp(), AppContainers, canAdminManageZone(), apps_api_src_modules_identity_domain_index_adminuserentity, apps_api_src_modules_identity_domain_index_canadminmanagezone, apps_api_src_modules_identity_domain_index_sessionentity, apps_api_src_modules_identity_domain_index_sessionrepositoryport, apps_api_src_modules_identity_domain_index_smsgatewayport (+27 more)
+### Community 4 - "dispatch-realtime.test.ts"
+Cohesion: 0.07
+Nodes (45): createApp(), apps_api_src_modules_identity_domain_index_adminuserentity, apps_api_src_modules_identity_domain_index_sessionentity, apps_api_src_modules_identity_domain_index_sessionrepositoryport, IdentityContainer, apps_api_src_modules_identity_infrastructure_index_josetokenadapter, JoseTokenAdapter, makeAuthenticate() (+37 more)
 
-### Community 5 - "expo-router"
+### Community 5 - "ref_react"
 Cohesion: 0.05
-Nodes (104): apps_rider_mobile_assets_brand_cabzone_horizontal, OtpVerificationScreen(), styles, PhoneEntryScreen(), styles, styles, WelcomeScreen(), BootstrapIndexScreen() (+96 more)
+Nodes (105): apps_rider_mobile_assets_brand_cabzone_horizontal, OtpVerificationScreen(), styles, PhoneEntryScreen(), styles, styles, WelcomeScreen(), BootstrapIndexScreen() (+97 more)
 
 ### Community 6 - "connectSSE"
 Cohesion: 0.05
@@ -511,83 +519,83 @@ Nodes (104): abortSvelteComponentInjection(), applyParamDefaults(), applyParamVa
 
 ### Community 7 - "useAuth"
 Cohesion: 0.06
-Nodes (71): AuthGroupLayout(), DriverDocumentsScreen(), PersonalDetailsScreen(), DriverVehicleScreen(), ApplicationStatusRoute(), OnboardingGroupLayout(), OnboardingWizardRoute(), PhoneStep() (+63 more)
+Nodes (72): AuthGroupLayout(), DriverVehicleScreen(), ApplicationStatusRoute(), OnboardingGroupLayout(), OnboardingWizardRoute(), KycPendingHome(), styles, KycWizard() (+64 more)
 
 ### Community 8 - "SessionEntity"
 Cohesion: 0.04
-Nodes (19): LogoutDeps, SessionEntity, SessionRepositoryPort, MongoSessionRepository, SessionDocument, SessionModel, sessionSchema, FakeSessionRepo (+11 more)
+Nodes (14): SessionEntity, MongoSessionRepository, SessionDocument, SessionModel, sessionSchema, FakeSessionRepo, TestMemorySessionRepo, MemorySessionRepository (+6 more)
 
 ### Community 9 - "geo.test.ts"
-Cohesion: 0.06
-Nodes (49): isValidLatitude(), isValidLongitude(), packages_geo_src_index_assertpointinindia, packages_geo_src_index_computegeometryaream2, packages_geo_src_index_computepolygonaream2, packages_geo_src_index_computeringaream2, packages_geo_src_index_distancepointtosegmentm, packages_geo_src_index_distancetopolygonm (+41 more)
-
-### Community 10 - "driver-mobile/package.json"
 Cohesion: 0.04
-Nodes (53): main, name, private, version, BlobBackground, BlobBackgroundBase(), BlobBackgroundProps, blobPath() (+45 more)
+Nodes (95): doGeometriesOverlap(), extractRings(), ValidateZoneDeps, ValidateZoneInput, apps_api_src_modules_zone_domain_index_doboundingboxesoverlap, apps_api_src_modules_zone_domain_index_dosegmentsintersect, apps_api_src_modules_zone_domain_index_fromposition, apps_api_src_modules_zone_domain_index_getboundingbox (+87 more)
+
+### Community 10 - "layers/index.ts"
+Cohesion: 0.07
+Nodes (29): BlobBackground, BlobBackgroundBase(), BlobBackgroundProps, blobPath(), PHASES, SPEEDS, styles, BlobHaloLayer() (+21 more)
 
 ### Community 11 - "identity.container.ts"
 Cohesion: 0.05
-Nodes (80): Checks, in order, attachDocumentUrls(), GetDriverApplicationDetailUseCase, ListDriverApplicationsUseCase, summarize(), UpdateDriverStatusUseCase, GetRiderDetailUseCase, UpdateRiderProfileUseCase (+72 more)
+Nodes (97): attachDocumentUrls(), GetDriverApplicationDetailUseCase, ListDriverApplicationsUseCase, summarize(), UpdateDriverStatusUseCase, AdminLoginUseCase, CreateDriverApplicationUseCase, CreateDriverProfileUseCase (+89 more)
 
-### Community 12 - "newUuid"
-Cohesion: 0.07
-Nodes (15): parseDriverLicenseFile(), calculateNewBalance(), saveRideTransition(), CompleteRideUseCase, NegotiateFareUseCase, pendingCounters(), RideUpiPaymentUseCase, calculateCancellationFee() (+7 more)
+### Community 12 - ".badRequest"
+Cohesion: 0.09
+Nodes (15): Checks, in order, The contract (read once), parseDriverLicenseFile(), canDriverReapply(), calculateNewBalance(), saveRideTransition(), NegotiateFareUseCase, RideUpiPaymentUseCase (+7 more)
 
-### Community 13 - "authenticate.middleware.ts"
-Cohesion: 0.12
-Nodes (15): AdminLoginDeps, RefreshTokenDeps, VerifyOtpDeps, apps_api_src_modules_identity_domain_index_tokenverifierport, isSessionActive(), TokenSignerPort, TokenVerifierPort, apps_api_src_modules_identity_interface_middlewares_auth_types_authcontext (+7 more)
-
-### Community 14 - "react"
-Cohesion: 0.03
-Nodes (103): Components and states, CabzonAnimatedNumber(), CabzonAnimatedNumberProps, CabzonError(), CabzonErrorProps, CabzonLoading(), CabzonLoadingProps, styles (+95 more)
-
-### Community 15 - "AdminsScreen.tsx"
+### Community 13 - "AdminsScreen.tsx"
 Cohesion: 0.05
-Nodes (72): AdminUserDocument, adminUserSchema, apps_api_src_modules_zone_zone_public_zonerepositoryport, hashPassword(), metadata, AdminCreateDialog(), AdminCreateDialogProps, ROLE_OPTIONS (+64 more)
+Nodes (63): AdminUserDocument, vehicleSchema, AdminsScreen(), FILLER_ADMINS, formatDate(), formatPhone(), ROLE_FILTER_OPTIONS, SegmentView (+55 more)
 
-### Community 16 - "driver-onboarding-api.test.ts"
-Cohesion: 0.06
-Nodes (43): AdminLoginUseCase, apps_api_src_modules_identity_application_usecases_index_adminloginusecase, apps_api_src_modules_identity_application_usecases_index_logoutusecase, apps_api_src_modules_identity_application_usecases_index_refreshtokenusecase, apps_api_src_modules_identity_application_usecases_index_requestotpusecase, apps_api_src_modules_identity_application_usecases_index_verifyotpusecase, LogoutUseCase, RefreshTokenUseCase (+35 more)
+### Community 14 - "ref_react_native"
+Cohesion: 0.03
+Nodes (95): Components and states, CabzonAnimatedNumber(), CabzonAnimatedNumberProps, CabzonError(), CabzonErrorProps, CabzonLoading(), CabzonLoadingProps, styles (+87 more)
 
-### Community 17 - "RideDispatchMap.tsx"
+### Community 15 - "ref_lucide_react"
+Cohesion: 0.09
+Nodes (48): ADMIN_ROLE_PERMISSIONS, apps_api_src_modules_zone_zone_public_zonerepositoryport, AdminCreateDialog(), AdminCreateDialogProps, ROLE_OPTIONS, RoleOption, AdminDetailModal(), AdminDetailModalProps (+40 more)
+
+### Community 16 - "driver-mobile/src/services/api.ts"
 Cohesion: 0.08
-Nodes (41): TripPointMap(), init(), buildDriverMarkerSvg(), buildPinSvg(), CATEGORIES, getCategoryColor(), getCategoryIconSvg(), RideDispatchMap() (+33 more)
+Nodes (49): AuthContext, AuthContextType, AuthProvider(), AuthStep, AuthUser, DutyProvider(), accessTokenListeners, ApiError (+41 more)
 
-### Community 18 - "contracts/src/index.ts"
-Cohesion: 0.06
-Nodes (61): dynamic, AdjustBalanceDialog(), CashoutQueue(), DriverBalancesTable(), formatDate(), SettleDriverDialog(), formatDate(), TransactionsLedgerTable() (+53 more)
+### Community 17 - "ZoneMap.tsx"
+Cohesion: 0.08
+Nodes (41): ./TripPointMap.js, DROP_ICON_SVG(), PICKUP_ICON_SVG(), TripPointMap(), init(), TripPointMapProps, ZoneMap(), ZoneMapProps (+33 more)
 
-### Community 19 - "ride.model.ts"
-Cohesion: 0.16
-Nodes (20): LocationPoint, PassengerInfo, RouteSnapshot, VALID_RIDE_TRANSITIONS, ZoneSnapshot, passengerSchema, pointSchema, RideDocument (+12 more)
+### Community 18 - "RidesScreen.tsx"
+Cohesion: 0.04
+Nodes (75): metadata, dynamic, DriverBalancesTable(), formatDate(), FinanceScreen(), formatDate(), TransactionsLedgerTable(), formatDate() (+67 more)
+
+### Community 19 - "driver-mobile/package.json"
+Cohesion: 0.05
+Nodes (43): @cabzone/contracts, eslint, eslint-config-expo, expo, expo-constants, expo-device, expo-file-system, expo-font (+35 more)
 
 ### Community 20 - "DriverEntity"
-Cohesion: 0.16
-Nodes (4): DriverEntity, MongoDriverRepository, MemoryDriverRepository, MemoryDriverRepository
+Cohesion: 0.14
+Nodes (5): DriverProfileDetail, DriverEntity, MongoDriverRepository, MemoryDriverRepository, MemoryDriverRepository
 
-### Community 21 - "CustomerAppSimulatorSection.tsx"
+### Community 21 - "contracts/src/index.ts"
+Cohesion: 0.06
+Nodes (56): SILIGURI_SIMULATED_FLEET, SimulatedDriverSeed, LiveRideSimulator(), LiveRideSimulatorProps, buildDriverMarkerSvg(), buildPinSvg(), CATEGORIES, getCategoryColor() (+48 more)
+
+### Community 22 - "ZoneEntity"
+Cohesion: 0.09
+Nodes (23): CityZoneEntity, CityZoneDocument, CityZoneModel, cityZoneSchema, polygonSchema, apps_api_src_modules_zone_domain_index_distancetopolygonm, apps_api_src_modules_zone_domain_index_ispointingeometry, apps_api_src_modules_zone_domain_index_zonefilter (+15 more)
+
+### Community 23 - "design-system/src/index.ts"
 Cohesion: 0.04
-Nodes (73): SILIGURI_SIMULATED_FLEET, SimulatedDriverSeed, defaultsFor(), INDIAN_STATES, PricingConfigDialog(), PricingConfigDialogProps, PricingScreen(), useCreatePricingConfig() (+65 more)
-
-### Community 22 - "zone.swagger.ts"
-Cohesion: 0.18
-Nodes (16): zoneDtoSchema, zoneResolutionResultSchema, deactivateZoneSchema, geoJsonGeometrySchema, geoJsonMultiPolygonSchema, geoPointSchema, listZonesQuerySchema, updateZoneGeometrySchema (+8 more)
-
-### Community 23 - "RidersScreen.tsx"
-Cohesion: 0.02
-Nodes (123): metadata, DriversScreen(), FLEET_FILTER_OPTIONS, FleetFilter, formatDate(), formatPhoneDisplay(), formatTime(), formatTimeAgo() (+115 more)
+Nodes (59): 1. Brand Theme Alignment (Lime -> Navy `#002451`), BadgeProps, BadgeTone, STATUS_TONES, StatusPill(), TONES, ButtonProps, ButtonSize (+51 more)
 
 ### Community 24 - "initGlobalBar"
 Cohesion: 0.07
 Nodes (73): agentStatusText(), barPaletteForTheme(), beginNewLiveConfiguration(), brandMarkSvg(), buildParamsPanel(), buildSelectionPill(), cancelEditing(), cancelEditingToPicking() (+65 more)
 
 ### Community 25 - "ZonesScreen.tsx"
-Cohesion: 0.04
-Nodes (70): GeoJsonImportDialog(), PlaceSearch(), ZoneForm, ZoneInspector(), ZoneInspectorProps, CityCard(), ZoneRail(), BLANK_FORM (+62 more)
-
-### Community 26 - "asyncHandler"
 Cohesion: 0.05
-Nodes (92): listFleetQuerySchema, makeListFleetController(), makeSimulateFleetController(), simulateFleetBodySchema, apps_api_src_modules_rides_domain_index_derivepickupotp, derivePickupOtp(), ADMIN_ROLES, auth() (+84 more)
+Nodes (63): GeoJsonImportDialog(), PlaceSearch(), ZoneForm, ZoneInspector(), ZoneInspectorProps, CityCard(), ZoneRail(), ZoneRailProps (+55 more)
+
+### Community 26 - "zone.container.ts"
+Cohesion: 0.05
+Nodes (71): ActivateZoneUseCase, CreateZoneDeps, CreateZoneUseCase, DeactivateZoneUseCase, DeleteZoneUseCase, GetZoneUseCase, GetZoneDependentsUseCase, GetZoneHistoryUseCase (+63 more)
 
 ### Community 27 - "initPageChat"
 Cohesion: 0.07
@@ -598,8 +606,8 @@ Cohesion: 0.09
 Nodes (55): ae(), be(), bt(), Ce(), s(), Ct(), de(), dt() (+47 more)
 
 ### Community 29 - "RideEntity"
-Cohesion: 0.04
-Nodes (36): isDriverEligibleForNewRides(), AcceptRideUseCase, CancelRideResult, CancelRideUseCase, CompleteRideResult, DriverArrivedUseCase, DriverEnRouteUseCase, ExpireOffersUseCase (+28 more)
+Cohesion: 0.09
+Nodes (7): CompleteRideResult, RideEntity, AtomicClaimResult, RideListFilter, RideNotifierPort, MongoRideRepository, TestMemoryRideRepo
 
 ### Community 30 - "el"
 Cohesion: 0.08
@@ -618,28 +626,28 @@ Cohesion: 0.06
 Nodes (14): ExpoResult, PushSender, ReceiptReader, PendingPushReceipt, PushReceiptPort, PushTokenPort, MemoryPushReceiptRepository, MongoPushReceiptRepository (+6 more)
 
 ### Community 34 - "routing.container.ts"
-Cohesion: 0.10
-Nodes (33): CreateQuoteDeps, PricingContainerDeps, GetRouteUseCase, ResolveDestinationStateUseCase, apps_api_src_modules_routing_domain_index_destinationstateresolverport, apps_api_src_modules_routing_domain_index_routecacheport, apps_api_src_modules_routing_domain_index_routemetrics, apps_api_src_modules_routing_domain_index_routeproviderport (+25 more)
+Cohesion: 0.08
+Nodes (38): CreateQuoteDeps, PricingContainerDeps, GetRouteUseCase, ResolveDestinationStateUseCase, apps_api_src_modules_routing_domain_index_destinationstateresolverport, apps_api_src_modules_routing_domain_index_routecacheport, apps_api_src_modules_routing_domain_index_routemetrics, apps_api_src_modules_routing_domain_index_routeproviderport (+30 more)
 
 ### Community 35 - "rider-mobile/src/services/api.ts"
-Cohesion: 0.10
-Nodes (41): AuthContext, AuthContextValue, AuthProvider(), accessTokenListeners, API_BASE_URL, ApiError, ApiResponse, authApi (+33 more)
+Cohesion: 0.09
+Nodes (42): AuthContext, AuthContextValue, AuthProvider(), accessTokenListeners, API_BASE_URL, ApiError, ApiResponse, authApi (+34 more)
 
 ### Community 36 - "rides.validation.ts"
-Cohesion: 0.08
-Nodes (32): dependencyHealthSchema, healthReportSchema, response(), registerRidesSwaggerPaths(), rideViewSchema, cancellationReasonSchema, cancelRideSchema, counterResponseSchema (+24 more)
+Cohesion: 0.13
+Nodes (18): rideViewSchema, cancellationReasonSchema, cancelRideSchema, counterResponseSchema, createRideRequestSchema, driverCounterSchema, listRidesQuerySchema, locationPointSchema (+10 more)
 
 ### Community 37 - "package.json"
 Cohesion: 0.04
 Nodes (47): devDependencies, @cabzone/config, eslint, eslint-config-prettier, eslint-plugin-jsx-a11y, eslint-plugin-react, eslint-plugin-react-hooks, prettier (+39 more)
 
-### Community 38 - "validateZone.usecase.ts"
-Cohesion: 0.13
-Nodes (17): doGeometriesOverlap(), extractRings(), ValidateZoneDeps, apps_api_src_modules_zone_domain_index_doboundingboxesoverlap, apps_api_src_modules_zone_domain_index_dosegmentsintersect, apps_api_src_modules_zone_domain_index_fromposition, apps_api_src_modules_zone_domain_index_getboundingbox, apps_api_src_modules_zone_domain_index_ispointingeometry (+9 more)
+### Community 38 - "identity.validation.ts"
+Cohesion: 0.10
+Nodes (29): driverSchema, driverProfileSchema, adminLoginSchema, adminStatusSchema, adminUserIdParamSchema, createAdminUserSchema, driverKycStatusSchema, driverStatusSchema (+21 more)
 
-### Community 39 - "RiderEntity"
-Cohesion: 0.08
-Nodes (19): AdminRiderDeps, RiderProfileDeps, apps_api_src_modules_identity_domain_index_riderentity, apps_api_src_modules_identity_domain_index_riderlistfilter, apps_api_src_modules_identity_domain_index_riderwithuser, EmergencyContact, RiderEntity, RiderListFilter (+11 more)
+### Community 39 - "buildContainers"
+Cohesion: 0.10
+Nodes (13): buildContainers(), apps_api_src_modules_identity_domain_index_riderlistfilter, apps_api_src_modules_identity_domain_index_riderwithuser, RiderEntity, RiderListFilter, RiderWithUser, MongoRiderRepository, emergencyContactSchema (+5 more)
 
 ### Community 40 - "cabzon-zones-full-implementation-plan.md"
 Cohesion: 0.04
@@ -649,9 +657,9 @@ Nodes (45): 10. Geometry Validation Engine, 12. Do Not Add Arbitrary Area Limits
 Cohesion: 0.33
 Nodes (9): apps_driver_mobile_assets_sfx_popsound, initPopSound(), isPopSoundReady(), nativePlayers, playPopSound(), resolveAssetUrl(), webAudioPool, whenPopSoundReady() (+1 more)
 
-### Community 42 - "coords.ts"
-Cohesion: 0.13
-Nodes (21): 1. Shared Geometry Engine (`@cabzone/geo`), assertPointInIndia(), CoordinateValidationResult, fromPosition(), GeoJsonPoint, IndiaBoundaryCheckResult, Position, toGeoJsonPoint() (+13 more)
+### Community 42 - "pricing.container.ts"
+Cohesion: 0.17
+Nodes (25): ActivatePricingConfigUseCase, CreatePricingConfigUseCase, DeletePricingConfigUseCase, apps_api_src_modules_pricing_application_usecases_index_activatepricingconfigusecase, apps_api_src_modules_pricing_application_usecases_index_createpricingconfigusecase, apps_api_src_modules_pricing_application_usecases_index_createquoteusecase, apps_api_src_modules_pricing_application_usecases_index_deletepricingconfigusecase, apps_api_src_modules_pricing_application_usecases_index_listpricingconfigsusecase (+17 more)
 
 ### Community 43 - "Cabzon Driver App — UI Animation & Micro-Interaction Specification v1"
 Cohesion: 0.04
@@ -661,37 +669,37 @@ Nodes (44): 10. Login, 11. OTP, 12. Forms / KYC, 13. KYC Submission, 14. KYC App
 Cohesion: 0.05
 Nodes (43): 1. Logo Cover, 1. Monogram + Meaning, 2 × 3 REFERENCE-STYLE LAYOUT, 2. Logo Construction, 2. Product Action, 3. Digital Application, 3. Metaphor Fusion, 4. Brand Essence (+35 more)
 
-### Community 45 - "MemoryWalletRepository"
-Cohesion: 0.17
-Nodes (6): MemoryWalletRepository, MemoryWalletOperationRepository, MemoryRideRepository, fixture(), fixture(), fixture()
+### Community 45 - "WalletOperationRepository"
+Cohesion: 0.16
+Nodes (4): WalletOperationRepository, WalletPaymentGateway, MemoryWalletOperationRepository, LedgerContainerDeps
 
 ### Community 46 - "Ride (Central Transactional Aggregate)"
 Cohesion: 0.05
 Nodes (42): Driver Endpoints (/v1/drivers), Ride Endpoints (/v1/rides), Wallet Endpoints (/v1/drivers/me/wallet), Authentication != Driver Eligibility, city_zones Collection, Concurrency Rules (atomic ride assignment, wallet debit), drivers Collection, fare_negotiations Collection (+34 more)
 
-### Community 47 - "PricingConfigEntity"
-Cohesion: 0.20
-Nodes (6): isPricingConfigEffective(), PricingConfigEntity, EffectivePricingTarget, PricingConfigFilter, MongoPricingConfigRepository, toPricingConfigEntity()
+### Community 47 - "VehicleCategory"
+Cohesion: 0.08
+Nodes (35): ListFleetQuery, RegisterDriverVehicleDto, apps_api_src_modules_pricing_domain_index_effectivepricingtarget, apps_api_src_modules_pricing_domain_index_ispricingconfigeffective, apps_api_src_modules_pricing_domain_index_pricingconfigentity, apps_api_src_modules_pricing_domain_index_pricingconfigfilter, isPricingConfigEffective(), PricingConfigEntity (+27 more)
 
 ### Community 48 - "rider-mobile/package.json"
 Cohesion: 0.05
 Nodes (42): @cabzone/contracts, @cabzone/geo, eslint, eslint-config-expo, expo, expo-constants, expo-device, expo-file-system (+34 more)
 
-### Community 49 - "kyc-review-mongo.test.ts"
+### Community 49 - "DriverDocumentEntity"
 Cohesion: 0.11
-Nodes (17): CreateDriverProfileDeps, CreateDriverProfileInput, CreateDriverProfileUseCase, DriverPhotoStoragePort, CloudinaryDriverPhotoAdapter, apps_api_src_modules_identity_infrastructure_index_driverapplicationmodel, apps_api_src_modules_identity_infrastructure_index_driverdocumentmodel, apps_api_src_modules_identity_infrastructure_index_drivermodel (+9 more)
+Nodes (12): DriverDocumentWithUrl, UploadDriverDocumentDto, DriverDocumentEntity, DriverDocumentDocument, DriverDocumentModel, driverDocumentSchema, MongoDriverDocumentRepository, MemoryDriverDocumentRepository (+4 more)
 
 ### Community 50 - "rideExtension.model.ts"
 Cohesion: 0.21
 Nodes (10): LocationCoordinates, RideExtensionEntity, pointSchema, RideExtensionDocument, RideExtensionModel, rideExtensionSchema, packages_contracts_src_index_extension_statuses, packages_contracts_src_index_extensionstatus (+2 more)
 
-### Community 51 - "mongoose"
-Cohesion: 0.10
-Nodes (17): apps_api_src_modules_identity_domain_index_otprecord, apps_api_src_modules_identity_domain_index_otpstoreport, OtpRecord, MongoOtpStoreAdapter, otpSchema, buildApiRouter(), causeChain(), errorHandler() (+9 more)
+### Community 51 - "OtpStorePort"
+Cohesion: 0.08
+Nodes (13): RequestOtpDeps, apps_api_src_modules_identity_domain_index_otprecord, apps_api_src_modules_identity_domain_index_otpstoreport, apps_api_src_modules_identity_domain_index_smsgatewayport, OtpRecord, OtpStorePort, SmsGatewayPort, IdentityContainerDeps (+5 more)
 
-### Community 52 - "AdminUserEntity"
-Cohesion: 0.11
-Nodes (13): AdminRole, AdminStatus, AdminUserEntity, AdminUserListFilter, AdminUserRepositoryPort, AdminUserWithUser, apps_api_src_modules_identity_domain_index_adminuserlistfilter, apps_api_src_modules_identity_domain_index_adminuserwithuser (+5 more)
+### Community 52 - "identity.ts"
+Cohesion: 0.08
+Nodes (24): AdminUserModel, adminUserSchema, DriverDocument, ADMIN_ROLES, ADMIN_STATUSES, AdminLoginRequestDto, AdminLoginResponseDto, AdminUserCityZoneDto (+16 more)
 
 ### Community 53 - "Cabzone — Zones & Geographic Configuration Module"
 Cohesion: 0.05
@@ -699,19 +707,15 @@ Nodes (41): 10. Pickup Rules, 11. Origin City, 13. Buffer Semantics, 14. Service
 
 ### Community 54 - "DriverDetailsScreen.tsx"
 Cohesion: 0.06
-Nodes (70): DriverApplicationListFilter, DriverApplicationDocument, driverApplicationSchema, DriverDocumentDocument, driverDocumentSchema, DOCUMENT_TYPE_LABELS, DocumentPreviewDialog(), DocumentPreviewDialogProps (+62 more)
-
-### Community 55 - "MemoryZoneRepository"
-Cohesion: 0.08
-Nodes (31): CreateQuoteUseCase, MemoryPricingConfigRepository, MemoryRideEventRepository, ResolveZonesUseCase, ServiceClassificationDeps, ServiceClassificationUseCase, apps_api_src_modules_zone_index_createzoneschema, apps_api_src_modules_zone_index_geojsonpolygonschema (+23 more)
+Nodes (73): DriverApplicationListFilter, DriverApplicationDocument, driverApplicationSchema, DOCUMENT_TYPE_LABELS, DocumentPreviewDialog(), DocumentPreviewDialogProps, formatDate(), isPdfDocument() (+65 more)
 
 ### Community 56 - "Cabzone Driver App — Pages, Components, Navigation and Implementation Plan"
 Cohesion: 0.05
-Nodes (39): 10. Feature folders and migration approach, 11. Backend integration map, 12. Client state, realtime and recovery, 13. Availability and location corrections, 14. Earnings, ledger and history semantics, 15. Implementation sequence with completion gates, 16. Screen/state implementation tracker, 17. Verification and acceptance matrix (+31 more)
+Nodes (41): 10. Feature folders and migration approach, 11. Backend integration map, 12. Client state, realtime and recovery, 13. Availability and location corrections, 14. Earnings, ledger and history semantics, 15. Implementation sequence with completion gates, 16. Screen/state implementation tracker, 17. Verification and acceptance matrix (+33 more)
 
-### Community 57 - "fareNegotiation.model.ts"
-Cohesion: 0.20
-Nodes (13): FareNegotiationEntity, isNegotiationWithinBounds(), FareNegotiationDocument, FareNegotiationModel, fareNegotiationSchema, packages_contracts_src_index_negotiation_actions, packages_contracts_src_index_negotiation_actors, packages_contracts_src_index_negotiationaction (+5 more)
+### Community 57 - "riders-admin-api.test.ts"
+Cohesion: 0.13
+Nodes (20): GetRiderDetailUseCase, ListRidersUseCase, UpdateRiderProfileUseCase, UpdateRiderStatusUseCase, apps_api_src_modules_identity_application_usecases_index_getriderdetailusecase, apps_api_src_modules_identity_application_usecases_index_getriderprofileusecase, apps_api_src_modules_identity_application_usecases_index_listridersusecase, apps_api_src_modules_identity_application_usecases_index_updateriderprofileusecase (+12 more)
 
 ### Community 58 - "redisPresence.repository.ts"
 Cohesion: 0.16
@@ -722,20 +726,20 @@ Cohesion: 0.05
 Nodes (39): 10. OSRM (Open Source Routing Machine), 1. `MongoServerError: not primary and secondaryOk=false`, 1. Two Distinct Workflows (Dev vs. Prod), 2. Host Port Collisions (`27017` or `6379` in use), 2. Prerequisites & Environment, 3. Port `3000` or `4000` Already in Use, 3. Step-by-Step Development Quickstart, 4. Architectural Explanations of Dev Configs (+31 more)
 
 ### Community 60 - "live.md"
-Cohesion: 0.05
-Nodes (34): Apply at system scale, Audit before choosing, Choose a strategy, Contrast and perception, Live-mode signature params, Verify, Visitor mode, Step 1: Parse the request (+26 more)
+Cohesion: 0.06
+Nodes (33): Apply at system scale, Audit before choosing, Choose a strategy, Contrast and perception, Live-mode signature params, Verify, Visitor mode, Step 1: Parse the request (+25 more)
 
 ### Community 61 - "Cabzon Driver App — Technical Specification v1"
 Cohesion: 0.05
 Nodes (37): 11. Ride Opportunity, 12. First-to-Accept, 13. Ride Lifecycle, 14. Accepted Ride, 15. Navigation, 16. ARRIVED, 17. Trip Start OTP, 18. IN_TRANSIT (+29 more)
 
 ### Community 62 - "zone-pricing.test.ts"
-Cohesion: 0.10
-Nodes (18): getEffectiveBufferDistance(), apps_api_src_modules_pricing_index_calculatebasefareestimate, apps_api_src_modules_pricing_index_cityzoneentity, apps_api_src_modules_pricing_index_cityzonemodel, apps_api_src_modules_pricing_index_createcityzoneschema, apps_api_src_modules_pricing_index_createpricingconfigschema, apps_api_src_modules_pricing_index_geteffectivebufferdistance, apps_api_src_modules_pricing_index_ispricingconfigeffective (+10 more)
+Cohesion: 0.11
+Nodes (17): getEffectiveBufferDistance(), apps_api_src_modules_pricing_index_calculatebasefareestimate, apps_api_src_modules_pricing_index_cityzoneentity, apps_api_src_modules_pricing_index_cityzonemodel, apps_api_src_modules_pricing_index_createcityzoneschema, apps_api_src_modules_pricing_index_createpricingconfigschema, apps_api_src_modules_pricing_index_geteffectivebufferdistance, apps_api_src_modules_pricing_index_ispricingconfigeffective (+9 more)
 
-### Community 63 - "driver-mobile/src/services/api.ts"
-Cohesion: 0.03
-Nodes (117): RideHistoryDetailScreen(), DriverGroupLayout(), ActiveRideScreen(), DRIVER_CANCEL_REASONS, getStatusMeta(), styles, DriverEarningsTab(), DriverMeTab() (+109 more)
+### Community 63 - "driver-mobile/src/context/ride-context.tsx"
+Cohesion: 0.04
+Nodes (72): RideHistoryDetailScreen(), styles, DriverGroupLayout(), ActiveRideScreen(), DRIVER_CANCEL_REASONS, getStatusMeta(), styles, DriverEarningsTab() (+64 more)
 
 ### Community 64 - "new-work.md"
 Cohesion: 0.07
@@ -745,9 +749,9 @@ Nodes (27): 1. Accessibility (VoiceOver / TalkBack), 2. Performance, 3. Appearan
 Cohesion: 0.06
 Nodes (36): dependencies, @cabzone/contracts, expo, expo-audio, expo-constants, expo-device, expo-document-picker, expo-file-system (+28 more)
 
-### Community 66 - "VehicleCategory"
-Cohesion: 0.18
-Nodes (12): ListFleetQuery, RegisterDriverVehicleDto, DriverFixture, CreateRidePayload, calculateCommissionPaise(), CreateQuoteResponseDto, PRICING_CONFIG_LEVELS, PRICING_CONFIG_STATUSES (+4 more)
+### Community 66 - "RazorpayGateway"
+Cohesion: 0.13
+Nodes (6): RidePaymentGateway, paymentSchema, RazorpayGateway, packages_contracts_src_index_rideupiintentdto, RideUpiIntentDto, qrcode
 
 ### Community 67 - "wallet-ledger.test.ts"
 Cohesion: 0.06
@@ -758,16 +762,16 @@ Cohesion: 0.06
 Nodes (36): dependencies, @cabzone/contracts, @cabzone/geo, expo, expo-asset, expo-constants, expo-device, expo-file-system (+28 more)
 
 ### Community 69 - "useFinance.ts"
-Cohesion: 0.09
-Nodes (39): FinanceScreen(), useFinanceStats(), usePendingCashouts(), useResolveCashout(), useTransactionsList(), useWalletDetail(), useWalletsList(), isUuid() (+31 more)
+Cohesion: 0.06
+Nodes (54): AdjustBalanceDialogProps, CashoutQueue(), DriverBalancesTableProps, SettleDriverDialogProps, WalletAuditModalProps, usePendingCashouts(), useResolveCashout(), useWalletsList() (+46 more)
 
 ### Community 70 - "CORE DIRECTIVE: IMAGE-FIRST WEBSITE DESIGN TO CODE"
 Cohesion: 0.06
 Nodes (34): 10. IMAGE-FIRST CODEX WEBSITE WORKFLOW, 11. WHEN TO TRIGGER IMAGE GENERATION FIRST, 13. WEBSITE REFERENCE RULE, 15. RESPONSIVE FIRST-VIEW RULE, 16. ANTI-NESTED-BOX RULE, 17. REDUCE MICRO-UI CLUTTER RULE, 18. SECTION IMAGE GENERATION RULE, 19. WEBSITE IMAGE SYSTEM RULE (+26 more)
 
 ### Community 71 - "realtimeHub.ts"
-Cohesion: 0.08
-Nodes (21): NoopRealtimePublisher, RealtimeEnvelope, RealtimePublisherPort, RealtimeHub, socketLeaseKey(), VerifyToken, WS_PATH, hubs (+13 more)
+Cohesion: 0.07
+Nodes (24): Express, Request, NoopRealtimePublisher, RealtimeEnvelope, RealtimePublisherPort, RealtimeHub, socketLeaseKey(), VerifyToken (+16 more)
 
 ### Community 72 - "CORE DIRECTIVE: PREMIUM MOBILE APP IMAGE DIRECTION"
 Cohesion: 0.06
@@ -783,7 +787,7 @@ Nodes (33): acceptedDomAlreadyClean(), applyOriginalAttrsToSvelteAnchor(), clear
 
 ### Community 75 - "health.container.ts"
 Cohesion: 0.16
-Nodes (16): GetHealthUseCase, DependencyHealth, DependencyStatus, HealthReport, summarise(), HealthProbePort, buildHealthContainer(), HealthContainer (+8 more)
+Nodes (15): GetHealthUseCase, DependencyHealth, DependencyStatus, HealthReport, summarise(), HealthProbePort, buildHealthContainer(), HealthContainer (+7 more)
 
 ### Community 76 - "Ride, realtime and mobile acceptance"
 Cohesion: 0.06
@@ -791,7 +795,7 @@ Nodes (33): Backend: closed disputes and receipt evidence, Backend: durable ride
 
 ### Community 77 - "api/package.json"
 Cohesion: 0.07
-Nodes (28): @cabzone/config, @cabzone/contracts, @cabzone/geo, @types/node, typescript, vitest, name, private (+20 more)
+Nodes (27): @cabzone/config, @cabzone/contracts, @cabzone/geo, @types/node, typescript, vitest, name, private (+19 more)
 
 ### Community 78 - "Cabzonee Platform"
 Cohesion: 0.07
@@ -801,41 +805,41 @@ Nodes (43): MongoDB Dev Service (docker-compose.dev.yml), Redis Dev Service (doc
 Cohesion: 0.14
 Nodes (24): AdminAdjustWalletInput, isWalletActive(), WalletDocument, WalletModel, walletSchema, WalletTransactionDocument, WalletTransactionModel, walletTransactionSchema (+16 more)
 
-### Community 80 - "VehicleEntity"
-Cohesion: 0.12
-Nodes (9): VehicleEntity, MongoVehicleRepository, VehicleDocument, VehicleModel, vehicleSchema, MemoryVehicleRepository, packages_contracts_src_index_vehicle_verification_statuses, packages_contracts_src_index_vehicleverificationstatus (+1 more)
+### Community 80 - "seed.ts"
+Cohesion: 0.06
+Nodes (27): VehicleEntity, VehicleRepositoryPort, apps_api_src_modules_identity_infrastructure_index_driverapplicationmodel, apps_api_src_modules_identity_infrastructure_index_driverdocumentmodel, apps_api_src_modules_identity_infrastructure_index_drivermodel, apps_api_src_modules_identity_infrastructure_index_mongodriverapplicationrepository, apps_api_src_modules_identity_infrastructure_index_mongodriverdocumentrepository, apps_api_src_modules_identity_infrastructure_index_mongodriverrepository (+19 more)
 
-### Community 81 - "OtpStorePort"
-Cohesion: 0.20
-Nodes (4): RequestOtpDeps, OtpStorePort, SmsGatewayPort, RequestOtpResponseDto
+### Community 81 - "identity.test.ts"
+Cohesion: 0.09
+Nodes (21): apps_api_src_modules_identity_index_adminuserentity, apps_api_src_modules_identity_index_adminusermodel, apps_api_src_modules_identity_index_canadminmanagezone, apps_api_src_modules_identity_index_candrivergoonline, apps_api_src_modules_identity_index_canuserauthenticate, apps_api_src_modules_identity_index_createadminuserschema, apps_api_src_modules_identity_index_createdriverprofileschema, apps_api_src_modules_identity_index_driverentity (+13 more)
 
 ### Community 82 - "High-Agency Frontend Skill"
 Cohesion: 0.06
 Nodes (30): 10. FINAL PRE-FLIGHT CHECK, 1. ACTIVE BASELINE CONFIGURATION, 2. DEFAULT ARCHITECTURE & CONVENTIONS, 3. DESIGN ENGINEERING DIRECTIVES (Bias Correction), 4. CREATIVE PROACTIVITY (Anti-Slop Implementation), 5. PERFORMANCE GUARDRAILS, 6. TECHNICAL REFERENCE (Dial Definitions), 7. AI TELLS (Forbidden Patterns) (+22 more)
 
-### Community 83 - "Must fix"
-Cohesion: 0.12
-Nodes (16): 10. Admin wallet writes and top-up/reversal flows lack a complete enforced ledger contract, 13. Reapplication, expiry, and KYC-provider verification are incomplete or unverified, 15. Realtime events and notifications are best-effort and process-local, 16. Admin audit history is not consistently coupled to sensitive mutations, 17. Ride-for-someone-else and cancellation policy are only partially represented, 18. API and data contracts need a route-to-contract consistency audit, 1. Wallet posting and ride completion are not one atomic settlement, 20. Architecture rules and production release checks need broader evidence (+8 more)
+### Community 83 - "CompleteRideUseCase"
+Cohesion: 0.07
+Nodes (22): ZoneIdExtractor, CancelRideUseCase, CompleteRideUseCase, CreateRideUseCase, DriverArrivedUseCase, DriverEnRouteUseCase, ExpireOffersUseCase, RidesContainer (+14 more)
 
-### Community 84 - "pricingConfig.model.ts"
-Cohesion: 0.30
-Nodes (7): PricingConfigDocument, PricingConfigModel, pricingConfigSchema, packages_contracts_src_index_pricingconfiglevel, packages_contracts_src_index_pricingconfigstatus, PricingConfigLevel, PricingConfigStatus
+### Community 84 - "DriverApplicationEntity"
+Cohesion: 0.16
+Nodes (5): DriverApplicationDetail, DriverApplicationSummary, DriverApplicationEntity, MongoDriverApplicationRepository, MemoryDriverApplicationRepository
 
 ### Community 85 - "dispatch.container.ts"
 Cohesion: 0.07
-Nodes (44): DEFAULT_DISPATCH_CONFIG, DispatchConfig, DispatchLookups, DriverDispatchProfile, RideOfferDto, ExpoPushService, ACTIVE_RIDE_STATUSES, DriverOfferEligibility (+36 more)
+Nodes (49): DEFAULT_DISPATCH_CONFIG, DispatchConfig, DispatchLookups, DriverDispatchProfile, RideOfferDto, ExpoPushService, OfferRecipientsPort, RideRealtimeNotifier (+41 more)
 
-### Community 86 - "dispatch-realtime.test.ts"
-Cohesion: 0.10
-Nodes (16): cityZone, drivers, drop, MemorySessionRepository, openServers, openSockets, pickup, pricingConfig (+8 more)
+### Community 86 - "ridePaymentQr.controller.ts"
+Cohesion: 0.23
+Nodes (5): RidePaymentQrPort, RidePaymentQrAdapter, rideCheckoutHtml(), makeRidePaymentQrControllers(), app()
 
 ### Community 87 - "expo"
 Cohesion: 0.07
 Nodes (28): backgroundColor, backgroundImage, foregroundImage, monochromeImage, adaptiveIcon, package, permissions, predictiveBackGestureEnabled (+20 more)
 
 ### Community 88 - "WalletMoneyUseCase"
-Cohesion: 0.19
-Nodes (7): WalletMoneyUseCase, walletOperationView(), WalletOperation, WalletRechargeTicketPort, AdminWalletRouterDeps, DriverWalletRouterDeps, walletMoneyControllers()
+Cohesion: 0.17
+Nodes (8): WalletMoneyUseCase, walletOperationView(), WalletOperation, WalletRechargeTicketPort, AdminWalletRouterDeps, DriverWalletRouterDeps, walletMoneyControllers(), DriverWalletActivityDto
 
 ### Community 89 - "tasks"
 Cohesion: 0.07
@@ -846,12 +850,12 @@ Cohesion: 0.08
 Nodes (21): Before you finish, Scope is sovereign, The amplification, The skeleton test, Why it reads flat, Craft floor, Refuse, Verify (+13 more)
 
 ### Community 91 - "ledger.container.ts"
-Cohesion: 0.14
-Nodes (22): AdminAdjustWalletUseCase, GetFinanceStatsUseCase, GetWalletUseCase, ListTransactionsUseCase, ListWalletsUseCase, apps_api_src_modules_ledger_domain_index_userlookupitem, apps_api_src_modules_ledger_domain_index_walletrepositoryport, PaymentEventEntity (+14 more)
+Cohesion: 0.13
+Nodes (26): GetFinanceStatsUseCase, GetWalletUseCase, ListTransactionsUseCase, ListWalletsResult, ListWalletsUseCase, apps_api_src_modules_ledger_domain_index_userlookupitem, apps_api_src_modules_ledger_domain_index_walletentity, apps_api_src_modules_ledger_domain_index_walletrepositoryport (+18 more)
 
-### Community 92 - "pricing.container.ts"
-Cohesion: 0.08
-Nodes (39): ActivatePricingConfigUseCase, CreatePricingConfigUseCase, toPricingConfigDto(), DeletePricingConfigUseCase, apps_api_src_modules_pricing_application_usecases_index_activatepricingconfigusecase, apps_api_src_modules_pricing_application_usecases_index_createpricingconfigusecase, apps_api_src_modules_pricing_application_usecases_index_createquoteusecase, apps_api_src_modules_pricing_application_usecases_index_deletepricingconfigusecase (+31 more)
+### Community 92 - "PricingConfigRepositoryPort"
+Cohesion: 0.11
+Nodes (15): toPricingConfigDto(), apps_api_src_modules_pricing_domain_index_pricingconfigrepositoryport, PricingConfigRepositoryPort, PricingConfigDialogProps, pricingApi, 3.2 Contracts, packages_contracts_src_index_createpricingconfigrequest, packages_contracts_src_index_listpricingconfigsquery (+7 more)
 
 ### Community 94 - "expo"
 Cohesion: 0.07
@@ -863,35 +867,35 @@ Nodes (27): Driver onboarding: six-step flow audit and implementation plan, F01 
 
 ### Community 96 - "Cabzone Platform — Real-World Application Gap Analysis & Production Readiness Report"
 Cohesion: 0.07
-Nodes (27): 1.1 Concurrent Active Ride Creation (Critical), 1.2 Mid-Trip Destination Extension (Decided in PRD, Missing in API), 1.3 Post-Ride Rating & Review Submission, 1.4 Uncollected Rider Cancellation Fees, 1.5 Dispute Resolution Tickets, 1. Ride Lifecycle & State Machine Gaps, 3.1 Razorpay Production Hardening, 3.2 Formal Tax Invoicing (GST Compliance) (+19 more)
+Nodes (30): 1.1 Concurrent Active Ride Creation (Critical), 1.2 Mid-Trip Destination Extension (Decided in PRD, Missing in API), 1.3 Post-Ride Rating & Review Submission, 1.4 Uncollected Rider Cancellation Fees, 1.5 Dispute Resolution Tickets, 1. Ride Lifecycle & State Machine Gaps, 2.1 Outstation Rate Tiers in Web Admin, 2.2 Toll & State Permit Transparency (OQ-022) (+22 more)
 
 ### Community 97 - "showToast"
 Cohesion: 0.13
 Nodes (25): abandonForeignSession(), abandonSupersededGo(), cleanup(), clearScrollY(), discardedWrappers(), discardOrphanedSession(), discardStateStyleId(), handleDiscard() (+17 more)
 
-### Community 98 - "useRiders.ts"
-Cohesion: 0.09
-Nodes (31): ListRidersUseCase, calculateTrustScore(), TrustScoreInput, TrustScoreBadgeProps, RiderDetailModal(), RiderDetailModalProps, RiderEditDialogProps, RiderStatusDialog() (+23 more)
+### Community 98 - "RidersScreen.tsx"
+Cohesion: 0.08
+Nodes (39): metadata, TrustScoreBadge(), TrustScoreBadgeProps, RiderDetailModal(), RiderDetailModalProps, RiderEditDialog(), RiderEditDialogProps, FILLER_CUSTOMERS (+31 more)
 
-### Community 99 - "identity.test.ts"
-Cohesion: 0.05
-Nodes (35): AdminUserDeps, apps_api_src_modules_identity_domain_index_userentity, UserEntity, UserStatus, UserRepositoryPort, apps_api_src_modules_identity_index_adminuserentity, apps_api_src_modules_identity_index_adminusermodel, apps_api_src_modules_identity_index_canadminmanagezone (+27 more)
+### Community 99 - "UserEntity"
+Cohesion: 0.13
+Nodes (5): UserEntity, MongoUserRepository, TestMemoryUserRepo, MemoryUserRepository, TestMemoryUserRepo
 
-### Community 100 - "wallet-money-mongo.test.ts"
-Cohesion: 0.11
-Nodes (9): WalletOperationRepository, MongoWalletOperationRepository, schema, WalletOperationModel, MongoUnitOfWork, Implementation progress: transactional financial writes and ride transitions, packages_contracts_src_index_walletoperationdto, mongodb-memory-server (+1 more)
+### Community 100 - "mongoose"
+Cohesion: 0.10
+Nodes (17): PaymentEventDocument, PaymentEventModel, paymentEventSchema, MongoWalletOperationRepository, schema, WalletOperationModel, canonicalScope(), indexKeys (+9 more)
 
 ### Community 101 - "createQuote.usecase.ts"
-Cohesion: 0.09
-Nodes (27): CreateQuoteInput, integerSchema, pointSchema, quotePayloadSchema, QuoteTokenPayload, apps_api_src_modules_pricing_domain_index_calculatebasefareestimate, ClassifyServiceInput, apps_api_src_modules_zone_domain_index_ispointinpolygon (+19 more)
+Cohesion: 0.11
+Nodes (17): CreateQuoteInput, integerSchema, pointSchema, quotePayloadSchema, QuoteTokenPayload, apps_api_src_modules_pricing_domain_index_calculatebasefareestimate, ClassifyServiceInput, apps_api_src_modules_zone_zone_public_haversinedistancem (+9 more)
 
-### Community 102 - "seed.ts"
-Cohesion: 0.09
+### Community 102 - "env.ts"
+Cohesion: 0.08
 Nodes (41): allowDevShortcuts, currentDir, env, isDevelopment, isProduction, isStaging, isTest, loadEnv() (+33 more)
 
 ### Community 103 - "ride-negotiation.test.ts"
-Cohesion: 0.08
-Nodes (24): CancelRideInput, apps_api_src_modules_rides_domain_index_rideevententity, canTransitionRide(), RideEventEntity, apps_api_src_modules_rides_index_cancancelride, apps_api_src_modules_rides_index_cancelrideschema, apps_api_src_modules_rides_index_cantransitionride, apps_api_src_modules_rides_index_farenegotiationmodel (+16 more)
+Cohesion: 0.03
+Nodes (71): CancelRideInput, CancelRideResult, pendingCounters(), CANCELLATION_FEE_PAISE, CancellationFeeBreakdown, DRIVER_COMPENSATION_PAISE, MAX_DAILY_UNASSIGNED_CANCELLATIONS, MIN_DRIVER_NO_SHOW_WAIT_MS (+63 more)
 
 ### Community 104 - "document.md"
 Cohesion: 0.08
@@ -901,9 +905,9 @@ Nodes (23): Component translation rules, Narrative mapping, Pitfalls, Scan mode 
 Cohesion: 0.12
 Nodes (25): applyPlaceholderDimensions(), beginEditPin(), buildAnnotationsForCapture(), buildPinElement(), buildPlaceholderResizeHandles(), cancelEditingPin(), clampPlaceholderSize(), cursorForPlaceholderEdge() (+17 more)
 
-### Community 106 - "mongoPricingConfig.repository.ts"
-Cohesion: 0.43
-Nodes (4): apps_api_src_modules_pricing_domain_index_effectivepricingtarget, apps_api_src_modules_pricing_domain_index_ispricingconfigeffective, apps_api_src_modules_pricing_domain_index_pricingconfigentity, apps_api_src_modules_pricing_domain_index_pricingconfigfilter
+### Community 106 - "Detailed Chronology of Work Completed"
+Cohesion: 0.22
+Nodes (8): 2. Operational Web UI for Pricing (`apps/web/src/features/pricing`), 3. State GIS Reference System (`apps/api/src/modules/stateBoundary`), 4. Zone Management Enhancements (`apps/api` & `apps/web`), 5. Monorepo Verification & Test Expansion, Daily Work Log - Cabzone Platform, Detailed Chronology of Work Completed, Executive Summary, Verification & Metrics
 
 ### Community 107 - "adapt.md"
 Cohesion: 0.08
@@ -921,17 +925,17 @@ Nodes (21): Assemble and review, Component review, Prepare the component kit, Pr
 Cohesion: 0.09
 Nodes (22): Assess Onboarding Needs, Context Over Ceremony, Contextual Help, Design Onboarding Experiences, Documentation & Help, Empty State Design, Feature Discovery & Adoption, Guided Tours & Walkthroughs (+14 more)
 
-### Community 111 - "WalletEntity"
-Cohesion: 0.17
-Nodes (5): AdminAdjustWalletResult, WalletView, WalletEntity, WalletTransactionEntity, MongoWalletRepository
+### Community 111 - "WalletRepositoryPort"
+Cohesion: 0.10
+Nodes (8): AdminAdjustWalletResult, AdminAdjustWalletUseCase, WalletView, apps_api_src_modules_ledger_domain_index_calculatenewbalance, WalletEntity, WalletRepositoryPort, WalletTransactionEntity, MongoWalletRepository
 
 ### Community 112 - "web/package.json"
-Cohesion: 0.08
-Nodes (23): @cabzone/config, @cabzone/contracts, @cabzone/geo, lucide-react, react, react-dom, @types/node, @types/react (+15 more)
+Cohesion: 0.09
+Nodes (22): @cabzone/config, @cabzone/contracts, @cabzone/geo, lucide-react, react, react-dom, @types/node, @types/react (+14 more)
 
-### Community 113 - "AppError"
-Cohesion: 0.04
-Nodes (81): ParsedDriverLicenseFile, apps_api_src_modules_identity_domain_index_adminuserrepositoryport, apps_api_src_modules_identity_domain_index_riderrepositoryport, apps_api_src_modules_identity_domain_index_tokensignerport, apps_api_src_modules_identity_domain_index_userrepositoryport, IdentityContainerDeps, AdminScopeResolver, apps_api_src_modules_ledger_domain_index_calculatenewbalance (+73 more)
+### Community 113 - "RideRepositoryPort"
+Cohesion: 0.09
+Nodes (42): apps_api_src_modules_ledger_ledger_public_calculatenewbalance, apps_api_src_modules_ledger_ledger_public_walletentity, apps_api_src_modules_ledger_ledger_public_walletrepositoryport, apps_api_src_modules_pricing_pricing_public_createquoteusecase, AcceptRideDeps, AcceptRideInput, AcceptRideResult, CancelRideDeps (+34 more)
 
 ### Community 114 - "Ordered next steps"
 Cohesion: 0.09
@@ -946,12 +950,12 @@ Cohesion: 0.09
 Nodes (22): dependencies, @asteasolutions/zod-to-openapi, bullmq, @cabzone/contracts, @cabzone/geo, cookie-parser, cors, dotenv (+14 more)
 
 ### Community 117 - "GeoPoint"
-Cohesion: 0.07
-Nodes (33): CreateRideInput, DestinationStateResolverPort, GeocodeComponent, GeocodeResponse, GeocodeResult, GoogleGeocodingProvider, GoogleGeocodingProviderOptions, NullDestinationStateResolver (+25 more)
+Cohesion: 0.08
+Nodes (29): DestinationStateResolverPort, GeocodeComponent, GeocodeResponse, GeocodeResult, GoogleGeocodingProvider, GoogleGeocodingProviderOptions, NullDestinationStateResolver, KNOWN_INDIAN_PLACES (+21 more)
 
-### Community 118 - "CoverageRequestRepositoryPort"
+### Community 118 - "src/zones.ts"
 Cohesion: 0.07
-Nodes (25): ResolveZonesDeps, DestinationStateResolver, CoverageRequestInput, CoverageRequestRepositoryPort, apps_api_src_modules_zone_domain_index_zoneauditentity, ZoneAuditEntity, zoneAuditEntityToDto(), CoverageRequestModel (+17 more)
+Nodes (28): ResolveZonesDeps, CoverageRequestInput, CoverageRequestRepositoryPort, apps_api_src_modules_zone_domain_index_zoneauditentity, ZoneAuditEntity, CoverageRequestModel, coverageRequestSchema, MemoryCoverageRequestRepository (+20 more)
 
 ### Community 119 - "Ride Lifecycle"
 Cohesion: 0.13
@@ -973,25 +977,25 @@ Nodes (20): devDependencies, eslint, eslint-config-prettier, typescript, @typesc
 Cohesion: 0.10
 Nodes (19): Code Quality, Color and Surfaces, Component Patterns, Content, Design Audit, Fix Priority, How This Works, Iconography (+11 more)
 
-### Community 124 - "routing.test.ts"
+### Community 124 - "trustScore.calculator.ts"
 Cohesion: 0.29
-Nodes (5): apps_api_src_modules_routing_index_buildroutingcontainer, apps_api_src_modules_routing_index_getrouteusecase, apps_api_src_modules_routing_index_googleroutesprovider, apps_api_src_modules_routing_index_haversinerouteprovider, apps_api_src_modules_routing_index_ttlroutecache
+Nodes (6): calculateTrustScore(), TrustScoreInput, 14. The trust score uses cancellation proxies and omits dispute evidence, TrustScoreBreakdownDto, packages_contracts_src_index_trustscorebreakdowndto, packages_contracts_src_index_trusttier
 
 ### Community 125 - "Analysis & Synthesis Instructions"
 Cohesion: 0.11
 Nodes (18): 1. Define the Atmosphere, 2. Map the Color Palette, 3. Establish Typography Rules, 4. Define the Hero Section, 5. Describe Component Stylings, 6. Define Layout Principles, 7. Define Responsive Rules, 8. Encode Motion Philosophy (+10 more)
 
-### Community 126 - "rawBody.ts"
-Cohesion: 0.33
-Nodes (5): Express, RAW_BODY_ROUTES, Request, shouldCaptureRawBody(), app()
+### Community 126 - "express"
+Cohesion: 0.13
+Nodes (19): isProdLike, AppContainers, AdminRiderRouterDeps, RiderRouterDeps, buildApiRouter(), causeChain(), errorHandler(), notFoundHandler() (+11 more)
 
-### Community 127 - "Cabzonee Backend Engineering Audit Plan"
-Cohesion: 0.11
-Nodes (19): Audit evidence and issue report template, Baseline register, Cabzonee Backend Engineering Audit Plan, Current implementation review — 2026-10-13, Historical progress review — 2026-10-13, Initial finding register, Ordered audit execution plan, Phase 1 — Freeze the requirement baseline (+11 more)
+### Community 127 - "FinanceStatsDto"
+Cohesion: 0.07
+Nodes (25): 19. Finance queries and process-local infrastructure need scale tests, 20. Architecture rules and production release checks need broader evidence, Audit evidence and issue report template, Baseline register, Cabzonee Backend Engineering Audit Plan, Current implementation review — 2026-10-13, Findings to verify and address, Historical progress review — 2026-10-13 (+17 more)
 
 ### Community 128 - "Cabzone Driver: WebSocket + FCM implementation plan"
-Cohesion: 0.10
-Nodes (20): 1. Architecture decision, 2. What exists today (repository inspection, 14 October 2026), 3. Contract and invariants, 4.1 Reuse the hub; do not add Socket.IO, 4.2 Fix offer fan-out and removal, 4.3 Make Expo push production usable, 4.4 Presence and Redis dependency, 4. Backend implementation instructions (+12 more)
+Cohesion: 0.11
+Nodes (20): UpdateDriverLocationUseCase, 1. Architecture decision, 2. What exists today (repository inspection, 14 October 2026), 3. Contract and invariants, 4.1 Reuse the hub; do not add Socket.IO, 4.3 Make Expo push production usable, 4.4 Presence and Redis dependency, 4. Backend implementation instructions (+12 more)
 
 ### Community 129 - "Agent Skill: Principal UI/UX Architect & Motion Choreographer (Awwwards-Tier)"
 Cohesion: 0.11
@@ -1010,16 +1014,16 @@ Cohesion: 0.11
 Nodes (18): devDependencies, @cabzone/config, dependency-cruiser, esbuild, mongodb-memory-server, pino-pretty, supertest, tsx (+10 more)
 
 ### Community 133 - "Routing, State Pricing, Quote & Ride API — Implementation Plan for an AI Agent"
-Cohesion: 0.12
-Nodes (15): 0. Decisions (already made — do not reopen), 10. Definition of done, 11. Known limitations (do not "fix" unless asked), 1. Coding rules (follow exactly), 2. Environment gotchas (Windows), 3. Phase 1 — Routing module (api), 4. Phase 2 — Route state segmentation (geo + stateBoundary), 8. Phase 6 — Zone integrity and audit (zone, stateBoundary) (+7 more)
+Cohesion: 0.10
+Nodes (20): calculateBaseFareEstimate(), 3.1 `PricingConfigEntity` — add the outstation tier, 3.3 Mongo model + repository mapping, 3.4 `ResolveZonesUseCase` — resolve a pricing-eligible city even when pickup isn't inside one, 3. Backend changes, 0. Decisions (already made — do not reopen), 10. Definition of done, 11. Known limitations (do not "fix" unless asked) (+12 more)
 
 ### Community 134 - "SKILL: Industrial Brutalism & Tactical Telemetry UI"
 Cohesion: 0.12
 Nodes (16): 1. Skill Meta, 2.1 Swiss Industrial Print, 2.2 Tactical Telemetry & CRT Terminal, 2. Visual Archetypes, 3.1 Macro-Typography (Structural Headers), 3.2 Micro-Typography (Data & Telemetry), 3.3 Textural Contrast (Artistic Disruption), 3. Typographic Architecture (+8 more)
 
-### Community 135 - "paymentEvent.model.ts"
-Cohesion: 0.50
-Nodes (3): PaymentEventDocument, PaymentEventModel, paymentEventSchema
+### Community 135 - "user.model.ts"
+Cohesion: 0.33
+Nodes (6): UserDocument, UserModel, userSchema, USER_STATUSES, UserStatus, packages_contracts_src_index_user_statuses
 
 ### Community 136 - "48. Implementation Phases"
 Cohesion: 0.12
@@ -1053,17 +1057,13 @@ Nodes (14): Accessibility and control, Choose material by meaning, Find the job,
 Cohesion: 0.12
 Nodes (16): 1. Read the screenshot (if present), 2. Wrap the element, 3. Load the action's reference, 4. Plan three variants: identity first, then mode, then axes, 5. Apply the freeform prompt (if present), 6. Deliver variants, 7. Parameters (composition-sized, 0-4 per variant), 8. Signal done (+8 more)
 
-### Community 144 - "Daily Work Log - Cabzonee Platform"
-Cohesion: 0.50
-Nodes (3): Daily Work Log - Cabzonee Platform, Executive Summary, Test Verification & Metrics
+### Community 144 - "18. Non-Functional Requirements"
+Cohesion: 0.29
+Nodes (7): 18.1 Reliability and performance, 18.2 Offline behavior, 18.3 Accessibility, 18.4 Localization, 18.5 Security and privacy, 18.6 Observability, 18. Non-Functional Requirements
 
 ### Community 145 - "createLiveBrowserDomHelpers"
 Cohesion: 0.17
 Nodes (10): createLiveBrowserDomHelpers(), cssId(), liveUiRoot(), makeFrozenAnchor(), own(), pickable(), rectIsUsableAnchor(), uiAppend() (+2 more)
-
-### Community 147 - "refreshToken.usecase.ts"
-Cohesion: 0.28
-Nodes (7): apps_api_src_modules_identity_domain_index_issessionactive, apps_api_src_modules_identity_domain_index_resolveuserrole, resolveUserRole(), RefreshTokenRequestDto, RefreshTokenResponseDto, packages_contracts_src_index_refreshtokenrequestdto, packages_contracts_src_index_refreshtokenresponsedto
 
 ### Community 148 - "docker-compose.prod.yml"
 Cohesion: 0.25
@@ -1074,12 +1074,12 @@ Cohesion: 0.12
 Nodes (4): find(), require, source, ts
 
 ### Community 151 - "container.ts"
-Cohesion: 0.12
-Nodes (21): buildContainers(), canDriverGoOnline(), DriverEligibilityResult, DriverKycStatus, DriverOperationalStatus, DriverStatus, isDocumentValid(), isDriverEligibleForRide() (+13 more)
+Cohesion: 0.07
+Nodes (31): canDriverGoOnline(), DriverEligibilityResult, DriverKycStatus, DriverOperationalStatus, DriverStatus, isDocumentValid(), isDriverEligibleForRide(), canUserAuthenticate() (+23 more)
 
 ### Community 152 - "project-tracker-graph-context.md"
-Cohesion: 0.22
-Nodes (5): Driver recharge and cashout, First working release, Money invariants, Routes, Verification — 24 October 2026
+Cohesion: 0.14
+Nodes (9): Driver recharge and cashout, First working release, Money invariants, Routes, Verification — 24 October 2026, Development database audit, Findings and changes, Pricing verification — 26 October 2026 (+1 more)
 
 ### Community 153 - "tasteskill: Anti-Slop Frontend Skill"
 Cohesion: 0.13
@@ -1101,9 +1101,9 @@ Nodes (14): 1. Accessibility (A11y), 2. Performance, 3. Theming, 4. Responsive D
 Cohesion: 0.13
 Nodes (14): 1. Visual Theme & Atmosphere, 2. Color Palette & Roles, 3. Typography Rules, 4. Component Stylings, 5. Hero Section, 6. Layout Principles, 7. Responsive Rules, 8. Motion & Interaction (Code-Phase Intent) (+6 more)
 
-### Community 158 - "response.util.ts"
-Cohesion: 0.18
-Nodes (10): isProdLike, getRequestId(), meta(), HttpBody, HttpErrorBody, HttpSuccessBody, RequestMeta, packages_contracts_src_index_httperrorbody (+2 more)
+### Community 158 - "asyncHandler"
+Cohesion: 0.12
+Nodes (47): makeGetHealthController(), apps_api_src_modules_pricing_pricing_public_pricingconfigrepositoryport, apps_api_src_modules_rides_domain_index_derivepickupotp, apps_api_src_modules_rides_domain_index_ridenotifierport, derivePickupOtp(), ADMIN_ROLES, auth(), canView() (+39 more)
 
 ### Community 159 - "tokens.drift.test.ts"
 Cohesion: 0.21
@@ -1137,13 +1137,13 @@ Nodes (12): esbuild Bundle (server.js + worker.js), Turborepo CI/CD Pipeline, Ad
 Cohesion: 0.21
 Nodes (9): styles, ThemedTextProps, BottomTabInset, Colors, Fonts, MaxContentWidth, ThemeColor, apps_driver_mobile_src_global (+1 more)
 
-### Community 167 - "walletMoney.controller.ts"
-Cohesion: 0.24
-Nodes (9): cashoutSchema, idSchema, moneySchema, resolutionSchema, activity, denied, operation, recharge (+1 more)
+### Community 167 - "zod"
+Cohesion: 0.12
+Nodes (23): dependencyHealthSchema, healthReportSchema, cashoutSchema, idSchema, moneySchema, resolutionSchema, activity, denied (+15 more)
 
-### Community 168 - "calculateBaseFareEstimate"
-Cohesion: 0.18
-Nodes (12): calculateBaseFareEstimate(), 2. What does NOT change, 3.1 `PricingConfigEntity` — add the outstation tier, 3.3 Mongo model + repository mapping, 3.4 `ResolveZonesUseCase` — resolve a pricing-eligible city even when pickup isn't inside one, 3. Backend changes, 4. Test coverage to add/update, 5. Admin web changes (+4 more)
+### Community 168 - "rateLimit.ts"
+Cohesion: 0.47
+Nodes (4): makeRateLimit(), MongoRateLimitStore, RateCounter, schema
 
 ### Community 169 - "scripts"
 Cohesion: 0.12
@@ -1189,9 +1189,9 @@ Nodes (11): Assess Current State, Code Simplification, Content Simplification, D
 Cohesion: 0.17
 Nodes (11): Accessibility Resilience, Assess Hardening Needs, Edge Cases & Boundary Conditions, Error Handling, Hardening Dimensions, Input Validation & Sanitization, Internationalization (i18n), Performance Resilience (+3 more)
 
-### Community 180 - "RideRealtimeNotifier"
+### Community 180 - ".rideRequested"
 Cohesion: 0.12
-Nodes (6): OfferRecipientsPort, RideRealtimeNotifier, key(), MemoryOfferRecipientsRepository, RedisOfferRecipientsRepository, RideLifecycleEvent
+Nodes (3): isDriverEligibleForNewRides(), RideLifecycleEvent, 4.2 Fix offer fan-out and removal
 
 ### Community 181 - "devDependencies"
 Cohesion: 0.17
@@ -1234,12 +1234,12 @@ Cohesion: 0.18
 Nodes (11): scripts, android, dev, dev:push, ios, lint, start, start:push (+3 more)
 
 ### Community 191 - "Detailed Chronology of Work Completed"
-Cohesion: 0.17
-Nodes (11): 1. Routing Engine, Geocoding & Multi-State Breakdown, 2. Admin Control Plane, Riders & Drivers, 3. Track 1: Live Ride Creation & Negotiation Simulator (`/quotes`), 4. Track 3: Wallet Commission Settlement & Invariant Hardening, 6. Track 4: Finance & Ledger Control Center (`/finance`), 7. Track 5: Developer Simulators Hub Consolidation (`/simulators`), 9. Track 7: Finance & Driver Balances Center (Matching Screenshot `uploaded_media_1791205065496.png`), Daily Work Log - Cabzone Platform (+3 more)
+Cohesion: 0.18
+Nodes (10): 2. Admin Control Plane, Riders & Drivers, 3. Track 1: Live Ride Creation & Negotiation Simulator (`/quotes`), 4. Track 3: Wallet Commission Settlement & Invariant Hardening, 6. Track 4: Finance & Ledger Control Center (`/finance`), 7. Track 5: Developer Simulators Hub Consolidation (`/simulators`), 9. Track 7: Finance & Driver Balances Center (Matching Screenshot `uploaded_media_1791205065496.png`), Daily Work Log - Cabzone Platform, Detailed Chronology of Work Completed (+2 more)
 
 ### Community 192 - "Cabzone Customer App: Pages, Components, Navigation and Implementation Plan"
-Cohesion: 0.04
-Nodes (45): 10.1 `PAYMENT_PENDING` screen **(Proposed, confirm Q3)**, 10.2 Dispute flow, 10.3 Receipt, 10. Payments and Disputes, 11.1 Pickup OTP, 11.2 Safety sheet **(Proposed)**, 11. Safety and OTP Security, 12. Push Notifications and Deep Links **(Proposed, Q7)** (+37 more)
+Cohesion: 0.18
+Nodes (11): 12. Push Notifications and Deep Links **(Proposed, Q7)**, 14. Location, Maps and Driver Tracking, 15. Backend API and Realtime Integration Map, 19. Phased Implementation Plan, 1. Purpose and Source of Truth, 20. Testing Strategy, 21. Risks and Mitigations, 22. Definition of Done (MVP) (+3 more)
 
 ### Community 193 - "compilerOptions"
 Cohesion: 0.18
@@ -1309,6 +1309,10 @@ Nodes (9): Color, Components, Layout, Motion, Operate mode depth (and Read notes
 Cohesion: 0.22
 Nodes (8): Cadence, Confirm and stop, Phase 1: Discovery interview, Phase 2: Resolve the design direction, Phase 3: Write the brief, Round 1: purpose, people, and outcome, Round 2: material, behavior, and boundaries, Shape
 
+### Community 210 - "FaultCode"
+Cohesion: 0.40
+Nodes (3): Backend (`apps/api`), FAULT_CODES, FaultCode
+
 ### Community 211 - "wallet-money.test.mjs"
 Cohesion: 0.31
 Nodes (7): button(), compile(), find(), helpers, input(), screen(), ts
@@ -1322,8 +1326,8 @@ Cohesion: 0.50
 Nodes (3): Daily Work Log - Cabzone Platform, Validation record, Work completed
 
 ### Community 214 - "dailyworklog.md"
-Cohesion: 0.17
-Nodes (8): Daily Work Log - Cabzone Platform, Work completed, Daily Work Log - Cabzone Platform, Executive Summary, Verification & Metrics, Daily Work Log - Cabzone Platform, Work completed, Daily Work Logs - Cabzone Platform
+Cohesion: 0.18
+Nodes (7): Daily Work Log - Cabzone Platform, Work completed, Daily Work Log - Cabzone Platform, Work completed, Daily Work Log - Cabzone Platform, Work completed, Daily Work Logs - Cabzone Platform
 
 ### Community 215 - "9. AI TELLS (Forbidden Patterns)"
 Cohesion: 0.25
@@ -1340,6 +1344,10 @@ Nodes (8): 8. ANTI-AI-SLOP RULES, Carousel / marquee slop (layout), Content slop
 ### Community 218 - "Android platform"
 Cohesion: 0.25
 Nodes (8): Android platform, Color & theming, Components & motion, Layout & structure, The Android slop test, Touch targets, Typography, Verifying the build
+
+### Community 219 - "17. Screen Specifications and Acceptance Criteria"
+Cohesion: 0.40
+Nodes (5): 17.1 Auth and onboarding, 17.2 Tabs, 17.3 Ride screens, 17.4 Account screens, 17. Screen Specifications and Acceptance Criteria
 
 ### Community 220 - "Persona-Based Design Testing"
 Cohesion: 0.25
@@ -1371,7 +1379,11 @@ Nodes (7): compilerOptions, paths, strict, extends, include, expo/tsconfig.base,
 
 ### Community 227 - "animated-icon.tsx"
 Cohesion: 0.22
-Nodes (6): glowKeyframe, keyframe, logoKeyframe, styles, expo-splash-screen, react-native-worklets
+Nodes (6): glowKeyframe, keyframe, logoKeyframe, styles, ref_expo_splash_screen, ref_react_native_worklets
+
+### Community 228 - "8. Counter-Offers and Intercity"
+Cohesion: 0.40
+Nodes (5): 8.1 Counter-offer model (existing backend contract), 8.2 Reducer rules, 8.3 Counter card UI, 8.4 Intercity (Outstation) specifics **(Proposed)**, 8. Counter-Offers and Intercity
 
 ### Community 229 - "docs/engineering/mobile-in-monorepo.md"
 Cohesion: 0.29
@@ -1385,13 +1397,13 @@ Nodes (7): Driver Mobile App Setup Guide, Step 1: Initialize the Expo App, Step 
 Cohesion: 0.29
 Nodes (6): APPENDICES - Real Source-Backed Reference Material, Appendix A - Install Commands per Design System, Appendix C - Apple Liquid Glass: Honest Web Approximation, Safer web approximation skeleton, What is NOT official, What is official
 
-### Community 232 - "access-log.middleware.ts"
-Cohesion: 0.21
-Nodes (10): accessLogMiddleware(), isSilent(), SILENT_PATHS, RequestContext, runWithContext(), storage, REQUEST_ID_HEADER, requestIdMiddleware() (+2 more)
+### Community 232 - "esbuild.config.mjs"
+Cohesion: 0.50
+Nodes (3): external, pkg, esbuild
 
 ### Community 233 - "animated-icon.web.tsx"
 Cohesion: 0.22
-Nodes (6): apps_driver_mobile_src_components_animated_icon_module, glowKeyframe, keyframe, logoKeyframe, styles, react-native-reanimated
+Nodes (6): apps_driver_mobile_src_components_animated_icon_module, glowKeyframe, keyframe, logoKeyframe, styles, ref_react_native_reanimated
 
 ### Community 234 - "11. REDESIGN PROTOCOL"
 Cohesion: 0.29
@@ -1471,7 +1483,7 @@ Nodes (4): action(), find(), require, ts
 
 ### Community 253 - "driver-mobile/eslint.config.js"
 Cohesion: 0.29
-Nodes (6): { defineConfig }, expoConfig, { defineConfig }, expoConfig, eslint, eslint-config-expo
+Nodes (6): { defineConfig }, expoConfig, { defineConfig }, expoConfig, ref_eslint, ref_eslint_config_expo
 
 ### Community 254 - "scripts"
 Cohesion: 0.29
@@ -1525,6 +1537,10 @@ Nodes (5): After approval: the comp becomes a spec, Generate three compositional
 Cohesion: 0.60
 Nodes (5): impeccable script, check_download(), fetch_url(), probe_ok(), setup_help()
 
+### Community 269 - "10. Payments and Disputes"
+Cohesion: 0.50
+Nodes (4): 10.1 `PAYMENT_PENDING` screen **(Proposed, confirm Q3)**, 10.2 Dispute flow, 10.3 Receipt, 10. Payments and Disputes
+
 ### Community 270 - "AGENTS.md"
 Cohesion: 0.33
 Nodes (5): Building with EAS, Commands, Expo has changed — do not trust your training data, Navigation & Routing, Rules
@@ -1545,9 +1561,9 @@ Nodes (4): D-035: Interstate Route Segmentation Pricing, Interstate Route Segmen
 Cohesion: 0.33
 Nodes (6): devDependencies, eslint, eslint-config-expo, @expo/ngrok, @types/react, typescript
 
-### Community 275 - "ZoneEntity"
-Cohesion: 0.04
-Nodes (79): CityZoneEntity, CityZoneDocument, CityZoneModel, cityZoneSchema, polygonSchema, ActivateZoneDeps, DeactivateZoneDeps, DeleteZoneDeps (+71 more)
+### Community 275 - "newUuid"
+Cohesion: 0.06
+Nodes (48): ActivateZoneDeps, DeactivateZoneDeps, DeleteZoneDeps, GetZoneDeps, GetZoneDependentsDeps, ZoneDependentsResult, GetZoneHistoryDeps, ZoneHistoryResult (+40 more)
 
 ### Community 276 - "45. Critical Geographic Tests"
 Cohesion: 0.33
@@ -1566,8 +1582,8 @@ Cohesion: 0.33
 Nodes (5): 2. Mobile Apps Planning, Daily Work Log - Cabzone Platform, Executive Summary, Next Steps, Work Completed
 
 ### Community 280 - "6. Ride Lifecycle Specification"
-Cohesion: 0.29
-Nodes (7): 6.1 Status model (existing backend contract), 6.2 Legal transitions (existing domain contract), 6.3 Status -> UI mapping, 6.4 `OFFERING` stage detail, 6.5 Cancellation **(Proposed)**, 6.6 Edge cases the screen must handle, 6. Ride Lifecycle Specification
+Cohesion: 0.33
+Nodes (6): 6.1 Status model (existing backend contract), 6.2 Legal transitions (existing domain contract), 6.3 Status -> UI mapping, 6.4 `OFFERING` stage detail, 6.6 Edge cases the screen must handle, 6. Ride Lifecycle Specification
 
 ### Community 281 - "42. Implementation Order"
 Cohesion: 0.33
@@ -1613,9 +1629,13 @@ Nodes (4): Impeccable Documenter, Input Contract, Output Contract, Workflow
 Cohesion: 0.40
 Nodes (5): collectEditableTextRows(), visit(), enableInlineEdit(), onInlineInput(), wrapMixedContentTextNodes()
 
-### Community 330 - "ref_node_fs"
-Cohesion: 0.18
-Nodes (8): external, pkg, harness(), render(), require, ts, esbuild, ref_node_fs
+### Community 330 - "driver-mobile/src/context/ride-context.test.mjs"
+Cohesion: 0.33
+Nodes (4): harness(), render(), require, ts
+
+### Community 331 - "9. Realtime and Recovery"
+Cohesion: 0.50
+Nodes (4): 9.1 Connection lifecycle, 9.2 Reconciliation rules, 9.3 Event -> effect table (existing notifier contract), 9. Realtime and Recovery
 
 ### Community 332 - "declarations.d.ts"
 Cohesion: 0.40
@@ -1637,9 +1657,17 @@ Nodes (5): 4. Driver State Model, Availability, KYC, Location, Trip
 Cohesion: 0.40
 Nodes (5): 13.1 Layers, 13.2 Query key and caching conventions, 13.3 Storage, 13.4 Networking (`src/services/api.ts`), 13. State Management and Storage Architecture
 
+### Community 337 - "11. Safety and OTP Security"
+Cohesion: 0.67
+Nodes (3): 11.1 Pickup OTP, 11.2 Safety sheet **(Proposed)**, 11. Safety and OTP Security
+
 ### Community 354 - "5. Navigation, Bootstrap Gate and Deep Links"
 Cohesion: 0.40
 Nodes (5): 5.1 `index.tsx` decision order, 5.2 Guards, 5.3 Deep links **(Proposed)**, 5.4 Active-ride banner, 5. Navigation, Bootstrap Gate and Deep Links
+
+### Community 366 - "16. Design Tokens and Shared Components"
+Cohesion: 0.67
+Nodes (3): 16.1 Tokens, 16.3 Formatting helpers (`src/lib/format.ts`), 16. Design Tokens and Shared Components
 
 ### Community 367 - "41. Test Matrix"
 Cohesion: 0.40
@@ -1669,6 +1697,10 @@ Nodes (4): 14. HERO MINIMALISM RULES, Absolute Hero Rules, Headline Rule, Hero C
 Cohesion: 0.50
 Nodes (4): 37. EXAMPLE INTERPRETATIONS, Example 1, Example 2, Example 3
 
+### Community 375 - "3. Out of Scope and Open Questions"
+Cohesion: 0.67
+Nodes (3): 3.1 Out of scope for MVP, 3.2 Open questions (must be resolved before the phase that depends on them), 3. Out of Scope and Open Questions
+
 ### Community 385 - "2. PLATFORM MODE RULE"
 Cohesion: 0.50
 Nodes (4): 2. PLATFORM MODE RULE, Android-native premium, Cross-platform premium neutral, iOS-native premium
@@ -1697,10 +1729,6 @@ Nodes (4): 37. Testing, Failure tests, Integration, Unit
 Cohesion: 0.50
 Nodes (4): 43. End-to-End Example, Example A — City-fringe destination, Example B — Another city, Example C — Pickup outside every CITY
 
-### Community 399 - "health.ts"
-Cohesion: 0.50
-Nodes (3): DependencyHealth, DependencyStatus, HealthReport
-
 ### Community 418 - "scripts"
 Cohesion: 0.50
 Nodes (4): scripts, lint, test, typecheck
@@ -1713,17 +1741,17 @@ Nodes (3): extends, include, @cabzone/config/tsconfig.react.json
 Cohesion: 0.67
 Nodes (3): 1. Objective, 2. Architecture, Cabzonee Zones Tab & Backend — Full Implementation Plan
 
-### Community 425 - "endpoints/wallets.ts"
-Cohesion: 0.08
-Nodes (26): ListTransactionsResult, ListWalletsResult, apps_api_src_modules_ledger_domain_index_walletentity, apps_api_src_modules_ledger_domain_index_wallettransactionentity, UserLookupItem, LedgerLookups, WalletViewDto, AdjustBalanceDialogProps (+18 more)
+### Community 425 - "WalletTransactionDto"
+Cohesion: 0.27
+Nodes (6): ListTransactionsResult, WalletViewDto, TransactionsLedgerTableProps, ListTransactionsQueryDto, WalletDto, WalletTransactionDto
 
 ### Community 428 - "docs/engineering/design-language.md"
 Cohesion: 0.40
 Nodes (4): Map Interaction & Zone Visualization Guidelines, Cabzonee UI Design Character, Role-Based Interface Priorities, Multi-Modal Status Indicator Standard
 
 ### Community 429 - "ride-lifecycle-mongo.test.ts"
-Cohesion: 0.09
-Nodes (34): ZoneIdExtractor, apps_api_src_modules_ledger_index_memorywalletrepository, apps_api_src_modules_ledger_index_walletentity, apps_api_src_modules_pricing_index_createquoteusecase, apps_api_src_modules_pricing_index_memorypricingconfigrepository, apps_api_src_modules_pricing_index_pricingconfigentity, CreateRideUseCase, apps_api_src_modules_rides_index_acceptrideusecase (+26 more)
+Cohesion: 0.04
+Nodes (79): apps_api_src_modules_ledger_index_memorywalletrepository, apps_api_src_modules_ledger_index_walletentity, MemoryWalletRepository, CreateQuoteUseCase, apps_api_src_modules_pricing_index_createpricingconfigusecase, apps_api_src_modules_pricing_index_createquoteusecase, apps_api_src_modules_pricing_index_memorypricingconfigrepository, apps_api_src_modules_pricing_index_pricingconfigentity (+71 more)
 
 ### Community 431 - "10. Realtime Communication"
 Cohesion: 0.67
@@ -1750,24 +1778,24 @@ Cohesion: 0.67
 Nodes (3): peerDependencies, react, react-dom
 
 ## Knowledge Gaps
-- **2712 isolated node(s):** `name`, `main`, `version`, `@cabzone/contracts`, `@cabzone/contracts` (+2707 more)
-  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 3416 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
-- **117 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **2737 isolated node(s):** `MODULE_TIERS`, `layeringRules`, `base`, `pkg`, `external` (+2732 more)
+  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 3446 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+- **120 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `react` connect `react` to `collapsible.tsx`, `animated-icon.tsx`, `rider-mobile/src/services/api.ts`, `expo-router`, `useAuth`, `next`, `driver-mobile/package.json`, `DateFilter.tsx`, `booking-map.tsx`, `AdminsScreen.tsx`, `RideDispatchMap.tsx`, `contracts/src/index.ts`, `Tooltip.tsx`, `CustomerAppSimulatorSection.tsx`, `DriverDetailsScreen.tsx`, `RidersScreen.tsx`, `ZonesScreen.tsx`, `driver-mobile/src/services/api.ts`?**
-  _High betweenness centrality (0.064) - this node is a cross-community bridge._
-- **Why does `RideStatus` connect `ride.model.ts` to `Cabzone Customer App: Pages, Components, Navigation and Implementation Plan`, `6. Ride Lifecycle Specification`, `rider-mobile/src/services/api.ts`, `expo-router`, `useFinance.ts`, `ride-negotiation.test.ts`, `contracts/src/index.ts`, `dispatch.container.ts`, `CustomerAppSimulatorSection.tsx`, `Cabzone Driver App — Pages, Components, Navigation and Implementation Plan`, `RideEntity`, `driver-mobile/src/services/api.ts`?**
-  _High betweenness centrality (0.032) - this node is a cross-community bridge._
-- **Why does `newUuid()` connect `newUuid` to `admin-users-api.test.ts`, `adminDriverApplications.usecase.ts`, `createQuote.usecase.ts`, `seed.ts`, `realtimeHub.ts`, `Routing, State Pricing, Quote & Ride API — Implementation Plan for an AI Agent`, `2. Step-by-step`, `identity.container.ts`, `AdminsScreen.tsx`, `driver-onboarding-api.test.ts`, `AppError`, `kyc-review-mongo.test.ts`, `ZoneEntity`, `CoverageRequestRepositoryPort`, `WalletMoneyUseCase`, `asyncHandler`, `pricing.container.ts`, `RideEntity`?**
-  _High betweenness centrality (0.032) - this node is a cross-community bridge._
+- **Why does `RideEntity` connect `RideEntity` to `ride-negotiation.test.ts`, `.badRequest`, `ride-lifecycle-mongo.test.ts`, `VehicleCategory`, `RideRepositoryPort`, `CompleteRideUseCase`, `.rideRequested`, `dispatch.container.ts`, `contracts/src/index.ts`, `riders-admin-api.test.ts`, `asyncHandler`, `driver-mobile/src/context/ride-context.tsx`?**
+  _High betweenness centrality (0.036) - this node is a cross-community bridge._
+- **Why does `newUuid()` connect `newUuid` to `admin-users-api.test.ts`, `AppError`, `2. Step-by-step`, `identity.container.ts`, `.badRequest`, `ref_lucide_react`, `DriverEntity`, `zone.container.ts`, `pricing.container.ts`, `riders-admin-api.test.ts`, `realtimeHub.ts`, `seed.ts`, `FaultCode`, `CompleteRideUseCase`, `WalletMoneyUseCase`, `PricingConfigRepositoryPort`, `createQuote.usecase.ts`, `env.ts`, `WalletRepositoryPort`, `RideRepositoryPort`, `src/zones.ts`?**
+  _High betweenness centrality (0.030) - this node is a cross-community bridge._
+- **Why does `RideStatus` connect `contracts/src/index.ts` to `Cabzone Customer App: Pages, Components, Navigation and Implementation Plan`, `6. Ride Lifecycle Specification`, `rider-mobile/src/services/api.ts`, `ref_react`, `useFinance.ts`, `ride-negotiation.test.ts`, `driver-mobile/src/services/api.ts`, `RidesScreen.tsx`, `dispatch.container.ts`, `Cabzone Driver App — Pages, Components, Navigation and Implementation Plan`, `RideEntity`, `driver-mobile/src/context/ride-context.tsx`?**
+  _High betweenness centrality (0.030) - this node is a cross-community bridge._
 - **Are the 2 inferred relationships involving `asyncHandler()` (e.g. with `Backend (`apps/api`)` and `Backend (`apps/api`) — clean architecture, per module`) actually correct?**
   _`asyncHandler()` has 2 INFERRED edges - model-reasoned connections that need verification._
-- **What connects `name`, `main`, `version` to the rest of the system?**
-  _2712 weakly-connected nodes found - possible documentation gaps or missing edges._
+- **What connects `MODULE_TIERS`, `layeringRules`, `base` to the rest of the system?**
+  _2737 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `kyc.validation.ts` be split into smaller, more focused modules?**
-  _Cohesion score 0.049682875264270614 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.05094130675526024 - nodes in this community are weakly interconnected._
 - **Should `admin-users-api.test.ts` be split into smaller, more focused modules?**
-  _Cohesion score 0.053613053613053616 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.06093189964157706 - nodes in this community are weakly interconnected._
