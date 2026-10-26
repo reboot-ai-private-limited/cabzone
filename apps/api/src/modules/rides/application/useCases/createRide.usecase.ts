@@ -1,5 +1,6 @@
 import {
   DEFAULT_CANCELLATION_FEE_PAISE,
+  type ActiveRideConflictDetailsDto,
   type GeoPoint,
   type PaymentMethod,
   type VehicleCategory,
@@ -23,6 +24,22 @@ import type {
 } from '../../domain/index.js';
 import type { UnitOfWorkPort } from '../../../../shared/db/unitOfWork.port.js';
 
+const IDEMPOTENCY_KEY_REGEX = /^[a-zA-Z0-9:_-]{8,128}$/;
+
+function isDuplicateKeyError(error: unknown): boolean {
+  return Boolean(error && typeof error === 'object' && 'code' in error && error.code === 11000);
+}
+
+function activeRideConflictError(existing: Pick<RideEntity, 'id' | 'status'>): AppError {
+  const details: ActiveRideConflictDetailsDto = {
+    code: 'ACTIVE_RIDE_EXISTS',
+    rideId: existing.id,
+    status: existing.status,
+    ridePath: `/api/v1/rides/${existing.id}`,
+  };
+  return AppError.conflict('ACTIVE_RIDE_EXISTS: Rider already has an active ride.', details);
+}
+
 export interface CreateRideInput {
   quoteToken: string;
   proposedFarePaise: number;
@@ -32,7 +49,13 @@ export interface CreateRideInput {
   pickup: GeoPoint & { address?: string | null | undefined };
   drop: GeoPoint & { address?: string | null | undefined };
   vehicleCategory: VehicleCategory;
+  idempotencyKey?: string | undefined;
   paymentMethod?: PaymentMethod | undefined;
+}
+
+export interface CreateRideResult {
+  ride: RideEntity;
+  replayed: boolean;
 }
 
 export interface CreateRideDeps {
@@ -48,10 +71,80 @@ export class CreateRideUseCase {
   constructor(private readonly deps: CreateRideDeps) {}
 
   async execute(input: CreateRideInput): Promise<RideEntity> {
-    return this.deps.unitOfWork.run(() => this.create(input));
+    return (await this.executeWithMeta(input)).ride;
   }
 
-  private async create(input: CreateRideInput): Promise<RideEntity> {
+  async executeWithMeta(input: CreateRideInput): Promise<CreateRideResult> {
+    const idempotencyKey = input.idempotencyKey?.trim() || null;
+    if (idempotencyKey !== null && !IDEMPOTENCY_KEY_REGEX.test(idempotencyKey)) {
+      throw AppError.badRequest(
+        'INVALID_IDEMPOTENCY_KEY: idempotencyKey must be 8-128 alphanumeric, :, _, or - characters.',
+      );
+    }
+
+    await this.deps.rideRepo.ensureReady?.();
+
+    try {
+      return await this.deps.unitOfWork.run(() => this.create(input, idempotencyKey));
+    } catch (error) {
+      if (!isDuplicateKeyError(error)) {
+        throw error;
+      }
+      if (idempotencyKey) {
+        const replay = await this.deps.rideRepo.findByBookerIdempotencyKey(
+          input.riderId,
+          idempotencyKey,
+        );
+        if (replay) {
+          this.assertMatchingIdempotentReplay(replay, input);
+          return { ride: replay, replayed: true };
+        }
+      }
+      const existingActive = await this.deps.rideRepo.findActiveByBookerRiderId(input.riderId);
+      if (existingActive) {
+        throw activeRideConflictError(existingActive);
+      }
+      throw AppError.conflict('ACTIVE_RIDE_EXISTS: Rider already has an active ride.', {
+        code: 'ACTIVE_RIDE_EXISTS',
+      });
+    }
+  }
+
+  private assertMatchingIdempotentReplay(existing: RideEntity, input: CreateRideInput): void {
+    const matches =
+      existing.pickup.lat === input.pickup.lat &&
+      existing.pickup.lng === input.pickup.lng &&
+      (existing.pickup.address ?? null) === (input.pickup.address ?? null) &&
+      existing.drop.lat === input.drop.lat &&
+      existing.drop.lng === input.drop.lng &&
+      (existing.drop.address ?? null) === (input.drop.address ?? null) &&
+      existing.vehicleCategory === input.vehicleCategory &&
+      existing.passenger.name === input.passengerName &&
+      existing.passenger.phoneE164 === input.passengerPhoneE164 &&
+      (existing.version !== 1 || existing.proposedFarePaise === input.proposedFarePaise);
+    if (!matches) {
+      throw AppError.conflict(
+        'IDEMPOTENCY_KEY_REUSED: Idempotency key belongs to a ride request with different parameters.',
+        { code: 'IDEMPOTENCY_KEY_REUSED' },
+      );
+    }
+  }
+
+  private async create(
+    input: CreateRideInput,
+    idempotencyKey: string | null,
+  ): Promise<CreateRideResult> {
+    if (idempotencyKey) {
+      const existingByKey = await this.deps.rideRepo.findByBookerIdempotencyKey(
+        input.riderId,
+        idempotencyKey,
+      );
+      if (existingByKey) {
+        this.assertMatchingIdempotentReplay(existingByKey, input);
+        return { ride: existingByKey, replayed: true };
+      }
+    }
+
     // 0. Sovereign Domestic Boundary Restriction: strictly within India
     const pickupCheck = isPointInIndia(input.pickup);
     if (!pickupCheck.inside) {
@@ -119,6 +212,12 @@ export class CreateRideUseCase {
       );
     }
 
+    // 5. Enforce one active ride per booker rider (Decision D-043)
+    const existingActive = await this.deps.rideRepo.findActiveByBookerRiderId(input.riderId);
+    if (existingActive) {
+      throw activeRideConflictError(existingActive);
+    }
+
     // 5. Resolve cancellation policy & live unpaid rider arrears (D-044)
     const cancellationPolicy = resolveCancellationPolicy(currentConfig);
     const riderWallet = this.deps.walletRepo
@@ -141,6 +240,7 @@ export class CreateRideUseCase {
     const ride: RideEntity = {
       id: rideId,
       bookerRiderId: input.riderId,
+      idempotencyKey,
       passenger: {
         riderId: input.riderId,
         name: input.passengerName,
@@ -223,7 +323,7 @@ export class CreateRideUseCase {
       updatedAt: now,
     };
 
-    const saved = await this.deps.rideRepo.save(ride);
+    const saved = await this.deps.rideRepo.create(ride);
     await this.deps.rideEventRepo.save({
       id: newUuid(),
       rideId: saved.id,
@@ -234,6 +334,7 @@ export class CreateRideUseCase {
       newStatus: saved.status,
       metadata: {
         quoteId: quote.quoteId,
+        ...(idempotencyKey ? { idempotencyKey } : {}),
         arrearsPaise,
         ...(input.paymentMethod ? { paymentMethod: input.paymentMethod } : {}),
       },
@@ -252,6 +353,6 @@ export class CreateRideUseCase {
         createdAt: now,
       });
     }
-    return saved;
+    return { ride: saved, replayed: false };
   }
 }

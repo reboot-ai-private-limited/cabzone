@@ -28,6 +28,37 @@ export const RIDE_STATUSES = [
 
 export type RideStatus = (typeof RIDE_STATUSES)[number];
 
+/**
+ * Ride statuses that block a rider (`bookerRiderId`) from creating another ride (Decision D-043).
+ * Non-blocking statuses: SETTLED, CANCELLED, EXPIRED, PAYMENT_DISPUTED.
+ */
+export const ACTIVE_RIDE_STATUSES = [
+  'REQUESTED',
+  'OFFERING',
+  'DRIVER_ASSIGNED',
+  'DRIVER_EN_ROUTE',
+  'DRIVER_ARRIVED',
+  'TRIP_STARTED',
+  'TRIP_COMPLETED',
+  'PAYMENT_PENDING',
+  'PAYMENT_CONFIRMED',
+] as const satisfies readonly RideStatus[];
+
+export type ActiveRideStatus = (typeof ACTIVE_RIDE_STATUSES)[number];
+
+const ACTIVE_RIDE_STATUS_SET: ReadonlySet<RideStatus> = new Set(ACTIVE_RIDE_STATUSES);
+
+export function isActiveRideStatus(status: RideStatus): boolean {
+  return ACTIVE_RIDE_STATUS_SET.has(status);
+}
+
+export interface ActiveRideConflictDetailsDto {
+  code: 'ACTIVE_RIDE_EXISTS';
+  rideId: string;
+  status: RideStatus;
+  ridePath: string;
+}
+
 export const CANCELLATION_REASONS = [
   'RIDER_CHANGED_MIND',
   'DRIVER_DELAYED',

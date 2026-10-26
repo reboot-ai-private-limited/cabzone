@@ -1,3 +1,4 @@
+import { ACTIVE_RIDE_STATUSES } from '@cabzone/contracts';
 import type {
   RideCountFilter,
   RideEntity,
@@ -8,6 +9,15 @@ import { RideModel, type RideDocument } from './ride.model.js';
 import { AppError } from '../../../../shared/errors/AppError.js';
 
 export class MongoRideRepository implements RideRepositoryPort {
+  async ensureReady(): Promise<void> {
+    await RideModel.init();
+  }
+
+  async create(ride: RideEntity): Promise<RideEntity> {
+    const [doc] = await RideModel.create([this.toPersistence(ride)]);
+    return this.toEntity(doc!.toObject());
+  }
+
   private buildQuery(filter: RideCountFilter): Record<string, unknown> {
     const query: Record<string, unknown> = {};
     if (filter.riderId !== undefined) {
@@ -56,6 +66,29 @@ export class MongoRideRepository implements RideRepositoryPort {
     return doc ? this.toEntity(doc) : null;
   }
 
+  async findActiveByBookerRiderId(bookerRiderId: string): Promise<RideEntity | null> {
+    const doc = await RideModel.findOne({
+      booker_rider_id: bookerRiderId,
+      status: { $in: [...ACTIVE_RIDE_STATUSES] },
+    })
+      .lean<RideDocument | null>()
+      .exec();
+    return doc ? this.toEntity(doc) : null;
+  }
+
+  async findByBookerIdempotencyKey(
+    bookerRiderId: string,
+    idempotencyKey: string,
+  ): Promise<RideEntity | null> {
+    const doc = await RideModel.findOne({
+      booker_rider_id: bookerRiderId,
+      idempotency_key: idempotencyKey,
+    })
+      .lean<RideDocument | null>()
+      .exec();
+    return doc ? this.toEntity(doc) : null;
+  }
+
   async list(filter: RideListFilter): Promise<RideEntity[]> {
     const query = this.buildQuery(filter);
     const docs = await RideModel.find(query)
@@ -83,10 +116,7 @@ export class MongoRideRepository implements RideRepositoryPort {
         { created_at: { $gte: since } },
       ];
     }
-    const docs = await RideModel.find(query)
-      .sort({ created_at: -1 })
-      .lean<RideDocument[]>()
-      .exec();
+    const docs = await RideModel.find(query).sort({ created_at: -1 }).lean<RideDocument[]>().exec();
     return docs.map((d) => this.toEntity(d));
   }
 
@@ -298,6 +328,7 @@ export class MongoRideRepository implements RideRepositoryPort {
     return {
       _id: ride.id,
       booker_rider_id: ride.bookerRiderId,
+      idempotency_key: ride.idempotencyKey ?? null,
       passenger: {
         rider_id: ride.passenger.riderId,
         name: ride.passenger.name,
@@ -344,6 +375,7 @@ export class MongoRideRepository implements RideRepositoryPort {
     return {
       id: doc._id,
       bookerRiderId: doc.booker_rider_id,
+      idempotencyKey: doc.idempotency_key ?? null,
       passenger: {
         riderId: doc.passenger.rider_id,
         name: doc.passenger.name,

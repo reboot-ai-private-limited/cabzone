@@ -67,6 +67,18 @@ export const rideStatusSchema = z.enum(RIDE_STATUSES);
 export const negotiationActionSchema = z.enum(NEGOTIATION_ACTIONS);
 export const cancellationReasonSchema = z.enum(CANCELLATION_REASONS);
 
+export const idempotencyKeySchema = z
+  .string()
+  .trim()
+  .regex(
+    /^[a-zA-Z0-9:_-]{8,128}$/,
+    'idempotencyKey must be 8-128 alphanumeric, :, _, or - characters',
+  );
+
+export const createRideHeadersSchema = z.object({
+  'idempotency-key': idempotencyKeySchema.optional(),
+});
+
 export const createRideRequestSchema = z.object({
   quoteToken: z.string().trim().min(1, 'quoteToken is required'),
   proposedFarePaise: z.number().int().positive('Proposed fare must be positive'),
@@ -75,6 +87,7 @@ export const createRideRequestSchema = z.object({
   pickup: locationPointSchema,
   drop: locationPointSchema,
   riderId: z.string().uuid().optional(),
+  idempotencyKey: idempotencyKeySchema.optional(),
   paymentMethod: z.enum(PAYMENT_METHODS).optional(),
 });
 

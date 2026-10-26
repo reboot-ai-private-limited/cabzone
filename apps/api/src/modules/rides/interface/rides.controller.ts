@@ -26,6 +26,7 @@ import {
   cancelRideSchema,
   counterResponseSchema,
   driverCounterSchema,
+  createRideHeadersSchema,
   driverEarningsQuerySchema,
   driverHistoryQuerySchema,
   createRideRequestSchema,
@@ -80,7 +81,9 @@ async function toEnrichedRideView(ride: RideEntity, actors?: RideHttpContext): P
   }
 }
 
-function classifyPaymentCollection(paymentAudit: readonly RideEventEntity[]): 'CASH' | 'RAZORPAY_UPI' | 'RAZORPAY_TEST' | 'DIRECT' {
+function classifyPaymentCollection(
+  paymentAudit: readonly RideEventEntity[],
+): 'CASH' | 'RAZORPAY_UPI' | 'RAZORPAY_TEST' | 'DIRECT' {
   const confirmedMethod = paymentAudit.find((event) => event.eventType === 'PAYMENT_CONFIRMED')
     ?.metadata.method;
   const cash =
@@ -155,9 +158,18 @@ export function makeCreateRideController(
   actors: RideHttpContext,
 ): RequestHandler {
   return asyncHandler(async (req: Request, res: Response) => {
+    const headers = createRideHeadersSchema.parse({
+      'idempotency-key': req.get('Idempotency-Key') || undefined,
+    });
     const body = createRideRequestSchema.parse(req.body);
+    const headerKey = headers['idempotency-key'];
+    if (headerKey && body.idempotencyKey && headerKey !== body.idempotencyKey) {
+      throw AppError.badRequest(
+        'IDEMPOTENCY_KEY_MISMATCH: Idempotency-Key header and body idempotencyKey must match.',
+      );
+    }
     const riderId = await requireRiderId(req, actors);
-    const ride = await useCase.execute({
+    const { ride, replayed } = await useCase.executeWithMeta({
       quoteToken: body.quoteToken,
       proposedFarePaise: body.proposedFarePaise,
       riderId,
@@ -166,15 +178,18 @@ export function makeCreateRideController(
       pickup: body.pickup,
       drop: body.drop,
       vehicleCategory: body.vehicleCategory,
+      idempotencyKey: headerKey ?? body.idempotencyKey,
       paymentMethod: body.paymentMethod,
     });
-    await notify(actors.notifier?.rideRequested(ride));
+    if (!replayed) {
+      await notify(actors.notifier?.rideRequested(ride));
+    }
     sendSuccess(
       req,
       res,
       await toEnrichedRideView(ride, actors),
-      'Ride requested successfully',
-      201,
+      replayed ? 'Ride request replayed' : 'Ride requested successfully',
+      replayed ? 200 : 201,
     );
   });
 }
@@ -204,8 +219,7 @@ export function makeGetRideController(
     const paymentAudit = paymentEvents ? await paymentEvents.findByRideId(ride.id) : [];
     const paymentCollection = classifyPaymentCollection(paymentAudit);
     const includeDriverSettlement =
-      driverEarnings &&
-      (req.auth?.role === 'DRIVER' || ADMIN_ROLES.has(req.auth?.role ?? ''));
+      driverEarnings && (req.auth?.role === 'DRIVER' || ADMIN_ROLES.has(req.auth?.role ?? ''));
     const driverSettlement = includeDriverSettlement
       ? (await driverEarnings.buildSettlementMap([ride])).get(ride.id)
       : undefined;
@@ -268,8 +282,7 @@ export function makeListRidesController(
       throw AppError.forbidden('Insufficient permissions.');
     }
 
-    const cityZoneIds =
-      role === 'CITY_ADMIN' ? (req.adminCityZoneIds ?? []) : req.adminCityZoneIds;
+    const cityZoneIds = role === 'CITY_ADMIN' ? (req.adminCityZoneIds ?? []) : req.adminCityZoneIds;
 
     const rides = await rideRepo.list({
       riderId,
@@ -580,9 +593,7 @@ export function makeListPaymentDisputesController(
       }
       const pageIds = uniqueIds.slice(offset, offset + limit);
       const fetched = await Promise.all(pageIds.map((id) => rideRepo.findById(id)));
-      rides = fetched.filter(
-        (r): r is RideEntity => r !== null && r.status !== 'PAYMENT_DISPUTED',
-      );
+      rides = fetched.filter((r): r is RideEntity => r !== null && r.status !== 'PAYMENT_DISPUTED');
     } else {
       const [openRides, resolvedEvents] = await Promise.all([
         rideRepo.list({ statuses: ['PAYMENT_DISPUTED'], limit: limit + offset, offset: 0 }),
@@ -652,8 +663,7 @@ export function makeListPaymentDisputesController(
         const disputeRefund = txs.find(
           (t) => t.referenceType === 'DISPUTE_REFUND' && t.type === 'CREDIT',
         );
-        const farePaise =
-          ride.agreedFarePaise ?? ride.proposedFarePaise ?? ride.suggestedFarePaise;
+        const farePaise = ride.agreedFarePaise ?? ride.proposedFarePaise ?? ride.suggestedFarePaise;
         const onlineCommissionPaise = onlineCredit
           ? Math.max(0, farePaise - onlineCredit.amountPaise)
           : 0;
@@ -739,7 +749,9 @@ export function makeCancelRideController(
     const { reason } = cancelRideSchema.parse(req.body);
 
     const result = await useCase.execute({ rideId: id, actorType, actorId, reason });
-    const riderArrearsPaise = result.riderWallet ? Math.max(0, -result.riderWallet.balancePaise) : 0;
+    const riderArrearsPaise = result.riderWallet
+      ? Math.max(0, -result.riderWallet.balancePaise)
+      : 0;
     await notify(actors.notifier?.rideUpdated(result.ride, 'ride.cancelled', { reason }));
     sendSuccess(
       req,

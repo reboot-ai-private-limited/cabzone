@@ -495,21 +495,23 @@ describe('Step 15 Admin Permissions, City Scope & Operations Audit', () => {
     await f.rideRepo.save(makeRide(ownRideId, f.ownCity));
     await f.rideRepo.save(
       makeRide(foreignRideId, f.foreignCity, {
+        bookerRiderId: '018f0a00-0000-7000-8000-000000000102',
         driverId: '018f0a00-0000-7000-8000-000000000202',
       }),
     );
 
     // 1. Rides list only shows ownCity rides
-    const listRes = await request(f.app)
-      .get('/api/v1/rides')
-      .set('Authorization', cityAdmin.auth);
+    const listRes = await request(f.app).get('/api/v1/rides').set('Authorization', cityAdmin.auth);
     expect(listRes.status).toBe(200);
     expect(listRes.body.data.map((r: { id: string }) => r.id)).toEqual([ownRideId]);
 
     // 2. Direct foreign ride GET, events, and force-cancel all return 403
     expect(
-      (await request(f.app).get(`/api/v1/rides/${foreignRideId}`).set('Authorization', cityAdmin.auth))
-        .status,
+      (
+        await request(f.app)
+          .get(`/api/v1/rides/${foreignRideId}`)
+          .set('Authorization', cityAdmin.auth)
+      ).status,
     ).toBe(403);
     expect(
       (
@@ -608,7 +610,8 @@ describe('Step 15 Admin Permissions, City Scope & Operations Audit', () => {
 
     // 5. Global customer directory denied to CITY_ADMIN
     expect(
-      (await request(f.app).get('/api/v1/admin/riders').set('Authorization', cityAdmin.auth)).status,
+      (await request(f.app).get('/api/v1/admin/riders').set('Authorization', cityAdmin.auth))
+        .status,
     ).toBe(403);
   });
 

@@ -530,8 +530,10 @@ describe('Rides API', () => {
   it('lists only own rides for riders and drivers, everything for admins, with status filter', async () => {
     const s = await setup();
     const id = (await s.requestRide()).res.body.data.id as string;
-    await s.requestRide();
     await request(s.app).post(`/api/v1/rides/${id}/accept`).set('Authorization', s.driverAuth);
+    const first = (await s.rideRepo.findById(id))!;
+    await s.rideRepo.save({ ...first, status: 'SETTLED', settledAt: new Date() });
+    expect((await s.requestRide()).res.status).toBe(201);
 
     const list = (auth: string, qs = '') =>
       request(s.app).get(`/api/v1/rides${qs}`).set('Authorization', auth);
@@ -578,6 +580,77 @@ describe('Rides API', () => {
     ]);
     expect((await events(s.riderAuth)).status).toBe(200);
     expect((await events(s.otherRiderAuth)).status).toBe(404);
+  });
+
+  it('enforces one active ride per rider with 409 conflict link and supports idempotent retries', async () => {
+    const s = await setup();
+    const first = await s.requestRide();
+    expect(first.res.status).toBe(201);
+    const activeId = first.res.body.data.id as string;
+
+    const duplicate = await s.requestRide();
+    expect(duplicate.res.status).toBe(409);
+    expect(duplicate.res.body.code).toBe('CONFLICT');
+    expect(duplicate.res.body.message).toContain('ACTIVE_RIDE_EXISTS');
+    expect(duplicate.res.body.data).toEqual({
+      code: 'ACTIVE_RIDE_EXISTS',
+      rideId: activeId,
+      status: 'OFFERING',
+      ridePath: `/api/v1/rides/${activeId}`,
+    });
+
+    // Cancel first ride -> unblocks rider; verify Idempotency-Key replay and mismatch guards
+    await request(s.app)
+      .post(`/api/v1/rides/${activeId}/cancel`)
+      .set('Authorization', s.riderAuth)
+      .send({ reason: 'RIDER_CHANGED_MIND' });
+
+    const payload = {
+      quoteToken: first.quote.quoteToken,
+      proposedFarePaise: first.quote.suggestedFarePaise,
+      passenger: { name: 'Subir Roy', phoneE164: '+919876543210' },
+      vehicleCategory: 'CAB',
+      pickup: { ...pickup, address: 'Sevoke Road, Siliguri' },
+      drop: { ...drop, address: 'Hill Cart Road' },
+    };
+
+    const created = await request(s.app)
+      .post('/api/v1/rides')
+      .set('Authorization', s.riderAuth)
+      .set('Idempotency-Key', 'idem-book-attempt-001')
+      .send(payload);
+    expect(created.status).toBe(201);
+    expect(created.body.data).not.toHaveProperty('idempotencyKey');
+
+    const replayed = await request(s.app)
+      .post('/api/v1/rides')
+      .set('Authorization', s.riderAuth)
+      .set('Idempotency-Key', 'idem-book-attempt-001')
+      .send(payload);
+    expect(replayed.status).toBe(200);
+    expect(replayed.body.data.id).toBe(created.body.data.id);
+
+    const reusedDifferentFare = await request(s.app)
+      .post('/api/v1/rides')
+      .set('Authorization', s.riderAuth)
+      .set('Idempotency-Key', 'idem-book-attempt-001')
+      .send({ ...payload, proposedFarePaise: first.quote.suggestedFarePaise + 500 });
+    expect(reusedDifferentFare.status).toBe(409);
+    expect(reusedDifferentFare.body.data).toEqual({ code: 'IDEMPOTENCY_KEY_REUSED' });
+
+    const headerBodyMismatch = await request(s.app)
+      .post('/api/v1/rides')
+      .set('Authorization', s.riderAuth)
+      .set('Idempotency-Key', 'idem-header-0001')
+      .send({ ...payload, idempotencyKey: 'idem-body-00002' });
+    expect(headerBodyMismatch.status).toBe(400);
+
+    // PAYMENT_DISPUTED must not block new bookings (D-043)
+    const current = (await s.rideRepo.findById(created.body.data.id as string))!;
+    await s.rideRepo.save({ ...current, status: 'PAYMENT_DISPUTED' });
+    const afterDispute = await s.requestRide();
+    expect(afterDispute.res.status).toBe(201);
+    expect(afterDispute.res.body.data.id).not.toBe(created.body.data.id);
   });
 
   it('admin cannot impersonate a rider to create a ride', async () => {

@@ -40,8 +40,12 @@ function provider() {
       if (name === './auth-context') return { useAuth: () => ({ token: 'token-1' }) };
       if (name === '@/services/api') return { riderRidesApi: api, isApiError: (error) => error?.name === 'ApiError' };
       if (name === '@/services/rider-helpers') return {
+        extractActiveRideConflictId: (err) =>
+          err?.status === 409 && err?.details?.code === 'ACTIVE_RIDE_EXISTS'
+            ? err.details.rideId
+            : null,
         extractPendingDriverCounters: () => [],
-        isRideActive: () => false,
+        isRideActive: (status) => status === 'OFFERING' || status === 'PAYMENT_CONFIRMED',
       };
       throw new Error(`Unexpected module: ${name}`);
     },
@@ -81,4 +85,40 @@ test('superseded session work does not become a background error or reject', asy
   };
   await assert.doesNotReject(s.render().refreshRides());
   assert.equal(s.render().syncError, null);
+});
+
+test('createRide hydrates activeRide when server returns 409 ACTIVE_RIDE_EXISTS, and disputePayment unblocks', async () => {
+  const s = provider();
+  const existing = { id: 'ride-active-99', status: 'PAYMENT_CONFIRMED', createdAt: '2026-10-22T10:00:00Z' };
+  s.api.getRide = async (_token, id) => {
+    assert.equal(id, 'ride-active-99');
+    return existing;
+  };
+  s.api.getRideEvents = async () => [];
+  s.api.createRide = async () => {
+    const err = new Error('ACTIVE_RIDE_EXISTS: Rider already has an active ride.');
+    err.name = 'ApiError';
+    err.status = 409;
+    err.code = 'CONFLICT';
+    err.details = { code: 'ACTIVE_RIDE_EXISTS', rideId: 'ride-active-99', status: 'PAYMENT_CONFIRMED' };
+    throw err;
+  };
+
+  await assert.rejects(
+    s.render().createRide({
+      quoteToken: 'qt',
+      proposedFarePaise: 9000,
+      passenger: { name: 'Rider', phoneE164: '+919876543210' },
+      vehicleCategory: 'CAB',
+      pickup: { lat: 26.71, lng: 88.42 },
+      drop: { lat: 26.75, lng: 88.45 },
+    }),
+    /ACTIVE_RIDE_EXISTS/,
+  );
+  assert.equal(s.render().activeRide?.id, 'ride-active-99');
+
+  // Transitioning active ride to PAYMENT_DISPUTED unblocks the rider immediately (D-043)
+  s.api.disputePayment = async () => ({ ...existing, status: 'PAYMENT_DISPUTED' });
+  await s.render().disputePayment('ride-active-99', 'Overcharged cash fare');
+  assert.equal(s.render().activeRide, null);
 });

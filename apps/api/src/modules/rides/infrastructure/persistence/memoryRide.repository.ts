@@ -1,3 +1,4 @@
+import { isActiveRideStatus } from '@cabzone/contracts';
 import type {
   RideCountFilter,
   RideEntity,
@@ -6,8 +7,42 @@ import type {
 } from '../../domain/index.js';
 import { AppError } from '../../../../shared/errors/AppError.js';
 
+function duplicateKeyError(message: string): Error & { code: number } {
+  return Object.assign(new Error(message), { code: 11000 });
+}
+
 export class MemoryRideRepository implements RideRepositoryPort {
   private readonly rides = new Map<string, RideEntity>();
+
+  private assertUniqueConstraints(ride: RideEntity): void {
+    for (const existing of this.rides.values()) {
+      if (existing.id === ride.id) continue;
+      if (
+        typeof ride.idempotencyKey === 'string' &&
+        existing.bookerRiderId === ride.bookerRiderId &&
+        existing.idempotencyKey === ride.idempotencyKey
+      ) {
+        throw duplicateKeyError('E11000 duplicate key error index: rider_create_idempotency');
+      }
+      if (
+        isActiveRideStatus(ride.status) &&
+        existing.bookerRiderId === ride.bookerRiderId &&
+        isActiveRideStatus(existing.status)
+      ) {
+        throw duplicateKeyError('E11000 duplicate key error index: one_active_ride_per_rider');
+      }
+    }
+  }
+
+  async create(ride: RideEntity): Promise<RideEntity> {
+    if (this.rides.has(ride.id)) {
+      throw duplicateKeyError('E11000 duplicate key error index: _id_');
+    }
+    this.assertUniqueConstraints(ride);
+    const stored = structuredClone({ ...ride, updatedAt: new Date() });
+    this.rides.set(ride.id, stored);
+    return structuredClone(stored);
+  }
 
   private matches(r: RideEntity, filter: RideCountFilter): boolean {
     return (
@@ -26,6 +61,7 @@ export class MemoryRideRepository implements RideRepositoryPort {
   }
 
   async save(ride: RideEntity): Promise<RideEntity> {
+    this.assertUniqueConstraints(ride);
     this.rides.set(ride.id, structuredClone({ ...ride, updatedAt: ride.updatedAt ?? new Date() }));
     return structuredClone(this.rides.get(ride.id)!);
   }
@@ -38,6 +74,23 @@ export class MemoryRideRepository implements RideRepositoryPort {
 
   async findById(id: string): Promise<RideEntity | null> {
     const ride = this.rides.get(id);
+    return ride ? structuredClone(ride) : null;
+  }
+
+  async findActiveByBookerRiderId(bookerRiderId: string): Promise<RideEntity | null> {
+    const ride = [...this.rides.values()].find(
+      (r) => r.bookerRiderId === bookerRiderId && isActiveRideStatus(r.status),
+    );
+    return ride ? structuredClone(ride) : null;
+  }
+
+  async findByBookerIdempotencyKey(
+    bookerRiderId: string,
+    idempotencyKey: string,
+  ): Promise<RideEntity | null> {
+    const ride = [...this.rides.values()].find(
+      (r) => r.bookerRiderId === bookerRiderId && r.idempotencyKey === idempotencyKey,
+    );
     return ride ? structuredClone(ride) : null;
   }
 

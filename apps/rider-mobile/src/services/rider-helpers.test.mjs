@@ -6,6 +6,13 @@ import vm from 'node:vm';
 
 const require = createRequire(import.meta.url);
 const ts = require('typescript');
+const contractsRidesCode = ts.transpileModule(
+  readFileSync(new URL('../../../../packages/contracts/src/rides.ts', import.meta.url), 'utf8'),
+  { compilerOptions: { module: ts.ModuleKind.CommonJS } },
+).outputText;
+const contractsRidesModule = { exports: {} };
+vm.runInNewContext(contractsRidesCode, { exports: contractsRidesModule.exports, require: () => ({}) });
+
 const source = readFileSync(new URL('./rider-helpers.ts', import.meta.url), 'utf8');
 const code = ts.transpileModule(source, {
   compilerOptions: { module: ts.ModuleKind.CommonJS },
@@ -16,6 +23,7 @@ vm.runInNewContext(code, {
   require: (name) => {
     if (name === '@cabzone/contracts') {
       return {
+        ...contractsRidesModule.exports,
         VEHICLE_CATEGORY_REGISTRY: {
           CAB: { displayName: 'Cab (4 Seats)' },
           E_RICKSHAW: { displayName: 'E-Rickshaw (Toto)' },
@@ -27,6 +35,9 @@ vm.runInNewContext(code, {
 });
 const {
   clampProposedFarePaise,
+  createBookingIdempotencyKey,
+  extractActiveRideConflictId,
+  isRideActive,
   normalizeIndianPhoneE164,
   extractPendingDriverCounters,
   formatAssignedDriverSummary,
@@ -141,4 +152,38 @@ test('formatAssignedDriverSummary returns enriched driver and vehicle labels wit
   assert.equal(fallback.driverName, 'Driver #0195F1');
   assert.equal(fallback.vehicleLabel, 'Cab (4 Seats)');
   assert.equal(fallback.registrationNumber, null);
+});
+
+test('isRideActive matches the 9 D-043 blocking statuses and excludes the 4 non-blocking statuses', () => {
+  for (const blocking of [
+    'REQUESTED',
+    'OFFERING',
+    'DRIVER_ASSIGNED',
+    'DRIVER_EN_ROUTE',
+    'DRIVER_ARRIVED',
+    'TRIP_STARTED',
+    'TRIP_COMPLETED',
+    'PAYMENT_PENDING',
+    'PAYMENT_CONFIRMED',
+  ]) {
+    assert.equal(isRideActive(blocking), true, `Expected ${blocking} to be active`);
+  }
+  for (const nonBlocking of ['PAYMENT_DISPUTED', 'SETTLED', 'CANCELLED', 'EXPIRED']) {
+    assert.equal(isRideActive(nonBlocking), false, `Expected ${nonBlocking} to be non-blocking`);
+  }
+});
+
+test('extractActiveRideConflictId and createBookingIdempotencyKey follow API contract', () => {
+  assert.equal(
+    extractActiveRideConflictId({
+      status: 409,
+      details: { code: 'ACTIVE_RIDE_EXISTS', rideId: 'ride-123' },
+    }),
+    'ride-123',
+  );
+  assert.equal(extractActiveRideConflictId({ status: 409, details: { code: 'OTHER' } }), null);
+  assert.equal(extractActiveRideConflictId({ status: 400 }), null);
+
+  const key = createBookingIdempotencyKey();
+  assert.match(key, /^[a-zA-Z0-9:_-]{8,128}$/);
 });

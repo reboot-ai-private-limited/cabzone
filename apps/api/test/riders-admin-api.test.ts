@@ -178,6 +178,11 @@ class TestMemoryRideRepo implements RideRepositoryPort {
   }
   readonly rides = new Map<string, RideEntity>();
 
+  async create(ride: RideEntity): Promise<RideEntity> {
+    this.rides.set(ride.id, { ...ride });
+    return { ...ride };
+  }
+
   async save(ride: RideEntity): Promise<RideEntity> {
     this.rides.set(ride.id, { ...ride });
     return { ...ride };
@@ -186,6 +191,14 @@ class TestMemoryRideRepo implements RideRepositoryPort {
   async findById(id: string): Promise<RideEntity | null> {
     const r = this.rides.get(id);
     return r ? { ...r } : null;
+  }
+
+  async findActiveByBookerRiderId(): Promise<RideEntity | null> {
+    return null;
+  }
+
+  async findByBookerIdempotencyKey(): Promise<RideEntity | null> {
+    return null;
   }
 
   async list(filter: RideListFilter): Promise<RideEntity[]> {
