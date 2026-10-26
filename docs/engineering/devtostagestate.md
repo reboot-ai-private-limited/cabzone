@@ -62,6 +62,8 @@ The tracker has 27 tasks focused on financial accuracy, device testing, KYC, not
 
 **Already in tracker.** Repair duplicate active-pricing data before the unique index deployment; verify city → state → global fallback and D-039 interstate segments against signed quotes and saved rides. Run a real admin outstation-tier save/quote check rather than implementing the report's stale UI finding. Sync conflicting pricing docs after verification. Source: [D-039](../decision-log.md), [audit](../../audit.md).
 
+**26 October verification:** See [pricing verification](pricing-verification-2026-10-26.md). The development database has no duplicate ACTIVE scopes and already has the unique index; code regressions cover fallback, interstate rates, and saved ride snapshots. The authenticated admin browser check remains open.
+
 ### 12. Decide toll and permit quote treatment
 
 **New from gap report; product question open.** [OQ-022](../LLD/open-questions.md) calls for a separate, visible treatment but is not final. Decide provider availability, estimated-versus-final amounts, unavailable data behavior, and who pays. Then implement backend quote/ride snapshots and rider/driver display if required for staging.
