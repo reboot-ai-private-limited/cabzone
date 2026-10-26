@@ -18,9 +18,9 @@
     "semantic_hash": "a3ae3771b151f5755709cdefd4d7869e"
   },
   "apps/api/package.json": {
-    "mtime": 1793003057.1631434,
-    "seen": 1793004493.568964,
-    "ast_hash": "4f2e69415699a9fd663c9b7b887bc823",
+    "mtime": 1793007073.2016904,
+    "seen": 1793011953.1982398,
+    "ast_hash": "af0ea51c2eece7978d868efbff73fdfa",
     "semantic_hash": ""
   },
   "apps/api/src/app.ts": {
@@ -36,8 +36,8 @@
     "semantic_hash": ""
   },
   "apps/api/src/container.ts": {
-    "mtime": 1793001898.3725078,
-    "seen": 1793004493.5689716,
+    "mtime": 1793010174.2884288,
+    "seen": 1793011953.1982455,
     "ast_hash": "d5d9709456bacc67c40812823cc117c3",
     "semantic_hash": ""
   },
@@ -102,8 +102,8 @@
     "semantic_hash": "007c47dc295f70c1fb188558f6011a76"
   },
   "apps/api/src/server.ts": {
-    "mtime": 1792647215.4224477,
-    "seen": 1792650133.5152564,
+    "mtime": 1793010174.3001,
+    "seen": 1793011953.1987405,
     "ast_hash": "d0fddba37b91026e6160d541c690183e",
     "semantic_hash": "d0fddba37b91026e6160d541c690183e"
   },
@@ -252,8 +252,8 @@
     "semantic_hash": "e8fb9eba159beab60b34aa4a6b44c3ad"
   },
   "apps/web/src/lib/api/client.ts": {
-    "mtime": 1790692246.9485557,
-    "seen": 1791967765.427813,
+    "mtime": 1793010174.3165271,
+    "seen": 1793011953.1993577,
     "ast_hash": "68f4a9156f55fca0e9f94f4be93057e7",
     "semantic_hash": "68f4a9156f55fca0e9f94f4be93057e7"
   },
@@ -372,8 +372,8 @@
     "semantic_hash": ""
   },
   "docs/LLD/open-questions.md": {
-    "mtime": 1791200619.42117,
-    "seen": 1791207456.661326,
+    "mtime": 1793007521.8816545,
+    "seen": 1793011953.1996546,
     "ast_hash": "6f82fec5ff93611d5c1bf79a8194aa29",
     "semantic_hash": ""
   },
@@ -384,8 +384,8 @@
     "semantic_hash": ""
   },
   "docs/decision-log.md": {
-    "mtime": 1792647215.696692,
-    "seen": 1792740959.1559372,
+    "mtime": 1793007521.8831809,
+    "seen": 1793011953.1996722,
     "ast_hash": "de312687ffee14a8116f6db16c1266df",
     "semantic_hash": ""
   },
@@ -486,8 +486,8 @@
     "semantic_hash": ""
   },
   "docs/LLD/fare-engine.md": {
-    "mtime": 1790692246.9762814,
-    "seen": 1790765483.7989242,
+    "mtime": 1793007521.879478,
+    "seen": 1793011953.19965,
     "ast_hash": "7328c5634c8f044fccbb9b5d08510f21",
     "semantic_hash": ""
   },
@@ -498,8 +498,8 @@
     "semantic_hash": ""
   },
   "docs/LLD/ride-lifecycle.md": {
-    "mtime": 1790692246.9783013,
-    "seen": 1790765483.7989311,
+    "mtime": 1793007521.8821747,
+    "seen": 1793011953.1996577,
     "ast_hash": "26e5b9dd5cdffdea5d27cf52f3cffc2f",
     "semantic_hash": ""
   },
@@ -588,9 +588,9 @@
     "semantic_hash": ""
   },
   "packages/contracts/src/rides.ts": {
-    "mtime": 1793002534.6958885,
-    "seen": 1793004493.570509,
-    "ast_hash": "b1ccf938e63b5f8cc5224c154db83b03",
+    "mtime": 1793007073.28559,
+    "seen": 1793011953.199421,
+    "ast_hash": "962eaf87897d94212aad057025e18011",
     "semantic_hash": ""
   },
   "packages/contracts/src/vehicles.ts": {
@@ -630,14 +630,14 @@
     "semantic_hash": "27ff8e571a55f310d6c45637b1fc9b6c"
   },
   "apps/api/src/modules/identity/domain/driver.entity.ts": {
-    "mtime": 1792647215.3892274,
-    "seen": 1792650133.5148907,
+    "mtime": 1793010174.2930946,
+    "seen": 1793011953.198353,
     "ast_hash": "06cb54fe695bd8f2fa6ba8854cda99a3",
     "semantic_hash": "06cb54fe695bd8f2fa6ba8854cda99a3"
   },
   "apps/api/src/modules/identity/domain/index.ts": {
-    "mtime": 1792647215.390862,
-    "seen": 1792650133.5149062,
+    "mtime": 1793010174.2951202,
+    "seen": 1793011953.198369,
     "ast_hash": "1e9fcb31dbd3a0c25212e41339b0e79c",
     "semantic_hash": "1e9fcb31dbd3a0c25212e41339b0e79c"
   },
@@ -702,8 +702,8 @@
     "semantic_hash": "8d510d0d24d72d5a0c4b0438df946598"
   },
   "apps/api/src/modules/identity/infrastructure/persistence/index.ts": {
-    "mtime": 1790335383.4627557,
-    "seen": 1791967765.4270954,
+    "mtime": 1793010174.2976425,
+    "seen": 1793011953.1984134,
     "ast_hash": "f936cb3c33992ac2753fbdc93cc2208b",
     "semantic_hash": "f936cb3c33992ac2753fbdc93cc2208b"
   },
@@ -822,8 +822,8 @@
     "semantic_hash": "017a5d9d3673d68cfcccdd418517777a"
   },
   "apps/api/src/modules/identity/domain/driverDocument.entity.ts": {
-    "mtime": 1792647215.3892274,
-    "seen": 1792650133.514898,
+    "mtime": 1793010174.2930946,
+    "seen": 1793011953.1983607,
     "ast_hash": "6dd93d5987ef7c12d8c5ab0930c222e4",
     "semantic_hash": "6dd93d5987ef7c12d8c5ab0930c222e4"
   },
@@ -840,8 +840,8 @@
     "semantic_hash": "e0f5f49ed4aae44031a0bbf7d9918e9a"
   },
   "apps/api/src/modules/identity/infrastructure/persistence/driverDocument.model.ts": {
-    "mtime": 1790665226.93783,
-    "seen": 1791967765.427094,
+    "mtime": 1793010174.2976425,
+    "seen": 1793011953.1984117,
     "ast_hash": "958c7a64b9f0e97467a701e90f5a4964",
     "semantic_hash": "958c7a64b9f0e97467a701e90f5a4964"
   },
@@ -852,8 +852,8 @@
     "semantic_hash": "72afeb6c940f619a4fdc566a9e570101"
   },
   "apps/api/src/modules/identity/interface/kyc.validation.ts": {
-    "mtime": 1793001898.393176,
-    "seen": 1793004493.5692337,
+    "mtime": 1793010174.3001,
+    "seen": 1793011953.1984475,
     "ast_hash": "f68a775e6343fafbfe36cdb6c88f0ed2",
     "semantic_hash": ""
   },
@@ -864,32 +864,32 @@
     "semantic_hash": "e4d5facf2007b0d3288165381bbee569"
   },
   "packages/contracts/src/kyc.ts": {
-    "mtime": 1792647215.9513624,
-    "seen": 1792650133.5157993,
+    "mtime": 1793010174.3765416,
+    "seen": 1793011953.199416,
     "ast_hash": "4daaa9efbddb274dfd97c0e934bf000f",
     "semantic_hash": "4daaa9efbddb274dfd97c0e934bf000f"
   },
   "apps/api/src/modules/identity/application/useCases/createDriverApplication.usecase.ts": {
-    "mtime": 1792647215.3865502,
-    "seen": 1792650133.514864,
+    "mtime": 1793010174.2890453,
+    "seen": 1793011953.198328,
     "ast_hash": "cb52cd84f7d57ac543dc6fa6d8139cad",
     "semantic_hash": "cb52cd84f7d57ac543dc6fa6d8139cad"
   },
   "apps/api/src/modules/identity/application/useCases/createDriverProfile.usecase.ts": {
-    "mtime": 1792647215.3865502,
-    "seen": 1792650133.5148654,
+    "mtime": 1793010174.2890453,
+    "seen": 1793011953.19833,
     "ast_hash": "068fd7dfa0c8fff1e08d53edd695cc0d",
     "semantic_hash": "068fd7dfa0c8fff1e08d53edd695cc0d"
   },
   "apps/api/src/modules/identity/application/useCases/getDriverProfile.usecase.ts": {
-    "mtime": 1792647215.3871515,
-    "seen": 1792650133.5148673,
+    "mtime": 1793010174.2890453,
+    "seen": 1793011953.1983314,
     "ast_hash": "25c0cb04ce865529ff9bd7be4bbc61e4",
     "semantic_hash": "25c0cb04ce865529ff9bd7be4bbc61e4"
   },
   "apps/api/src/modules/identity/application/useCases/index.ts": {
-    "mtime": 1791200619.3252826,
-    "seen": 1791967765.4270096,
+    "mtime": 1793010174.2910662,
+    "seen": 1793011953.1983333,
     "ast_hash": "6b93ae0cb25c45d24fc1610be2b9813f",
     "semantic_hash": "6b93ae0cb25c45d24fc1610be2b9813f"
   },
@@ -906,8 +906,8 @@
     "semantic_hash": "92068231c3dbee66eb63957a62818a40"
   },
   "apps/api/src/modules/identity/application/useCases/registerDriverVehicle.usecase.ts": {
-    "mtime": 1790665226.924997,
-    "seen": 1791967765.427015,
+    "mtime": 1793010174.2910662,
+    "seen": 1793011953.1983385,
     "ast_hash": "165c6b4669cbb04e6a04e93422119e1a",
     "semantic_hash": "165c6b4669cbb04e6a04e93422119e1a"
   },
@@ -918,20 +918,20 @@
     "semantic_hash": "65a0c0bbb0549e207f834a04d81966cd"
   },
   "apps/api/src/modules/identity/application/useCases/reviewDriverApplication.usecase.ts": {
-    "mtime": 1792647215.387664,
-    "seen": 1792650133.5148783,
+    "mtime": 1793010174.2910662,
+    "seen": 1793011953.1983414,
     "ast_hash": "54cd287725721206e9582cdc60e91b49",
     "semantic_hash": "54cd287725721206e9582cdc60e91b49"
   },
   "apps/api/src/modules/identity/application/useCases/submitDriverApplication.usecase.ts": {
-    "mtime": 1792647215.387664,
-    "seen": 1792650133.514882,
+    "mtime": 1793010174.2930946,
+    "seen": 1793011953.1983447,
     "ast_hash": "bfb06b08ac4777d5fed9cc1094f6dcb3",
     "semantic_hash": "bfb06b08ac4777d5fed9cc1094f6dcb3"
   },
   "apps/api/src/modules/identity/application/useCases/uploadDriverDocument.usecase.ts": {
-    "mtime": 1792647215.388675,
-    "seen": 1792650133.5148835,
+    "mtime": 1793010174.2930946,
+    "seen": 1793011953.198346,
     "ast_hash": "2a08dee1ccad9449c1660c3f3526ab83",
     "semantic_hash": "2a08dee1ccad9449c1660c3f3526ab83"
   },
@@ -954,8 +954,8 @@
     "semantic_hash": "ecb033983aa06d45166accbf853b787b"
   },
   "apps/api/src/modules/identity/domain/driverDocument.port.ts": {
-    "mtime": 1790335383.4575667,
-    "seen": 1791967765.4270413,
+    "mtime": 1793010174.2930946,
+    "seen": 1793011953.198362,
     "ast_hash": "b513e78a19354caf2a1200e628ba3676",
     "semantic_hash": "b513e78a19354caf2a1200e628ba3676"
   },
@@ -990,8 +990,8 @@
     "semantic_hash": "1fde68e0227e5758048105ccf293fbe1"
   },
   "apps/api/src/modules/identity/identity.container.ts": {
-    "mtime": 1793001898.389825,
-    "seen": 1793004493.5691562,
+    "mtime": 1793010174.2961268,
+    "seen": 1793011953.198392,
     "ast_hash": "1bbdb2012936f0a3abe60e98fd530a94",
     "semantic_hash": ""
   },
@@ -1014,14 +1014,14 @@
     "semantic_hash": "44df8521e17c740171db205d7717cb15"
   },
   "apps/api/src/modules/identity/infrastructure/persistence/mongoDriverApplication.repository.ts": {
-    "mtime": 1792647215.3956137,
-    "seen": 1792650133.5149555,
+    "mtime": 1793010174.2982378,
+    "seen": 1793011953.198418,
     "ast_hash": "4be871877e32eaf2c0fc0d564d7f8c92",
     "semantic_hash": "4be871877e32eaf2c0fc0d564d7f8c92"
   },
   "apps/api/src/modules/identity/infrastructure/persistence/mongoDriverDocument.repository.ts": {
-    "mtime": 1790335383.4641452,
-    "seen": 1791967765.427102,
+    "mtime": 1793010174.298751,
+    "seen": 1793011953.198419,
     "ast_hash": "8d2a1bb7b62234a55f3c91de027746ab",
     "semantic_hash": "8d2a1bb7b62234a55f3c91de027746ab"
   },
@@ -1056,14 +1056,14 @@
     "semantic_hash": "e788a08d136ab05b4d9561b57e8add4c"
   },
   "apps/api/src/modules/identity/interface/driver.controller.ts": {
-    "mtime": 1793001898.391337,
-    "seen": 1793004493.5692232,
+    "mtime": 1793010174.2993293,
+    "seen": 1793011953.1984396,
     "ast_hash": "22ae722f91c60a8337d4156630a3d341",
     "semantic_hash": ""
   },
   "apps/api/src/modules/identity/interface/driver.routes.ts": {
-    "mtime": 1793001898.3923357,
-    "seen": 1793004493.569225,
+    "mtime": 1793010174.2993293,
+    "seen": 1793011953.1984413,
     "ast_hash": "80205594298817f6d00b5e578229aab3",
     "semantic_hash": ""
   },
@@ -1140,9 +1140,9 @@
     "semantic_hash": "493ff77a60ed362d58398c851ef2fcd9"
   },
   "apps/api/src/modules/ledger/interface/ledger.validation.ts": {
-    "mtime": 1793002673.0790665,
-    "seen": 1793004493.5693104,
-    "ast_hash": "56f4db28e234a83cfe0ca57b653142db",
+    "mtime": 1793007073.2058747,
+    "seen": 1793011953.1985037,
+    "ast_hash": "58a342fe176d286a741ef1f4d8ca0992",
     "semantic_hash": ""
   },
   "apps/api/src/modules/pricing/domain/cityZone.entity.ts": {
@@ -1248,9 +1248,9 @@
     "semantic_hash": "f0dd3ff1bfa17b398b5e57af44fdb080"
   },
   "apps/api/src/modules/rides/infrastructure/persistence/ride.model.ts": {
-    "mtime": 1793002816.5299978,
-    "seen": 1793004493.569448,
-    "ast_hash": "5a79c04c30ccc21746a49904ea364c10",
+    "mtime": 1793007073.2141376,
+    "seen": 1793011953.1986113,
+    "ast_hash": "f606606cc1b1830d04a8b926cd560466",
     "semantic_hash": ""
   },
   "apps/api/src/modules/rides/infrastructure/persistence/rideEvent.model.ts": {
@@ -1272,9 +1272,9 @@
     "semantic_hash": "8b7a23cf798cd4ee9dffe3ab5aeef210"
   },
   "apps/api/src/modules/rides/interface/rides.validation.ts": {
-    "mtime": 1793003043.2198272,
-    "seen": 1793004493.5694764,
-    "ast_hash": "25eacfa5013403dec8c7abf466fd4bf4",
+    "mtime": 1793007073.2146883,
+    "seen": 1793011953.1986349,
+    "ast_hash": "6ea0c667cec68ee161418e53fb272247",
     "semantic_hash": ""
   },
   "apps/api/src/modules/zone/application/useCases/createZone.usecase.ts": {
@@ -1452,9 +1452,9 @@
     "semantic_hash": "95274312c74a34e7af356208d8cb05cd"
   },
   "packages/contracts/src/wallets.ts": {
-    "mtime": 1793002536.887463,
-    "seen": 1793004493.570518,
-    "ast_hash": "af653160fb0a29dd07f1c2c06367551b",
+    "mtime": 1793007073.2861118,
+    "seen": 1793011953.1994271,
+    "ast_hash": "8d702033cc9b99192987a8945306c230",
     "semantic_hash": ""
   },
   "packages/contracts/src/zones.ts": {
@@ -1476,15 +1476,15 @@
     "semantic_hash": ""
   },
   "apps/api/src/modules/ledger/domain/wallet.port.ts": {
-    "mtime": 1793002663.2442787,
-    "seen": 1793004493.5692773,
-    "ast_hash": "ee1f0509d3318bdf50ccc03c09399639",
+    "mtime": 1793007073.2032354,
+    "seen": 1793011953.1984792,
+    "ast_hash": "1dc2f9e9da5cf0cb9f6690146f90b08d",
     "semantic_hash": ""
   },
   "apps/api/src/modules/ledger/infrastructure/persistence/memoryWallet.repository.ts": {
-    "mtime": 1793002671.2544122,
-    "seen": 1793004493.5692878,
-    "ast_hash": "181e393eaf32a871878d1f4250029239",
+    "mtime": 1793007073.2038562,
+    "seen": 1793011953.1984868,
+    "ast_hash": "23bc406b137dee6331d1bcec5ca88d45",
     "semantic_hash": ""
   },
   "apps/api/src/modules/ledger/ledger.public.ts": {
@@ -1494,9 +1494,9 @@
     "semantic_hash": "fe7587cf20a2b4068218ff754feb95b5"
   },
   "apps/api/src/modules/pricing/application/useCases/createQuote.usecase.ts": {
-    "mtime": 1793001989.617648,
-    "seen": 1793004493.5693314,
-    "ast_hash": "482cf7e82dadef04bc664c2ded44acdd",
+    "mtime": 1793007073.208607,
+    "seen": 1793011953.1985228,
+    "ast_hash": "eead4012b675927ec930c09e8e7a1452",
     "semantic_hash": ""
   },
   "apps/api/src/modules/pricing/domain/pricingConfig.port.ts": {
@@ -1518,15 +1518,15 @@
     "semantic_hash": "3a0f3fd70040c57493e79600c746c8f8"
   },
   "apps/api/src/modules/rides/application/useCases/acceptRide.usecase.ts": {
-    "mtime": 1792734799.854861,
-    "seen": 1792740959.0369487,
-    "ast_hash": "0ba133017069942a64e0a29e85051c3b",
+    "mtime": 1793010550.8869793,
+    "seen": 1793011953.1985612,
+    "ast_hash": "544fadd2064fdea3071cf161afafc9fc",
     "semantic_hash": ""
   },
   "apps/api/src/modules/rides/application/useCases/createRide.usecase.ts": {
-    "mtime": 1793001989.6592872,
-    "seen": 1793004493.5693898,
-    "ast_hash": "87d4146b8a410f778d4456673e991470",
+    "mtime": 1793007073.209137,
+    "seen": 1793011953.1985657,
+    "ast_hash": "3e9eb7082107297bb65109f3df8cd757",
     "semantic_hash": ""
   },
   "apps/api/src/modules/rides/application/useCases/startRide.usecase.ts": {
@@ -1536,15 +1536,15 @@
     "semantic_hash": "b547ae666d6359ce392400021d2e418d"
   },
   "apps/api/src/modules/rides/domain/ride.port.ts": {
-    "mtime": 1793002810.366009,
-    "seen": 1793004493.5694199,
-    "ast_hash": "847e90adec3896568966e477d7402888",
+    "mtime": 1793007073.2102053,
+    "seen": 1793011953.1985888,
+    "ast_hash": "979ca58a72e15114611f33990f01ea96",
     "semantic_hash": ""
   },
   "apps/api/src/modules/rides/infrastructure/persistence/memoryRide.repository.ts": {
-    "mtime": 1793002823.161095,
-    "seen": 1793004493.5694408,
-    "ast_hash": "afa20e0716f67eedda55a038cb6d6af2",
+    "mtime": 1793007073.2114513,
+    "seen": 1793011953.1986058,
+    "ast_hash": "dae9174c7e02852698cac7a023ad0eb2",
     "semantic_hash": ""
   },
   "apps/api/src/modules/rides/rides.public.ts": {
@@ -1560,8 +1560,8 @@
     "semantic_hash": "9cfacad57fc8f4913896695dfb907f6f"
   },
   "apps/api/test/quote-and-ride-engine.test.ts": {
-    "mtime": 1793002057.2623937,
-    "seen": 1793004493.5697298,
+    "mtime": 1793007073.221742,
+    "seen": 1793011953.1988237,
     "ast_hash": "07e185331d5566f6aeab5da35a050ece",
     "semantic_hash": ""
   },
@@ -1650,27 +1650,27 @@
     "semantic_hash": "22b38e0ef4c0ea44305ca7606e96a246"
   },
   "apps/api/src/modules/rides/domain/rideEvent.port.ts": {
-    "mtime": 1793002813.1617312,
-    "seen": 1793004493.5694237,
-    "ast_hash": "48144d023f0b685a18537fe8ffce9e70",
+    "mtime": 1793007073.210904,
+    "seen": 1793011953.1985924,
+    "ast_hash": "955233ecc8f3b3bcc2d84d152b42149f",
     "semantic_hash": ""
   },
   "apps/api/src/modules/rides/infrastructure/persistence/memoryRideEvent.repository.ts": {
-    "mtime": 1793002829.0439065,
-    "seen": 1793004493.5694425,
-    "ast_hash": "b8f609939232516e75891aebe6e81f1d",
+    "mtime": 1793007073.2114513,
+    "seen": 1793011953.1986072,
+    "ast_hash": "517184c4cf61915d9fbda1d3c565b62f",
     "semantic_hash": ""
   },
   "apps/api/src/modules/rides/infrastructure/persistence/mongoRide.repository.ts": {
-    "mtime": 1793002819.8137755,
-    "seen": 1793004493.5694447,
-    "ast_hash": "fc3f3ad5f54530a3fd07bf9ca384f95b",
+    "mtime": 1793007073.212982,
+    "seen": 1793011953.1986084,
+    "ast_hash": "4d6e3ee1ee36f6f01437353a8ef4e68a",
     "semantic_hash": ""
   },
   "apps/api/src/modules/rides/infrastructure/persistence/mongoRideEvent.repository.ts": {
-    "mtime": 1793002825.9453123,
-    "seen": 1793004493.5694463,
-    "ast_hash": "7c292457302804dd5e81c3871f16c74d",
+    "mtime": 1793007073.2135608,
+    "seen": 1793011953.1986098,
+    "ast_hash": "f31990c6b11030c17c8c9c9c4e1491d1",
     "semantic_hash": ""
   },
   "apps/api/src/modules/zone/application/useCases/activateZone.usecase.ts": {
@@ -1734,10 +1734,10 @@
     "semantic_hash": "68d0a8b1a192755f75b72e765628d756"
   },
   "apps/api/test/integration/ride-lifecycle-mongo.test.ts": {
-    "mtime": 1792647215.4284658,
-    "seen": 1792650133.5153182,
-    "ast_hash": "a93ea973a6b278ad7176a6fabf238ebd",
-    "semantic_hash": "a93ea973a6b278ad7176a6fabf238ebd"
+    "mtime": 1793011214.040419,
+    "seen": 1793011953.198817,
+    "ast_hash": "f166eb813aabd012642689d92373a55d",
+    "semantic_hash": ""
   },
   "apps/api/test/ride-lifecycle.test.ts": {
     "mtime": 1792647215.4326634,
@@ -2844,8 +2844,8 @@
     "semantic_hash": "1e95460e18970648cb3fa58e2cd587f3"
   },
   "docs/LLD/geo-reference-and-routing.md": {
-    "mtime": 1791200619.42117,
-    "seen": 1791207456.6611075,
+    "mtime": 1793007521.8809824,
+    "seen": 1793011953.1996512,
     "ast_hash": "c92f3a2015d7b7c919895584052eacda",
     "semantic_hash": ""
   },
@@ -2874,10 +2874,10 @@
     "semantic_hash": ""
   },
   "apps/api/src/modules/dispatch/application/useCases/driverOfferEligibility.ts": {
-    "mtime": 1791200619.3156726,
-    "seen": 1791967765.4269323,
-    "ast_hash": "811d364117f58e261d637fe34923d055",
-    "semantic_hash": "811d364117f58e261d637fe34923d055"
+    "mtime": 1793010548.0001738,
+    "seen": 1793011953.1982605,
+    "ast_hash": "b4d7a88fb4d4a498bbb5d6d68adfc2af",
+    "semantic_hash": ""
   },
   "apps/api/src/modules/dispatch/application/useCases/findCandidateDrivers.usecase.ts": {
     "mtime": 1791200619.3156726,
@@ -2940,8 +2940,8 @@
     "semantic_hash": "807fc4e2420324fa7a868c3ad0d67321"
   },
   "apps/api/src/modules/identity/application/useCases/adminDriverApplications.usecase.ts": {
-    "mtime": 1793001898.3878171,
-    "seen": 1793004493.5690598,
+    "mtime": 1793010174.2890453,
+    "seen": 1793011953.19832,
     "ast_hash": "1adca4d8bbfd21216a61b2e88bb5bbd6",
     "semantic_hash": ""
   },
@@ -2952,33 +2952,33 @@
     "semantic_hash": "6d45a4b4a83afd9bb0303bba021303a6"
   },
   "apps/api/src/modules/ledger/application/useCases/getWallet.usecase.ts": {
-    "mtime": 1793002666.5333035,
-    "seen": 1793004493.5692587,
-    "ast_hash": "98268ef5751c1c0a6f9757fac0c3ad1a",
+    "mtime": 1793007073.2027068,
+    "seen": 1793011953.1984653,
+    "ast_hash": "17e7d83226fa6da3fc434abc01b8a3ed",
     "semantic_hash": ""
   },
   "apps/api/src/modules/ledger/infrastructure/persistence/mongoWallet.repository.ts": {
-    "mtime": 1793002669.307282,
-    "seen": 1793004493.5692897,
-    "ast_hash": "f7f836de6962d9f02a64d857a3b43db5",
+    "mtime": 1793007073.2048726,
+    "seen": 1793011953.198488,
+    "ast_hash": "7f11303c7e8a1d358b9ca540b4b825a3",
     "semantic_hash": ""
   },
   "apps/api/src/modules/ledger/interface/ledger.controller.ts": {
-    "mtime": 1793002676.087808,
-    "seen": 1793004493.5693066,
-    "ast_hash": "fbff291caa71687907d4505077030a77",
+    "mtime": 1793007073.2048726,
+    "seen": 1793011953.198501,
+    "ast_hash": "e7651f23f8fb398f7902167562537c23",
     "semantic_hash": ""
   },
   "apps/api/src/modules/ledger/interface/ledger.routes.ts": {
-    "mtime": 1793002678.0320213,
-    "seen": 1793004493.5693088,
-    "ast_hash": "0c88aaa19adb0f5297304297f0f6a0a8",
+    "mtime": 1793007073.2058747,
+    "seen": 1793011953.1985023,
+    "ast_hash": "bfdfb7117a5deebc0abc79d1acc99fd6",
     "semantic_hash": ""
   },
   "apps/api/src/modules/ledger/ledger.container.ts": {
-    "mtime": 1793002680.1486597,
-    "seen": 1793004493.5693226,
-    "ast_hash": "829be36be164c8da8c3f4e26c1786f20",
+    "mtime": 1793007073.2058747,
+    "seen": 1793011953.1985118,
+    "ast_hash": "5cefdba179bd34293f268c7d9f05aea8",
     "semantic_hash": ""
   },
   "apps/api/src/modules/pricing/interface/quoteRateLimiter.ts": {
@@ -3006,9 +3006,9 @@
     "semantic_hash": ""
   },
   "apps/api/src/modules/rides/interface/rides.controller.ts": {
-    "mtime": 1793003046.3275335,
-    "seen": 1793004493.5694685,
-    "ast_hash": "feb2c6598100cb665553c7682cc3ccaa",
+    "mtime": 1793007073.2146883,
+    "seen": 1793011953.1986291,
+    "ast_hash": "ea27252ee049f24ae14fadb892638b64",
     "semantic_hash": ""
   },
   "apps/api/src/modules/rides/interface/rides.presenter.ts": {
@@ -3018,21 +3018,21 @@
     "semantic_hash": ""
   },
   "apps/api/src/modules/rides/interface/rides.routes.ts": {
-    "mtime": 1793003049.5715115,
-    "seen": 1793004493.5694726,
-    "ast_hash": "3e7867bc7dc79b9801c5a6915f86ec19",
+    "mtime": 1793007073.2146883,
+    "seen": 1793011953.1986322,
+    "ast_hash": "d1b926db19b38b625d9ea2f38f4ca194",
     "semantic_hash": ""
   },
   "apps/api/src/modules/rides/interface/rides.swagger.ts": {
-    "mtime": 1793003852.9451263,
-    "seen": 1793004493.5694745,
-    "ast_hash": "1adf340345a5e5f0b2fd30af3d5af9ab",
+    "mtime": 1793007073.2146883,
+    "seen": 1793011953.1986334,
+    "ast_hash": "01ba570d3a87c728d40ebefebbc58eb1",
     "semantic_hash": ""
   },
   "apps/api/src/modules/rides/rides.container.ts": {
-    "mtime": 1793003052.1178756,
-    "seen": 1793004493.569478,
-    "ast_hash": "c257d8e014ad1a6f5f1c76873d9160ff",
+    "mtime": 1793011252.6215115,
+    "seen": 1793011953.198636,
+    "ast_hash": "e383fcb923d93e964fb44a5a303a0540",
     "semantic_hash": ""
   },
   "apps/api/src/modules/routing/application/getRoute.usecase.ts": {
@@ -3204,20 +3204,20 @@
     "semantic_hash": "d8d063406d05e87297b89f1670102339"
   },
   "apps/web/src/features/drivers/components/DriverApplicationDialog.tsx": {
-    "mtime": 1791200619.3977444,
-    "seen": 1791967765.4277,
+    "mtime": 1793010174.310506,
+    "seen": 1793011953.199231,
     "ast_hash": "9e58d4a80fca3b40b2b5d4e442c9685a",
     "semantic_hash": "9e58d4a80fca3b40b2b5d4e442c9685a"
   },
   "apps/web/src/features/drivers/components/DriversScreen.tsx": {
-    "mtime": 1793001898.4925418,
-    "seen": 1793004493.5702596,
+    "mtime": 1793010174.3131313,
+    "seen": 1793011953.199237,
     "ast_hash": "2cb2ab4a4aa2eee2e445bb651bdaae0b",
     "semantic_hash": ""
   },
   "apps/web/src/features/drivers/components/StatusBadge.tsx": {
-    "mtime": 1791200619.3987603,
-    "seen": 1791967765.4277089,
+    "mtime": 1793010174.315879,
+    "seen": 1793011953.1992402,
     "ast_hash": "7d1c6506cec72414fbe848d9c7ad0219",
     "semantic_hash": "7d1c6506cec72414fbe848d9c7ad0219"
   },
@@ -3264,8 +3264,8 @@
     "semantic_hash": "b305ffcf555b19a3b05e36fffff39ea8"
   },
   "apps/web/src/lib/api/endpoints/drivers.ts": {
-    "mtime": 1793001898.4970627,
-    "seen": 1793004493.5704324,
+    "mtime": 1793010174.3165271,
+    "seen": 1793011953.1993628,
     "ast_hash": "39deb756d29be667470ea7e4a91f627c",
     "semantic_hash": ""
   },
@@ -3306,32 +3306,32 @@
     "semantic_hash": "ff253afd47ae23218fd062ffeaefb284"
   },
   "apps/web/src/features/drivers/components/DocumentPreviewDialog.tsx": {
-    "mtime": 1793001898.488894,
-    "seen": 1793004493.5702477,
+    "mtime": 1793010174.310506,
+    "seen": 1793011953.1992276,
     "ast_hash": "4d159a3c09b8ba70bd56cc3f0b23295c",
     "semantic_hash": ""
   },
   "apps/web/src/features/drivers/components/DocumentViewerCard.tsx": {
-    "mtime": 1793001898.488894,
-    "seen": 1793004493.5702498,
+    "mtime": 1793010174.310506,
+    "seen": 1793011953.1992292,
     "ast_hash": "ef52c3dac9e0ff23e67365d7f37f7971",
     "semantic_hash": ""
   },
   "apps/web/src/features/drivers/components/DriverApplicationScreen.tsx": {
-    "mtime": 1791200619.3977444,
-    "seen": 1791967765.4277015,
+    "mtime": 1793010174.310506,
+    "seen": 1793011953.1992326,
     "ast_hash": "d01c7b06a4c2092364737fdd2eca6664",
     "semantic_hash": "d01c7b06a4c2092364737fdd2eca6664"
   },
   "apps/web/src/features/drivers/components/DriverDetailModal.tsx": {
-    "mtime": 1793001898.490536,
-    "seen": 1793004493.5702558,
+    "mtime": 1793010174.3131313,
+    "seen": 1793011953.1992342,
     "ast_hash": "7b138ed8aadf17de2e8ee18931b29452",
     "semantic_hash": ""
   },
   "apps/web/src/features/drivers/components/StatusBadge.test.ts": {
-    "mtime": 1791200619.3987603,
-    "seen": 1791967765.4277074,
+    "mtime": 1793010174.3151493,
+    "seen": 1793011953.1992383,
     "ast_hash": "cbdbae2cea4dd98d776dbc2d9550b0e4",
     "semantic_hash": "cbdbae2cea4dd98d776dbc2d9550b0e4"
   },
@@ -3480,9 +3480,9 @@
     "semantic_hash": "4a4cb36a8a3d16d3aca1086b69c5c32b"
   },
   "apps/api/test/riders-admin-api.test.ts": {
-    "mtime": 1793002929.487499,
-    "seen": 1793004493.569754,
-    "ast_hash": "271cf27c118a92f14b679ff6d5d3f558",
+    "mtime": 1793007073.221742,
+    "seen": 1793011953.198842,
+    "ast_hash": "cebff955232a93c75b3543c0d64c5fa0",
     "semantic_hash": ""
   },
   "apps/api/test/state-distance-breakdown.test.ts": {
@@ -3492,9 +3492,9 @@
     "semantic_hash": "e63a17d58debbf255a9cea2a603ae756"
   },
   "apps/api/test/state-pricing-and-border-enforcement.test.ts": {
-    "mtime": 1793002085.3224618,
-    "seen": 1793004493.5697658,
-    "ast_hash": "9cf9dd0e9e8bad73445887d45221a75f",
+    "mtime": 1793007073.221742,
+    "seen": 1793011953.1988504,
+    "ast_hash": "76ffb27923799e249f0436ff9d4a1960",
     "semantic_hash": ""
   },
   "apps/web/src/app/(panel)/admins/page.tsx": {
@@ -3702,8 +3702,8 @@
     "semantic_hash": "a58eb1d54b59b1261c614c02b6d6af48"
   },
   "apps/web/src/features/drivers/components/DriverDetailsScreen.tsx": {
-    "mtime": 1793001898.4915457,
-    "seen": 1793004493.5702577,
+    "mtime": 1793010174.3131313,
+    "seen": 1793011953.199236,
     "ast_hash": "0217543709ad8bb3298646cd1e13eeef",
     "semantic_hash": ""
   },
@@ -3840,8 +3840,8 @@
     "semantic_hash": "47d6bacb484214b88a2d32ee6dd40b1e"
   },
   "apps/driver-mobile/package.json": {
-    "mtime": 1793004146.5736098,
-    "seen": 1793004493.5698082,
+    "mtime": 1793010174.3010008,
+    "seen": 1793011953.1988828,
     "ast_hash": "a3b9547ec7c56f0b451c7ff3194df06d",
     "semantic_hash": ""
   },
@@ -3858,9 +3858,9 @@
     "semantic_hash": "9f3bbb194a81314bd83b9868afd3a1f2"
   },
   "apps/driver-mobile/src/app/index.tsx": {
-    "mtime": 1793001898.4462614,
-    "seen": 1793004493.569872,
-    "ast_hash": "8216f0d4866996797cb322550bcd248a",
+    "mtime": 1793010967.1403553,
+    "seen": 1793011953.198932,
+    "ast_hash": "2b55f436975ab58f7b119292e8631830",
     "semantic_hash": ""
   },
   "apps/driver-mobile/src/components/animated-icon.tsx": {
@@ -3894,9 +3894,9 @@
     "semantic_hash": "c8774b59e37a3a0bfa92c5970cde041f"
   },
   "apps/driver-mobile/src/components/driver/driver-home.tsx": {
-    "mtime": 1793003516.7493827,
-    "seen": 1793004493.5699186,
-    "ast_hash": "9f89b6bfc459ad034f6b51a8410a66a3",
+    "mtime": 1793010174.3010008,
+    "seen": 1793011953.1989691,
+    "ast_hash": "b82e25378960ece22eb1549be3676647",
     "semantic_hash": ""
   },
   "apps/driver-mobile/src/components/external-link.tsx": {
@@ -3942,8 +3942,8 @@
     "semantic_hash": "87a5c49afedce8bddd1636c15defed8c"
   },
   "apps/driver-mobile/src/context/auth-context.tsx": {
-    "mtime": 1792647215.6209722,
-    "seen": 1792650133.5154743,
+    "mtime": 1793010174.3062844,
+    "seen": 1793011953.1990225,
     "ast_hash": "a9f7d479fcd61c5c27b15bf212973119",
     "semantic_hash": "a9f7d479fcd61c5c27b15bf212973119"
   },
@@ -3972,9 +3972,9 @@
     "semantic_hash": ""
   },
   "apps/driver-mobile/src/services/api.ts": {
-    "mtime": 1793003329.8210354,
-    "seen": 1793004493.5700212,
-    "ast_hash": "e5a7a8f06cd99858eb6f411902743683",
+    "mtime": 1793010174.308875,
+    "seen": 1793011953.1990476,
+    "ast_hash": "f3a1f9b780f0213d09cbaf1d383ac8ac",
     "semantic_hash": ""
   },
   "apps/driver-mobile/src/services/storage.ts": {
@@ -4350,9 +4350,9 @@
     "semantic_hash": "f7f90617d0fcf870583354fe3b474238"
   },
   "apps/driver-mobile/src/context/duty-context.tsx": {
-    "mtime": 1793003439.0981936,
-    "seen": 1793004493.5699897,
-    "ast_hash": "53a37e9a1eea267a0c72b61e2dea047a",
+    "mtime": 1793010853.3160398,
+    "seen": 1793011953.1990237,
+    "ast_hash": "6da632d814b4556671ee998d1ea17cf9",
     "semantic_hash": ""
   },
   "apps/driver-mobile/src/design-system/colors.ts": {
@@ -4524,8 +4524,8 @@
     "semantic_hash": ""
   },
   "apps/api/src/modules/identity/domain/driverRideEligibility.ts": {
-    "mtime": 1792647215.3892274,
-    "seen": 1792650133.5149045,
+    "mtime": 1793010174.2951202,
+    "seen": 1793011953.198367,
     "ast_hash": "2e71d55ebdb94adde248ada064f9a38b",
     "semantic_hash": "2e71d55ebdb94adde248ada064f9a38b"
   },
@@ -4620,8 +4620,8 @@
     "semantic_hash": "c41a598e3cf00617b925591ad9d52962"
   },
   "apps/driver-mobile/src/services/profile.ts": {
-    "mtime": 1792647215.62622,
-    "seen": 1792650133.5154996,
+    "mtime": 1793010174.310506,
+    "seen": 1793011953.1990538,
     "ast_hash": "076fbccdffd7dfd6ce091024d94e5875",
     "semantic_hash": "076fbccdffd7dfd6ce091024d94e5875"
   },
@@ -4632,20 +4632,20 @@
     "semantic_hash": "4b06bee2366d503092a711e3bcbf79ff"
   },
   "apps/api/src/modules/identity/application/driverLicenseFile.ts": {
-    "mtime": 1792647215.3815882,
-    "seen": 1792650133.5148544,
+    "mtime": 1793010174.2890453,
+    "seen": 1793011953.1983175,
     "ast_hash": "e6f9a2c8324b645b23eeb01d37f975ee",
     "semantic_hash": "e6f9a2c8324b645b23eeb01d37f975ee"
   },
   "apps/api/src/modules/identity/domain/driverLicenseStorage.port.ts": {
-    "mtime": 1793001898.3878171,
-    "seen": 1793004493.5691187,
+    "mtime": 1793010174.2930946,
+    "seen": 1793011953.1983635,
     "ast_hash": "dd4e571a1104a638c04b12d2f902ab53",
     "semantic_hash": ""
   },
   "apps/api/src/modules/identity/infrastructure/cloudinaryDriverLicense.adapter.ts": {
-    "mtime": 1793001898.3903298,
-    "seen": 1793004493.5691602,
+    "mtime": 1793010174.2961268,
+    "seen": 1793011953.1983953,
     "ast_hash": "98366bc2eb9deb678258ac776f844f84",
     "semantic_hash": ""
   },
@@ -4656,8 +4656,8 @@
     "semantic_hash": "ed7e8583cb1870dcccd68300796e20de"
   },
   "apps/driver-mobile/src/services/driver-license.ts": {
-    "mtime": 1792647215.62622,
-    "seen": 1792650133.5154967,
+    "mtime": 1793010174.3094683,
+    "seen": 1793011953.1990507,
     "ast_hash": "61421fffadf31e417dbbb4eb68fdbef3",
     "semantic_hash": "61421fffadf31e417dbbb4eb68fdbef3"
   },
@@ -4704,9 +4704,9 @@
     "semantic_hash": ""
   },
   "apps/driver-mobile/src/app/(driver)/(tabs)/earnings.tsx": {
-    "mtime": 1793003959.4562154,
-    "seen": 1793004493.569838,
-    "ast_hash": "927d343d3e4a08cb6c79d0bbc887bbf0",
+    "mtime": 1793007073.2238019,
+    "seen": 1793011953.1989057,
+    "ast_hash": "328dc8ecdd55cc4a2c4ee6b36c0c39b2",
     "semantic_hash": ""
   },
   "apps/driver-mobile/src/app/(driver)/(tabs)/home.tsx": {
@@ -4716,26 +4716,26 @@
     "semantic_hash": "90dd8be52d6801c4d9ebf0b128a62a6b"
   },
   "apps/driver-mobile/src/app/(driver)/(tabs)/me.tsx": {
-    "mtime": 1793001898.4381382,
-    "seen": 1793004493.5698419,
+    "mtime": 1793010174.3010008,
+    "seen": 1793011953.1989086,
     "ast_hash": "e77af530a920bfb7d6217498727ffaea",
     "semantic_hash": ""
   },
   "apps/driver-mobile/src/app/(driver)/(tabs)/rides.tsx": {
-    "mtime": 1793003965.829953,
-    "seen": 1793004493.5698438,
-    "ast_hash": "9b6967160845448b4d0263495235887b",
+    "mtime": 1793007073.2249496,
+    "seen": 1793011953.19891,
+    "ast_hash": "430576e192ceb48c5db27aa159217f0f",
     "semantic_hash": ""
   },
   "apps/driver-mobile/src/app/(driver)/_layout.tsx": {
-    "mtime": 1792647215.592731,
-    "seen": 1792650133.51539,
-    "ast_hash": "b6148e5df65ea9dea2e1cb6e420525f5",
-    "semantic_hash": "b6148e5df65ea9dea2e1cb6e420525f5"
+    "mtime": 1793010970.1470647,
+    "seen": 1793011953.1989114,
+    "ast_hash": "e9ecf90f7f624c1ccff1b590437ebb25",
+    "semantic_hash": ""
   },
   "apps/driver-mobile/src/app/(driver)/account/documents.tsx": {
-    "mtime": 1793001898.4396486,
-    "seen": 1793004493.5698478,
+    "mtime": 1793010174.3010008,
+    "seen": 1793011953.1989133,
     "ast_hash": "31b1f74c84d3d700b903c9352fbb8c81",
     "semantic_hash": ""
   },
@@ -4764,26 +4764,26 @@
     "semantic_hash": ""
   },
   "apps/driver-mobile/src/app/(driver)/history/[rideId].tsx": {
-    "mtime": 1793003819.0401647,
-    "seen": 1793004493.5698578,
-    "ast_hash": "1986508469561cb1c8cf339e0a20826b",
+    "mtime": 1793007073.2255285,
+    "seen": 1793011953.1989212,
+    "ast_hash": "15b764ee4acf20d3494d5bbd009369cf",
     "semantic_hash": ""
   },
   "apps/driver-mobile/src/app/(driver)/ride/[rideId].tsx": {
-    "mtime": 1793001898.4446645,
-    "seen": 1793004493.5698595,
-    "ast_hash": "5df6c6c0647b2ea2c0bc0c2d048a2f61",
+    "mtime": 1793011104.2607384,
+    "seen": 1793011953.1989224,
+    "ast_hash": "3fc1a56cbddcccfd0d9d3551f20f242f",
     "semantic_hash": ""
   },
   "apps/driver-mobile/src/app/(driver)/wallet.tsx": {
-    "mtime": 1793004365.246459,
-    "seen": 1793004493.5698614,
-    "ast_hash": "5b9dce9c34aa0639f29c0ed8f4511602",
+    "mtime": 1793007073.2260952,
+    "seen": 1793011953.198924,
+    "ast_hash": "926f650446562ac3f0d596dbc62ffabc",
     "semantic_hash": ""
   },
   "apps/driver-mobile/src/app/(onboarding)/_layout.tsx": {
-    "mtime": 1792647215.5969162,
-    "seen": 1792650133.515402,
+    "mtime": 1793010174.3010008,
+    "seen": 1793011953.1989255,
     "ast_hash": "7fdedf647067cc53e50bb28d7910957f",
     "semantic_hash": "7fdedf647067cc53e50bb28d7910957f"
   },
@@ -4800,9 +4800,9 @@
     "semantic_hash": "1a5aa3cda05b5579fcb51443e4f64dec"
   },
   "apps/driver-mobile/src/context/ride-context.tsx": {
-    "mtime": 1793001898.462464,
-    "seen": 1793004493.5699937,
-    "ast_hash": "e1f1ad1f52be377b21e5ad12f26cce7a",
+    "mtime": 1793010964.2722244,
+    "seen": 1793011953.199027,
+    "ast_hash": "1a3edaef17e4dc3a8474b5214cf8015a",
     "semantic_hash": ""
   },
   "apps/web/src/features/simulators/components/CustomerAppSimulatorSection.tsx": {
@@ -4866,9 +4866,9 @@
     "semantic_hash": "f62159a17f5204697df3b283f6c8cafe"
   },
   "apps/api/src/modules/rides/application/useCases/negotiateFare.usecase.ts": {
-    "mtime": 1793001898.405895,
-    "seen": 1793004493.5694025,
-    "ast_hash": "fd339251343e7f07c53db65be948c726",
+    "mtime": 1793010553.2633386,
+    "seen": 1793011953.198575,
+    "ast_hash": "9a1039681034d0e85ebd1180d0dbcd00",
     "semantic_hash": ""
   },
   "apps/driver-mobile/src/services/push-notifications.ts": {
@@ -5094,9 +5094,9 @@
     "semantic_hash": ""
   },
   "apps/rider-mobile/src/app/(rider)/ride/[rideId].tsx": {
-    "mtime": 1793001898.472875,
-    "seen": 1793004493.5700908,
-    "ast_hash": "18fc62351bb5127e3adae34af9020743",
+    "mtime": 1793010960.7260852,
+    "seen": 1793011953.1991038,
+    "ast_hash": "f23a317ae0dc3e0fb2a4454de64a033a",
     "semantic_hash": ""
   },
   "apps/rider-mobile/src/app/_layout.tsx": {
@@ -5124,9 +5124,9 @@
     "semantic_hash": ""
   },
   "apps/rider-mobile/src/context/ride-context.tsx": {
-    "mtime": 1792734800.077677,
-    "seen": 1792740959.0979297,
-    "ast_hash": "f17275acd689a203b830f924ba564834",
+    "mtime": 1793010821.6845086,
+    "seen": 1793011953.1991436,
+    "ast_hash": "9995b143629c9f32f081b212bb39a5d2",
     "semantic_hash": ""
   },
   "apps/rider-mobile/src/design-system/colors.ts": {
@@ -5166,15 +5166,15 @@
     "semantic_hash": ""
   },
   "apps/rider-mobile/src/services/rider-helpers.test.mjs": {
-    "mtime": 1793001898.4858932,
-    "seen": 1793004493.5701632,
-    "ast_hash": "1c433c2a1ff2f8dc68270d9d79f3e3e6",
+    "mtime": 1793011481.1931353,
+    "seen": 1793011953.199161,
+    "ast_hash": "ad03c08aaecb4364eeffa0208b5c400a",
     "semantic_hash": ""
   },
   "apps/rider-mobile/src/services/rider-helpers.ts": {
-    "mtime": 1793001898.486896,
-    "seen": 1793004493.570165,
-    "ast_hash": "27bba6670fe4610dc67a542039fb9a40",
+    "mtime": 1793010850.8958893,
+    "seen": 1793011953.1991627,
+    "ast_hash": "20425f5a129e3a4713686419b83f747c",
     "semantic_hash": ""
   },
   "apps/rider-mobile/src/services/storage.ts": {
@@ -5262,9 +5262,9 @@
     "semantic_hash": ""
   },
   "apps/rider-mobile/src/context/ride-context.test.mjs": {
-    "mtime": 1792734800.077677,
-    "seen": 1792740959.097927,
-    "ast_hash": "4e9000fde3a9afba86587d037e2cedda",
+    "mtime": 1793011484.4005187,
+    "seen": 1793011953.1991425,
+    "ast_hash": "7c51f1bb6cc91bac55f4c988f327a958",
     "semantic_hash": ""
   },
   "apps/rider-mobile/src/hooks/use-reduced-motion.ts": {
@@ -5286,8 +5286,8 @@
     "semantic_hash": ""
   },
   "docs/engineering/rider-app-architecture-and-implementation-plan.md": {
-    "mtime": 1792734800.0881922,
-    "seen": 1792740959.158132,
+    "mtime": 1793007521.8853383,
+    "seen": 1793011953.1997132,
     "ast_hash": "945416429890f1dc849a2b75548b84b9",
     "semantic_hash": ""
   },
@@ -5502,9 +5502,9 @@
     "semantic_hash": ""
   },
   "apps/api/src/modules/rides/interface/rideUpiPayment.controller.ts": {
-    "mtime": 1793001898.4139533,
-    "seen": 1793004493.5694642,
-    "ast_hash": "f370b403b3c87aa0341eaae47077bf04",
+    "mtime": 1793010556.1737962,
+    "seen": 1793011953.198625,
+    "ast_hash": "6e93f92365ada5aa13fd8d2d4c250ef8",
     "semantic_hash": ""
   },
   "apps/api/test/ride-upi-payment.test.ts": {
@@ -5556,9 +5556,9 @@
     "semantic_hash": ""
   },
   "apps/api/src/modules/rides/interface/ridePaymentQr.controller.ts": {
-    "mtime": 1793001898.412959,
-    "seen": 1793004493.5694623,
-    "ast_hash": "b97995588e6185c44d5c832cea313806",
+    "mtime": 1793010561.1976933,
+    "seen": 1793011953.1986234,
+    "ast_hash": "255f6c4270dd3cc8c9144daadb6be5d0",
     "semantic_hash": ""
   },
   "apps/api/test/ride-payment-qr.test.ts": {
@@ -5706,9 +5706,9 @@
     "semantic_hash": ""
   },
   "apps/api/src/modules/ledger/interface/walletMoney.swagger.ts": {
-    "mtime": 1793002808.146116,
-    "seen": 1793004493.5693142,
-    "ast_hash": "3e77653acdbfcb8f42c045f51c60cf98",
+    "mtime": 1793007073.2058747,
+    "seen": 1793011953.198508,
+    "ast_hash": "f65eeaaef838b6efabec2ef0fcf64ab6",
     "semantic_hash": ""
   },
   "apps/api/src/modules/ledger/interface/walletRecharge.html.ts": {
@@ -5766,8 +5766,8 @@
     "semantic_hash": ""
   },
   "docs/engineering/project-tracker-graph-context.md": {
-    "mtime": 1793001898.510281,
-    "seen": 1793004493.5708954,
+    "mtime": 1793007521.884181,
+    "seen": 1793011953.1997082,
     "ast_hash": "3602bf30157827363fe71b33115f0aa2",
     "semantic_hash": ""
   },
@@ -5778,39 +5778,51 @@
     "semantic_hash": ""
   },
   "docs/engineering/devtostagestate.md": {
-    "mtime": 1793001898.5077808,
-    "seen": 1793004493.5708697,
+    "mtime": 1793007521.884181,
+    "seen": 1793011953.1996875,
     "ast_hash": "fbd58b9c0371cabd4f2d458f1fc15f9c",
     "semantic_hash": ""
   },
   "apps/driver-mobile/src/context/ride-context.test.mjs": {
-    "mtime": 1793001898.4614654,
-    "seen": 1793004493.5699916,
-    "ast_hash": "9c6fc68cd2d6e649945dfad1ac9ab6e5",
+    "mtime": 1793011487.1321144,
+    "seen": 1793011953.1990254,
+    "ast_hash": "8656534b04240b9db89a135f4aa9d862",
     "semantic_hash": ""
   },
   "apps/api/src/modules/rides/application/useCases/driverEarnings.usecase.ts": {
-    "mtime": 1793004318.66771,
-    "seen": 1793004493.5693955,
-    "ast_hash": "5e1d5e7d68db534ebf768ca421c49946",
+    "mtime": 1793007073.2096813,
+    "seen": 1793011953.1985693,
+    "ast_hash": "cc31882ce0228280751c749ac63ffb62",
     "semantic_hash": ""
   },
   "apps/api/src/scripts/reconcileDriverEarnings.ts": {
-    "mtime": 1793003054.3103428,
-    "seen": 1793004493.569616,
-    "ast_hash": "bb96ffea389b9b7ea8c003031f29dad2",
+    "mtime": 1793007073.2146883,
+    "seen": 1793011953.1987374,
+    "ast_hash": "f99df0cbcefb3c407a39b7f83b685d5f",
     "semantic_hash": ""
   },
   "apps/api/test/driver-earnings.test.ts": {
-    "mtime": 1793004367.8382185,
-    "seen": 1793004493.569688,
-    "ast_hash": "8056df2ef2324a7d3133df37236c477e",
+    "mtime": 1793007073.2207234,
+    "seen": 1793011953.198792,
+    "ast_hash": "0c43e77589f5ec97070962113d13a160",
     "semantic_hash": ""
   },
   "apps/driver-mobile/src/components/driver/driver-earnings.test.mjs": {
-    "mtime": 1793004209.4720857,
-    "seen": 1793004493.569917,
-    "ast_hash": "8c75bb6f17cfb42e77786561f0bcd601",
+    "mtime": 1793007073.2260952,
+    "seen": 1793011953.1989677,
+    "ast_hash": "c6c0c42dc5145a486697e385743d22d8",
+    "semantic_hash": ""
+  },
+  "apps/api/test/two-phone-acceptance.test.ts": {
+    "mtime": 1793011813.1173732,
+    "seen": 1793011953.1988554,
+    "ast_hash": "64704c9536d905a62acd34d7f753564e",
+    "semantic_hash": ""
+  },
+  "docs/engineering/two-phone-ride-wallet-acceptance-pass.md": {
+    "mtime": 1793011890.1655283,
+    "seen": 1793011953.19972,
+    "ast_hash": "d4585d6abf2759281ebf0d9856fc7391",
     "semantic_hash": ""
   }
 }
