@@ -30,6 +30,7 @@ export const driverSettlementSchema = z.object({
   commissionRefundedPaise: z.number().int(),
   netCommissionPaise: z.number().int(),
   netEarningsPaise: z.number().int(),
+  onlineEarningsReversedPaise: z.number().int().optional(),
   settledVia: z.enum(['CASH', 'ONLINE_UPI', 'UNSETTLED']),
 });
 
@@ -119,6 +120,7 @@ const driverEarningsSummarySchema = z.object({
   commissionRefundedPaise: z.number().int(),
   netCommissionPaise: z.number().int(),
   netEarningsPaise: z.number().int(),
+  onlineEarningsReversedPaise: z.number().int().optional(),
   cancellationCompensationPaise: z.number().int(),
   unreconciledRidesCount: z.number().int(),
 });
@@ -132,12 +134,14 @@ const paginatedRidesSchema = z.object({
 });
 
 const driverEarningsReconciliationSchema = z.object({
-  mode: z.enum(['AUDIT', 'BACKFILL_ONLINE_EARNINGS']),
+  mode: z.enum(['AUDIT', 'BACKFILL_ONLINE_EARNINGS', 'RECONCILE_PENDING_ONLINE']),
   checkedSettledRides: z.number().int(),
   cleanCashRides: z.number().int(),
   cleanOnlineRides: z.number().int(),
   backfilledRideIds: z.array(z.string().uuid()),
   skippedRideIds: z.array(z.string().uuid()),
+  checkedPendingOnlineRides: z.number().int().optional(),
+  reconciledPendingRideIds: z.array(z.string().uuid()).optional(),
   issues: z.array(
     z.object({
       code: z.enum([
@@ -146,6 +150,9 @@ const driverEarningsReconciliationSchema = z.object({
         'AMOUNT_MISMATCH',
         'MISSING_DRIVER_WALLET',
         'ORPHAN_LEDGER_RIDE_ENTRY',
+        'PROVIDER_CAPTURED_RIDE_UNSETTLED',
+        'PROVIDER_SETTLEMENT_MISMATCH',
+        'ONLINE_REFUND_MISSING_REVERSAL',
       ]),
       rideId: z.string().nullable(),
       driverId: z.string().nullable(),

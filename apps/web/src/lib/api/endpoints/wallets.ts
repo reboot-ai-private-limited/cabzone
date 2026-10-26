@@ -2,6 +2,7 @@ import type {
   FinanceStatsDto,
   ListTransactionsQueryDto,
   ListWalletsQueryDto,
+  WalletLedgerReconciliationDto,
   WalletSummaryDto,
   WalletTransactionDto,
   WalletOperationDto,
@@ -53,6 +54,15 @@ export const walletsApi = {
     token?: string,
   ) =>
     request<WalletOperationDto>(`/v1/admin/wallets/cashouts/${id}/resolve`, {
+      method: 'POST',
+      body,
+      token,
+    }),
+  reconcileLedger: (
+    body: { mode?: 'AUDIT' | 'RECONCILE_PENDING_RECHARGES'; driverId?: string } = { mode: 'AUDIT' },
+    token?: string,
+  ) =>
+    request<WalletLedgerReconciliationDto>('/v1/admin/wallets/reconcile', {
       method: 'POST',
       body,
       token,

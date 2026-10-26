@@ -85,3 +85,9 @@ export const walletTransactionTypeSchema = z.enum(WALLET_TRANSACTION_TYPES);
 export const transactionReferenceTypeSchema = z.enum(TRANSACTION_REFERENCE_TYPES);
 export const paymentMethodSchema = z.enum(PAYMENT_METHODS);
 export const paymentStatusSchema = z.enum(PAYMENT_STATUSES);
+
+
+export const reconcileWalletLedgerSchema = z.object({
+  mode: z.enum(['AUDIT', 'RECONCILE_PENDING_RECHARGES']).default('AUDIT'),
+  driverId: z.string().trim().min(1).optional(),
+});

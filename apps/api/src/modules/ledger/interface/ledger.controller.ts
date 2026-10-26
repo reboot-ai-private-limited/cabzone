@@ -8,6 +8,7 @@ import type { GetFinanceStatsUseCase } from '../application/useCases/getFinanceS
 import type { GetWalletUseCase } from '../application/useCases/getWallet.usecase.js';
 import type { ListTransactionsUseCase } from '../application/useCases/listTransactions.usecase.js';
 import type { ListWalletsUseCase } from '../application/useCases/listWallets.usecase.js';
+import type { ReconcileWalletLedgerUseCase } from '../application/useCases/reconcileWalletLedger.usecase.js';
 import type { WalletRepositoryPort } from '../domain/index.js';
 import {
   adminAdjustWalletSchema,
@@ -15,6 +16,7 @@ import {
   driverMyWalletQuerySchema,
   listTransactionsQuerySchema,
   listWalletsQuerySchema,
+  reconcileWalletLedgerSchema,
 } from './ledger.validation.js';
 
 const driverIdParamSchema = z.object({ driverId: z.string() });
@@ -130,5 +132,15 @@ export function makeMyWalletTransactionsController(
       },
       'Wallet transactions retrieved successfully',
     );
+  });
+}
+
+export function makeAdminReconcileWalletLedgerController(
+  useCase: ReconcileWalletLedgerUseCase,
+): RequestHandler {
+  return asyncHandler(async (req: Request, res: Response) => {
+    const body = reconcileWalletLedgerSchema.parse(req.body ?? {});
+    const report = await useCase.execute(body);
+    sendSuccess(req, res, report, 'Wallet ledger reconciliation completed');
   });
 }

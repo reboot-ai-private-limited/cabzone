@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { AlertTriangle, List, MapPin, RefreshCw } from 'lucide-react';
+import { useDeferredValue, useEffect, useState } from 'react';
+import { AlertTriangle, List, MapPin, RefreshCw, Search } from 'lucide-react';
 import {
   Badge,
   Button,
@@ -9,6 +9,7 @@ import {
   DataTable,
   EmptyState,
   ErrorState,
+  Input,
   PageHeader,
   SegmentedControl,
   Select,
@@ -19,6 +20,7 @@ import { getStoredAdminRole } from '@/features/auth/lib/authApi';
 import {
   ACTIVE_RIDE_STATUSES,
   type AdminRideDto,
+  type DisputeCollectionFilter,
   type DisputeQueueStatus,
   type PaymentDisputeQueueItemDto,
 } from '@/lib/api/endpoints/rides';
@@ -41,8 +43,14 @@ const FILTER_OPTIONS = [
 
 const DISPUTE_STATUS_OPTIONS = [
   { value: 'OPEN', label: 'Open disputes (awaiting ruling)' },
-  { value: 'RESOLVED', label: 'Resolved disputes (audit trail)' },
+  { value: 'RESOLVED', label: 'Closed disputes (receipt & refund archive)' },
   { value: 'ALL', label: 'All dispute tickets' },
+];
+
+const DISPUTE_COLLECTION_OPTIONS = [
+  { value: 'ALL', label: 'All payment methods' },
+  { value: 'ONLINE', label: 'Online UPI / Razorpay' },
+  { value: 'CASH', label: 'Cash / Direct' },
 ];
 
 const toStatuses = (f: Filter): RideStatus[] | undefined =>
@@ -56,6 +64,9 @@ export function RidesScreen() {
   const [viewMode, setViewMode] = useState<ViewMode>('map');
   const [filter, setFilter] = useState<Filter>('LIVE');
   const [disputeFilter, setDisputeFilter] = useState<DisputeQueueStatus>('OPEN');
+  const [disputeCollection, setDisputeCollection] = useState<DisputeCollectionFilter>('ALL');
+  const [disputeSearch, setDisputeSearch] = useState('');
+  const deferredDisputeSearch = useDeferredValue(disputeSearch);
   const [limit, setLimit] = useState(PAGE_SIZE);
   const [selected, setSelected] = useState<AdminRideDto | null>(null);
   const [selectedDispute, setSelectedDispute] = useState<PaymentDisputeQueueItemDto | null>(null);
@@ -68,7 +79,11 @@ export function RidesScreen() {
   const statuses = toStatuses(filter);
   const rides = useRides({ ...(statuses === undefined ? {} : { statuses }), limit });
   const disputes = usePaymentDisputes(
-    disputeFilter,
+    {
+      status: disputeFilter,
+      collection: disputeCollection,
+      ...(deferredDisputeSearch.trim() ? { search: deferredDisputeSearch.trim() } : {}),
+    },
     canViewDisputes && viewMode === 'disputes',
   );
   const rows = rides.data ?? [];
@@ -144,7 +159,7 @@ export function RidesScreen() {
       header: 'Dispute Reason',
       render: (item) => (
         <span className="text-xs text-text line-clamp-2 max-w-xs">
-          {typeof item.ticket.metadata?.reason === 'string'
+          {typeof item.ticket?.metadata?.reason === 'string'
             ? item.ticket.metadata.reason
             : 'No reason recorded'}
         </span>
@@ -152,29 +167,48 @@ export function RidesScreen() {
     },
     {
       key: 'payment',
-      header: 'Payment / Ref',
+      header: 'Receipt / Provider Ref',
       render: (item) => (
         <div className="flex flex-col text-xs">
-          <span className="font-medium text-text">
-            {item.evidence.paymentCollection ?? 'CASH'}
-          </span>
+          <div className="flex items-center gap-1.5">
+            <span className="font-medium text-text">
+              {item.evidence.paymentCollection ?? 'CASH'}
+            </span>
+            {item.evidence.isDuplicateUpiAfterCash && (
+              <Badge tone="warning">DUP UPI + CASH</Badge>
+            )}
+          </div>
           <span className="font-mono text-text-subtle">
-            {item.evidence.providerPaymentId ?? item.evidence.providerOrderId ?? 'Cash / Direct'}
+            {item.evidence.providerPaymentId ??
+              item.evidence.providerQrId ??
+              item.evidence.providerOrderId ??
+              item.evidence.receiptReference ??
+              'Cash / Direct'}
           </span>
+          {item.evidence.providerRefundReference && (
+            <span className="font-mono text-info">
+              Refund: {item.evidence.providerRefundReference}
+            </span>
+          )}
         </div>
       ),
     },
     {
       key: 'commission',
-      header: 'Commission / Refund',
+      header: 'Ledger Impact',
       numeric: true,
       align: 'right',
       render: (item) => (
         <div className="flex flex-col items-end text-xs font-mono">
-          <span>Charged: {formatPaise(item.evidence.commissionChargedPaise)}</span>
+          <span>Fee: {formatPaise(item.evidence.commissionChargedPaise)}</span>
           {item.evidence.commissionRefundedPaise > 0 && (
             <span className="text-success">
-              Refunded: {formatPaise(item.evidence.commissionRefundedPaise)}
+              Fee refunded: {formatPaise(item.evidence.commissionRefundedPaise)}
+            </span>
+          )}
+          {(item.evidence.onlineEarningsReversedPaise ?? 0) > 0 && (
+            <span className="text-warning">
+              Earnings reversed: {formatPaise(item.evidence.onlineEarningsReversedPaise ?? 0)}
             </span>
           )}
         </div>
@@ -200,7 +234,9 @@ export function RidesScreen() {
       key: 'filedAt',
       header: 'Filed',
       render: (item) => (
-        <span className="text-sm text-text-subtle">{when(item.ticket.createdAt)}</span>
+        <span className="text-sm text-text-subtle">
+          {item.ticket?.createdAt ? when(item.ticket.createdAt) : when(item.ride.createdAt)}
+        </span>
       ),
     },
   ];
@@ -348,8 +384,8 @@ export function RidesScreen() {
         </div>
       ) : (
         <div className="flex flex-col gap-6">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <div className="w-72">
                 <Select
                   value={disputeFilter}
@@ -357,9 +393,23 @@ export function RidesScreen() {
                   options={DISPUTE_STATUS_OPTIONS}
                 />
               </div>
-              <span className="text-xs text-text-subtle">
-                Click any ticket to inspect payment evidence or issue a ruling
-              </span>
+              <div className="w-52">
+                <Select
+                  value={disputeCollection}
+                  onValueChange={(v) => setDisputeCollection(v as DisputeCollectionFilter)}
+                  options={DISPUTE_COLLECTION_OPTIONS}
+                />
+              </div>
+            </div>
+            <div className="relative w-full lg:w-96">
+              <Search className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-text-subtle pointer-events-none" />
+              <Input
+                type="text"
+                value={disputeSearch}
+                onChange={(e) => setDisputeSearch(e.target.value)}
+                placeholder="Search ride, phone, pay_ / order_ / rfnd_..."
+                className="pl-9 text-sm"
+              />
             </div>
           </div>
 
@@ -377,13 +427,13 @@ export function RidesScreen() {
           ) : disputeRows.length === 0 ? (
             <EmptyState
               title="No payment disputes match this filter"
-              description="Rider-filed payment disputes and commission refund rulings appear here."
+              description="Open disputes, closed rulings, receipt references, and Razorpay refund audit logs appear here."
             />
           ) : (
             <DataTable
               columns={disputeColumns}
               rows={disputeRows}
-              rowKey={(item) => item.ticket.id}
+              rowKey={(item) => item.ticket?.id ?? item.ride.id}
               onRowClick={(item) => {
                 setSelectedDispute(item);
                 setSelected(item.ride);

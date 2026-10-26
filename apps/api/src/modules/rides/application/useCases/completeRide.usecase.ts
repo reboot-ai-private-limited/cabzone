@@ -46,6 +46,7 @@ export interface ResolvePaymentDisputeInput {
   adminId: string;
   outcome: 'RIDER_WINS' | 'DRIVER_WINS';
   reason: string;
+  refundReference?: string | null | undefined;
 }
 
 export class CompleteRideUseCase {
@@ -151,80 +152,173 @@ export class CompleteRideUseCase {
       if (!events?.some((event) => event.eventType === 'PAYMENT_DISPUTED')) {
         throw AppError.badRequest('DISPUTE_NOT_FOUND: This ride has no payment dispute.');
       }
+
+      const refundReference = input.refundReference?.trim() ? input.refundReference.trim() : null;
+      const confirmedEvents = events.filter((event) => event.eventType === 'PAYMENT_CONFIRMED');
+      const disputeEvents = events.filter((event) => event.eventType === 'PAYMENT_DISPUTED');
+      const latestDispute = disputeEvents[disputeEvents.length - 1];
+      const hasOnlineConfirmation = confirmedEvents.some((event) => event.metadata?.method === 'UPI');
+      const hasCashConfirmation = confirmedEvents.some((event) => event.metadata?.method !== 'UPI');
+      const isDuplicateUpiAfterCash =
+        hasCashConfirmation && typeof latestDispute?.metadata?.paymentId === 'string';
+      const requiresManualProviderRefund =
+        (hasOnlineConfirmation || isDuplicateUpiAfterCash) && input.outcome === 'RIDER_WINS';
+
       const prior = events.find((event) => event.eventType === 'PAYMENT_DISPUTE_RESOLVED');
-      if (
-        events.some((event) => ['UPI_ORDER_CREATED', 'UPI_QR_CREATED'].includes(event.eventType))
-      ) {
-        throw AppError.conflict(
-          'Online UPI disputes require manual review in Razorpay; no automatic refund has been issued.',
-        );
-      }
       if (prior) {
+        const priorRefundRef =
+          typeof prior.metadata?.refundReference === 'string'
+            ? prior.metadata.refundReference
+            : null;
         if (
           prior.metadata.outcome === input.outcome &&
           prior.metadata.reason === input.reason &&
+          priorRefundRef === refundReference &&
           prior.actorId === input.adminId
-        )
+        ) {
           return ride;
+        }
         throw AppError.conflict(
           'DISPUTE_ALREADY_RESOLVED: This dispute has a different resolution.',
         );
       }
+
+      if (requiresManualProviderRefund && !refundReference) {
+        throw AppError.conflict(
+          'MANUAL_REFUND_REFERENCE_REQUIRED: Online UPI disputes require a manual Razorpay refundReference before resolving in the rider’s favor.',
+        );
+      }
+
       if (ride.status !== 'PAYMENT_DISPUTED')
         throw AppError.conflict('DISPUTE_STATE_CHANGED: Refresh this ride before resolving it.');
+
       const now = new Date();
       const saved = await saveRideTransition(
         this.deps.rideRepo,
         { ...ride, status: 'SETTLED', updatedAt: now, version: ride.version + 1 },
         ride.version,
       );
+
       let refundedCommissionPaise = 0;
+      let reversedOnlineEarningsPaise = 0;
+
       if (input.outcome === 'RIDER_WINS') {
-        const charged = await this.deps.walletRepo.findTransactionByIdempotencyKey(
-          `commission_debit_${ride.id}`,
-        );
-        const expectedCommissionPaise = Math.round(
-          ((ride.agreedFarePaise ?? ride.proposedFarePaise ?? ride.suggestedFarePaise) *
-            ride.pricingSnapshot.commissionPercent) /
-            100,
-        );
-        if (!charged && expectedCommissionPaise > 0)
-          throw AppError.conflict(
-            'COMMISSION_ENTRY_MISSING: Reconcile this ride before refunding.',
+        if (hasOnlineConfirmation) {
+          const onlineCredit = await this.deps.walletRepo.findTransactionByIdempotencyKey(
+            `ride-earnings:${ride.id}`,
           );
-        if (charged) {
-          const wallet = await this.deps.walletRepo.findById(charged.walletId);
-          if (!wallet || wallet.driverId !== ride.driverId)
-            throw AppError.conflict('WALLET_NOT_FOUND: Commission wallet is unavailable.');
-          refundedCommissionPaise = charged.amountPaise;
-          const balanceAfter = calculateNewBalance(
-            wallet.balancePaise,
-            refundedCommissionPaise,
-            'CREDIT',
+          if (onlineCredit && onlineCredit.amountPaise > 0) {
+            const wallet = await this.deps.walletRepo.findById(onlineCredit.walletId);
+            if (!wallet || wallet.driverId !== ride.driverId) {
+              throw AppError.conflict(
+                'WALLET_NOT_FOUND: Driver wallet is unavailable for online earnings reversal.',
+              );
+            }
+            const totalToReverse = onlineCredit.amountPaise;
+            const availableEarnings = Math.max(0, wallet.earningsBalancePaise ?? 0);
+            const fromEarnings = Math.min(totalToReverse, availableEarnings);
+            const shortfall = totalToReverse - fromEarnings;
+            const nextEarnings = (wallet.earningsBalancePaise ?? 0) - fromEarnings;
+            const nextCommissionBalance =
+              shortfall > 0
+                ? calculateNewBalance(wallet.balancePaise, shortfall, 'DEBIT')
+                : wallet.balancePaise;
+
+            if (fromEarnings > 0) {
+              await this.deps.walletRepo.recordTransaction({
+                id: newUuid(),
+                walletId: wallet.id,
+                driverId: wallet.driverId,
+                bucket: 'EARNINGS',
+                type: 'DEBIT',
+                amountPaise: fromEarnings,
+                referenceType: 'ONLINE_EARNINGS_REVERSAL',
+                referenceId: ride.id,
+                idempotencyKey: `dispute_online_reversal_${ride.id}:EARNINGS`,
+                balanceBeforePaise: wallet.earningsBalancePaise ?? 0,
+                balanceAfterPaise: nextEarnings,
+                createdBy: input.adminId,
+                note: `${input.reason} (refund ${refundReference})`,
+                createdAt: now,
+              });
+            }
+
+            if (shortfall > 0) {
+              await this.deps.walletRepo.recordTransaction({
+                id: newUuid(),
+                walletId: wallet.id,
+                driverId: wallet.driverId,
+                bucket: 'COMMISSION',
+                type: 'DEBIT',
+                amountPaise: shortfall,
+                referenceType: 'ONLINE_EARNINGS_REVERSAL',
+                referenceId: ride.id,
+                idempotencyKey: `dispute_online_reversal_${ride.id}:COMMISSION`,
+                balanceBeforePaise: wallet.balancePaise,
+                balanceAfterPaise: nextCommissionBalance,
+                createdBy: input.adminId,
+                note: `${input.reason} (post-cashout clawback, refund ${refundReference})`,
+                createdAt: now,
+              });
+            }
+
+            await this.deps.walletRepo.save({
+              ...wallet,
+              earningsBalancePaise: nextEarnings,
+              balancePaise: nextCommissionBalance,
+              version: wallet.version + 1,
+              updatedAt: now,
+            });
+            reversedOnlineEarningsPaise = totalToReverse;
+          }
+        } else if (!isDuplicateUpiAfterCash) {
+          const charged = await this.deps.walletRepo.findTransactionByIdempotencyKey(
+            `commission_debit_${ride.id}`,
           );
-          await this.deps.walletRepo.recordTransaction({
-            id: newUuid(),
-            walletId: wallet.id,
-            driverId: wallet.driverId,
-            type: 'CREDIT',
-            amountPaise: refundedCommissionPaise,
-            referenceType: 'DISPUTE_REFUND',
-            referenceId: ride.id,
-            idempotencyKey: `dispute_refund_${ride.id}`,
-            balanceBeforePaise: wallet.balancePaise,
-            balanceAfterPaise: balanceAfter,
-            createdBy: input.adminId,
-            note: input.reason,
-            createdAt: now,
-          });
-          await this.deps.walletRepo.save({
-            ...wallet,
-            balancePaise: balanceAfter,
-            version: wallet.version + 1,
-            updatedAt: now,
-          });
+          const expectedCommissionPaise = Math.round(
+            ((ride.agreedFarePaise ?? ride.proposedFarePaise ?? ride.suggestedFarePaise) *
+              ride.pricingSnapshot.commissionPercent) /
+              100,
+          );
+          if (!charged && expectedCommissionPaise > 0)
+            throw AppError.conflict(
+              'COMMISSION_ENTRY_MISSING: Reconcile this ride before refunding.',
+            );
+          if (charged) {
+            const wallet = await this.deps.walletRepo.findById(charged.walletId);
+            if (!wallet || wallet.driverId !== ride.driverId)
+              throw AppError.conflict('WALLET_NOT_FOUND: Commission wallet is unavailable.');
+            refundedCommissionPaise = charged.amountPaise;
+            const balanceAfter = calculateNewBalance(
+              wallet.balancePaise,
+              refundedCommissionPaise,
+              'CREDIT',
+            );
+            await this.deps.walletRepo.recordTransaction({
+              id: newUuid(),
+              walletId: wallet.id,
+              driverId: wallet.driverId,
+              type: 'CREDIT',
+              amountPaise: refundedCommissionPaise,
+              referenceType: 'DISPUTE_REFUND',
+              referenceId: ride.id,
+              idempotencyKey: `dispute_refund_${ride.id}`,
+              balanceBeforePaise: wallet.balancePaise,
+              balanceAfterPaise: balanceAfter,
+              createdBy: input.adminId,
+              note: input.reason,
+              createdAt: now,
+            });
+            await this.deps.walletRepo.save({
+              ...wallet,
+              balancePaise: balanceAfter,
+              version: wallet.version + 1,
+              updatedAt: now,
+            });
+          }
         }
       }
+
       await this.deps.rideEventRepo!.save({
         id: newUuid(),
         rideId: ride.id,
@@ -233,7 +327,14 @@ export class CompleteRideUseCase {
         actorId: input.adminId,
         previousStatus: 'PAYMENT_DISPUTED',
         newStatus: 'SETTLED',
-        metadata: { outcome: input.outcome, reason: input.reason, refundedCommissionPaise },
+        metadata: {
+          outcome: input.outcome,
+          reason: input.reason,
+          refundedCommissionPaise,
+          reversedOnlineEarningsPaise,
+          ...(refundReference ? { refundReference } : {}),
+          ...(isDuplicateUpiAfterCash ? { duplicateUpiAfterCash: true } : {}),
+        },
         createdAt: now,
       });
       return saved;

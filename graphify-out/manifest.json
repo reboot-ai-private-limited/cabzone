@@ -588,9 +588,9 @@
     "semantic_hash": ""
   },
   "packages/contracts/src/rides.ts": {
-    "mtime": 1793007073.28559,
-    "seen": 1793014685.9247413,
-    "ast_hash": "962eaf87897d94212aad057025e18011",
+    "mtime": 1793015635.9217713,
+    "seen": 1793017116.6659417,
+    "ast_hash": "7e0e6d11eee37dc05e36ef4374cd5f07",
     "semantic_hash": ""
   },
   "packages/contracts/src/vehicles.ts": {
@@ -1140,9 +1140,9 @@
     "semantic_hash": "493ff77a60ed362d58398c851ef2fcd9"
   },
   "apps/api/src/modules/ledger/interface/ledger.validation.ts": {
-    "mtime": 1793007073.2058747,
-    "seen": 1793014685.9236937,
-    "ast_hash": "58a342fe176d286a741ef1f4d8ca0992",
+    "mtime": 1793015771.1094358,
+    "seen": 1793017116.664494,
+    "ast_hash": "d83fcbeb6ddc241e30778959f16a5ac3",
     "semantic_hash": ""
   },
   "apps/api/src/modules/pricing/domain/cityZone.entity.ts": {
@@ -1272,9 +1272,9 @@
     "semantic_hash": "8b7a23cf798cd4ee9dffe3ab5aeef210"
   },
   "apps/api/src/modules/rides/interface/rides.validation.ts": {
-    "mtime": 1793013332.4874377,
-    "seen": 1793014685.9238575,
-    "ast_hash": "913d27e987d8d185dbfd33f04d297ea3",
+    "mtime": 1793016237.100172,
+    "seen": 1793017116.6646912,
+    "ast_hash": "fb6d096ff42f38621c7ee34446d0fba4",
     "semantic_hash": ""
   },
   "apps/api/src/modules/zone/application/useCases/createZone.usecase.ts": {
@@ -1452,9 +1452,9 @@
     "semantic_hash": "95274312c74a34e7af356208d8cb05cd"
   },
   "packages/contracts/src/wallets.ts": {
-    "mtime": 1793007073.2861118,
-    "seen": 1793014685.924751,
-    "ast_hash": "8d702033cc9b99192987a8945306c230",
+    "mtime": 1793015654.8788016,
+    "seen": 1793017116.6659544,
+    "ast_hash": "a324ff5112175794ede2a32fc1e3699f",
     "semantic_hash": ""
   },
   "packages/contracts/src/zones.ts": {
@@ -1476,15 +1476,15 @@
     "semantic_hash": ""
   },
   "apps/api/src/modules/ledger/domain/wallet.port.ts": {
-    "mtime": 1793007073.2032354,
-    "seen": 1793014685.9236557,
-    "ast_hash": "1dc2f9e9da5cf0cb9f6690146f90b08d",
+    "mtime": 1793015761.092655,
+    "seen": 1793017116.6644578,
+    "ast_hash": "1927f57bf4eb0c3f072514ae6ba9604a",
     "semantic_hash": ""
   },
   "apps/api/src/modules/ledger/infrastructure/persistence/memoryWallet.repository.ts": {
-    "mtime": 1793007073.2038562,
-    "seen": 1793014685.9236681,
-    "ast_hash": "23bc406b137dee6331d1bcec5ca88d45",
+    "mtime": 1793015972.3259785,
+    "seen": 1793017116.664469,
+    "ast_hash": "2f77a33b0784be44d022ba5dc095aed4",
     "semantic_hash": ""
   },
   "apps/api/src/modules/ledger/ledger.public.ts": {
@@ -1626,9 +1626,9 @@
     "semantic_hash": "201189ce44192620a94be985d928daaa"
   },
   "apps/api/src/modules/rides/application/useCases/completeRide.usecase.ts": {
-    "mtime": 1793001898.4053893,
-    "seen": 1793004493.5693877,
-    "ast_hash": "e1dde2d5e0ae0a187cca70597c6b7cb4",
+    "mtime": 1793016235.552659,
+    "seen": 1793017116.664584,
+    "ast_hash": "8e88e2718a65252814b1f21740c98a17",
     "semantic_hash": ""
   },
   "apps/api/src/modules/rides/application/useCases/driverArrived.usecase.ts": {
@@ -2490,9 +2490,9 @@
     "semantic_hash": "4bdfd0acab5dde32a80df7cf75f2c338"
   },
   "apps/web/src/lib/query/keys.ts": {
-    "mtime": 1793014317.5925734,
-    "seen": 1793014685.9246912,
-    "ast_hash": "eeadf90388b40533a366cbe45d73530c",
+    "mtime": 1793016652.7258656,
+    "seen": 1793017116.6658912,
+    "ast_hash": "73f68fc8f5808a20294b154911791275",
     "semantic_hash": ""
   },
   "apps/web/src/lib/query/mutation.ts": {
@@ -2958,27 +2958,27 @@
     "semantic_hash": ""
   },
   "apps/api/src/modules/ledger/infrastructure/persistence/mongoWallet.repository.ts": {
-    "mtime": 1793007073.2048726,
-    "seen": 1793014685.9236705,
-    "ast_hash": "7f11303c7e8a1d358b9ca540b4b825a3",
+    "mtime": 1793015975.0196314,
+    "seen": 1793017116.6644711,
+    "ast_hash": "db67cc1435b1dfe5ed776a1d13556572",
     "semantic_hash": ""
   },
   "apps/api/src/modules/ledger/interface/ledger.controller.ts": {
-    "mtime": 1793007073.2048726,
-    "seen": 1793014685.9236891,
-    "ast_hash": "e7651f23f8fb398f7902167562537c23",
+    "mtime": 1793015989.3917322,
+    "seen": 1793017116.6644893,
+    "ast_hash": "c8e44f897f8bec09831fb6ce4a80d2df",
     "semantic_hash": ""
   },
   "apps/api/src/modules/ledger/interface/ledger.routes.ts": {
-    "mtime": 1793007073.2058747,
-    "seen": 1793014685.9236915,
-    "ast_hash": "bfdfb7117a5deebc0abc79d1acc99fd6",
+    "mtime": 1793015991.5792532,
+    "seen": 1793017116.664492,
+    "ast_hash": "3efda34188e5dc9db107e8658acaec35",
     "semantic_hash": ""
   },
   "apps/api/src/modules/ledger/ledger.container.ts": {
-    "mtime": 1793007073.2058747,
-    "seen": 1793014685.923703,
-    "ast_hash": "5cefdba179bd34293f268c7d9f05aea8",
+    "mtime": 1793015994.3599937,
+    "seen": 1793017116.6645033,
+    "ast_hash": "35ce87e7aa09473dc28f459daaf09328",
     "semantic_hash": ""
   },
   "apps/api/src/modules/pricing/interface/quoteRateLimiter.ts": {
@@ -3006,9 +3006,9 @@
     "semantic_hash": ""
   },
   "apps/api/src/modules/rides/interface/rides.controller.ts": {
-    "mtime": 1793014080.894456,
-    "seen": 1793014685.9238503,
-    "ast_hash": "029e9c6a1c8f319e57bc327ae13992de",
+    "mtime": 1793016426.5921378,
+    "seen": 1793017116.6646824,
+    "ast_hash": "05caaee09f20d4e07742436e05f2cf71",
     "semantic_hash": ""
   },
   "apps/api/src/modules/rides/interface/rides.presenter.ts": {
@@ -3024,15 +3024,15 @@
     "semantic_hash": ""
   },
   "apps/api/src/modules/rides/interface/rides.swagger.ts": {
-    "mtime": 1793013701.4751253,
-    "seen": 1793014685.9238558,
-    "ast_hash": "ad86cd78043ae5ddcd9e5e9a94cebfbb",
+    "mtime": 1793016490.618536,
+    "seen": 1793017116.664689,
+    "ast_hash": "aeefd5c5aa2e634e892bffda2e6c2ed5",
     "semantic_hash": ""
   },
   "apps/api/src/modules/rides/rides.container.ts": {
-    "mtime": 1793013338.9741511,
-    "seen": 1793014685.923859,
-    "ast_hash": "c4cd00c5844e7c7cd86c0bbec43795f0",
+    "mtime": 1793016492.7454078,
+    "seen": 1793017116.6646936,
+    "ast_hash": "7d3cdc1b9ddc5cf9b1a04bc797647cfb",
     "semantic_hash": ""
   },
   "apps/api/src/modules/routing/application/getRoute.usecase.ts": {
@@ -3228,9 +3228,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/features/finance/components/FinanceScreen.tsx": {
-    "mtime": 1793014517.2620068,
-    "seen": 1793014685.924526,
-    "ast_hash": "9e7e04835d2341f44895a36f54535a7c",
+    "mtime": 1793016787.2144551,
+    "seen": 1793017116.665685,
+    "ast_hash": "cf7c8917ddffd8f6259b0566de5831b4",
     "semantic_hash": ""
   },
   "apps/web/src/features/finance/hooks/useWallet.ts": {
@@ -3240,9 +3240,9 @@
     "semantic_hash": "47af7e0e4a243eed9dd58949836f3206"
   },
   "apps/web/src/features/rides/components/RideDetailDialog.tsx": {
-    "mtime": 1793014515.2110345,
-    "seen": 1793014685.9245756,
-    "ast_hash": "4d249c1b92aac998f2c867f8403954c8",
+    "mtime": 1793016785.3441503,
+    "seen": 1793017116.665754,
+    "ast_hash": "ad5e7486a28979e773c78a9d0cac582a",
     "semantic_hash": ""
   },
   "apps/web/src/features/rides/components/RideStatusBadge.tsx": {
@@ -3252,15 +3252,15 @@
     "semantic_hash": "1cf76f91e72b37b2aeb1dc0b9a825f00"
   },
   "apps/web/src/features/rides/components/RidesScreen.tsx": {
-    "mtime": 1793014420.899191,
-    "seen": 1793014685.92458,
-    "ast_hash": "9e25f374cd4c6d91ca1d65008f00ec8c",
+    "mtime": 1793016782.6695113,
+    "seen": 1793017116.665761,
+    "ast_hash": "ad7432a0e846f29381edca8e2b8d273e",
     "semantic_hash": ""
   },
   "apps/web/src/features/rides/hooks/useRides.ts": {
-    "mtime": 1793014417.8256352,
-    "seen": 1793014685.9245834,
-    "ast_hash": "9b99807d0c5acfd7eaf4608857863330",
+    "mtime": 1793016654.9505603,
+    "seen": 1793017116.665766,
+    "ast_hash": "c361326b6c5d03c3075126ef9df1163f",
     "semantic_hash": ""
   },
   "apps/web/src/lib/api/endpoints/drivers.ts": {
@@ -3270,15 +3270,15 @@
     "semantic_hash": ""
   },
   "apps/web/src/lib/api/endpoints/rides.ts": {
-    "mtime": 1793014415.2116663,
-    "seen": 1793014685.9246676,
-    "ast_hash": "c45fb59e94bc05aac1f14243607ff16d",
+    "mtime": 1793016650.5027566,
+    "seen": 1793017116.665867,
+    "ast_hash": "5d19b024662ab969d8b50dd001823b2a",
     "semantic_hash": ""
   },
   "apps/web/src/lib/api/endpoints/wallets.ts": {
-    "mtime": 1793001898.4980643,
-    "seen": 1793004493.5704453,
-    "ast_hash": "ece3ddd789f06a5815feabf86b27d48a",
+    "mtime": 1793016648.2652829,
+    "seen": 1793017116.6658692,
+    "ast_hash": "56a8cbdc6f5f0eef7368148611ef02d6",
     "semantic_hash": ""
   },
   "docs/LLD/routing-and-state-pricing-implementation-plan.md": {
@@ -4670,7 +4670,7 @@
   ".agents/skills/impeccable/scripts/data/font-index.json": {
     "mtime": 1790692196.8934798,
     "seen": 1793001127.6225345,
-    "ast_hash": "4a4426c85ec12df1d9a487a39d656ff4",
+    "ast_hash": "",
     "semantic_hash": ""
   },
   "apps/driver-mobile/src/app/(auth)/_layout.tsx": {
@@ -5706,9 +5706,9 @@
     "semantic_hash": ""
   },
   "apps/api/src/modules/ledger/interface/walletMoney.swagger.ts": {
-    "mtime": 1793013622.6175244,
-    "seen": 1793014685.9236982,
-    "ast_hash": "5456ff19cc60c8dcd606a0d493ecc4fb",
+    "mtime": 1793016019.8869066,
+    "seen": 1793017116.6644983,
+    "ast_hash": "bd5c7553923da98c7024aa523f4b7c02",
     "semantic_hash": ""
   },
   "apps/api/src/modules/ledger/interface/walletRecharge.html.ts": {
@@ -5790,9 +5790,9 @@
     "semantic_hash": ""
   },
   "apps/api/src/modules/rides/application/useCases/driverEarnings.usecase.ts": {
-    "mtime": 1793007073.2096813,
-    "seen": 1793014685.9237843,
-    "ast_hash": "cc31882ce0228280751c749ac63ffb62",
+    "mtime": 1793016338.6505694,
+    "seen": 1793017116.6645916,
+    "ast_hash": "2ebecb834ec82adc9501317325fd3393",
     "semantic_hash": ""
   },
   "apps/api/src/scripts/reconcileDriverEarnings.ts": {
@@ -5853,6 +5853,30 @@
     "mtime": 1793014320.088662,
     "seen": 1793014685.9246557,
     "ast_hash": "83b5c67ac37722a7b03fc24a6ca8ec2a",
+    "semantic_hash": ""
+  },
+  "apps/api/src/modules/ledger/application/useCases/reconcileWalletLedger.usecase.ts": {
+    "mtime": 1793015969.362881,
+    "seen": 1793017116.66444,
+    "ast_hash": "975c641c6ce4f00ab4ab4a9ea6bacdcb",
+    "semantic_hash": ""
+  },
+  "apps/api/test/money-payment-reconciliation.test.ts": {
+    "mtime": 1793017010.396845,
+    "seen": 1793017116.6649797,
+    "ast_hash": "c420da2a423ef42d76746ae7098172cf",
+    "semantic_hash": ""
+  },
+  "tasks/plan.md": {
+    "mtime": 1793019310.3521574,
+    "seen": 1793019764.0235457,
+    "ast_hash": "7bba2481542528e3f6198cb5d712fe1b",
+    "semantic_hash": ""
+  },
+  "tasks/todo.md": {
+    "mtime": 1793019285.0892153,
+    "seen": 1793019764.023549,
+    "ast_hash": "873da174c92904650bf2f643b920b60c",
     "semantic_hash": ""
   }
 }

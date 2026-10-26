@@ -17,6 +17,7 @@ import type {
   RideEventRepositoryPort,
   RideRepositoryPort,
 } from '../../domain/index.js';
+import type { RidePaymentGateway } from '../../domain/ridePayment.port.js';
 
 const IST_OFFSET_MS = 330 * 60_000;
 const DAY_MS = 86_400_000;
@@ -25,6 +26,7 @@ const CHUNK_SIZE = 200;
 const RIDE_TX_TYPES: readonly TransactionReferenceType[] = [
   'RIDE_COMMISSION',
   'ONLINE_RIDE_EARNINGS',
+  'ONLINE_EARNINGS_REVERSAL',
   'DISPUTE_REFUND',
   'CANCELLATION_COMPENSATION',
 ];
@@ -80,10 +82,11 @@ function inWindow(ts: Date, since: Date | null, until: Date): boolean {
 }
 
 export interface ReconcileDriverEarningsInput {
-  mode?: 'AUDIT' | 'BACKFILL_ONLINE_EARNINGS' | undefined;
+  mode?: 'AUDIT' | 'BACKFILL_ONLINE_EARNINGS' | 'RECONCILE_PENDING_ONLINE' | undefined;
   driverId?: string | undefined;
   rideIds?: readonly string[] | undefined;
   adminId?: string | undefined;
+  verifyProvider?: boolean | undefined;
 }
 
 export class DriverEarningsUseCase {
@@ -93,6 +96,8 @@ export class DriverEarningsUseCase {
       rideEventRepo: RideEventRepositoryPort;
       walletRepo: WalletRepositoryPort;
       unitOfWork: UnitOfWorkPort;
+      gateway?: RidePaymentGateway | undefined;
+      reconcileOnlineRide?: ((rideId: string, riderId: string) => Promise<RideEntity>) | undefined;
     },
   ) {}
 
@@ -131,7 +136,11 @@ export class DriverEarningsUseCase {
       const slice = rideIds.slice(i, i + CHUNK_SIZE);
       const events = await this.deps.rideEventRepo.findByRideIds(slice, [
         'PAYMENT_CONFIRMED',
+        'PAYMENT_DISPUTED',
         'PAYMENT_DISPUTE_RESOLVED',
+        'UPI_ORDER_CREATED',
+        'UPI_QR_CREATED',
+        'PAYMENT_METHOD_CHANGED',
       ]);
       for (const ev of events) {
         const list = byRide.get(ev.rideId) ?? [];
@@ -140,6 +149,55 @@ export class DriverEarningsUseCase {
       }
     }
     return byRide;
+  }
+
+  private async verifyProviderForOnlineRide(
+    gateway: RidePaymentGateway,
+    events: readonly RideEventEntity[],
+    farePaise: number,
+    expectedPaymentId: string | null,
+  ): Promise<{ ok: boolean; detail?: string }> {
+    const orderEvent = events.find((e) => e.eventType === 'UPI_ORDER_CREATED');
+    const qrEvent = events.find((e) => e.eventType === 'UPI_QR_CREATED');
+    const orderId =
+      typeof orderEvent?.metadata?.orderId === 'string' ? orderEvent.metadata.orderId : null;
+    const qrId = typeof qrEvent?.metadata?.qrId === 'string' ? qrEvent.metadata.qrId : null;
+
+    if (qrId && gateway.live) {
+      const captured = await gateway.findQrPayment(qrId, farePaise);
+      if (!captured) {
+        return {
+          ok: false,
+          detail: `Provider QR ${qrId} has no captured unrefunded payment for ${farePaise} paise.`,
+        };
+      }
+      if (expectedPaymentId && captured !== expectedPaymentId) {
+        return {
+          ok: false,
+          detail: `Provider QR ${qrId} captured ${captured}, expected ${expectedPaymentId}.`,
+        };
+      }
+      return { ok: true };
+    }
+
+    if (orderId && !gateway.live) {
+      const captured = await gateway.findCapturedPayment(orderId, farePaise);
+      if (!captured) {
+        return {
+          ok: false,
+          detail: `Provider order ${orderId} has no captured unrefunded payment for ${farePaise} paise.`,
+        };
+      }
+      if (expectedPaymentId && captured !== expectedPaymentId) {
+        return {
+          ok: false,
+          detail: `Provider order ${orderId} captured ${captured}, expected ${expectedPaymentId}.`,
+        };
+      }
+      return { ok: true };
+    }
+
+    return { ok: true };
   }
 
   private evaluateRide(
@@ -168,6 +226,9 @@ export class DriverEarningsUseCase {
     const onlineTx = txs.find(
       (t) => t.referenceType === 'ONLINE_RIDE_EARNINGS' && t.type === 'CREDIT',
     );
+    const onlineReversedPaise = txs
+      .filter((t) => t.referenceType === 'ONLINE_EARNINGS_REVERSAL' && t.type === 'DEBIT')
+      .reduce((sum, t) => sum + t.amountPaise, 0);
     const commissionDebit = txs.find(
       (t) => t.referenceType === 'RIDE_COMMISSION' && t.type === 'DEBIT',
     );
@@ -175,7 +236,32 @@ export class DriverEarningsUseCase {
       .filter((t) => t.referenceType === 'DISPUTE_REFUND' && t.type === 'CREDIT')
       .reduce((sum, t) => sum + t.amountPaise, 0);
     const confirmedEvent = events.find((e) => e.eventType === 'PAYMENT_CONFIRMED');
+    const resolutionEvent = events.find((e) => e.eventType === 'PAYMENT_DISPUTE_RESOLVED');
     const isOnlineUpi = Boolean(onlineTx) || confirmedEvent?.metadata?.method === 'UPI';
+    const isOnlineRefunded =
+      isOnlineUpi &&
+      resolutionEvent?.metadata?.outcome === 'RIDER_WINS' &&
+      !resolutionEvent?.metadata?.duplicateUpiAfterCash;
+
+    if (isOnlineRefunded) {
+      const reconciled = onlineTx
+        ? onlineReversedPaise === onlineTx.amountPaise && !commissionDebit
+        : onlineReversedPaise === 0;
+      return {
+        reconciled,
+        settlement: {
+          grossPaise: 0,
+          commissionChargedPaise: 0,
+          commissionRefundedPaise: 0,
+          netCommissionPaise: 0,
+          netEarningsPaise: 0,
+          ...(onlineReversedPaise > 0
+            ? { onlineEarningsReversedPaise: onlineReversedPaise }
+            : {}),
+          settledVia: 'ONLINE_UPI',
+        },
+      };
+    }
 
     let commissionChargedPaise: number;
     let reconciled = true;
@@ -192,10 +278,13 @@ export class DriverEarningsUseCase {
 
       if (onlineTx) {
         commissionChargedPaise = Math.max(0, farePaise - onlineTx.amountPaise);
-        reconciled = onlineTx.amountPaise === expectedPayable && !commissionDebit;
+        reconciled =
+          onlineTx.amountPaise === expectedPayable &&
+          !commissionDebit &&
+          onlineReversedPaise === 0;
       } else {
         commissionChargedPaise = eventCommission;
-        reconciled = expectedPayable === 0;
+        reconciled = expectedPayable === 0 && onlineReversedPaise === 0;
       }
     } else {
       if (commissionDebit) {
@@ -216,6 +305,7 @@ export class DriverEarningsUseCase {
         commissionRefundedPaise: disputeRefundPaise,
         netCommissionPaise,
         netEarningsPaise: farePaise - netCommissionPaise,
+        ...(onlineReversedPaise > 0 ? { onlineEarningsReversedPaise: onlineReversedPaise } : {}),
         settledVia: isOnlineUpi ? 'ONLINE_UPI' : 'CASH',
       },
     };
@@ -255,7 +345,9 @@ export class DriverEarningsUseCase {
   ): Promise<DriverEarningsSummaryDto> {
     const candidates = await this.deps.rideRepo.listDriverRidesInWindow(
       driverId,
-      nowOverride ? computeIstPeriodWindow(period, nowOverride).since : computeIstPeriodWindow(period).since,
+      nowOverride
+        ? computeIstPeriodWindow(period, nowOverride).since
+        : computeIstPeriodWindow(period).since,
     );
     const now = nowOverride ?? new Date();
     const { since, until } = computeIstPeriodWindow(period, now);
@@ -289,6 +381,7 @@ export class DriverEarningsUseCase {
     let onlineGrossPaise = 0;
     let commissionChargedPaise = 0;
     let commissionRefundedPaise = 0;
+    let onlineEarningsReversedPaise = 0;
     let cancellationCompensationPaise = 0;
     let unreconciledRidesCount = 0;
 
@@ -308,6 +401,7 @@ export class DriverEarningsUseCase {
         }
         commissionChargedPaise += settlement.commissionChargedPaise;
         commissionRefundedPaise += settlement.commissionRefundedPaise;
+        onlineEarningsReversedPaise += settlement.onlineEarningsReversedPaise ?? 0;
         if (!reconciled) unreconciledRidesCount += 1;
       } else if (ride.status === 'TRIP_COMPLETED' || ride.status === 'PAYMENT_PENDING') {
         pendingPaymentTripsCount += 1;
@@ -346,12 +440,15 @@ export class DriverEarningsUseCase {
       commissionRefundedPaise,
       netCommissionPaise,
       netEarningsPaise: grossFarePaise - netCommissionPaise,
+      ...(onlineEarningsReversedPaise > 0 ? { onlineEarningsReversedPaise } : {}),
       cancellationCompensationPaise,
       unreconciledRidesCount,
     };
   }
 
-  async reconcile(input: ReconcileDriverEarningsInput = {}): Promise<DriverEarningsReconciliationDto> {
+  async reconcile(
+    input: ReconcileDriverEarningsInput = {},
+  ): Promise<DriverEarningsReconciliationDto> {
     const mode = input.mode ?? 'AUDIT';
     if (mode === 'BACKFILL_ONLINE_EARNINGS') {
       if (!input.rideIds || input.rideIds.length === 0) {
@@ -364,12 +461,93 @@ export class DriverEarningsUseCase {
       }
     }
 
+    const activeGateway =
+      this.deps.gateway?.keyId && input.verifyProvider !== false ? this.deps.gateway : undefined;
+
     const issues: RideEarningsReconciliationIssueDto[] = [];
     const backfilledRideIds: string[] = [];
     const skippedRideIds: string[] = [];
+    const reconciledPendingRideIds: string[] = [];
+    let checkedPendingOnlineRides = 0;
     let checkedSettledRides = 0;
     let cleanCashRides = 0;
     let cleanOnlineRides = 0;
+
+    // 0. Provider-to-ledger scan & recovery for PAYMENT_PENDING online rides (before settled audit)
+    if (activeGateway && (mode === 'AUDIT' || mode === 'RECONCILE_PENDING_ONLINE')) {
+      const pendingCandidates: RideEntity[] = [];
+      if (input.rideIds && input.rideIds.length > 0) {
+        for (const id of new Set(input.rideIds)) {
+          const ride = await this.deps.rideRepo.findById(id);
+          if (!ride) continue;
+          if (input.driverId && ride.driverId !== input.driverId) continue;
+          if (ride.status === 'PAYMENT_PENDING') pendingCandidates.push(ride);
+        }
+      } else {
+        let offset = 0;
+        for (;;) {
+          const page = await this.deps.rideRepo.list({
+            driverId: input.driverId,
+            statuses: ['PAYMENT_PENDING'],
+            limit: CHUNK_SIZE,
+            offset,
+          });
+          pendingCandidates.push(...page);
+          if (page.length < CHUNK_SIZE) break;
+          offset += page.length;
+        }
+      }
+
+      if (pendingCandidates.length > 0) {
+        const pendingEventsMap = await this.fetchPaymentEventsForRides(
+          pendingCandidates.map((r) => r.id),
+        );
+        for (const pendingRide of pendingCandidates) {
+          const evs = pendingEventsMap.get(pendingRide.id) ?? [];
+          const orderEvent = evs.find((e) => e.eventType === 'UPI_ORDER_CREATED');
+          const qrEvent = evs.find((e) => e.eventType === 'UPI_QR_CREATED');
+          const orderId =
+            typeof orderEvent?.metadata?.orderId === 'string'
+              ? orderEvent.metadata.orderId
+              : null;
+          const qrId =
+            typeof qrEvent?.metadata?.qrId === 'string' ? qrEvent.metadata.qrId : null;
+
+          if ((!qrId || !activeGateway.live) && (!orderId || activeGateway.live)) {
+            continue;
+          }
+          checkedPendingOnlineRides += 1;
+          const farePaise = rideFarePaise(pendingRide);
+          const capturedId =
+            qrId && activeGateway.live
+              ? await activeGateway.findQrPayment(qrId, farePaise)
+              : orderId
+                ? await activeGateway.findCapturedPayment(orderId, farePaise)
+                : null;
+
+          if (!capturedId) continue;
+
+          if (mode === 'RECONCILE_PENDING_ONLINE' && this.deps.reconcileOnlineRide) {
+            const updated = await this.deps.reconcileOnlineRide(
+              pendingRide.id,
+              pendingRide.bookerRiderId,
+            );
+            if (updated.status === 'SETTLED' || updated.status === 'PAYMENT_DISPUTED') {
+              reconciledPendingRideIds.push(pendingRide.id);
+            }
+          } else {
+            issues.push({
+              code: 'PROVIDER_CAPTURED_RIDE_UNSETTLED',
+              rideId: pendingRide.id,
+              driverId: pendingRide.driverId,
+              expectedPaise: farePaise,
+              actualPaise: 0,
+              detail: `Pending online ride has captured provider payment ${capturedId} (${qrId ?? orderId}) that has not been settled in ledger.`,
+            });
+          }
+        }
+      }
+    }
 
     // 1. Collect target settled rides
     const targetRides: RideEntity[] = [];
@@ -416,6 +594,9 @@ export class DriverEarningsUseCase {
 
     for (const ride of targetRides) {
       if (ride.status !== 'SETTLED' && ride.status !== 'PAYMENT_CONFIRMED') {
+        if (mode === 'RECONCILE_PENDING_ONLINE' && ride.status === 'PAYMENT_PENDING') {
+          continue;
+        }
         issues.push({
           code: 'AMOUNT_MISMATCH',
           rideId: ride.id,
@@ -433,6 +614,10 @@ export class DriverEarningsUseCase {
       const onlineTxs = txs.filter(
         (t) => t.referenceType === 'ONLINE_RIDE_EARNINGS' && t.type === 'CREDIT',
       );
+      const onlineReversals = txs.filter(
+        (t) => t.referenceType === 'ONLINE_EARNINGS_REVERSAL' && t.type === 'DEBIT',
+      );
+      const reversedSum = onlineReversals.reduce((s, t) => s + t.amountPaise, 0);
       const commissionDebits = txs.filter(
         (t) => t.referenceType === 'RIDE_COMMISSION' && t.type === 'DEBIT',
       );
@@ -451,7 +636,12 @@ export class DriverEarningsUseCase {
       }
 
       const confirmedEvent = events.find((e) => e.eventType === 'PAYMENT_CONFIRMED');
+      const resolutionEvent = events.find((e) => e.eventType === 'PAYMENT_DISPUTE_RESOLVED');
       const isOnlineUpi = onlineTxs.length > 0 || confirmedEvent?.metadata?.method === 'UPI';
+      const isOnlineRefunded =
+        isOnlineUpi &&
+        resolutionEvent?.metadata?.outcome === 'RIDER_WINS' &&
+        !resolutionEvent?.metadata?.duplicateUpiAfterCash;
 
       if (isOnlineUpi) {
         const eventCommission =
@@ -486,6 +676,68 @@ export class DriverEarningsUseCase {
             detail: 'Multiple ONLINE_RIDE_EARNINGS entries exist for one ride.',
           });
           continue;
+        }
+
+        if (isOnlineRefunded) {
+          if (onlineTxs.length === 1 && reversedSum !== onlineTxs[0]!.amountPaise) {
+            issues.push({
+              code: 'ONLINE_REFUND_MISSING_REVERSAL',
+              rideId: ride.id,
+              driverId: ride.driverId,
+              transactionId: onlineTxs[0]!.id,
+              expectedPaise: onlineTxs[0]!.amountPaise,
+              actualPaise: reversedSum,
+              detail:
+                'Online UPI dispute resolved in rider favor is missing matching ONLINE_EARNINGS_REVERSAL debit.',
+            });
+          } else {
+            cleanOnlineRides += 1;
+            if (mode === 'BACKFILL_ONLINE_EARNINGS') {
+              skippedRideIds.push(ride.id);
+            }
+          }
+          continue;
+        }
+
+        if (reversedSum > 0) {
+          issues.push({
+            code: 'AMOUNT_MISMATCH',
+            rideId: ride.id,
+            driverId: ride.driverId,
+            transactionId: onlineReversals[0]!.id,
+            expectedPaise: 0,
+            actualPaise: reversedSum,
+            detail: 'ONLINE_EARNINGS_REVERSAL exists without a RIDER_WINS dispute resolution.',
+          });
+          continue;
+        }
+
+        const expectedPaymentId =
+          typeof confirmedEvent?.metadata?.paymentId === 'string' &&
+          confirmedEvent.metadata.paymentId.trim()
+            ? confirmedEvent.metadata.paymentId.trim()
+            : null;
+
+        if (activeGateway) {
+          const providerCheck = await this.verifyProviderForOnlineRide(
+            activeGateway,
+            events,
+            farePaise,
+            expectedPaymentId,
+          );
+          if (!providerCheck.ok) {
+            issues.push({
+              code: 'PROVIDER_SETTLEMENT_MISMATCH',
+              rideId: ride.id,
+              driverId: ride.driverId,
+              expectedPaise: farePaise,
+              actualPaise: 0,
+              detail:
+                providerCheck.detail ??
+                'Settled online ride could not be verified with payment provider.',
+            });
+            continue;
+          }
         }
 
         if (onlineTxs.length === 1) {
@@ -530,30 +782,30 @@ export class DriverEarningsUseCase {
           continue;
         }
 
-        const paymentId = confirmedEvent?.metadata?.paymentId;
-        if (typeof paymentId !== 'string' || !paymentId.trim()) {
+        if (!expectedPaymentId) {
           issues.push({
             code: 'AMOUNT_MISMATCH',
             rideId: ride.id,
             driverId: ride.driverId,
             expectedPaise: expectedPayable,
             actualPaise: 0,
-            detail: 'Online UPI ride is missing verified provider paymentId in PAYMENT_CONFIRMED event.',
+            detail:
+              'Online UPI ride is missing verified provider paymentId in PAYMENT_CONFIRMED event.',
           });
           continue;
         }
 
-        if (mode === 'AUDIT') {
+        if (mode === 'BACKFILL_ONLINE_EARNINGS') {
+          backfillCandidates.add(ride.id);
+        } else {
           issues.push({
             code: 'HISTORICAL_ONLINE_MISSING_EARNINGS',
             rideId: ride.id,
             driverId: ride.driverId,
             expectedPaise: expectedPayable,
             actualPaise: 0,
-            detail: `Historical online UPI ride (${paymentId}) has no ONLINE_RIDE_EARNINGS ledger credit; verify no external payout was sent before backfilling.`,
+            detail: `Historical online UPI ride (${expectedPaymentId}) has no ONLINE_RIDE_EARNINGS ledger credit; verify no external payout was sent before backfilling.`,
           });
-        } else {
-          backfillCandidates.add(ride.id);
         }
       } else {
         if (commissionDebits.length === 0) {
@@ -595,7 +847,12 @@ export class DriverEarningsUseCase {
       for (;;) {
         const page = await this.deps.walletRepo.listTransactions({
           ...(input.driverId ? { driverId: input.driverId } : {}),
-          referenceTypes: ['RIDE_COMMISSION', 'ONLINE_RIDE_EARNINGS', 'DISPUTE_REFUND'],
+          referenceTypes: [
+            'RIDE_COMMISSION',
+            'ONLINE_RIDE_EARNINGS',
+            'ONLINE_EARNINGS_REVERSAL',
+            'DISPUTE_REFUND',
+          ],
           limit: CHUNK_SIZE,
           offset,
         });
@@ -754,6 +1011,9 @@ export class DriverEarningsUseCase {
       cleanOnlineRides,
       backfilledRideIds,
       skippedRideIds,
+      ...(checkedPendingOnlineRides > 0 || mode === 'RECONCILE_PENDING_ONLINE'
+        ? { checkedPendingOnlineRides, reconciledPendingRideIds }
+        : {}),
       issues,
     };
   }

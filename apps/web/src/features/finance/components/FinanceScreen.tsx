@@ -15,11 +15,15 @@ import {
   Users,
   Wallet,
 } from 'lucide-react';
-import type { DriverEarningsReconciliationDto } from '@cabzone/contracts';
+import type {
+  DriverEarningsReconciliationDto,
+  WalletLedgerReconciliationDto,
+} from '@cabzone/contracts';
 import { Badge, Button, ErrorState, Input, PageHeader, Skeleton } from '@cabzone/design-system';
 import { formatPaise } from '@/lib/format';
 import { ApiError } from '@/lib/api/ApiError';
 import { ridesApi } from '@/lib/api/endpoints/rides';
+import { walletsApi } from '@/lib/api/endpoints/wallets';
 import { useFinanceStats, useTransactionsList } from '../hooks/useFinance';
 import { TransactionsLedgerTable } from './TransactionsLedgerTable';
 import { CashoutQueue } from './CashoutQueue';
@@ -29,6 +33,7 @@ export function FinanceScreen() {
   const [reconcileReport, setReconcileReport] = useState<DriverEarningsReconciliationDto | null>(
     null,
   );
+  const [ledgerReport, setLedgerReport] = useState<WalletLedgerReconciliationDto | null>(null);
   const deferredSearch = useDeferredValue(searchQuery);
 
   // Transaction Queries
@@ -39,15 +44,42 @@ export function FinanceScreen() {
   const stats =
     statsQuery.data?.driver && statsQuery.data.transactions ? statsQuery.data : undefined;
 
-  const reconcileMutation = useMutation({
-    mutationFn: () => ridesApi.reconcileEarnings({ mode: 'AUDIT' }),
-    onSuccess: (report) => setReconcileReport(report),
-  });
-
   const handleRefresh = () => {
     void statsQuery.refetch();
     void transactionsQuery.refetch();
   };
+
+  const reconcileMutation = useMutation({
+    mutationFn: (
+      params: {
+        mode: 'AUDIT' | 'BACKFILL_ONLINE_EARNINGS' | 'RECONCILE_PENDING_ONLINE';
+        rideIds?: string[];
+      } = { mode: 'AUDIT' },
+    ) => ridesApi.reconcileEarnings(params),
+    onSuccess: (report) => {
+      setReconcileReport(report);
+      if (report.mode !== 'AUDIT') handleRefresh();
+    },
+  });
+
+  const ledgerReconcileMutation = useMutation({
+    mutationFn: (mode: 'AUDIT' | 'RECONCILE_PENDING_RECHARGES' = 'AUDIT') =>
+      walletsApi.reconcileLedger({ mode }),
+    onSuccess: (report) => {
+      setLedgerReport(report);
+      if (report.mode !== 'AUDIT') handleRefresh();
+    },
+  });
+
+  const backfillRideIds = (reconcileReport?.issues ?? [])
+    .filter((i) => i.code === 'HISTORICAL_ONLINE_MISSING_EARNINGS' && i.rideId !== null)
+    .map((i) => i.rideId as string);
+  const hasPendingCapturedRides = (reconcileReport?.issues ?? []).some(
+    (i) => i.code === 'PROVIDER_CAPTURED_RIDE_UNSETTLED',
+  );
+  const hasPendingCapturedRecharges = (ledgerReport?.issues ?? []).some(
+    (i) => i.code === 'UNRECONCILED_CAPTURED_RECHARGE',
+  );
 
   return (
     <div className="flex flex-col gap-6 p-6 lg:p-8 max-w-[1600px] mx-auto w-full">
@@ -56,15 +88,24 @@ export function FinanceScreen() {
         title="Transactions & Ledger"
         breadcrumbs={[{ label: 'Admin', href: '/' }, { label: 'Transactions' }]}
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               size="sm"
               variant="secondary"
               icon={<ShieldAlert className="size-3.5 text-text-subtle" />}
               loading={reconcileMutation.isPending}
-              onClick={() => reconcileMutation.mutate()}
+              onClick={() => reconcileMutation.mutate({ mode: 'AUDIT' })}
             >
               Audit Settlements
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              icon={<Wallet className="size-3.5 text-text-subtle" />}
+              loading={ledgerReconcileMutation.isPending}
+              onClick={() => ledgerReconcileMutation.mutate('AUDIT')}
+            >
+              Audit Wallet Ledger
             </Button>
             <Link href="/drivers">
               <Button
@@ -96,13 +137,25 @@ export function FinanceScreen() {
 
       {reconcileMutation.isError && (
         <ErrorState
-          title="Settlement audit failed"
+          title="Settlement reconciliation failed"
           message={
             reconcileMutation.error instanceof Error
               ? reconcileMutation.error.message
-              : 'Could not run ride settlement audit.'
+              : 'Could not run ride settlement reconciliation.'
           }
-          onRetry={() => reconcileMutation.mutate()}
+          onRetry={() => reconcileMutation.mutate({ mode: 'AUDIT' })}
+        />
+      )}
+
+      {ledgerReconcileMutation.isError && (
+        <ErrorState
+          title="Wallet ledger audit failed"
+          message={
+            ledgerReconcileMutation.error instanceof Error
+              ? ledgerReconcileMutation.error.message
+              : 'Could not run wallet ledger reconciliation.'
+          }
+          onRetry={() => ledgerReconcileMutation.mutate('AUDIT')}
         />
       )}
 
@@ -111,31 +164,125 @@ export function FinanceScreen() {
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2 font-semibold text-text">
               <CheckCircle2 className="size-4 text-success" />
-              <span>Ride Settlement Audit Report</span>
+              <span>Ride Settlement Reconciliation ({reconcileReport.mode})</span>
               <Badge tone={reconcileReport.issues.length === 0 ? 'success' : 'warning'}>
                 {reconcileReport.issues.length === 0
                   ? 'ALL SETTLEMENTS CLEAN'
                   : `${reconcileReport.issues.length} DISCREPANCIES`}
               </Badge>
             </div>
-            <button
-              type="button"
-              onClick={() => setReconcileReport(null)}
-              className="text-text-subtle hover:text-text cursor-pointer"
-            >
-              Dismiss
-            </button>
+            <div className="flex items-center gap-2">
+              {hasPendingCapturedRides && (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  loading={reconcileMutation.isPending}
+                  onClick={() => reconcileMutation.mutate({ mode: 'RECONCILE_PENDING_ONLINE' })}
+                >
+                  Recover Captured Pending Rides
+                </Button>
+              )}
+              {backfillRideIds.length > 0 && (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  loading={reconcileMutation.isPending}
+                  onClick={() =>
+                    reconcileMutation.mutate({
+                      mode: 'BACKFILL_ONLINE_EARNINGS',
+                      rideIds: backfillRideIds,
+                    })
+                  }
+                >
+                  Backfill {backfillRideIds.length} Verified Online Ride(s)
+                </Button>
+              )}
+              <button
+                type="button"
+                onClick={() => setReconcileReport(null)}
+                className="text-text-subtle hover:text-text cursor-pointer"
+              >
+                Dismiss
+              </button>
+            </div>
           </div>
           <div className="flex flex-wrap gap-4 font-mono text-text-subtle">
-            <span>Checked rides: {reconcileReport.checkedSettledRides}</span>
+            <span>Checked settled: {reconcileReport.checkedSettledRides}</span>
             <span>Clean cash: {reconcileReport.cleanCashRides}</span>
             <span>Clean online: {reconcileReport.cleanOnlineRides}</span>
+            {reconcileReport.checkedPendingOnlineRides !== undefined && (
+              <span>Checked pending online: {reconcileReport.checkedPendingOnlineRides}</span>
+            )}
+            {(reconcileReport.reconciledPendingRideIds?.length ?? 0) > 0 && (
+              <span className="text-success">
+                Recovered pending: {reconcileReport.reconciledPendingRideIds?.length}
+              </span>
+            )}
+            {reconcileReport.backfilledRideIds.length > 0 && (
+              <span className="text-success">
+                Backfilled: {reconcileReport.backfilledRideIds.length}
+              </span>
+            )}
           </div>
           {reconcileReport.issues.length > 0 && (
             <ul className="mt-1 flex flex-col gap-1 font-mono text-text border-t border-border pt-2">
-              {reconcileReport.issues.slice(0, 5).map((issue, idx) => (
+              {reconcileReport.issues.slice(0, 8).map((issue, idx) => (
                 <li key={`${issue.code}-${issue.rideId ?? idx}`}>
                   [{issue.code}] Ride {issue.rideId?.slice(0, 8) ?? '—'} — {issue.detail}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
+      {ledgerReport && (
+        <div className="rounded-xl border border-border bg-surface p-4 flex flex-col gap-2 text-xs">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2 font-semibold text-text">
+              <CheckCircle2 className="size-4 text-success" />
+              <span>Wallet &amp; Provider Ledger Audit ({ledgerReport.mode})</span>
+              <Badge tone={ledgerReport.issues.length === 0 ? 'success' : 'warning'}>
+                {ledgerReport.issues.length === 0
+                  ? 'ALL WALLETS & OPERATIONS CLEAN'
+                  : `${ledgerReport.issues.length} DISCREPANCIES`}
+              </Badge>
+            </div>
+            <div className="flex items-center gap-2">
+              {hasPendingCapturedRecharges && (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  loading={ledgerReconcileMutation.isPending}
+                  onClick={() => ledgerReconcileMutation.mutate('RECONCILE_PENDING_RECHARGES')}
+                >
+                  Recover Captured Recharges
+                </Button>
+              )}
+              <button
+                type="button"
+                onClick={() => setLedgerReport(null)}
+                className="text-text-subtle hover:text-text cursor-pointer"
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-4 font-mono text-text-subtle">
+            <span>Checked wallets: {ledgerReport.checkedWallets}</span>
+            <span>Clean wallets: {ledgerReport.cleanWallets}</span>
+            <span>Checked operations: {ledgerReport.checkedOperations}</span>
+            {ledgerReport.reconciledRechargeIds.length > 0 && (
+              <span className="text-success">
+                Recovered recharges: {ledgerReport.reconciledRechargeIds.length}
+              </span>
+            )}
+          </div>
+          {ledgerReport.issues.length > 0 && (
+            <ul className="mt-1 flex flex-col gap-1 font-mono text-text border-t border-border pt-2">
+              {ledgerReport.issues.slice(0, 8).map((issue, idx) => (
+                <li key={`${issue.code}-${issue.walletId ?? issue.operationId ?? idx}`}>
+                  [{issue.code}] Wallet {issue.walletId?.slice(0, 8) ?? '—'} — {issue.detail}
                 </li>
               ))}
             </ul>

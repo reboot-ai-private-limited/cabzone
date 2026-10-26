@@ -79,7 +79,9 @@ async function toEnrichedRideView(ride: RideEntity, actors?: RideHttpContext): P
   }
 }
 
-function classifyPaymentCollection(paymentAudit: readonly RideEventEntity[]): 'CASH' | 'RAZORPAY_UPI' | 'RAZORPAY_TEST' | 'DIRECT' {
+function classifyPaymentCollection(
+  paymentAudit: readonly RideEventEntity[],
+): 'CASH' | 'RAZORPAY_UPI' | 'RAZORPAY_TEST' | 'DIRECT' {
   const confirmedMethod = paymentAudit.find((event) => event.eventType === 'PAYMENT_CONFIRMED')
     ?.metadata.method;
   const cash =
@@ -344,6 +346,7 @@ export function makeReconcileDriverEarningsController(
       mode: body.mode,
       driverId: body.driverId,
       rideIds: body.rideIds,
+      verifyProvider: body.verifyProvider,
       adminId: userId,
     });
     sendSuccess(req, res, report, 'Driver earnings reconciliation completed');
@@ -538,12 +541,13 @@ export function makeResolvePaymentDisputeController(
 ): RequestHandler {
   return asyncHandler(async (req: Request, res: Response) => {
     const { id } = rideIdParamSchema.parse(req.params);
-    const { outcome, reason } = paymentDisputeResolutionSchema.parse(req.body);
+    const { outcome, reason, refundReference } = paymentDisputeResolutionSchema.parse(req.body);
     const ride = await useCase.resolveDispute({
       rideId: id,
       adminId: auth(req).userId,
       outcome,
       reason,
+      refundReference,
     });
     await notify(actors.notifier?.rideUpdated(ride, 'ride.payment.dispute_resolved', { outcome }));
     sendSuccess(req, res, await toEnrichedRideView(ride, actors), 'Payment dispute resolved');
@@ -557,30 +561,39 @@ export function makeListPaymentDisputesController(
   walletRepo?: WalletRepositoryPort,
 ): RequestHandler {
   return asyncHandler(async (req: Request, res: Response) => {
-    const { status, limit, offset } = listPaymentDisputesQuerySchema.parse(req.query);
+    const { status, collection, search, limit, offset } = listPaymentDisputesQuerySchema.parse(
+      req.query,
+    );
+    const normalizedSearch = search?.trim().toLowerCase() ?? '';
+    const hasPostFilter = collection !== 'ALL' || normalizedSearch.length > 0;
+    const scanLimit = hasPostFilter ? 500 : limit + offset;
 
     let rides: RideEntity[];
     if (status === 'OPEN') {
-      rides = await rideRepo.list({ statuses: ['PAYMENT_DISPUTED'], limit, offset });
+      rides = await rideRepo.list({
+        statuses: ['PAYMENT_DISPUTED'],
+        limit: hasPostFilter ? scanLimit : limit,
+        offset: hasPostFilter ? 0 : offset,
+      });
     } else if (status === 'RESOLVED') {
       const resolvedEvents = await eventRepo.findByEventTypes(
         ['PAYMENT_DISPUTE_RESOLVED'],
-        limit + offset,
+        scanLimit,
         0,
       );
       const uniqueIds: string[] = [];
       for (const ev of resolvedEvents) {
         if (!uniqueIds.includes(ev.rideId)) uniqueIds.push(ev.rideId);
       }
-      const pageIds = uniqueIds.slice(offset, offset + limit);
-      const fetched = await Promise.all(pageIds.map((id) => rideRepo.findById(id)));
+      const candidateIds = hasPostFilter ? uniqueIds : uniqueIds.slice(offset, offset + limit);
+      const fetched = await Promise.all(candidateIds.map((id) => rideRepo.findById(id)));
       rides = fetched.filter(
         (r): r is RideEntity => r !== null && r.status !== 'PAYMENT_DISPUTED',
       );
     } else {
       const [openRides, resolvedEvents] = await Promise.all([
-        rideRepo.list({ statuses: ['PAYMENT_DISPUTED'], limit: limit + offset, offset: 0 }),
-        eventRepo.findByEventTypes(['PAYMENT_DISPUTE_RESOLVED'], limit + offset, 0),
+        rideRepo.list({ statuses: ['PAYMENT_DISPUTED'], limit: scanLimit, offset: 0 }),
+        eventRepo.findByEventTypes(['PAYMENT_DISPUTE_RESOLVED'], scanLimit, 0),
       ]);
       const byId = new Map<string, RideEntity>(openRides.map((r) => [r.id, r]));
       const missingIds = [...new Set(resolvedEvents.map((e) => e.rideId))].filter(
@@ -590,9 +603,10 @@ export function makeListPaymentDisputesController(
       for (const r of resolvedRides) {
         if (r) byId.set(r.id, r);
       }
-      rides = [...byId.values()]
-        .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
-        .slice(offset, offset + limit);
+      const merged = [...byId.values()].sort(
+        (a, b) => b.updatedAt.getTime() - a.updatedAt.getTime(),
+      );
+      rides = hasPostFilter ? merged : merged.slice(offset, offset + limit);
     }
 
     const rideIds = rides.map((r) => r.id);
@@ -603,8 +617,13 @@ export function makeListPaymentDisputesController(
             walletRepo
               ? walletRepo.listTransactions({
                   referenceIds: rideIds,
-                  referenceTypes: ['RIDE_COMMISSION', 'ONLINE_RIDE_EARNINGS', 'DISPUTE_REFUND'],
-                  limit: 500,
+                  referenceTypes: [
+                    'RIDE_COMMISSION',
+                    'ONLINE_RIDE_EARNINGS',
+                    'ONLINE_EARNINGS_REVERSAL',
+                    'DISPUTE_REFUND',
+                  ],
+                  limit: 1000,
                   offset: 0,
                 })
               : Promise.resolve({ items: [] as WalletTransactionDto[], total: 0 }),
@@ -626,11 +645,12 @@ export function makeListPaymentDisputesController(
       txsByRide.set(tx.referenceId, list);
     }
 
-    const data = await Promise.all(
+    let data = await Promise.all(
       rides.map(async (ride) => {
         const events = eventsByRide.get(ride.id) ?? (await eventRepo.findByRideId(ride.id));
         const txs = txsByRide.get(ride.id) ?? [];
-        const ticket = events.find((e) => e.eventType === 'PAYMENT_DISPUTED') ?? null;
+        const disputeEvents = events.filter((e) => e.eventType === 'PAYMENT_DISPUTED');
+        const ticket = disputeEvents[disputeEvents.length - 1] ?? null;
         const resolution = events.find((e) => e.eventType === 'PAYMENT_DISPUTE_RESOLVED') ?? null;
         const confirmedEvent = events.find((e) => e.eventType === 'PAYMENT_CONFIRMED');
         const upiOrderEvent = events.find((e) => e.eventType === 'UPI_ORDER_CREATED');
@@ -643,6 +663,10 @@ export function makeListPaymentDisputesController(
         const onlineCredit = txs.find(
           (t) => t.referenceType === 'ONLINE_RIDE_EARNINGS' && t.type === 'CREDIT',
         );
+        const onlineReversals = txs.filter(
+          (t) => t.referenceType === 'ONLINE_EARNINGS_REVERSAL' && t.type === 'DEBIT',
+        );
+        const onlineReversalSum = onlineReversals.reduce((s, t) => s + t.amountPaise, 0);
         const disputeRefund = txs.find(
           (t) => t.referenceType === 'DISPUTE_REFUND' && t.type === 'CREDIT',
         );
@@ -651,6 +675,55 @@ export function makeListPaymentDisputesController(
         const onlineCommissionPaise = onlineCredit
           ? Math.max(0, farePaise - onlineCredit.amountPaise)
           : 0;
+
+        const providerOrderId =
+          typeof upiOrderEvent?.metadata?.orderId === 'string'
+            ? upiOrderEvent.metadata.orderId
+            : typeof confirmedEvent?.metadata?.orderId === 'string'
+              ? confirmedEvent.metadata.orderId
+              : typeof ticket?.metadata?.orderId === 'string'
+                ? ticket.metadata.orderId
+                : null;
+        const providerPaymentId =
+          typeof confirmedEvent?.metadata?.paymentId === 'string'
+            ? confirmedEvent.metadata.paymentId
+            : typeof ticket?.metadata?.paymentId === 'string'
+              ? ticket.metadata.paymentId
+              : null;
+        const providerQrId =
+          typeof qrEvent?.metadata?.qrId === 'string'
+            ? qrEvent.metadata.qrId
+            : typeof confirmedEvent?.metadata?.qrId === 'string'
+              ? confirmedEvent.metadata.qrId
+              : typeof ticket?.metadata?.qrId === 'string'
+                ? ticket.metadata.qrId
+                : null;
+        const providerRefundReference =
+          typeof resolution?.metadata?.refundReference === 'string'
+            ? resolution.metadata.refundReference
+            : null;
+        const isDuplicateUpiAfterCash = Boolean(
+          confirmedEvent &&
+            confirmedEvent.metadata?.method !== 'UPI' &&
+            typeof ticket?.metadata?.paymentId === 'string',
+        );
+        const hasOnlineConfirmation = confirmedEvent?.metadata?.method === 'UPI';
+        const requiresManualProviderRefund = Boolean(
+          hasOnlineConfirmation || isDuplicateUpiAfterCash,
+        );
+        const providerMode =
+          confirmedEvent?.metadata?.mode === 'live' || confirmedEvent?.metadata?.mode === 'test'
+            ? confirmedEvent.metadata.mode
+            : qrEvent
+              ? 'live'
+              : upiOrderEvent
+                ? 'test'
+                : null;
+        const receiptReference =
+          providerPaymentId ??
+          providerQrId ??
+          providerOrderId ??
+          (confirmedEvent ? `CASH-${ride.id.slice(0, 8).toUpperCase()}` : null);
 
         return {
           ride: await toEnrichedRideView(ride, actors),
@@ -661,26 +734,18 @@ export function makeListPaymentDisputesController(
             paymentMethod:
               typeof confirmedEvent?.metadata?.method === 'string'
                 ? confirmedEvent.metadata.method
-                : paymentCollection === 'CASH'
+                : paymentCollection === 'CASH' || paymentCollection === 'DIRECT'
                   ? 'CASH'
                   : null,
             paymentConfirmedAt: confirmedEvent ? confirmedEvent.createdAt.toISOString() : null,
-            providerOrderId:
-              typeof upiOrderEvent?.metadata?.orderId === 'string'
-                ? upiOrderEvent.metadata.orderId
-                : typeof confirmedEvent?.metadata?.orderId === 'string'
-                  ? confirmedEvent.metadata.orderId
-                  : null,
-            providerPaymentId:
-              typeof confirmedEvent?.metadata?.paymentId === 'string'
-                ? confirmedEvent.metadata.paymentId
-                : null,
-            providerQrId:
-              typeof qrEvent?.metadata?.qrId === 'string'
-                ? qrEvent.metadata.qrId
-                : typeof confirmedEvent?.metadata?.qrId === 'string'
-                  ? confirmedEvent.metadata.qrId
-                  : null,
+            providerMode,
+            providerOrderId,
+            providerPaymentId,
+            providerQrId,
+            providerRefundReference,
+            receiptReference,
+            isDuplicateUpiAfterCash,
+            requiresManualProviderRefund,
             commissionChargedPaise: commissionDebit?.amountPaise ?? onlineCommissionPaise,
             commissionRefundedPaise:
               disputeRefund?.amountPaise ??
@@ -689,10 +754,54 @@ export function makeListPaymentDisputesController(
                 : 0),
             refundTransactionId: disputeRefund?.id ?? null,
             onlineEarningsCreditedPaise: onlineCredit?.amountPaise ?? 0,
+            onlineEarningsReversedPaise:
+              onlineReversalSum > 0
+                ? onlineReversalSum
+                : typeof resolution?.metadata?.reversedOnlineEarningsPaise === 'number'
+                  ? resolution.metadata.reversedOnlineEarningsPaise
+                  : 0,
+            reversalTransactionId: onlineReversals[0]?.id ?? null,
           },
         };
       }),
     );
+
+    if (hasPostFilter) {
+      data = data.filter((item) => {
+        const isOnline =
+          item.evidence.paymentCollection === 'RAZORPAY_UPI' ||
+          item.evidence.paymentCollection === 'RAZORPAY_TEST' ||
+          item.evidence.isDuplicateUpiAfterCash;
+        if (collection === 'ONLINE' && !isOnline) return false;
+        if (collection === 'CASH' && isOnline) return false;
+        if (!normalizedSearch) return true;
+        const fields = [
+          item.ride.id,
+          item.ride.passenger.name,
+          item.ride.passenger.phoneE164,
+          item.ride.assignedDriver?.name ?? '',
+          item.ride.assignedDriver?.phoneE164 ?? '',
+          item.ride.assignedDriver?.vehicle?.registrationNumber ?? '',
+          item.evidence.providerOrderId ?? '',
+          item.evidence.providerPaymentId ?? '',
+          item.evidence.providerQrId ?? '',
+          item.evidence.providerRefundReference ?? '',
+          item.evidence.receiptReference ?? '',
+          item.evidence.refundTransactionId ?? '',
+          item.evidence.reversalTransactionId ?? '',
+          typeof item.ticket?.metadata?.reason === 'string' ? item.ticket.metadata.reason : '',
+          typeof item.resolution?.metadata?.reason === 'string'
+            ? item.resolution.metadata.reason
+            : '',
+          typeof item.resolution?.metadata?.outcome === 'string'
+            ? item.resolution.metadata.outcome
+            : '',
+        ];
+        return fields.some((val) => val.toLowerCase().includes(normalizedSearch));
+      });
+      data = data.slice(offset, offset + limit);
+    }
+
     sendSuccess(
       req,
       res,

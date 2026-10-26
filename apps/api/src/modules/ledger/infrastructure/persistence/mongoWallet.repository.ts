@@ -18,6 +18,11 @@ import {
 } from './walletTransaction.model.js';
 
 export class MongoWalletRepository implements WalletRepositoryPort {
+  async findAllWallets(driverId?: string): Promise<WalletEntity[]> {
+    const filter: Record<string, unknown> = driverId ? { driver_id: driverId } : {};
+    const docs = await WalletModel.find(filter).lean<WalletDocument[]>().exec();
+    return docs.map((d) => this.toWallet(d));
+  }
   async findTransactionByIdempotencyKey(key: string): Promise<WalletTransactionEntity | null> {
     const doc = await WalletTransactionModel.findOne({ idempotency_key: key })
       .lean<WalletTransactionDocument | null>()
