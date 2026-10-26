@@ -1,4 +1,9 @@
-import type { TrustScoreBreakdownDto, TrustTier } from '@cabzone/contracts';
+import {
+  MIN_PUBLIC_RATING_COUNT,
+  MIN_PUBLIC_TRUST_SCORE_COMPLETED_RIDES,
+  type TrustScoreBreakdownDto,
+  type TrustTier,
+} from '@cabzone/contracts';
 
 export interface TrustScoreInput {
   completedRides: number;
@@ -6,46 +11,52 @@ export interface TrustScoreInput {
   ratingAverage: number | null;
   ratingCount: number;
   disputesCount?: number | undefined;
+  noShowsCount?: number | undefined;
 }
 
 /**
  * Deterministic Trust Score Engine
- * References: PRD §5.7, Decision D-021, LLD §4.18, LLD §11
+ * References: PRD §5.7, Decision D-021, Decision D-046, OQ-018, LLD §4.18
  */
 export function calculateTrustScore(input: TrustScoreInput): TrustScoreBreakdownDto {
-  const { completedRides, cancelledRides, ratingAverage, ratingCount } = input;
+  const { completedRides, cancelledRides, ratingCount } = input;
   const disputesCount = input.disputesCount ?? 0;
+  const noShowsCount = input.noShowsCount ?? 0;
   const totalRides = completedRides + cancelledRides;
+  const verifiedRatingAverage =
+    ratingCount > 0 && input.ratingAverage !== null && Number.isFinite(input.ratingAverage)
+      ? input.ratingAverage
+      : null;
 
-  // Decision D-021 & LLD §4.18: Cold-start threshold
-  // Hide or mark as UNRATED until at least 3 attempted/completed rides exist
-  if (totalRides < 3) {
+  // Decision D-046 & OQ-018: Hide public trust score until at least 5 completed rides exist,
+  // and never infer or fabricate default star averages when ratingCount === 0.
+  if (completedRides < MIN_PUBLIC_TRUST_SCORE_COMPLETED_RIDES) {
     return {
       score: null,
       tier: 'UNRATED',
       isPreliminary: true,
+      isPublic: false,
       factors: {
         completedRides,
         cancelledRides,
         completionRate: totalRides > 0 ? Number((completedRides / totalRides).toFixed(2)) : 1,
-        ratingAverage,
+        ratingAverage: verifiedRatingAverage,
         ratingCount,
         disputesCount,
+        noShowsCount,
       },
-      summary: 'Requires at least 3 completed or attempted rides to generate trust score.',
+      summary: `Requires at least ${MIN_PUBLIC_TRUST_SCORE_COMPLETED_RIDES} completed rides to generate a public trust score.`,
     };
   }
 
-  // Baseline starting score
   let score = 100;
 
-  // 1. Rating Factor (Baseline: 4.5★)
-  if (ratingAverage !== null) {
-    if (ratingAverage >= 4.8) {
-      score += 5; // Elite rating bonus
-    } else if (ratingAverage < 4.5) {
-      // Sub-baseline penalty (e.g. 4.0 = -13, 3.5 = -25)
-      const penalty = Math.round((4.5 - ratingAverage) * 25);
+  // 1. Revealed Rating Factor (Baseline: 4.5★; elite bonus requires >= 5 revealed ratings)
+  if (verifiedRatingAverage !== null) {
+    if (ratingCount >= MIN_PUBLIC_RATING_COUNT && verifiedRatingAverage >= 4.8) {
+      score += 5;
+    } else if (verifiedRatingAverage < 4.5) {
+      const penalty = Math.round((4.5 - verifiedRatingAverage) * 25);
       score -= penalty;
     }
   }
@@ -55,13 +66,12 @@ export function calculateTrustScore(input: TrustScoreInput): TrustScoreBreakdown
   const cancellationRate = 1 - completionRate;
 
   if (cancellationRate > 0.05) {
-    // Normal ride cancellation allowance is up to 5%
-    // Each 10% excessive cancellation drops ~10 points
     const cancelPenalty = Math.round((cancellationRate - 0.05) * 100);
     score -= cancelPenalty;
   }
 
-  // 3. Dispute & Misconduct Penalties (PRD §5.7)
+  // 3. No-Show & Dispute Penalties (D-046 & PRD §5.7)
+  score -= noShowsCount * 10;
   score -= disputesCount * 15;
 
   // 4. Experience & Proven Reliability Factor
@@ -71,7 +81,6 @@ export function calculateTrustScore(input: TrustScoreInput): TrustScoreBreakdown
     score += 2;
   }
 
-  // Clamp score strictly between 10 and 100
   const finalScore = Math.max(10, Math.min(100, Math.round(score)));
 
   let tier: TrustTier = 'GOOD';
@@ -88,20 +97,23 @@ export function calculateTrustScore(input: TrustScoreInput): TrustScoreBreakdown
     summary = 'Fair trust score. Shows minor cancellation friction or lower rating.';
   } else {
     tier = 'POOR';
-    summary = 'Low trust profile under administrative observation due to cancellations or complaints.';
+    summary =
+      'Low trust profile under administrative observation due to cancellations or complaints.';
   }
 
   return {
     score: finalScore,
     tier,
     isPreliminary: false,
+    isPublic: true,
     factors: {
       completedRides,
       cancelledRides,
       completionRate: Number(completionRate.toFixed(2)),
-      ratingAverage,
+      ratingAverage: verifiedRatingAverage,
       ratingCount,
       disputesCount,
+      noShowsCount,
     },
     summary,
   };

@@ -34,7 +34,7 @@ import {
   Skeleton,
   StatTile,
 } from '@cabzone/design-system';
-import { VEHICLE_CATEGORIES } from '@cabzone/contracts';
+import { VEHICLE_CATEGORIES, formatPublicRatingLabel } from '@cabzone/contracts';
 import type { DriverApplicationSummaryDto } from '@/lib/api/endpoints/drivers';
 import { useDriverApplications } from '../hooks/useDriverApplications';
 import { DriverDetailModal } from './DriverDetailModal';
@@ -482,7 +482,7 @@ export function DriversScreen() {
       key: 'rating',
       header: 'Rating',
       render: (r) => {
-        const ratingVal = r.driver?.ratingAverage ? r.driver.ratingAverage.toFixed(1) : '5.0';
+        const ratingVal = formatPublicRatingLabel(r.driver?.ratingAverage, r.driver?.ratingCount);
         const tripCount = r.driver?.ratingCount ?? 0;
         return (
           <div className="flex flex-col leading-tight">

@@ -4,6 +4,7 @@ import {
   DRIVER_EARNINGS_PERIODS,
   E164_PHONE_REGEX,
   NEGOTIATION_ACTIONS,
+  PAYMENT_METHODS,
   RIDE_STATUSES,
   VEHICLE_CATEGORIES,
 } from '@cabzone/contracts';
@@ -58,9 +59,25 @@ export const cancelRideSchema = z.object({
   reason: z.enum(CANCELLATION_REASONS),
 });
 
+export const waiveCancellationFeeSchema = z.object({
+  reason: z.string().trim().min(5, 'Reason must be at least 5 characters').max(1000),
+});
+
 export const rideStatusSchema = z.enum(RIDE_STATUSES);
 export const negotiationActionSchema = z.enum(NEGOTIATION_ACTIONS);
 export const cancellationReasonSchema = z.enum(CANCELLATION_REASONS);
+
+export const idempotencyKeySchema = z
+  .string()
+  .trim()
+  .regex(
+    /^[a-zA-Z0-9:_-]{8,128}$/,
+    'idempotencyKey must be 8-128 alphanumeric, :, _, or - characters',
+  );
+
+export const createRideHeadersSchema = z.object({
+  'idempotency-key': idempotencyKeySchema.optional(),
+});
 
 export const createRideRequestSchema = z.object({
   quoteToken: z.string().trim().min(1, 'quoteToken is required'),
@@ -70,6 +87,8 @@ export const createRideRequestSchema = z.object({
   pickup: locationPointSchema,
   drop: locationPointSchema,
   riderId: z.string().uuid().optional(),
+  idempotencyKey: idempotencyKeySchema.optional(),
+  paymentMethod: z.enum(PAYMENT_METHODS).optional(),
 });
 
 export const startRideRequestSchema = z.object({
@@ -86,6 +105,20 @@ export const paymentDisputeSchema = z.object({ reason: z.string().trim().min(10)
 export const paymentDisputeResolutionSchema = z.object({
   outcome: z.enum(['RIDER_WINS', 'DRIVER_WINS']),
   reason: z.string().trim().min(10).max(1000),
+});
+
+export const submitRideRatingSchema = z
+  .object({
+    stars: z.number().int().min(1).max(5),
+    tags: z.array(z.string().trim().min(1).max(64)).max(5).optional(),
+    comment: z.string().trim().max(280).nullable().optional(),
+  })
+  .strict();
+
+export const listPaymentDisputesQuerySchema = z.object({
+  status: z.enum(['OPEN', 'RESOLVED', 'ALL']).default('OPEN'),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+  offset: z.coerce.number().int().min(0).default(0),
 });
 
 export const listRidesQuerySchema = z.object({

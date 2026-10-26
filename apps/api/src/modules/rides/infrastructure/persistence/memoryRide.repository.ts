@@ -1,13 +1,49 @@
+import { isActiveRideStatus } from '@cabzone/contracts';
 import type {
   RideCountFilter,
   RideEntity,
   RideListFilter,
   RideRepositoryPort,
+  RiderTripCountsSummary,
 } from '../../domain/index.js';
 import { AppError } from '../../../../shared/errors/AppError.js';
 
+function duplicateKeyError(message: string): Error & { code: number } {
+  return Object.assign(new Error(message), { code: 11000 });
+}
+
 export class MemoryRideRepository implements RideRepositoryPort {
   private readonly rides = new Map<string, RideEntity>();
+
+  private assertUniqueConstraints(ride: RideEntity): void {
+    for (const existing of this.rides.values()) {
+      if (existing.id === ride.id) continue;
+      if (
+        typeof ride.idempotencyKey === 'string' &&
+        existing.bookerRiderId === ride.bookerRiderId &&
+        existing.idempotencyKey === ride.idempotencyKey
+      ) {
+        throw duplicateKeyError('E11000 duplicate key error index: rider_create_idempotency');
+      }
+      if (
+        isActiveRideStatus(ride.status) &&
+        existing.bookerRiderId === ride.bookerRiderId &&
+        isActiveRideStatus(existing.status)
+      ) {
+        throw duplicateKeyError('E11000 duplicate key error index: one_active_ride_per_rider');
+      }
+    }
+  }
+
+  async create(ride: RideEntity): Promise<RideEntity> {
+    if (this.rides.has(ride.id)) {
+      throw duplicateKeyError('E11000 duplicate key error index: _id_');
+    }
+    this.assertUniqueConstraints(ride);
+    const stored = structuredClone({ ...ride, updatedAt: new Date() });
+    this.rides.set(ride.id, stored);
+    return structuredClone(stored);
+  }
 
   private matches(r: RideEntity, filter: RideCountFilter): boolean {
     return (
@@ -17,12 +53,16 @@ export class MemoryRideRepository implements RideRepositoryPort {
       (filter.driverId === undefined || r.driverId === filter.driverId) &&
       (filter.statuses === undefined || filter.statuses.includes(r.status)) &&
       (filter.vehicleCategory === undefined || r.vehicleCategory === filter.vehicleCategory) &&
+      (filter.cityZoneIds === undefined ||
+        (Boolean(r.zoneSnapshot?.cityZoneId) &&
+          filter.cityZoneIds.includes(r.zoneSnapshot.cityZoneId!))) &&
       (filter.offeringExpiresAfter === undefined ||
         (r.offeringExpiresAt !== null && r.offeringExpiresAt > filter.offeringExpiresAfter))
     );
   }
 
   async save(ride: RideEntity): Promise<RideEntity> {
+    this.assertUniqueConstraints(ride);
     this.rides.set(ride.id, structuredClone({ ...ride, updatedAt: ride.updatedAt ?? new Date() }));
     return structuredClone(this.rides.get(ride.id)!);
   }
@@ -35,6 +75,23 @@ export class MemoryRideRepository implements RideRepositoryPort {
 
   async findById(id: string): Promise<RideEntity | null> {
     const ride = this.rides.get(id);
+    return ride ? structuredClone(ride) : null;
+  }
+
+  async findActiveByBookerRiderId(bookerRiderId: string): Promise<RideEntity | null> {
+    const ride = [...this.rides.values()].find(
+      (r) => r.bookerRiderId === bookerRiderId && isActiveRideStatus(r.status),
+    );
+    return ride ? structuredClone(ride) : null;
+  }
+
+  async findByBookerIdempotencyKey(
+    bookerRiderId: string,
+    idempotencyKey: string,
+  ): Promise<RideEntity | null> {
+    const ride = [...this.rides.values()].find(
+      (r) => r.bookerRiderId === bookerRiderId && r.idempotencyKey === idempotencyKey,
+    );
     return ride ? structuredClone(ride) : null;
   }
 
@@ -153,11 +210,15 @@ export class MemoryRideRepository implements RideRepositoryPort {
     completedRides: number;
     cancelledRides: number;
     totalSpentPaise: number;
+    noShowsCount: number;
+    disputesCount: number;
   }> {
     let totalRides = 0;
     let completedRides = 0;
     let cancelledRides = 0;
     let totalSpentPaise = 0;
+    let noShowsCount = 0;
+    let disputesCount = 0;
 
     const isCompleted = (status: string) =>
       status === 'TRIP_COMPLETED' ||
@@ -172,22 +233,26 @@ export class MemoryRideRepository implements RideRepositoryPort {
         if (isCompleted(r.status)) {
           completedRides++;
           totalSpentPaise += r.agreedFarePaise ?? r.suggestedFarePaise;
+          if (r.status === 'PAYMENT_DISPUTED') disputesCount++;
         } else if (r.status === 'CANCELLED') {
           cancelledRides++;
+          if (r.cancellationReason === 'RIDER_NO_SHOW') noShowsCount++;
         }
       }
     }
 
-    return { totalRides, completedRides, cancelledRides, totalSpentPaise };
+    return {
+      totalRides,
+      completedRides,
+      cancelledRides,
+      totalSpentPaise,
+      noShowsCount,
+      disputesCount,
+    };
   }
 
-  async getRiderTripCountsBatch(
-    riderIds: string[],
-  ): Promise<Map<string, { totalRides: number; completedRides: number; cancelledRides: number }>> {
-    const map = new Map<
-      string,
-      { totalRides: number; completedRides: number; cancelledRides: number }
-    >();
+  async getRiderTripCountsBatch(riderIds: string[]): Promise<Map<string, RiderTripCountsSummary>> {
+    const map = new Map<string, RiderTripCountsSummary>();
     const idSet = new Set(riderIds);
     const isCompleted = (status: string) =>
       status === 'TRIP_COMPLETED' ||
@@ -204,10 +269,26 @@ export class MemoryRideRepository implements RideRepositoryPort {
           : null;
       if (!id) continue;
 
-      const current = map.get(id) ?? { totalRides: 0, completedRides: 0, cancelledRides: 0 };
+      const current = map.get(id) ?? {
+        totalRides: 0,
+        completedRides: 0,
+        cancelledRides: 0,
+        noShowsCount: 0,
+        disputesCount: 0,
+      };
       current.totalRides++;
-      if (r.status === 'CANCELLED') current.cancelledRides++;
-      if (isCompleted(r.status)) current.completedRides++;
+      if (r.status === 'CANCELLED') {
+        current.cancelledRides++;
+        if (r.cancellationReason === 'RIDER_NO_SHOW') {
+          current.noShowsCount = (current.noShowsCount ?? 0) + 1;
+        }
+      }
+      if (isCompleted(r.status)) {
+        current.completedRides++;
+        if (r.status === 'PAYMENT_DISPUTED') {
+          current.disputesCount = (current.disputesCount ?? 0) + 1;
+        }
+      }
       map.set(id, current);
     }
 

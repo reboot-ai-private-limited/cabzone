@@ -14,7 +14,6 @@ export interface WalletEntity {
   updatedAt: Date;
 }
 
-
 export function isWalletActive(wallet: WalletEntity): boolean {
   return wallet.status === 'ACTIVE';
 }
@@ -43,4 +42,15 @@ export function calculateNewBalance(
     case 'ADJUSTMENT':
       return currentBalance - amountPaise;
   }
+}
+
+/**
+ * Returns unpaid rider arrears in integer paise from a RIDER wallet (D-044).
+ * Arrears are represented as a negative `balancePaise` mirrored onto `owedPaise`.
+ */
+export function getRiderUnpaidArrearsPaise(
+  wallet: WalletEntity | null | undefined,
+): number {
+  if (!wallet) return 0;
+  return wallet.balancePaise < 0 ? -wallet.balancePaise : Math.max(0, wallet.owedPaise ?? 0);
 }

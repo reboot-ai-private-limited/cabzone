@@ -48,7 +48,8 @@ const VALID_PNG_BYTES = Buffer.from([
   0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,
 ]);
 
-const toDataUrl = (mime: string, buf: Buffer): string => `data:${mime};base64,${buf.toString('base64')}`;
+const toDataUrl = (mime: string, buf: Buffer): string =>
+  `data:${mime};base64,${buf.toString('base64')}`;
 
 class MemoryDriverRepository implements DriverRepositoryPort {
   readonly drivers = new Map<string, DriverEntity>();
@@ -84,7 +85,11 @@ class MemoryDriverApplicationRepository implements DriverApplicationRepositoryPo
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime() || b.id.localeCompare(a.id));
     return matching[0] ? { ...matching[0] } : null;
   }
-  async list(filter: { status?: string; limit: number; offset: number }): Promise<DriverApplicationEntity[]> {
+  async list(filter: {
+    status?: string;
+    limit: number;
+    offset: number;
+  }): Promise<DriverApplicationEntity[]> {
     return [...this.apps.values()]
       .filter((a) => filter.status === undefined || a.status === filter.status)
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime() || b.id.localeCompare(a.id))
@@ -146,7 +151,9 @@ class MemoryVehicleRepository implements VehicleRepositoryPort {
     return v ? { ...v } : null;
   }
   async findByDriverId(driverId: string): Promise<VehicleEntity[]> {
-    return [...this.vehicles.values()].filter((v) => v.driverId === driverId).map((v) => ({ ...v }));
+    return [...this.vehicles.values()]
+      .filter((v) => v.driverId === driverId)
+      .map((v) => ({ ...v }));
   }
   async findByRegistrationNumber(reg: string): Promise<VehicleEntity | null> {
     for (const v of this.vehicles.values()) {
@@ -488,7 +495,8 @@ describe('Step 10 — KYC Expiry, Renewal & Document Privacy', () => {
 
     const docsForVeh1 = makeVerifiedDocs('veh-1');
     expect(
-      canDriverGoOnline(baseDriver, { vehicle: approvedVehicle, documents: docsForVeh1, now }).eligible,
+      canDriverGoOnline(baseDriver, { vehicle: approvedVehicle, documents: docsForVeh1, now })
+        .eligible,
     ).toBe(true);
     expect(
       isDriverEligibleForRide(baseDriver, activeUser, approvedVehicle, docsForVeh1, 'CAB', now),
@@ -508,7 +516,8 @@ describe('Step 10 — KYC Expiry, Renewal & Document Privacy', () => {
     const newVehicle: VehicleEntity = { ...approvedVehicle, id: 'veh-2' };
     const switchedDriver: DriverEntity = { ...baseDriver, currentVehicleId: 'veh-2' };
     expect(
-      canDriverGoOnline(switchedDriver, { vehicle: newVehicle, documents: docsForVeh1, now }).eligible,
+      canDriverGoOnline(switchedDriver, { vehicle: newVehicle, documents: docsForVeh1, now })
+        .eligible,
     ).toBe(false);
     const mismatchCompliance = evaluateDriverKycCompliance({
       driver: switchedDriver,
@@ -554,7 +563,12 @@ describe('Step 10 — KYC Expiry, Renewal & Document Privacy', () => {
       updatedAt: baseTime,
     });
 
-    for (const type of ['GOVERNMENT_ID', 'DRIVING_LICENSE', 'REGISTRATION_CERTIFICATE', 'INSURANCE'] as const) {
+    for (const type of [
+      'GOVERNMENT_ID',
+      'DRIVING_LICENSE',
+      'REGISTRATION_CERTIFICATE',
+      'INSURANCE',
+    ] as const) {
       await h.documentRepo.create({
         id: `doc-${type}`,
         driverId: 'drv-sweep',
@@ -837,7 +851,7 @@ describe('Step 10 — KYC Expiry, Renewal & Document Privacy', () => {
       .expect(409);
   });
 
-  it('strips eager fileUrl leaks, enforces city-scoped RBAC on document previews, audits access, and streams hardened inline bytes', async () => {
+  it('strips eager fileUrl leaks, restricts private previews, audits access, and streams hardened inline bytes', async () => {
     const h = buildTestHarness();
 
     const siliguriDriverToken = await h.mintSessionToken({
@@ -914,10 +928,16 @@ describe('Step 10 — KYC Expiry, Renewal & Document Privacy', () => {
       .expect(201);
     const drjDocId = drjDocRes.body.data.id as string;
 
-    // 1. Siliguri CITY_ADMIN gets detail: fileUrl is ALWAYS null; vault file hasFile=true; http url hasFile=false!
-    const detailRes = await request(h.app)
+    // A typed address is not an authoritative city assignment for KYC access.
+    await request(h.app)
       .get(`/api/v1/admin/driver-applications/${slgAppId}`)
       .set('Authorization', `Bearer ${siliguriCityAdminToken}`)
+      .expect(403);
+
+    // SUPER_ADMIN gets detail: fileUrl is ALWAYS null; vault file hasFile=true; http url hasFile=false.
+    const detailRes = await request(h.app)
+      .get(`/api/v1/admin/driver-applications/${slgAppId}`)
+      .set('Authorization', `Bearer ${superAdminToken}`)
       .expect(200);
     const docs = detailRes.body.data.documents as Array<{
       id: string;
@@ -934,10 +954,10 @@ describe('Step 10 — KYC Expiry, Renewal & Document Privacy', () => {
     // Attempting to preview legacy http storageKey fails with 404 (never redirects/passes through!)
     await request(h.app)
       .post(`/api/v1/admin/driver-applications/${slgAppId}/documents/legacy-http-doc/preview`)
-      .set('Authorization', `Bearer ${siliguriCityAdminToken}`)
+      .set('Authorization', `Bearer ${superAdminToken}`)
       .expect(404);
 
-    // 2. Siliguri CITY_ADMIN is blocked (403) from Darjeeling application & document preview!
+    // CITY_ADMIN cannot inspect another application or preview its document.
     await request(h.app)
       .get(`/api/v1/admin/driver-applications/${drjAppId}`)
       .set('Authorization', `Bearer ${siliguriCityAdminToken}`)
@@ -953,10 +973,10 @@ describe('Step 10 — KYC Expiry, Renewal & Document Privacy', () => {
       .set('Authorization', `Bearer ${superAdminToken}`)
       .expect(404);
 
-    // 3. Authorized Siliguri CITY_ADMIN mints audited 5-minute preview URL & streams hardened bytes
+    // SUPER_ADMIN mints an audited 5-minute preview URL and streams hardened bytes.
     const previewRes = await request(h.app)
       .post(`/api/v1/admin/driver-applications/${slgAppId}/documents/${slgDocId}/preview`)
-      .set('Authorization', `Bearer ${siliguriCityAdminToken}`)
+      .set('Authorization', `Bearer ${superAdminToken}`)
       .expect(200);
     const previewUrl = previewRes.body.data.url as string;
     expect(previewRes.body.data.mimeType).toBe('image/png');
@@ -967,7 +987,7 @@ describe('Step 10 — KYC Expiry, Renewal & Document Privacy', () => {
       (e) => e.action === 'DOCUMENT_PREVIEWED' && e.documentId === slgDocId,
     );
     expect(previewAudit).toBeDefined();
-    expect(previewAudit?.actorRole).toBe('CITY_ADMIN');
+    expect(previewAudit?.actorRole).toBe('SUPER_ADMIN');
 
     // Stream content -> exact PNG bytes + strict privacy & anti-sniffing headers
     const streamRes = await request(h.app)

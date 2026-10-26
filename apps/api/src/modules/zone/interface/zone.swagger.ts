@@ -41,7 +41,11 @@ export const zoneResolutionResultSchema = z.object({
   isWithinBuffer: z.boolean(),
 });
 
+let registered = false;
+
 export function registerZoneSwaggerPaths(): void {
+  if (registered) return;
+  registered = true;
   // Public zone resolution
   registry.registerPath({
     method: 'post',
@@ -312,6 +316,70 @@ export function registerZoneSwaggerPaths(): void {
       200: {
         description: 'Zone deactivated',
         content: { 'application/json': { schema: successResponse(zoneDtoSchema) } },
+      },
+    },
+  });
+
+  // Admin delete draft/inactive zone
+  registry.registerPath({
+    method: 'delete',
+    path: '/v1/admin/zones/{id}',
+    tags: ['Admin Zones'],
+    summary: 'Delete a zone without active dependents (SUPER_ADMIN for CITY zones)',
+    security: bearerAuth,
+    request: {
+      params: zoneIdParamSchema,
+    },
+    responses: {
+      200: {
+        description: 'Zone deleted',
+        content: {
+          'application/json': {
+            schema: successResponse(z.object({ deleted: z.boolean() })),
+          },
+        },
+      },
+      403: {
+        description: 'Forbidden for unassigned or top-level CITY zone',
+        content: { 'application/json': { schema: errorResponse } },
+      },
+      404: {
+        description: 'Zone not found',
+        content: { 'application/json': { schema: errorResponse } },
+      },
+      409: {
+        description: 'Zone has active child zones or pricing configs',
+        content: { 'application/json': { schema: errorResponse } },
+      },
+    },
+  });
+
+  // Admin get zone dependents
+  registry.registerPath({
+    method: 'get',
+    path: '/v1/admin/zones/{id}/dependents',
+    tags: ['Admin Zones'],
+    summary: 'List child zones referencing a parent city zone',
+    security: bearerAuth,
+    request: {
+      params: zoneIdParamSchema,
+    },
+    responses: {
+      200: {
+        description: 'Dependent child zones',
+        content: {
+          'application/json': {
+            schema: successResponse(z.array(zoneDtoSchema)),
+          },
+        },
+      },
+      403: {
+        description: 'Forbidden',
+        content: { 'application/json': { schema: errorResponse } },
+      },
+      404: {
+        description: 'Zone not found',
+        content: { 'application/json': { schema: errorResponse } },
       },
     },
   });

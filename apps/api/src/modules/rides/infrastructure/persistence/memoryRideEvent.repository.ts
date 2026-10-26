@@ -27,4 +27,18 @@ export class MemoryRideEventRepository implements RideEventRepositoryPort {
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
       .map((e) => ({ ...e }));
   }
+
+  async findByEventTypes(
+    eventTypes: readonly string[],
+    limit: number,
+    offset = 0,
+  ): Promise<RideEventEntity[]> {
+    if (eventTypes.length === 0 || limit <= 0) return [];
+    const typeSet = new Set(eventTypes);
+    return this.events
+      .filter((e) => typeSet.has(e.eventType))
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .slice(offset, offset + limit)
+      .map((e) => ({ ...e }));
+  }
 }

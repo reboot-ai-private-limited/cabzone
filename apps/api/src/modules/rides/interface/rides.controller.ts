@@ -1,8 +1,9 @@
 import type { Request, RequestHandler, Response } from 'express';
-import type { RideAssignedDriverDto } from '@cabzone/contracts';
+import type { RideAssignedDriverDto, WalletTransactionDto } from '@cabzone/contracts';
 import { AppError } from '../../../shared/errors/AppError.js';
 import { asyncHandler } from '../../../shared/http/asyncHandler.js';
 import { sendSuccess } from '../../../shared/http/response.util.js';
+import type { WalletRepositoryPort } from '../../ledger/ledger.public.js';
 import type { AcceptRideUseCase } from '../application/useCases/acceptRide.usecase.js';
 import type { CancelRideUseCase } from '../application/useCases/cancelRide.usecase.js';
 import type { CompleteRideUseCase } from '../application/useCases/completeRide.usecase.js';
@@ -12,7 +13,13 @@ import type { DriverEarningsUseCase } from '../application/useCases/driverEarnin
 import type { DriverEnRouteUseCase } from '../application/useCases/driverEnRoute.usecase.js';
 import type { StartRideUseCase } from '../application/useCases/startRide.usecase.js';
 import type { NegotiateFareUseCase } from '../application/useCases/negotiateFare.usecase.js';
-import type { RideEntity, RideEventRepositoryPort, RideRepositoryPort } from '../domain/index.js';
+import type { RideRatingsUseCase } from '../application/useCases/rideRatings.usecase.js';
+import type {
+  RideEntity,
+  RideEventEntity,
+  RideEventRepositoryPort,
+  RideRepositoryPort,
+} from '../domain/index.js';
 import { logger } from '../../../shared/logging/logger.js';
 import { derivePickupOtp, type RideNotifierPort } from '../domain/index.js';
 import { toRideView, type RideView } from './rides.presenter.js';
@@ -20,9 +27,11 @@ import {
   cancelRideSchema,
   counterResponseSchema,
   driverCounterSchema,
+  createRideHeadersSchema,
   driverEarningsQuerySchema,
   driverHistoryQuerySchema,
   createRideRequestSchema,
+  listPaymentDisputesQuerySchema,
   listRidesQuerySchema,
   paymentDisputeSchema,
   paymentDisputeResolutionSchema,
@@ -30,6 +39,8 @@ import {
   reconcileDriverEarningsSchema,
   rideIdParamSchema,
   startRideRequestSchema,
+  submitRideRatingSchema,
+  waiveCancellationFeeSchema,
 } from './rides.validation.js';
 
 /** Maps an authenticated user id to the rider / driver profile id that rides reference. */
@@ -72,11 +83,36 @@ async function toEnrichedRideView(ride: RideEntity, actors?: RideHttpContext): P
   }
 }
 
+function classifyPaymentCollection(
+  paymentAudit: readonly RideEventEntity[],
+): 'CASH' | 'RAZORPAY_UPI' | 'RAZORPAY_TEST' | 'DIRECT' {
+  const confirmedMethod = paymentAudit.find((event) => event.eventType === 'PAYMENT_CONFIRMED')
+    ?.metadata.method;
+  const cash =
+    confirmedMethod !== 'UPI' &&
+    paymentAudit.some(
+      (event) => event.eventType === 'PAYMENT_METHOD_CHANGED' && event.metadata.method === 'CASH',
+    );
+  if (cash) return 'CASH';
+  if (paymentAudit.some((event) => event.eventType === 'UPI_QR_CREATED')) return 'RAZORPAY_UPI';
+  if (paymentAudit.some((event) => event.eventType === 'UPI_ORDER_CREATED')) return 'RAZORPAY_TEST';
+  return 'DIRECT';
+}
+
 const OTP_VISIBLE = new Set(['DRIVER_ASSIGNED', 'DRIVER_EN_ROUTE', 'DRIVER_ARRIVED']);
 
 function auth(req: Request) {
   if (!req.auth) throw AppError.unauthenticated('Authentication required.');
   return req.auth;
+}
+
+function assertCityAdminRideScope(req: Request, ride: RideEntity): void {
+  if (req.auth?.role !== 'CITY_ADMIN') return;
+  const allowed = req.adminCityZoneIds ?? [];
+  const rideCity = ride.zoneSnapshot?.cityZoneId ?? null;
+  if (!rideCity || !allowed.includes(rideCity)) {
+    throw AppError.forbidden('ADMIN_SCOPE_DENIED: Ride is outside your assigned cities.');
+  }
 }
 
 async function requireRiderId(req: Request, actors: RideHttpContext): Promise<string> {
@@ -102,7 +138,10 @@ async function requireDriverId(req: Request, actors: RideHttpContext): Promise<s
 
 async function canView(req: Request, ride: RideEntity, actors: RideHttpContext): Promise<boolean> {
   const { role, userId } = auth(req);
-  if (ADMIN_ROLES.has(role)) return true;
+  if (ADMIN_ROLES.has(role)) {
+    assertCityAdminRideScope(req, ride);
+    return true;
+  }
   if (role === 'RIDER') {
     const riderId = await actors.resolveRiderId(userId);
     return (
@@ -121,9 +160,18 @@ export function makeCreateRideController(
   actors: RideHttpContext,
 ): RequestHandler {
   return asyncHandler(async (req: Request, res: Response) => {
+    const headers = createRideHeadersSchema.parse({
+      'idempotency-key': req.get('Idempotency-Key') || undefined,
+    });
     const body = createRideRequestSchema.parse(req.body);
+    const headerKey = headers['idempotency-key'];
+    if (headerKey && body.idempotencyKey && headerKey !== body.idempotencyKey) {
+      throw AppError.badRequest(
+        'IDEMPOTENCY_KEY_MISMATCH: Idempotency-Key header and body idempotencyKey must match.',
+      );
+    }
     const riderId = await requireRiderId(req, actors);
-    const ride = await useCase.execute({
+    const { ride, replayed } = await useCase.executeWithMeta({
       quoteToken: body.quoteToken,
       proposedFarePaise: body.proposedFarePaise,
       riderId,
@@ -132,14 +180,18 @@ export function makeCreateRideController(
       pickup: body.pickup,
       drop: body.drop,
       vehicleCategory: body.vehicleCategory,
+      idempotencyKey: headerKey ?? body.idempotencyKey,
+      paymentMethod: body.paymentMethod,
     });
-    await notify(actors.notifier?.rideRequested(ride));
+    if (!replayed) {
+      await notify(actors.notifier?.rideRequested(ride));
+    }
     sendSuccess(
       req,
       res,
       await toEnrichedRideView(ride, actors),
-      'Ride requested successfully',
-      201,
+      replayed ? 'Ride request replayed' : 'Ride requested successfully',
+      replayed ? 200 : 201,
     );
   });
 }
@@ -167,23 +219,9 @@ export function makeGetRideController(
         : undefined;
     const view = await toEnrichedRideView(ride, actors);
     const paymentAudit = paymentEvents ? await paymentEvents.findByRideId(ride.id) : [];
-    const confirmedMethod = paymentAudit.find((event) => event.eventType === 'PAYMENT_CONFIRMED')
-      ?.metadata.method;
-    const cash =
-      confirmedMethod !== 'UPI' &&
-      paymentAudit.some(
-        (event) => event.eventType === 'PAYMENT_METHOD_CHANGED' && event.metadata.method === 'CASH',
-      );
-    const paymentCollection = cash
-      ? 'CASH'
-      : paymentAudit.some((event) => event.eventType === 'UPI_QR_CREATED')
-        ? 'RAZORPAY_UPI'
-        : paymentAudit.some((event) => event.eventType === 'UPI_ORDER_CREATED')
-          ? 'RAZORPAY_TEST'
-          : 'DIRECT';
+    const paymentCollection = classifyPaymentCollection(paymentAudit);
     const includeDriverSettlement =
-      driverEarnings &&
-      (req.auth?.role === 'DRIVER' || ADMIN_ROLES.has(req.auth?.role ?? ''));
+      driverEarnings && (req.auth?.role === 'DRIVER' || ADMIN_ROLES.has(req.auth?.role ?? ''));
     const driverSettlement = includeDriverSettlement
       ? (await driverEarnings.buildSettlementMap([ride])).get(ride.id)
       : undefined;
@@ -223,7 +261,7 @@ export function makeRideEventsController(
   });
 }
 
-/** Rider: own rides. Driver: assigned rides. Admin: any, filterable. */
+/** Rider: own rides. Driver: assigned rides. Admin: any (scoped to assigned cities for CITY_ADMIN). */
 export function makeListRidesController(
   rideRepo: RideRepositoryPort,
   actors: RideHttpContext,
@@ -246,10 +284,13 @@ export function makeListRidesController(
       throw AppError.forbidden('Insufficient permissions.');
     }
 
+    const cityZoneIds = role === 'CITY_ADMIN' ? (req.adminCityZoneIds ?? []) : req.adminCityZoneIds;
+
     const rides = await rideRepo.list({
       riderId,
       driverId,
       statuses: q.status,
+      ...(cityZoneIds !== undefined ? { cityZoneIds } : {}),
       limit: q.limit,
       offset: q.offset,
     });
@@ -471,11 +512,13 @@ export function makeCompleteRideController(
     const result = await (confirmPayment
       ? useCase.confirmPayment({ rideId: id, driverId })
       : useCase.execute({ rideId: id, driverId }));
+    const arrearsCollectedPaise = result.arrearsCollectedPaise ?? 0;
+    const totalPayablePaise = result.totalPayablePaise ?? result.farePaise;
     await notify(
       actors.notifier?.rideUpdated(
         result.ride,
         confirmPayment ? 'ride.payment.confirmed' : 'ride.completed',
-        { farePaise: result.farePaise },
+        { farePaise: result.farePaise, arrearsCollectedPaise, totalPayablePaise },
       ),
     );
     sendSuccess(
@@ -485,6 +528,8 @@ export function makeCompleteRideController(
         ride: await toEnrichedRideView(result.ride, actors),
         farePaise: result.farePaise,
         commissionPaise: result.commissionPaise,
+        arrearsCollectedPaise,
+        totalPayablePaise,
         walletBalancePaise: result.driverWallet.balancePaise,
       },
       confirmPayment
@@ -530,32 +575,158 @@ export function makeListPaymentDisputesController(
   rideRepo: RideRepositoryPort,
   eventRepo: RideEventRepositoryPort,
   actors?: RideHttpContext,
+  walletRepo?: WalletRepositoryPort,
 ): RequestHandler {
   return asyncHandler(async (req: Request, res: Response) => {
-    const { limit, offset } = listRidesQuerySchema
-      .pick({ limit: true, offset: true })
-      .parse(req.query);
-    const rides = await rideRepo.list({ statuses: ['PAYMENT_DISPUTED'], limit, offset });
+    const { status, limit, offset } = listPaymentDisputesQuerySchema.parse(req.query);
+
+    let rides: RideEntity[];
+    if (status === 'OPEN') {
+      rides = await rideRepo.list({ statuses: ['PAYMENT_DISPUTED'], limit, offset });
+    } else if (status === 'RESOLVED') {
+      const resolvedEvents = await eventRepo.findByEventTypes(
+        ['PAYMENT_DISPUTE_RESOLVED'],
+        limit + offset,
+        0,
+      );
+      const uniqueIds: string[] = [];
+      for (const ev of resolvedEvents) {
+        if (!uniqueIds.includes(ev.rideId)) uniqueIds.push(ev.rideId);
+      }
+      const pageIds = uniqueIds.slice(offset, offset + limit);
+      const fetched = await Promise.all(pageIds.map((id) => rideRepo.findById(id)));
+      rides = fetched.filter((r): r is RideEntity => r !== null && r.status !== 'PAYMENT_DISPUTED');
+    } else {
+      const [openRides, resolvedEvents] = await Promise.all([
+        rideRepo.list({ statuses: ['PAYMENT_DISPUTED'], limit: limit + offset, offset: 0 }),
+        eventRepo.findByEventTypes(['PAYMENT_DISPUTE_RESOLVED'], limit + offset, 0),
+      ]);
+      const byId = new Map<string, RideEntity>(openRides.map((r) => [r.id, r]));
+      const missingIds = [...new Set(resolvedEvents.map((e) => e.rideId))].filter(
+        (id) => !byId.has(id),
+      );
+      const resolvedRides = await Promise.all(missingIds.map((id) => rideRepo.findById(id)));
+      for (const r of resolvedRides) {
+        if (r) byId.set(r.id, r);
+      }
+      rides = [...byId.values()]
+        .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
+        .slice(offset, offset + limit);
+    }
+
+    const rideIds = rides.map((r) => r.id);
+    const [allEvents, txPage] =
+      rideIds.length > 0
+        ? await Promise.all([
+            eventRepo.findByRideIds(rideIds),
+            walletRepo
+              ? walletRepo.listTransactions({
+                  referenceIds: rideIds,
+                  referenceTypes: ['RIDE_COMMISSION', 'ONLINE_RIDE_EARNINGS', 'DISPUTE_REFUND'],
+                  limit: 500,
+                  offset: 0,
+                })
+              : Promise.resolve({ items: [] as WalletTransactionDto[], total: 0 }),
+          ])
+        : [[], { items: [] as WalletTransactionDto[], total: 0 }];
+
+    const eventsByRide = new Map<string, RideEventEntity[]>();
+    for (const ev of allEvents) {
+      const list = eventsByRide.get(ev.rideId) ?? [];
+      list.push(ev);
+      eventsByRide.set(ev.rideId, list);
+    }
+
+    const txsByRide = new Map<string, WalletTransactionDto[]>();
+    for (const tx of txPage.items) {
+      if (!tx.referenceId) continue;
+      const list = txsByRide.get(tx.referenceId) ?? [];
+      list.push(tx);
+      txsByRide.set(tx.referenceId, list);
+    }
+
     const data = await Promise.all(
-      rides.map(async (ride) => ({
-        ride: await toEnrichedRideView(ride, actors),
-        ticket:
-          (await eventRepo.findByRideId(ride.id)).find(
-            (event) => event.eventType === 'PAYMENT_DISPUTED',
-          ) ?? null,
-      })),
+      rides.map(async (ride) => {
+        const events = eventsByRide.get(ride.id) ?? (await eventRepo.findByRideId(ride.id));
+        const txs = txsByRide.get(ride.id) ?? [];
+        const ticket = events.find((e) => e.eventType === 'PAYMENT_DISPUTED') ?? null;
+        const resolution = events.find((e) => e.eventType === 'PAYMENT_DISPUTE_RESOLVED') ?? null;
+        const confirmedEvent = events.find((e) => e.eventType === 'PAYMENT_CONFIRMED');
+        const upiOrderEvent = events.find((e) => e.eventType === 'UPI_ORDER_CREATED');
+        const qrEvent = events.find((e) => e.eventType === 'UPI_QR_CREATED');
+        const paymentCollection = classifyPaymentCollection(events);
+
+        const commissionDebit = txs.find(
+          (t) => t.referenceType === 'RIDE_COMMISSION' && t.type === 'DEBIT',
+        );
+        const onlineCredit = txs.find(
+          (t) => t.referenceType === 'ONLINE_RIDE_EARNINGS' && t.type === 'CREDIT',
+        );
+        const disputeRefund = txs.find(
+          (t) => t.referenceType === 'DISPUTE_REFUND' && t.type === 'CREDIT',
+        );
+        const farePaise = ride.agreedFarePaise ?? ride.proposedFarePaise ?? ride.suggestedFarePaise;
+        const onlineCommissionPaise = onlineCredit
+          ? Math.max(0, farePaise - onlineCredit.amountPaise)
+          : 0;
+
+        return {
+          ride: await toEnrichedRideView(ride, actors),
+          ticket,
+          resolution,
+          evidence: {
+            paymentCollection,
+            paymentMethod:
+              typeof confirmedEvent?.metadata?.method === 'string'
+                ? confirmedEvent.metadata.method
+                : paymentCollection === 'CASH'
+                  ? 'CASH'
+                  : null,
+            paymentConfirmedAt: confirmedEvent ? confirmedEvent.createdAt.toISOString() : null,
+            providerOrderId:
+              typeof upiOrderEvent?.metadata?.orderId === 'string'
+                ? upiOrderEvent.metadata.orderId
+                : typeof confirmedEvent?.metadata?.orderId === 'string'
+                  ? confirmedEvent.metadata.orderId
+                  : null,
+            providerPaymentId:
+              typeof confirmedEvent?.metadata?.paymentId === 'string'
+                ? confirmedEvent.metadata.paymentId
+                : null,
+            providerQrId:
+              typeof qrEvent?.metadata?.qrId === 'string'
+                ? qrEvent.metadata.qrId
+                : typeof confirmedEvent?.metadata?.qrId === 'string'
+                  ? confirmedEvent.metadata.qrId
+                  : null,
+            commissionChargedPaise: commissionDebit?.amountPaise ?? onlineCommissionPaise,
+            commissionRefundedPaise:
+              disputeRefund?.amountPaise ??
+              (typeof resolution?.metadata?.refundedCommissionPaise === 'number'
+                ? resolution.metadata.refundedCommissionPaise
+                : 0),
+            refundTransactionId: disputeRefund?.id ?? null,
+            onlineEarningsCreditedPaise: onlineCredit?.amountPaise ?? 0,
+          },
+        };
+      }),
     );
-    sendSuccess(req, res, data, 'Open payment disputes retrieved');
+    sendSuccess(
+      req,
+      res,
+      data,
+      status === 'OPEN' ? 'Open payment disputes retrieved' : 'Payment disputes retrieved',
+    );
   });
 }
 
 export function makeCancelRideController(
   useCase: CancelRideUseCase,
   actors: RideHttpContext,
+  rideRepo?: RideRepositoryPort,
 ): RequestHandler {
   return asyncHandler(async (req: Request, res: Response) => {
     const { id } = rideIdParamSchema.parse(req.params);
-    const { reason } = cancelRideSchema.parse(req.body);
     const { role, userId } = auth(req);
 
     let actorType: 'RIDER' | 'DRIVER' | 'ADMIN';
@@ -567,19 +738,146 @@ export function makeCancelRideController(
       actorType = 'DRIVER';
       actorId = await requireDriverId(req, actors);
     } else if (ADMIN_ROLES.has(role)) {
+      if (role === 'CITY_ADMIN' && rideRepo) {
+        const ride = await rideRepo.findById(id);
+        if (ride) assertCityAdminRideScope(req, ride);
+      }
       actorType = 'ADMIN';
       actorId = userId;
     } else {
       throw AppError.forbidden('Insufficient permissions.');
     }
 
+    const { reason } = cancelRideSchema.parse(req.body);
+
     const result = await useCase.execute({ rideId: id, actorType, actorId, reason });
+    const riderArrearsPaise = result.riderWallet
+      ? Math.max(0, -result.riderWallet.balancePaise)
+      : 0;
     await notify(actors.notifier?.rideUpdated(result.ride, 'ride.cancelled', { reason }));
     sendSuccess(
       req,
       res,
-      { ride: await toEnrichedRideView(result.ride, actors), feeBreakdown: result.feeBreakdown },
+      {
+        ride: await toEnrichedRideView(result.ride, actors),
+        feeBreakdown: result.feeBreakdown,
+        riderArrearsPaise,
+      },
       'Ride cancelled',
+    );
+  });
+}
+
+export function makeGetRideRatingController(
+  rideRepo: RideRepositoryPort,
+  ratingsUseCase: RideRatingsUseCase,
+  actors: RideHttpContext,
+): RequestHandler {
+  return asyncHandler(async (req: Request, res: Response) => {
+    const { id } = rideIdParamSchema.parse(req.params);
+    const ride = await rideRepo.findById(id);
+    if (!ride || !(await canView(req, ride, actors))) {
+      throw AppError.notFound('RIDE_NOT_FOUND: The requested ride was not found.');
+    }
+
+    const { role, userId } = auth(req);
+    let viewerRole: 'RIDER' | 'DRIVER' | 'ADMIN' = 'ADMIN';
+    let viewerProfileId: string | null = null;
+    if (role === 'RIDER') {
+      viewerRole = 'RIDER';
+      viewerProfileId = await actors.resolveRiderId(userId);
+    } else if (role === 'DRIVER') {
+      viewerRole = 'DRIVER';
+      viewerProfileId = await actors.resolveDriverId(userId);
+    }
+
+    const status = await ratingsUseCase.getRatingStatus({
+      ride,
+      viewerRole,
+      viewerProfileId,
+    });
+    sendSuccess(req, res, status, 'Ride rating status retrieved successfully');
+  });
+}
+
+export function makeSubmitRideRatingController(
+  rideRepo: RideRepositoryPort,
+  ratingsUseCase: RideRatingsUseCase,
+  actors: RideHttpContext,
+): RequestHandler {
+  return asyncHandler(async (req: Request, res: Response) => {
+    const { id } = rideIdParamSchema.parse(req.params);
+    const body = submitRideRatingSchema.parse(req.body);
+    const { role } = auth(req);
+
+    let actorRole: 'RIDER' | 'DRIVER';
+    let actorProfileId: string;
+    if (role === 'RIDER') {
+      actorRole = 'RIDER';
+      actorProfileId = await requireRiderId(req, actors);
+    } else if (role === 'DRIVER') {
+      actorRole = 'DRIVER';
+      actorProfileId = await requireDriverId(req, actors);
+    } else {
+      throw AppError.forbidden(
+        'RATING_PARTICIPANT_REQUIRED: Only riders and drivers can submit ride ratings.',
+      );
+    }
+
+    const result = await ratingsUseCase.submitRating({
+      rideId: id,
+      actorRole,
+      actorProfileId,
+      stars: body.stars,
+      tags: body.tags,
+      comment: body.comment,
+    });
+
+    // Double-blind privacy: only emit realtime notification when ratings are revealed
+    if (result.status.myReview?.status === 'REVEALED') {
+      const ride = await rideRepo.findById(id);
+      if (ride) {
+        await notify(actors.notifier?.rideUpdated(ride, 'ride.rating.revealed', { rideId: id }));
+      }
+    }
+
+    sendSuccess(
+      req,
+      res,
+      result.status,
+      result.created ? 'Ride rating submitted successfully' : 'Ride rating already recorded',
+      result.created ? 201 : 200,
+    );
+  });
+}
+
+export function makeWaiveCancellationFeeController(
+  useCase: CancelRideUseCase,
+  actors: RideHttpContext,
+): RequestHandler {
+  return asyncHandler(async (req: Request, res: Response) => {
+    const { id } = rideIdParamSchema.parse(req.params);
+    const { reason } = waiveCancellationFeeSchema.parse(req.body);
+    const result = await useCase.waiveCancellationFee({
+      rideId: id,
+      adminId: auth(req).userId,
+      reason,
+    });
+    await notify(
+      actors.notifier?.rideUpdated(result.ride, 'ride.cancellation_fee.waived', {
+        waivedPaise: result.waivedPaise,
+      }),
+    );
+    sendSuccess(
+      req,
+      res,
+      {
+        ride: await toEnrichedRideView(result.ride, actors),
+        waivedPaise: result.waivedPaise,
+        riderWalletBalancePaise: result.riderWallet.balancePaise,
+        riderArrearsPaise: Math.max(0, -result.riderWallet.balancePaise),
+      },
+      'Cancellation fee waived',
     );
   });
 }

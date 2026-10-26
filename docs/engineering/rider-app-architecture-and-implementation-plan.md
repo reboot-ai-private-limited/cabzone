@@ -56,7 +56,7 @@ This document translates the agreed Cabzone Rider App scope into an implementabl
 | **Fare Negotiation and Counters** | Rider sets `proposedFarePaise` within `[floorPaise, ceilingPaise]` (±₹10 steppers + 1-tap reset to Suggested Fare). Direct driver acceptance assigns the ride immediately (`DRIVER_ASSIGNED`). Driver counter-offers (`FARE_COUNTER_PROPOSED`) appear as live cards with **Accept / Decline** (`POST /api/v1/rides/:id/counter/respond`) and a shared server-derived offer-window countdown (section 8). |
 | **Active Ride (`/ride/[rideId]`)** | Single authoritative screen covering all backend statuses (§6): prominent **4-digit Pickup OTP banner** during `DRIVER_ASSIGNED`, `DRIVER_EN_ROUTE`, and `DRIVER_ARRIVED`; driver/vehicle info; **Emergency / Share Trip** safety sheet; Cash/Personal UPI payment instructions on `PAYMENT_PENDING`; Receipt + **Report Payment Issue / Dispute** on `SETTLED`. |
 | **History, Repeat and Templates** | Chronological Activity log (`GET /api/v1/rides` + `/events`), itemized Receipts, **Repeat Ride** and **Book Return Trip (Swap Pickup ↔ Drop)** actions, and user-scoped **Saved Route Templates** stored on-device. |
-| **One Active Ride Rule** **(Proposed)** | A rider may have **at most one booking-blocking ride** at a time (explicit status set in section 6.1; payment disputes do not block booking). `POST /rides` returns `409 ACTIVE_RIDE_EXISTS` with the existing `rideId`; the client routes to it. |
+| **One Active Ride Rule** (**Decided — D-043**) | A rider (`bookerRiderId`) may have **at most one booking-blocking ride** at a time across the 9 canonical statuses in §6.1 (`SETTLED`, `CANCELLED`, `EXPIRED`, and `PAYMENT_DISPUTED` do not block booking). `POST /rides` returns `409 ACTIVE_RIDE_EXISTS` with the existing `rideId`; the client routes to it. |
 
 ---
 
@@ -68,7 +68,7 @@ This document translates the agreed Cabzone Rider App scope into an implementabl
 - Freight, courier delivery, E-rickshaw booking (tile shown disabled)
 - Wallet, in-app payments, promo codes, referral credits
 - Surge pricing UI (negotiation bounds already encode price limits)
-- Driver and trip ratings by the rider (rating is *displayed*; submitting ratings is a post-MVP item unless the API already supports it)
+- *(Moved into scope by D-046)* Post-ride ratings are **in scope**: double-blind 1–5 star ratings (+ optional preset tags) on `SETTLED` rides within 7 days, revealed when both submit or 7 days expire; display `"New"` until `ratingCount >= 5`.
 - Languages beyond English in UI strings (`preferredLanguage` is stored but UI localization is post-MVP, see §17.2)
 - Saved routes syncing across devices (device-local only in MVP)
 
@@ -76,12 +76,12 @@ This document translates the agreed Cabzone Rider App scope into an implementabl
 
 | # | Question | Owner | Blocks |
 | --- | --- | --- | --- |
-| Q1 | Confirm proposed one-active-ride enforcement using the booking-blocking status set in section 6.1; enum and legal transitions already exist in contracts/domain | API | Phase 2 |
+| Q1 | **Decided (D-043):** Enforce one active ride per `bookerRiderId` across the 9 booking-blocking statuses in §6.1 (`409 ACTIVE_RIDE_EXISTS` with `rideId`) | API | Resolved |
 | Q2 | Confirm existing `RideDto.offeringExpiresAt` as the shared search/counter deadline; individual counter expiry is not in the current API | API | Phase 3 |
 | Q3 | Driver-only payment confirmation and settled-only disputes already exist. Should formal dispute creation also be allowed during `PAYMENT_PENDING` (requires backend change)? | Product + API | Phase 6 |
 | Q4 | Is there a tokenized public share-tracking URL endpoint? | API | Phase 7 |
 | Q5 | Does the backend SMS the OTP / tracking link to `passenger.phoneE164` for "Someone Else" rides? | API | Phase 2 |
-| Q6 | Cancellation fee / free-cancel window rules and the `CancellationReason` enum | Product + API | Phase 2 |
+| Q6 | **Decided (D-044):** `PricingConfig`-backed fee/grace/wait snapshot (defaults ₹50 = ₹35 driver + ₹15 platform, 2m grace, 5m no-show wait), next-ride rider arrears ledger (`arrearsPaise`), and cash-booking block when arrears `>= ₹50` | Product + API | Resolved |
 | Q7 | Push provider (Expo Push Service vs FCM/APNs direct) and device-token registration endpoint | API | Phase 4 |
 | Q8 | Home basemap uses MapLibre GL JS with OpenFreeMap tiles; choose a production routing and geocoding cost model (current backend uses Google) | Eng + Product | Phase 1 |
 | Q9 | Owner and data source for the curated "North Bengal / India places" list | Product | Phase 1 |
@@ -190,7 +190,7 @@ Import `RideStatus` and `RIDE_STATUSES` from `@cabzone/contracts`; do not define
 
 `POST /rides` currently returns `OFFERING` with `offeringExpiresAt`. `FARE_COUNTER_PROPOSED` is a persisted event type, not a status. Counters are actionable only in `OFFERING`.
 
-**Booking-blocking statuses (Proposed product rule):** `REQUESTED`, `OFFERING`, `DRIVER_ASSIGNED`, `DRIVER_EN_ROUTE`, `DRIVER_ARRIVED`, `TRIP_STARTED`, `TRIP_COMPLETED`, `PAYMENT_PENDING`, `PAYMENT_CONFIRMED`. Use this explicit set for bootstrap, banners, deep-link routing, and the proposed server-side `ACTIVE_RIDE_EXISTS` check. `SETTLED`, `CANCELLED`, `EXPIRED`, and `PAYMENT_DISPUTED` do not block new bookings. A dispute is a post-trip support state and can later return to `SETTLED`. Do not classify active rides merely as "not terminal".
+**Booking-blocking statuses (Decided — D-043):** `REQUESTED`, `OFFERING`, `DRIVER_ASSIGNED`, `DRIVER_EN_ROUTE`, `DRIVER_ARRIVED`, `TRIP_STARTED`, `TRIP_COMPLETED`, `PAYMENT_PENDING`, `PAYMENT_CONFIRMED`. Use this explicit 9-status set for bootstrap, banners, deep-link routing, `isRideActive()` in `apps/rider-mobile/src/services/rider-helpers.ts`, and the server-side `ACTIVE_RIDE_EXISTS` check. `SETTLED`, `CANCELLED`, `EXPIRED`, and `PAYMENT_DISPUTED` do not block new bookings. A dispute is a post-trip support state and can later return to `SETTLED`. Do not classify active rides merely as "not terminal".
 
 ### 6.2 Legal transitions (existing domain contract)
 
@@ -240,11 +240,11 @@ These are domain-allowed edges, not a promise that every intermediate status is 
 - **Raise fare:** a persistent `+₹10` control posts to `POST /rides/:id/fare/raise` during `OFFERING`, clamped to the saved pricing ceiling. The server records `FARE_PROPOSAL_RAISED` with the new ride version; earlier counters become invalid (section 8.2).
 - **No-driver-found:** `EXPIRED` UI prefills a new booking at up to +₹20 (clamped to the saved ceiling), then fetches a fresh quote before the rider confirms the new request.
 
-### 6.5 Cancellation **(Proposed)**
+### 6.5 Cancellation (**Decided — D-044**)
 
-- Cancel always opens a bottom sheet with a required `CancellationReason` picker (enum from the API, Q6) and shows any fee **before** confirmation.
-- Free cancellation in `REQUESTED` / `OFFERING`. Fee/free-window messaging for later stages is rendered from a server-provided `cancellationPolicy` on `RideDto`; the client does not hardcode amounts.
-- Cancelling is idempotent: a 409 "already cancelled" is treated as success.
+- Cancel always opens a bottom sheet with a required `CancellationReason` picker (`@cabzone/contracts`) and shows any applicable fee from the ride's frozen `PricingConfig` cancellation snapshot **before** confirmation.
+- Free cancellation in `REQUESTED` / `OFFERING` and within the configured grace window (`riderCancellationGraceSeconds`, default 120s from `acceptedAt`) in `DRIVER_ASSIGNED` / `DRIVER_EN_ROUTE`. Late cancellations and verified 5-minute `RIDER_NO_SHOW` events record rider arrears (`arrearsPaise`) collected on the next ride (and block further cash bookings when unpaid arrears `>= ₹50`).
+- Cancelling is idempotent: a matching replay returns the recorded cancellation breakdown.
 
 ### 6.6 Edge cases the screen must handle
 

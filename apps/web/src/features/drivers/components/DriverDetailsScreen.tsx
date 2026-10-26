@@ -40,15 +40,13 @@ import {
   Skeleton,
   cn,
 } from '@cabzone/design-system';
+import { formatPublicRatingLabel } from '@cabzone/contracts';
 import { formatPaise } from '@/lib/format';
 import { useDriverApplication, useUpdateDriverStatus } from '../hooks/useDriverApplications';
 import { useTransactionsList, useWalletDetail } from '../../finance/hooks/useFinance';
 import { AdjustBalanceDialog } from '../../finance/components/AdjustBalanceDialog';
 import { SettleDriverDialog } from '../../finance/components/SettleDriverDialog';
-import {
-  DOCUMENT_TYPE_LABELS,
-  DocumentPreviewDialog,
-} from './DocumentPreviewDialog';
+import { DOCUMENT_TYPE_LABELS, DocumentPreviewDialog } from './DocumentPreviewDialog';
 import {
   DocumentStatusBadge,
   KycStatusBadge,
@@ -65,10 +63,22 @@ export interface DriverDetailsScreenProps {
 type TabKey = 'profile' | 'financials' | 'duty';
 
 const formatDate = (iso: string | null): string =>
-  iso === null ? '—' : new Date(iso).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  iso === null
+    ? '—'
+    : new Date(iso).toLocaleDateString('en-IN', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+      });
 
 const formatTime = (iso: string | null): string =>
-  iso === null ? '—' : new Date(iso).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+  iso === null
+    ? '—'
+    : new Date(iso).toLocaleTimeString('en-IN', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+      });
 
 export function DriverDetailsScreen({ id }: DriverDetailsScreenProps) {
   const router = useRouter();
@@ -127,7 +137,12 @@ export function DriverDetailsScreen({ id }: DriverDetailsScreenProps) {
       if (typeFilter !== 'ALL') {
         if (typeFilter === 'CREDIT' && tx.type !== 'CREDIT') return false;
         if (typeFilter === 'DEBIT' && tx.type !== 'DEBIT') return false;
-        if (typeFilter === 'TRIP' && !tx.note?.toLowerCase().includes('trip') && tx.referenceType !== 'RIDE_COMMISSION') return false;
+        if (
+          typeFilter === 'TRIP' &&
+          !tx.note?.toLowerCase().includes('trip') &&
+          tx.referenceType !== 'RIDE_COMMISSION'
+        )
+          return false;
         if (typeFilter === 'CASH' && !tx.note?.toLowerCase().includes('cash')) return false;
         if (typeFilter === 'ADJUSTMENT' && tx.referenceType !== 'ADMIN_ADJUSTMENT') return false;
       }
@@ -149,7 +164,15 @@ export function DriverDetailsScreen({ id }: DriverDetailsScreenProps) {
   // Export handlers
   const handleExportCsv = () => {
     if (filteredTransactions.length === 0) return;
-    const headers = ['Date', 'Time', 'Type', 'Description', 'Reference ID', 'Amount (Paise)', 'Balance After (Paise)'];
+    const headers = [
+      'Date',
+      'Time',
+      'Type',
+      'Description',
+      'Reference ID',
+      'Amount (Paise)',
+      'Balance After (Paise)',
+    ];
     const rows = filteredTransactions.map((tx) => [
       formatDate(tx.createdAt),
       formatTime(tx.createdAt),
@@ -212,7 +235,10 @@ export function DriverDetailsScreen({ id }: DriverDetailsScreenProps) {
     );
   }
 
-  const driverDisplayName = d.driver?.name ?? (d.vehicle?.make ? `${d.vehicle.make} ${d.vehicle.model}` : null) ?? 'Manik Saha';
+  const driverDisplayName =
+    d.driver?.name ??
+    (d.vehicle?.make ? `${d.vehicle.make} ${d.vehicle.model}` : null) ??
+    'Manik Saha';
   const driverIdDisplay = d.driver?.id ?? d.application.driverId ?? '6ab96e995d7d1a4a18ba071c';
   const isSuspended = d.driver?.status === 'SUSPENDED';
 
@@ -242,9 +268,13 @@ export function DriverDetailsScreen({ id }: DriverDetailsScreenProps) {
         <div className="flex flex-col gap-1">
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">Driver Details</h1>
           <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-xs text-slate-500">
-            <Link href="/" className="hover:text-slate-800 transition-colors">Home</Link>
+            <Link href="/" className="hover:text-slate-800 transition-colors">
+              Home
+            </Link>
             <span>&rsaquo;</span>
-            <Link href="/drivers" className="hover:text-slate-800 transition-colors">Drivers</Link>
+            <Link href="/drivers" className="hover:text-slate-800 transition-colors">
+              Drivers
+            </Link>
             <span>&rsaquo;</span>
             <span className="font-semibold text-slate-800">{driverDisplayName}</span>
           </nav>
@@ -351,7 +381,9 @@ export function DriverDetailsScreen({ id }: DriverDetailsScreenProps) {
                   </div>
                 )}
                 <h3 className="font-bold text-slate-900 text-base">{driverDisplayName}</h3>
-                <span className="text-xs text-slate-500 font-mono mt-0.5">ID: {driverIdDisplay}</span>
+                <span className="text-xs text-slate-500 font-mono mt-0.5">
+                  ID: {driverIdDisplay}
+                </span>
                 <span className="inline-flex items-center px-3 py-0.5 mt-2.5 rounded-full text-[11px] font-semibold tracking-wider uppercase bg-slate-100 text-slate-600 border border-slate-200">
                   {d.application.status}
                 </span>
@@ -363,11 +395,15 @@ export function DriverDetailsScreen({ id }: DriverDetailsScreenProps) {
                 <div className="flex flex-col">
                   <div className="flex items-center justify-between py-3.5 border-b border-slate-100 text-sm">
                     <span className="text-slate-500">Phone Number</span>
-                    <span className="font-medium text-slate-900 font-mono">{d.phoneE164 ?? '+918695501644'}</span>
+                    <span className="font-medium text-slate-900 font-mono">
+                      {d.phoneE164 ?? '+918695501644'}
+                    </span>
                   </div>
                   <div className="flex items-center justify-between py-3.5 border-b border-slate-100 text-sm">
                     <span className="text-slate-500">Alternate Phone</span>
-                    <span className="font-medium text-slate-900 font-mono">{d.driver?.alternatePhone ?? '+918918194829'}</span>
+                    <span className="font-medium text-slate-900 font-mono">
+                      {d.driver?.alternatePhone ?? '+918918194829'}
+                    </span>
                   </div>
                   <div className="flex items-center justify-between py-3.5 border-b border-slate-100 text-sm">
                     <span className="text-slate-500">Gender</span>
@@ -375,7 +411,9 @@ export function DriverDetailsScreen({ id }: DriverDetailsScreenProps) {
                   </div>
                   <div className="flex items-center justify-between py-3.5 border-b border-slate-100 text-sm">
                     <span className="text-slate-500">Date of Birth</span>
-                    <span className="font-medium text-slate-900 font-mono">{d.driver?.dateOfBirth ?? '2001-05-04'}</span>
+                    <span className="font-medium text-slate-900 font-mono">
+                      {d.driver?.dateOfBirth ?? '2001-05-04'}
+                    </span>
                   </div>
                 </div>
 
@@ -383,23 +421,33 @@ export function DriverDetailsScreen({ id }: DriverDetailsScreenProps) {
                 <div className="flex flex-col">
                   <div className="flex items-center justify-between py-3.5 border-b border-slate-100 text-sm">
                     <span className="text-slate-500">Experience</span>
-                    <span className="font-medium text-slate-900">{d.driver?.experience ?? '3 years'}</span>
+                    <span className="font-medium text-slate-900">
+                      {d.driver?.experience ?? '3 years'}
+                    </span>
                   </div>
                   <div className="flex items-center justify-between py-3.5 border-b border-slate-100 text-sm">
                     <span className="text-slate-500">Emergency Contact</span>
-                    <span className="font-medium text-slate-900">{d.driver?.emergencyContact ?? '—'}</span>
+                    <span className="font-medium text-slate-900">
+                      {d.driver?.emergencyContact ?? '—'}
+                    </span>
                   </div>
                   <div className="flex items-center justify-between py-3.5 border-b border-slate-100 text-sm">
                     <span className="text-slate-500">Address</span>
-                    <span className="font-medium text-slate-900">{d.driver?.address ?? 'Dabgram'}</span>
+                    <span className="font-medium text-slate-900">
+                      {d.driver?.address ?? 'Dabgram'}
+                    </span>
                   </div>
                   <div className="flex items-center justify-between py-3.5 border-b border-slate-100 text-sm">
                     <span className="text-slate-500">DL Number</span>
-                    <span className="font-bold text-slate-950 font-mono">{d.driver?.dlNumber ?? 'WB7320230015028'}</span>
+                    <span className="font-bold text-slate-950 font-mono">
+                      {d.driver?.dlNumber ?? 'WB7320230015028'}
+                    </span>
                   </div>
                   <div className="flex items-center justify-between py-3.5 border-b border-slate-100 text-sm">
                     <span className="text-slate-500">DL Expiry</span>
-                    <span className="font-medium text-slate-900 font-mono">{d.driver?.dlExpiry ?? '2041-05-03'}</span>
+                    <span className="font-medium text-slate-900 font-mono">
+                      {d.driver?.dlExpiry ?? '2041-05-03'}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -427,7 +475,9 @@ export function DriverDetailsScreen({ id }: DriverDetailsScreenProps) {
                       </span>
                     </FieldRow>
                     <FieldRow label="Make & Model">
-                      <span className="text-text font-semibold">{d.vehicle.make} {d.vehicle.model}</span>
+                      <span className="text-text font-semibold">
+                        {d.vehicle.make} {d.vehicle.model}
+                      </span>
                     </FieldRow>
                     <FieldRow label="Category">
                       <Badge tone="accent">{d.vehicle.vehicleType}</Badge>
@@ -447,13 +497,17 @@ export function DriverDetailsScreen({ id }: DriverDetailsScreenProps) {
 
                 <DefinitionList>
                   <FieldRow label="Trust Score">
-                    <TrustScoreBadge score={d.driver?.trustScore ?? 98} size="sm" />
+                    <TrustScoreBadge score={d.driver?.trustScore} size="sm" />
                   </FieldRow>
                   <FieldRow label="Rating">
                     <div className="flex items-center gap-1 text-amber-500 font-semibold text-xs">
                       <Star className="size-3.5 fill-amber-500" />
-                      <span>{d.driver?.ratingAverage ? d.driver.ratingAverage.toFixed(2) : '4.90'}</span>
-                      <span className="text-text-subtle">({d.driver?.ratingCount ?? 22} rides)</span>
+                      <span>
+                        {formatPublicRatingLabel(d.driver?.ratingAverage, d.driver?.ratingCount)}
+                      </span>
+                      <span className="text-text-subtle">
+                        ({d.driver?.ratingCount ?? 0} reviews)
+                      </span>
                     </div>
                   </FieldRow>
                   <FieldRow label="Joined On">
@@ -469,9 +523,12 @@ export function DriverDetailsScreen({ id }: DriverDetailsScreenProps) {
                 <div className="flex items-center justify-between border-b border-border pb-3">
                   <div className="flex flex-col">
                     <span className="text-xs font-bold uppercase tracking-wider text-text flex items-center gap-2">
-                      <ShieldCheck className="size-4 text-success" /> Verification Documents ({d.documents.length})
+                      <ShieldCheck className="size-4 text-success" /> Verification Documents (
+                      {d.documents.length})
                     </span>
-                    <span className="text-xs text-text-subtle">Government identification, driving licenses, and vehicle compliance</span>
+                    <span className="text-xs text-text-subtle">
+                      Government identification, driving licenses, and vehicle compliance
+                    </span>
                   </div>
                 </div>
 
@@ -531,15 +588,18 @@ export function DriverDetailsScreen({ id }: DriverDetailsScreenProps) {
                                     : 'text-text-subtle'
                               }
                             >
-                              {doc.expiresAt ? `Expires: ${formatDate(doc.expiresAt)}` : 'No expiry'}
+                              {doc.expiresAt
+                                ? `Expires: ${formatDate(doc.expiresAt)}`
+                                : 'No expiry'}
                             </span>
                             <Button
                               size="sm"
                               variant="secondary"
                               icon={<Eye className="size-3.5" />}
+                              disabled={doc.storageKey === 'REDACTED'}
                               onClick={() => setSelectedDoc(doc)}
                             >
-                              Inspect Original
+                              {doc.storageKey === 'REDACTED' ? 'KYC Restricted' : 'View Original'}
                             </Button>
                           </div>
                         </div>
@@ -581,7 +641,9 @@ export function DriverDetailsScreen({ id }: DriverDetailsScreenProps) {
                     balancePaise < 0 ? 'text-red-600' : 'text-emerald-600',
                   )}
                 >
-                  {balancePaise < 0 ? `-₹${Math.abs(balancePaise / 100).toLocaleString('en-IN')}` : formatPaise(balancePaise)}
+                  {balancePaise < 0
+                    ? `-₹${Math.abs(balancePaise / 100).toLocaleString('en-IN')}`
+                    : formatPaise(balancePaise)}
                 </span>
               </div>
               <span className="text-xs text-text-subtle font-medium">
@@ -598,7 +660,9 @@ export function DriverDetailsScreen({ id }: DriverDetailsScreenProps) {
               </div>
               <div className="flex items-baseline gap-2 pt-1">
                 <span className="text-2xl font-bold tracking-tight text-red-600">
-                  {balancePaise < 0 ? `₹${Math.abs(balancePaise / 100).toLocaleString('en-IN')}` : '₹0.00'}
+                  {balancePaise < 0
+                    ? `₹${Math.abs(balancePaise / 100).toLocaleString('en-IN')}`
+                    : '₹0.00'}
                 </span>
               </div>
               <span className="text-xs text-text-subtle font-medium">
@@ -646,7 +710,10 @@ export function DriverDetailsScreen({ id }: DriverDetailsScreenProps) {
             <div className="flex flex-wrap items-center gap-3">
               {/* Type Select */}
               <div className="flex flex-col gap-1">
-                <label htmlFor="filter-tx-type" className="text-[11px] font-semibold text-text-subtle uppercase tracking-wider">
+                <label
+                  htmlFor="filter-tx-type"
+                  className="text-[11px] font-semibold text-text-subtle uppercase tracking-wider"
+                >
                   Type
                 </label>
                 <select
@@ -666,7 +733,10 @@ export function DriverDetailsScreen({ id }: DriverDetailsScreenProps) {
 
               {/* From Date */}
               <div className="flex flex-col gap-1">
-                <label htmlFor="filter-from-date" className="text-[11px] font-semibold text-text-subtle uppercase tracking-wider">
+                <label
+                  htmlFor="filter-from-date"
+                  className="text-[11px] font-semibold text-text-subtle uppercase tracking-wider"
+                >
                   From
                 </label>
                 <input
@@ -680,7 +750,10 @@ export function DriverDetailsScreen({ id }: DriverDetailsScreenProps) {
 
               {/* To Date */}
               <div className="flex flex-col gap-1">
-                <label htmlFor="filter-to-date" className="text-[11px] font-semibold text-text-subtle uppercase tracking-wider">
+                <label
+                  htmlFor="filter-to-date"
+                  className="text-[11px] font-semibold text-text-subtle uppercase tracking-wider"
+                >
                   To
                 </label>
                 <input
@@ -752,7 +825,8 @@ export function DriverDetailsScreen({ id }: DriverDetailsScreenProps) {
             <div className="p-4 border-b border-border bg-surface-muted/30 flex items-center justify-between">
               <span className="text-sm font-bold text-text">Driver Financial Ledger</span>
               <span className="text-xs text-text-subtle font-mono">
-                {filteredTransactions.length} {filteredTransactions.length === 1 ? 'record' : 'records'}
+                {filteredTransactions.length}{' '}
+                {filteredTransactions.length === 1 ? 'record' : 'records'}
               </span>
             </div>
 
@@ -777,15 +851,23 @@ export function DriverDetailsScreen({ id }: DriverDetailsScreenProps) {
                     {filteredTransactions.map((tx) => {
                       const isCredit = tx.type === 'CREDIT';
                       const txTypeLabel = isCredit
-                        ? (tx.referenceType === 'RIDE_COMMISSION' ? 'Trip earning' : 'Credit adjustment')
-                        : (tx.note?.toLowerCase().includes('cash') ? 'Cash collected' : 'Debit charge');
+                        ? tx.referenceType === 'RIDE_COMMISSION'
+                          ? 'Trip earning'
+                          : 'Credit adjustment'
+                        : tx.note?.toLowerCase().includes('cash')
+                          ? 'Cash collected'
+                          : 'Debit charge';
 
                       return (
                         <tr key={tx.id} className="hover:bg-surface-muted/40 transition-colors">
                           <td className="py-3.5 px-4 font-mono">
                             <div className="flex flex-col">
-                              <span className="font-semibold text-text">{formatDate(tx.createdAt)}</span>
-                              <span className="text-[11px] text-text-subtle">{formatTime(tx.createdAt)}</span>
+                              <span className="font-semibold text-text">
+                                {formatDate(tx.createdAt)}
+                              </span>
+                              <span className="text-[11px] text-text-subtle">
+                                {formatTime(tx.createdAt)}
+                              </span>
                             </div>
                           </td>
                           <td className="py-3.5 px-4">
@@ -794,10 +876,16 @@ export function DriverDetailsScreen({ id }: DriverDetailsScreenProps) {
                           <td className="py-3.5 px-4">
                             <div className="flex flex-col gap-0.5 max-w-md">
                               <span className="text-text font-medium">
-                                {tx.note || (isCredit ? 'Platform trip earning' : 'Cash collected for booking')}
+                                {tx.note ||
+                                  (isCredit
+                                    ? 'Platform trip earning'
+                                    : 'Cash collected for booking')}
                               </span>
                               {tx.referenceId && (
-                                <span className="font-mono text-[11px] text-text-subtle truncate" title={tx.referenceId}>
+                                <span
+                                  className="font-mono text-[11px] text-text-subtle truncate"
+                                  title={tx.referenceId}
+                                >
                                   Ref: {tx.referenceId}
                                 </span>
                               )}
@@ -820,11 +908,7 @@ export function DriverDetailsScreen({ id }: DriverDetailsScreenProps) {
                           </td>
                           <td className="py-3.5 px-4 text-right font-mono font-semibold">
                             <span
-                              className={
-                                tx.balanceAfterPaise < 0
-                                  ? 'text-rose-600'
-                                  : 'text-text'
-                              }
+                              className={tx.balanceAfterPaise < 0 ? 'text-rose-600' : 'text-text'}
                             >
                               {tx.balanceAfterPaise < 0
                                 ? `-₹${Math.abs(tx.balanceAfterPaise / 100).toLocaleString('en-IN')}`
@@ -868,7 +952,8 @@ export function DriverDetailsScreen({ id }: DriverDetailsScreenProps) {
           </div>
 
           <div className="p-8 text-center text-xs text-text-subtle border border-dashed border-border rounded-xl">
-            Live duty telemetry active. Trips dispatched through the platform will record their completion logs here.
+            Live duty telemetry active. Trips dispatched through the platform will record their
+            completion logs here.
           </div>
         </div>
       )}

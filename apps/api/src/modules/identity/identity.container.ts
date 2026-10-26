@@ -49,7 +49,6 @@ import {
   UpdateRiderProfileUseCase,
   UpdateRiderStatusUseCase,
   UpdateSelfRiderProfileUseCase,
-  resolveDriverCityZoneId,
   type DriverKycExpiryNotification,
 } from './application/useCases/index.js';
 import {
@@ -321,6 +320,7 @@ export function buildIdentityContainer(deps?: IdentityContainerDeps): IdentityCo
   const updateSelfRiderProfileUseCase = new UpdateSelfRiderProfileUseCase(riderProfileDeps);
 
   const authenticate = makeAuthenticate({
+    adminRepo,
     tokenVerifier: tokenAdapter,
     sessionRepo,
   });
@@ -370,8 +370,12 @@ export function buildIdentityContainer(deps?: IdentityContainerDeps): IdentityCo
         renewApplication: makeRenewDriverApplicationController(createDriverApplicationUseCase),
         uploadDocument: makeUploadDriverDocumentController(uploadDriverDocumentUseCase),
         uploadLicenseFile: makeUploadDriverLicenseFileController(uploadDriverDocumentUseCase),
-        uploadVehicleDocumentFile: makeUploadVehicleDocumentFileController(uploadDriverDocumentUseCase),
-        uploadIdentityDocumentFile: makeUploadIdentityDocumentFileController(uploadDriverDocumentUseCase),
+        uploadVehicleDocumentFile: makeUploadVehicleDocumentFileController(
+          uploadDriverDocumentUseCase,
+        ),
+        uploadIdentityDocumentFile: makeUploadIdentityDocumentFileController(
+          uploadDriverDocumentUseCase,
+        ),
         registerVehicle: makeRegisterDriverVehicleController(registerDriverVehicleUseCase),
         submitApplication: makeSubmitDriverApplicationController(submitDriverApplicationUseCase),
         testApproveApplication: allowDevShortcuts
@@ -391,17 +395,9 @@ export function buildIdentityContainer(deps?: IdentityContainerDeps): IdentityCo
     buildAdminDriverRouter: () =>
       buildAdminDriverRouter({
         authenticate,
-        requireAdminRole: requireAdminScope(async () => undefined),
-        requireApplicationScope: requireAdminScope(async (req) => {
-          const id = req.params.id;
-          if (!id) return null;
-          const application =
-            (await applicationRepo.findById(id)) ?? (await applicationRepo.findByDriverId(id));
-          if (!application) return [];
-          const driver = await driverRepo.findById(application.driverId);
-          const cityZoneId = await resolveDriverCityZoneId(driver, deps?.zoneRepo);
-          return cityZoneId ? [cityZoneId] : null;
-        }),
+        // Applications currently have no authoritative city assignment.
+        requireAdminRole: requireRole('SUPER_ADMIN'),
+        requireReadRole: requireRole('SUPER_ADMIN', 'SUPPORT_ADMIN', 'FINANCE_ADMIN'),
         reviewApplication: makeReviewDriverApplicationController(reviewDriverApplicationUseCase),
         updateDriverStatus: makeUpdateDriverStatusController(
           new UpdateDriverStatusUseCase(adminApplicationDeps),
@@ -429,7 +425,7 @@ export function buildIdentityContainer(deps?: IdentityContainerDeps): IdentityCo
     buildAdminRiderRouter: () =>
       buildAdminRiderRouter({
         authenticate,
-        requireAdminRole: requireRole('SUPER_ADMIN', 'CITY_ADMIN', 'SUPPORT_ADMIN'),
+        requireAdminRole: requireRole('SUPER_ADMIN', 'SUPPORT_ADMIN'),
         listRiders: makeListRidersController(listRidersUseCase),
         getRider: makeGetRiderDetailController(getRiderDetailUseCase),
         updateStatus: makeUpdateRiderStatusController(updateRiderStatusUseCase),
@@ -454,7 +450,7 @@ export function buildIdentityContainer(deps?: IdentityContainerDeps): IdentityCo
       }),
     sweepKycExpiry,
     authenticate,
-    verifyToken: makeTokenVerifier({ tokenVerifier: tokenAdapter, sessionRepo }),
+    verifyToken: makeTokenVerifier({ tokenVerifier: tokenAdapter, sessionRepo, adminRepo }),
     requireRole,
     requireZoneAccess,
     requireAdminScope,

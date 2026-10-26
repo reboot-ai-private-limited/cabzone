@@ -17,6 +17,7 @@ import {
   Dialog,
   FieldRow,
 } from '@cabzone/design-system';
+import { formatPublicRatingLabel } from '@cabzone/contracts';
 import type { DriverApplicationSummaryDto } from '@/lib/api/endpoints/drivers';
 import { useUpdateDriverStatus } from '../hooks/useDriverApplications';
 import {
@@ -78,7 +79,7 @@ export function DriverDetailModal({
             <div className="flex items-center gap-1.5 text-xs font-medium text-amber-500">
               <Star className="size-4 fill-amber-500 text-amber-500" />
               <span className="text-text font-semibold">
-                {driver?.ratingAverage ? driver.ratingAverage.toFixed(2) : '5.0'}
+                {formatPublicRatingLabel(driver?.ratingAverage, driver?.ratingCount)}
               </span>
               <span className="text-text-subtle">
                 ({driver?.ratingCount ?? 0} {driver?.ratingCount === 1 ? 'ride' : 'rides'})

@@ -148,6 +148,7 @@ function buildTestApp(deps: {
     requireCanCancel: requireRole('RIDER', 'DRIVER', 'SUPER_ADMIN'),
     requireCanRead: requireRole('RIDER', 'DRIVER', 'SUPER_ADMIN', 'FINANCE_ADMIN'),
     requireDisputeAdmin: requireRole('SUPPORT_ADMIN', 'SUPER_ADMIN'),
+    requireWaiverAdmin: requireRole('SUPER_ADMIN', 'SUPPORT_ADMIN', 'FINANCE_ADMIN'),
     requireFinanceAdmin: requireRole('FINANCE_ADMIN', 'SUPER_ADMIN'),
     createRide: noopHandler,
     listRides: makeListRidesController(deps.rideRepo, actors),
@@ -156,6 +157,8 @@ function buildTestApp(deps: {
     reconcileDriverEarnings: makeReconcileDriverEarningsController(deps.driverEarnings),
     getRide: makeGetRideController(deps.rideRepo, actors, deps.rideEventRepo, deps.driverEarnings),
     getRideEvents: noopHandler,
+    getRideRating: noopHandler,
+    submitRideRating: noopHandler,
     acceptRide: noopHandler,
     driverCounter: noopHandler,
     raiseFare: noopHandler,
@@ -181,6 +184,7 @@ function buildTestApp(deps: {
     resolvePaymentDispute: noopHandler,
     listPaymentDisputes: noopHandler,
     cancelRide: noopHandler,
+    waiveCancellationFee: noopHandler,
   });
 
   const getWalletUseCase = new GetWalletUseCase(deps.walletRepo);
@@ -408,7 +412,13 @@ describe('Server-owned driver earnings, pagination & historical reconciliation',
     // 1. Settled cash ride: gross 15000, commission 1200 -> net 13800
     const cashRideId = newUuid();
     await rideRepo.save(
-      makeRide({ id: cashRideId, driverId, agreedFarePaise: 15000, status: 'SETTLED', settledAt: now }),
+      makeRide({
+        id: cashRideId,
+        driverId,
+        agreedFarePaise: 15000,
+        status: 'SETTLED',
+        settledAt: now,
+      }),
     );
     await walletRepo.recordTransaction(
       makeTx({

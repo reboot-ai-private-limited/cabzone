@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import type { RideDto, RideEventDto } from '@cabzone/contracts';
 import { useRide } from '@/context/ride-context';
 import { computeRideEarningsBreakdown } from '@/context/duty-context';
+import { RideRatingCard } from '@/components/driver/ride-rating-card';
 import { colors, typography } from '@/design-system';
 
 export default function RideHistoryDetailScreen() {
@@ -180,6 +181,13 @@ export default function RideHistoryDetailScreen() {
             </Text>
           </View>
         </View>
+
+        {ride.status === 'SETTLED' ? (
+          <RideRatingCard
+            rideId={ride.id}
+            passengerName={ride.passenger?.name || 'Passenger'}
+          />
+        ) : null}
 
         {/* Audit Event Timeline */}
         <View style={styles.card}>

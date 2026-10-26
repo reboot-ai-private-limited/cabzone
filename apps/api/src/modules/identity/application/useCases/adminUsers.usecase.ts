@@ -355,6 +355,17 @@ export class UpdateAdminUserUseCase {
       throw AppError.notFound('Associated user not found.');
     }
 
+    const roleChanged = input.role !== undefined && input.role !== admin.role;
+    const zonesChanged =
+      input.cityZoneIds !== undefined &&
+      (input.cityZoneIds.length !== admin.cityZoneIds.length ||
+        input.cityZoneIds.some((z, i) => z !== admin.cityZoneIds[i]));
+    const otherPasswordChanged =
+      Boolean(input.password && input.password.trim()) && admin.userId !== callerUserId;
+    if (roleChanged || zonesChanged || otherPasswordChanged) {
+      await this.deps.sessionRepo.revokeAllForUser(admin.userId);
+    }
+
     let cityZones: Array<{ id: string; name: string; code?: string }> | undefined;
     if (this.deps.zoneRepo && updated.cityZoneIds.length > 0) {
       const zonePromises = updated.cityZoneIds.map((id) => this.deps.zoneRepo!.findById(id));

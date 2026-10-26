@@ -35,6 +35,7 @@ import {
 import { colors, radii, spacing, typography } from '@/design-system';
 import BookingMap from '@/components/booking/booking-map';
 import { OngoingRideView } from '@/components/ride/ongoing-ride-view';
+import { RideRatingCard } from '@/components/ride/ride-rating-card';
 import { UpiPaymentPanel } from '@/components/ride/upi-payment-panel';
 
 const RIDER_CANCEL_REASONS: { code: CancellationReason; label: string }[] = [
@@ -341,6 +342,8 @@ export default function ActiveRideScreen() {
     (remainingSeconds === null || remainingSeconds > 0);
   const currentFarePaise =
     ride.agreedFarePaise ?? ride.proposedFarePaise ?? ride.suggestedFarePaise;
+  const arrearsPaise = ride.arrearsPaise ?? 0;
+  const totalPayablePaise = currentFarePaise + arrearsPaise;
   const canCancel =
     ride.status === 'REQUESTED' ||
     ride.status === 'OFFERING' ||
@@ -553,7 +556,7 @@ export default function ActiveRideScreen() {
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.driverCardTitle}>
-                      {formatAssignedDriverSummary(ride).driverName}
+                      {`${formatAssignedDriverSummary(ride).driverName} · ★ ${formatAssignedDriverSummary(ride).ratingLabel}`}
                     </Text>
                     <Text style={styles.driverCardSub}>
                       {formatAssignedDriverSummary(ride).vehicleLabel}
@@ -592,7 +595,7 @@ export default function ActiveRideScreen() {
 
             {/* PAYMENT PENDING INSTRUCTION CARD (D-040) */}
             {ride.status === 'PAYMENT_PENDING' || ride.status === 'TRIP_COMPLETED' ? (
-              <UpiPaymentPanel rideId={ride.id} amountPaise={currentFarePaise} onPaid={loadRide} />
+              <UpiPaymentPanel rideId={ride.id} amountPaise={totalPayablePaise} onPaid={loadRide} />
             ) : null}
 
             {/* SETTLED RECEIPT & DISPUTE OPTION (D-041) */}
@@ -612,7 +615,7 @@ export default function ActiveRideScreen() {
                     <Text style={styles.settledTitle}>
                       {ride.status === 'PAYMENT_DISPUTED'
                         ? 'Payment Dispute Under Admin Review'
-                        : `Paid ${formatRupeesFromPaise(currentFarePaise)} · Settled`}
+                        : `Paid ${formatRupeesFromPaise(totalPayablePaise)} · Settled`}
                     </Text>
                     <Text style={styles.settledSub}>
                       {ride.status === 'PAYMENT_DISPUTED'
@@ -645,6 +648,13 @@ export default function ActiveRideScreen() {
                   ) : null}
                 </View>
               </View>
+            ) : null}
+
+            {ride.status === 'SETTLED' ? (
+              <RideRatingCard
+                rideId={ride.id}
+                driverName={formatAssignedDriverSummary(ride).driverName}
+              />
             ) : null}
 
             {/* Route & Fare Breakdown Card */}
@@ -715,6 +725,20 @@ export default function ActiveRideScreen() {
                   {formatRupeesFromPaise(currentFarePaise)}
                 </Text>
               </View>
+              {arrearsPaise > 0 ? (
+                <>
+                  <View style={styles.kvRow}>
+                    <Text style={styles.kvKey}>Previous cancellation fee</Text>
+                    <Text style={styles.kvVal}>{formatRupeesFromPaise(arrearsPaise)}</Text>
+                  </View>
+                  <View style={styles.kvRow}>
+                    <Text style={styles.kvKey}>Total payable</Text>
+                    <Text style={[styles.kvVal, { fontSize: 18, fontWeight: '800' }]}>
+                      {formatRupeesFromPaise(totalPayablePaise)}
+                    </Text>
+                  </View>
+                </>
+              ) : null}
               {isSearching ? (
                 <Text style={styles.fareRange}>
                   You can offer {formatRupeesFromPaise(floorPaise)}–

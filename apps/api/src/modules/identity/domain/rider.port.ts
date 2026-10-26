@@ -30,4 +30,8 @@ export interface RiderRepositoryPort {
   update(rider: RiderEntity): Promise<RiderEntity>;
   list(filter: RiderListFilter): Promise<{ items: RiderWithUser[]; total: number }>;
   getRideStats?(riderId: string): Promise<RiderRideStats>;
+  applyRevealedRating?(
+    riderId: string,
+    stars: number,
+  ): Promise<{ ratingAverage: number; ratingCount: number }>;
 }

@@ -1,5 +1,7 @@
 import {
+  isActiveRideStatus,
   VEHICLE_CATEGORY_REGISTRY,
+  formatPublicRatingLabel,
   type RideDto,
   type RideEventDto,
   type RideStatus,
@@ -21,6 +23,7 @@ export function formatAssignedDriverSummary(
   profilePhotoUrl: string | null;
   vehicleLabel: string;
   registrationNumber: string | null;
+  ratingLabel: string;
 } {
   const assigned = ride.assignedDriver;
   const driverName =
@@ -37,6 +40,7 @@ export function formatAssignedDriverSummary(
     : '';
   const vehicleLabel = makeModel || VEHICLE_CATEGORY_REGISTRY[ride.vehicleCategory].displayName;
   const registrationNumber = vehicle?.registrationNumber?.trim() || null;
+  const ratingLabel = formatPublicRatingLabel(assigned?.ratingAverage, assigned?.ratingCount);
 
   return {
     driverName,
@@ -44,6 +48,7 @@ export function formatAssignedDriverSummary(
     profilePhotoUrl,
     vehicleLabel,
     registrationNumber,
+    ratingLabel,
   };
 }
 
@@ -168,19 +173,28 @@ export const PLACE_PRESETS: PlacePreset[] = [
   },
 ];
 
-const ACTIVE_RIDE_STATUSES: ReadonlySet<RideStatus> = new Set([
-  'REQUESTED',
-  'OFFERING',
-  'DRIVER_ASSIGNED',
-  'DRIVER_EN_ROUTE',
-  'DRIVER_ARRIVED',
-  'TRIP_STARTED',
-  'TRIP_COMPLETED',
-  'PAYMENT_PENDING',
-]);
-
 export function isRideActive(status: RideStatus): boolean {
-  return ACTIVE_RIDE_STATUSES.has(status);
+  return isActiveRideStatus(status);
+}
+
+export function extractActiveRideConflictId(error: unknown): string | null {
+  if (!error || typeof error !== 'object') return null;
+  const status = (error as { status?: unknown }).status;
+  const details = (error as { details?: unknown }).details;
+  if (status !== 409 || !details || typeof details !== 'object') return null;
+  const record = details as Record<string, unknown>;
+  if (
+    record.code === 'ACTIVE_RIDE_EXISTS' &&
+    typeof record.rideId === 'string' &&
+    record.rideId.trim().length > 0
+  ) {
+    return record.rideId.trim();
+  }
+  return null;
+}
+
+export function createBookingIdempotencyKey(): string {
+  return `idem_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 12)}`;
 }
 
 export function formatRupeesFromPaise(paise: number | null | undefined): string {
@@ -308,6 +322,11 @@ export function getRideStatusMeta(status: RideStatus): {
         tone: 'amber',
       };
     case 'PAYMENT_CONFIRMED':
+      return {
+        label: 'Payment Confirmed · Finalizing',
+        subtitle: 'Driver confirmed payment receipt. Completing settlement...',
+        tone: 'green',
+      };
     case 'SETTLED':
       return {
         label: 'Ride Completed & Settled',

@@ -7,4 +7,9 @@ export interface RideEventRepositoryPort {
     rideIds: readonly string[],
     eventTypes?: readonly string[],
   ): Promise<RideEventEntity[]>;
+  findByEventTypes(
+    eventTypes: readonly string[],
+    limit: number,
+    offset?: number,
+  ): Promise<RideEventEntity[]>;
 }

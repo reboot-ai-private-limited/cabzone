@@ -11,6 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { formatPublicRatingLabel } from '@cabzone/contracts';
 import { useAuth } from '@/context/auth-context';
 import { useDuty } from '@/context/duty-context';
 import { useRide } from '@/context/ride-context';
@@ -38,10 +39,9 @@ export default function DriverMeTab() {
 
   const driverName = driver?.name || 'Driver Partner';
   const phone = user?.phoneE164 || '';
-  const rating = driver?.ratingAverage != null ? driver.ratingAverage.toFixed(1) : '5.0';
+  const rating = formatPublicRatingLabel(driver?.ratingAverage, driver?.ratingCount);
   const kycBanner = deriveKycBannerState(driverProfile);
-  const isExpired =
-    driver?.kycStatus === 'EXPIRED' || compliance?.overallStatus === 'EXPIRED';
+  const isExpired = driver?.kycStatus === 'EXPIRED' || compliance?.overallStatus === 'EXPIRED';
 
   const handleConfirmLogout = async () => {
     if (activeRide) {
@@ -145,7 +145,8 @@ export default function DriverMeTab() {
             ]}
             onPress={() => router.push('/(driver)/account/documents')}
             accessibilityRole="button"
-            accessibilityLabel={kycBanner.ctaLabel}>
+            accessibilityLabel={kycBanner.ctaLabel}
+          >
             <View style={{ flex: 1 }}>
               <Text style={styles.kycAlertTitle}>{kycBanner.title}</Text>
               <Text style={styles.kycAlertSub}>{kycBanner.message}</Text>
@@ -160,7 +161,8 @@ export default function DriverMeTab() {
             <Pressable
               key={item.label}
               style={[styles.menuRow, idx > 0 && styles.menuRowBorder]}
-              onPress={() => router.push(item.href)}>
+              onPress={() => router.push(item.href)}
+            >
               <View style={styles.menuIconWrap}>
                 <Ionicons name={item.icon} size={22} color={colors.deepBrown} />
               </View>
@@ -182,7 +184,8 @@ export default function DriverMeTab() {
             setLogoutError(null);
             setShowLogoutModal(true);
           }}
-          disabled={isAuthLoading}>
+          disabled={isAuthLoading}
+        >
           <Ionicons name="log-out-outline" size={20} color={colors.error} />
           <Text style={styles.logoutTriggerText}>Log Out of Cabzone Driver</Text>
         </Pressable>
@@ -193,7 +196,8 @@ export default function DriverMeTab() {
         visible={showLogoutModal}
         transparent
         animationType="fade"
-        onRequestClose={() => setShowLogoutModal(false)}>
+        onRequestClose={() => setShowLogoutModal(false)}
+      >
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Log Out of Account?</Text>
@@ -213,14 +217,16 @@ export default function DriverMeTab() {
               <Pressable
                 style={styles.cancelBtn}
                 onPress={() => setShowLogoutModal(false)}
-                disabled={isLoggingOut}>
+                disabled={isLoggingOut}
+              >
                 <Text style={styles.cancelBtnText}>Stay Signed In</Text>
               </Pressable>
 
               <Pressable
                 style={styles.confirmLogoutBtn}
                 onPress={handleConfirmLogout}
-                disabled={isLoggingOut}>
+                disabled={isLoggingOut}
+              >
                 {isLoggingOut ? (
                   <ActivityIndicator color={colors.white} size="small" />
                 ) : (

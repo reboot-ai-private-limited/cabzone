@@ -27,7 +27,13 @@ function apiSession() {
     process: { env: {} },
     URLSearchParams,
     fetch: async (url, options) => {
-      const call = { url, authorization: options.headers.Authorization, body: options.body, method: options.method };
+      const call = {
+        url,
+        authorization: options.headers.Authorization,
+        headers: options.headers,
+        body: options.body,
+        method: options.method,
+      };
       calls.push(call);
       return runtime.respond(call);
     },
@@ -130,4 +136,51 @@ test('cancellation returns the enclosed ride so the active screen retains its pr
   assert.equal(cancelled.pricingSnapshot.minimumFarePaise, 7000);
   assert.equal(cancelled.suggestedFarePaise, 8300);
   assert.deepEqual(JSON.parse(s.calls.at(-1).body), { reason: 'RIDER_CHANGED_MIND' });
+});
+
+test('createRide forwards Idempotency-Key header and surfaces 409 ACTIVE_RIDE_EXISTS details', async () => {
+  const s = apiSession();
+  s.runtime.respond = async () => ({
+    status: 409,
+    ok: false,
+    json: async () => ({
+      success: false,
+      statusCode: 409,
+      code: 'CONFLICT',
+      message: 'ACTIVE_RIDE_EXISTS: Rider already has an active ride.',
+      data: {
+        code: 'ACTIVE_RIDE_EXISTS',
+        rideId: 'ride-existing-1',
+        status: 'OFFERING',
+        ridePath: '/api/v1/rides/ride-existing-1',
+      },
+    }),
+  });
+
+  await assert.rejects(
+    s.riderRidesApi.createRide('old-access', {
+      quoteToken: 'qt-1',
+      proposedFarePaise: 10000,
+      idempotencyKey: 'idem_booking_01',
+      passenger: { name: 'Priya', phoneE164: '+919000000003' },
+      vehicleCategory: 'CAB',
+      pickup: { lat: 26.71, lng: 88.42 },
+      drop: { lat: 26.75, lng: 88.45 },
+    }),
+    (err) => {
+      assert.equal(err.status, 409);
+      assert.equal(err.code, 'CONFLICT');
+      assert.deepEqual(err.details, {
+        code: 'ACTIVE_RIDE_EXISTS',
+        rideId: 'ride-existing-1',
+        status: 'OFFERING',
+        ridePath: '/api/v1/rides/ride-existing-1',
+      });
+      return true;
+    },
+  );
+
+  const call = s.calls.at(-1);
+  assert.equal(call.headers['Idempotency-Key'], 'idem_booking_01');
+  assert.equal('idempotencyKey' in JSON.parse(call.body), false);
 });

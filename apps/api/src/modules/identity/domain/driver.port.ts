@@ -5,4 +5,8 @@ export interface DriverRepositoryPort {
   findByUserId(userId: string): Promise<DriverEntity | null>;
   create(driver: DriverEntity): Promise<DriverEntity>;
   update(driver: DriverEntity): Promise<DriverEntity>;
+  applyRevealedRating?(
+    driverId: string,
+    stars: number,
+  ): Promise<{ ratingAverage: number; ratingCount: number }>;
 }

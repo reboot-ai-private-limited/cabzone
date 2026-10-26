@@ -6,6 +6,13 @@ import vm from 'node:vm';
 
 const require = createRequire(import.meta.url);
 const ts = require('typescript');
+const contractsRidesCode = ts.transpileModule(
+  readFileSync(new URL('../../../../packages/contracts/src/rides.ts', import.meta.url), 'utf8'),
+  { compilerOptions: { module: ts.ModuleKind.CommonJS } },
+).outputText;
+const contractsRidesModule = { exports: {} };
+vm.runInNewContext(contractsRidesCode, { exports: contractsRidesModule.exports, require: () => ({}) });
+
 const source = readFileSync(new URL('./rider-helpers.ts', import.meta.url), 'utf8');
 const code = ts.transpileModule(source, {
   compilerOptions: { module: ts.ModuleKind.CommonJS },
@@ -16,9 +23,21 @@ vm.runInNewContext(code, {
   require: (name) => {
     if (name === '@cabzone/contracts') {
       return {
+        ...contractsRidesModule.exports,
         VEHICLE_CATEGORY_REGISTRY: {
           CAB: { displayName: 'Cab (4 Seats)' },
           E_RICKSHAW: { displayName: 'E-Rickshaw (Toto)' },
+        },
+        formatPublicRatingLabel: (ratingAverage, ratingCount, fallback = 'New') => {
+          if (
+            typeof ratingCount !== 'number' ||
+            ratingCount < 5 ||
+            typeof ratingAverage !== 'number' ||
+            !Number.isFinite(ratingAverage)
+          ) {
+            return fallback;
+          }
+          return ratingAverage.toFixed(1);
         },
       };
     }
@@ -27,6 +46,9 @@ vm.runInNewContext(code, {
 });
 const {
   clampProposedFarePaise,
+  createBookingIdempotencyKey,
+  extractActiveRideConflictId,
+  isRideActive,
   normalizeIndianPhoneE164,
   extractPendingDriverCounters,
   formatAssignedDriverSummary,
@@ -109,7 +131,7 @@ test('raising fare clears old and late stale-version counters', () => {
   assert.equal(counters[0].driverId, 'new');
 });
 
-test('formatAssignedDriverSummary returns enriched driver and vehicle labels with clean fallbacks', () => {
+test('formatAssignedDriverSummary returns enriched driver, vehicle, and >=5 rating threshold labels', () => {
   const enriched = formatAssignedDriverSummary({
     driverId: '0195f100-0000-7000-8000-000000000012',
     vehicleCategory: 'CAB',
@@ -118,6 +140,8 @@ test('formatAssignedDriverSummary returns enriched driver and vehicle labels wit
       name: 'Rajesh Barman',
       phoneE164: '+919000000013',
       profilePhotoUrl: null,
+      ratingAverage: 4.82,
+      ratingCount: 6,
       vehicle: {
         vehicleId: 'veh-13',
         make: 'Hyundai',
@@ -132,6 +156,22 @@ test('formatAssignedDriverSummary returns enriched driver and vehicle labels wit
   assert.equal(enriched.phoneE164, '+919000000013');
   assert.equal(enriched.vehicleLabel, 'Silver Hyundai Aura');
   assert.equal(enriched.registrationNumber, 'WB74CD5678');
+  assert.equal(enriched.ratingLabel, '4.8');
+
+  const belowSampleThreshold = formatAssignedDriverSummary({
+    driverId: '0195f100-0000-7000-8000-000000000012',
+    vehicleCategory: 'CAB',
+    assignedDriver: {
+      driverId: '0195f100-0000-7000-8000-000000000012',
+      name: 'Rajesh Barman',
+      phoneE164: '+919000000013',
+      profilePhotoUrl: null,
+      ratingAverage: 5.0,
+      ratingCount: 4,
+      vehicle: null,
+    },
+  });
+  assert.equal(belowSampleThreshold.ratingLabel, 'New');
 
   const fallback = formatAssignedDriverSummary({
     driverId: '0195f100-0000-7000-8000-000000000012',
@@ -141,4 +181,39 @@ test('formatAssignedDriverSummary returns enriched driver and vehicle labels wit
   assert.equal(fallback.driverName, 'Driver #0195F1');
   assert.equal(fallback.vehicleLabel, 'Cab (4 Seats)');
   assert.equal(fallback.registrationNumber, null);
+  assert.equal(fallback.ratingLabel, 'New');
+});
+
+test('isRideActive matches the 9 D-043 blocking statuses and excludes the 4 non-blocking statuses', () => {
+  for (const blocking of [
+    'REQUESTED',
+    'OFFERING',
+    'DRIVER_ASSIGNED',
+    'DRIVER_EN_ROUTE',
+    'DRIVER_ARRIVED',
+    'TRIP_STARTED',
+    'TRIP_COMPLETED',
+    'PAYMENT_PENDING',
+    'PAYMENT_CONFIRMED',
+  ]) {
+    assert.equal(isRideActive(blocking), true, `Expected ${blocking} to be active`);
+  }
+  for (const nonBlocking of ['PAYMENT_DISPUTED', 'SETTLED', 'CANCELLED', 'EXPIRED']) {
+    assert.equal(isRideActive(nonBlocking), false, `Expected ${nonBlocking} to be non-blocking`);
+  }
+});
+
+test('extractActiveRideConflictId and createBookingIdempotencyKey follow API contract', () => {
+  assert.equal(
+    extractActiveRideConflictId({
+      status: 409,
+      details: { code: 'ACTIVE_RIDE_EXISTS', rideId: 'ride-123' },
+    }),
+    'ride-123',
+  );
+  assert.equal(extractActiveRideConflictId({ status: 409, details: { code: 'OTHER' } }), null);
+  assert.equal(extractActiveRideConflictId({ status: 400 }), null);
+
+  const key = createBookingIdempotencyKey();
+  assert.match(key, /^[a-zA-Z0-9:_-]{8,128}$/);
 });

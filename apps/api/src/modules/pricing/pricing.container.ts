@@ -1,5 +1,6 @@
 import type { RequestHandler, Router } from 'express';
 import type { UnitOfWorkPort } from '../../shared/db/unitOfWork.port.js';
+import type { WalletRepositoryPort } from '../ledger/ledger.public.js';
 import type { ServiceClassificationUseCase } from '../zone/zone.public.js';
 import type { RouteRequest, RouteResult } from '../routing/routing.public.js';
 import {
@@ -20,10 +21,13 @@ import {
   makeUpdatePricingConfigController,
 } from './interface/pricing.controller.js';
 import { buildAdminPricingRouter, buildPricingRouter } from './interface/pricing.routes.js';
+import { registerPricingSwaggerPaths } from './interface/pricing.swagger.js';
 
 export interface PricingContainerDeps {
   unitOfWork: UnitOfWorkPort;
   pricingConfigRepo: PricingConfigRepositoryPort;
+  walletRepo?: WalletRepositoryPort | undefined;
+  resolveRiderIdFromAuthHeader?: ((authorizationHeader?: string) => Promise<string | null>) | undefined;
   serviceClassificationUseCase: ServiceClassificationUseCase;
   tokenSecret: string;
   quoteTtlSeconds?: number | undefined;
@@ -46,6 +50,7 @@ export interface PricingContainer {
 }
 
 export function buildPricingContainer(deps: PricingContainerDeps): PricingContainer {
+  registerPricingSwaggerPaths();
   const createPricingConfigUseCase = new CreatePricingConfigUseCase(
     deps.pricingConfigRepo,
     deps.unitOfWork,
@@ -63,6 +68,7 @@ export function buildPricingContainer(deps: PricingContainerDeps): PricingContai
   const createQuoteUseCase = new CreateQuoteUseCase({
     serviceClassificationUseCase: deps.serviceClassificationUseCase,
     pricingConfigRepo: deps.pricingConfigRepo,
+    walletRepo: deps.walletRepo,
     routingUseCase: deps.routingUseCase,
     tokenSecret: deps.tokenSecret,
     quoteTtlSeconds: deps.quoteTtlSeconds,
@@ -88,7 +94,10 @@ export function buildPricingContainer(deps: PricingContainerDeps): PricingContai
       }),
     buildPricingRouter: () =>
       buildPricingRouter({
-        createQuote: makeCreateQuoteController(createQuoteUseCase),
+        createQuote: makeCreateQuoteController(
+          createQuoteUseCase,
+          deps.resolveRiderIdFromAuthHeader,
+        ),
       }),
   };
 }

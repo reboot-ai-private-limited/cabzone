@@ -80,11 +80,9 @@ export function DocumentPreviewDialog({
   if (!document) return null;
 
   const docTitle = DOCUMENT_TYPE_LABELS[document.type] ?? document.type.replace(/_/g, ' ');
-  const expiryBadge = computeDocumentExpiryBadge(
-    document.expiresAt,
-    document.verificationStatus,
-  );
-  const signedUrl = resolvePreviewContentUrl(previewQuery.data?.url);
+  const expiryBadge = computeDocumentExpiryBadge(document.expiresAt, document.verificationStatus);
+  const isRedacted = document.storageKey === 'REDACTED';
+  const signedUrl = isRedacted ? null : resolvePreviewContentUrl(previewQuery.data?.url);
   const isPdf = isPdfPreview(previewQuery.data?.mimeType, document.storageKey);
   const imageError = signedUrl !== null && failedPreviewUrl === signedUrl;
 
@@ -191,7 +189,11 @@ export function DocumentPreviewDialog({
             {hasFile && applicationId && (
               <Button
                 size="sm"
-                icon={<RefreshCw className={`size-3.5 ${previewQuery.isFetching ? 'animate-spin' : ''}`} />}
+                icon={
+                  <RefreshCw
+                    className={`size-3.5 ${previewQuery.isFetching ? 'animate-spin' : ''}`}
+                  />
+                }
                 loading={previewQuery.isFetching}
                 onClick={() => {
                   setFailedPreviewUrl(null);
@@ -265,14 +267,18 @@ export function DocumentPreviewDialog({
                 <FileText className="size-6" />
               </div>
               <p className="text-sm font-semibold text-white">
-                {imageError
-                  ? 'Signed preview expired or could not render'
-                  : 'No private KYC file attached (Seeded Record)'}
+                {isRedacted
+                  ? 'Document preview restricted for your role'
+                  : imageError
+                    ? 'Signed preview expired or could not render'
+                    : 'No private KYC file attached (Seeded Record)'}
               </p>
               <p className="text-xs text-zinc-400 leading-relaxed">
-                {imageError
-                  ? 'Click Refresh Link above to issue a fresh 5-minute signed preview URL.'
-                  : `This document entry (${document.storageKey}) has no private binary stored in KYC vault.`}
+                {isRedacted
+                  ? 'Original KYC documents require an authorized review role.'
+                  : imageError
+                    ? 'Click Refresh Link above to issue a fresh 5-minute signed preview URL.'
+                    : `This document entry (${document.storageKey}) has no private binary stored in KYC vault.`}
               </p>
             </div>
           )}
@@ -286,13 +292,17 @@ export function DocumentPreviewDialog({
               {document.storageKey}
             </code>
           </div>
-          <Button
-            size="sm"
-            icon={copied ? <Check className="size-3.5 text-success" /> : <Copy className="size-3.5" />}
-            onClick={handleCopyKey}
-          >
-            {copied ? 'Copied' : 'Copy Key'}
-          </Button>
+          {!isRedacted && (
+            <Button
+              size="sm"
+              icon={
+                copied ? <Check className="size-3.5 text-success" /> : <Copy className="size-3.5" />
+              }
+              onClick={handleCopyKey}
+            >
+              {copied ? 'Copied' : 'Copy Key'}
+            </Button>
+          )}
         </div>
       </div>
     </Dialog>

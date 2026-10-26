@@ -10,6 +10,7 @@ import type { AppContainers } from './container.js';
 const OFFER_SWEEP_MS = 15_000;
 const PUSH_RECEIPT_SWEEP_MS = 60_000;
 const KYC_EXPIRY_SWEEP_MS = 5 * 60_000;
+const RATING_REVEAL_SWEEP_MS = 60_000;
 
 async function main(): Promise<void> {
   loadEnv();
@@ -49,6 +50,13 @@ async function main(): Promise<void> {
       .catch((err: unknown) => logger.warn({ err: String(err) }, 'push receipt sweep failed'));
   }, PUSH_RECEIPT_SWEEP_MS);
   receiptSweep.unref();
+  // D-046: Periodically reveal unilateral post-ride ratings once their 7-day window expires.
+  const ratingRevealSweep = setInterval(() => {
+    containers.rides.rideRatingsUseCase
+      .revealExpiredRatings()
+      .catch((err: unknown) => logger.warn({ err: String(err) }, 'rating reveal sweep failed'));
+  }, RATING_REVEAL_SWEEP_MS);
+  ratingRevealSweep.unref();
 
   const runKycExpirySweep = () => {
     containers.identity.sweepKycExpiry
@@ -70,6 +78,7 @@ async function main(): Promise<void> {
     clearInterval(sweep);
     clearInterval(receiptSweep);
     clearInterval(kycExpirySweep);
+    clearInterval(ratingRevealSweep);
     hub.close();
     server.close(() => {
       void (async () => {

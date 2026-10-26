@@ -31,7 +31,10 @@ import {
   StatTile,
 } from '@cabzone/design-system';
 import { RideStatusBadge } from '@/features/rides/components/RideStatusBadge';
-import type { AdminRiderSummaryDto } from '@cabzone/contracts';
+import {
+  MIN_PUBLIC_RATING_COUNT,
+  type AdminRiderSummaryDto,
+} from '@cabzone/contracts';
 import { useRiderDetail, useRiderRides } from '../hooks/useRiders';
 import { RiderStatusBadge } from './RiderStatusBadge';
 import { RiderEditDialog } from './RiderEditDialog';
@@ -243,9 +246,9 @@ export function RiderDetailModal({
               <StatTile
                 label="Star Rating"
                 value={
-                  rider.ratingAverage !== null
+                  rider.ratingCount >= MIN_PUBLIC_RATING_COUNT && rider.ratingAverage !== null
                     ? `${rider.ratingAverage.toFixed(1)} ★`
-                    : 'New Rider'
+                    : 'New'
                 }
                 icon={<Star className="size-4 text-amber-500 fill-amber-400" />}
                 hint={
@@ -263,7 +266,7 @@ export function RiderDetailModal({
                 icon={<ShieldCheck className="size-4 text-emerald-600" />}
                 hint={
                   rider.trustScoreBreakdown?.summary ??
-                  (rider.trustScore !== null ? 'Verified behavioural reliability' : 'Needs 3+ rides')
+                  (rider.trustScore !== null ? 'Verified behavioural reliability' : 'Needs 5+ rides')
                 }
                 tone={
                   (rider.trustScore ?? 0) >= 80
