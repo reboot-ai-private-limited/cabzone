@@ -17,6 +17,9 @@ export class MemoryRideRepository implements RideRepositoryPort {
       (filter.driverId === undefined || r.driverId === filter.driverId) &&
       (filter.statuses === undefined || filter.statuses.includes(r.status)) &&
       (filter.vehicleCategory === undefined || r.vehicleCategory === filter.vehicleCategory) &&
+      (filter.cityZoneIds === undefined ||
+        (Boolean(r.zoneSnapshot?.cityZoneId) &&
+          filter.cityZoneIds.includes(r.zoneSnapshot.cityZoneId!))) &&
       (filter.offeringExpiresAfter === undefined ||
         (r.offeringExpiresAt !== null && r.offeringExpiresAt > filter.offeringExpiresAfter))
     );

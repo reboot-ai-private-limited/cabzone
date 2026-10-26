@@ -88,6 +88,12 @@ export const paymentDisputeResolutionSchema = z.object({
   reason: z.string().trim().min(10).max(1000),
 });
 
+export const listPaymentDisputesQuerySchema = z.object({
+  status: z.enum(['OPEN', 'RESOLVED', 'ALL']).default('OPEN'),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+  offset: z.coerce.number().int().min(0).default(0),
+});
+
 export const listRidesQuerySchema = z.object({
   status: z
     .string()

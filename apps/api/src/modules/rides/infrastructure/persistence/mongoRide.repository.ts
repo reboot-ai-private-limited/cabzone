@@ -19,6 +19,9 @@ export class MongoRideRepository implements RideRepositoryPort {
     if (filter.driverId !== undefined) query.driver_id = filter.driverId;
     if (filter.statuses !== undefined) query.status = { $in: filter.statuses };
     if (filter.vehicleCategory !== undefined) query.vehicle_category = filter.vehicleCategory;
+    if (filter.cityZoneIds !== undefined) {
+      query['zone_snapshot.city_zone_id'] = { $in: filter.cityZoneIds };
+    }
     if (filter.offeringExpiresAfter !== undefined) {
       query.offering_expires_at = { $gt: filter.offeringExpiresAfter };
     }

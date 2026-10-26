@@ -42,6 +42,7 @@ import {
   type RideHttpContext,
 } from './interface/rides.controller.js';
 import { buildRidesRouter } from './interface/rides.routes.js';
+import { registerRidesSwaggerPaths } from './interface/rides.swagger.js';
 import { RideUpiPaymentUseCase } from './application/useCases/rideUpiPayment.usecase.js';
 import {
   makeRideUpiController,
@@ -88,6 +89,7 @@ export interface RidesContainer {
 const ADMIN_ROLES: AuthRole[] = ['SUPER_ADMIN', 'CITY_ADMIN', 'SUPPORT_ADMIN', 'FINANCE_ADMIN'];
 
 export function buildRidesContainer(deps: RidesContainerDeps): RidesContainer {
+  registerRidesSwaggerPaths();
   const { rideRepo, rideEventRepo, walletRepo } = deps;
   const upiPayment = new RideUpiPaymentUseCase({
     walletRepo,
@@ -197,10 +199,18 @@ export function buildRidesContainer(deps: RidesContainerDeps): RidesContainer {
         authenticate: auth.authenticate,
         requireRider: auth.requireRole('RIDER'),
         requireDriver: auth.requireRole('DRIVER'),
+        requireParticipant: auth.requireRole('RIDER', 'DRIVER'),
         requireCanRead: auth.requireRole('RIDER', 'DRIVER', ...ADMIN_ROLES),
         requireDisputeAdmin: auth.requireRole('SUPER_ADMIN', 'SUPPORT_ADMIN'),
+        requireDisputeReadAdmin: auth.requireRole('SUPER_ADMIN', 'SUPPORT_ADMIN', 'FINANCE_ADMIN'),
         requireFinanceAdmin: auth.requireRole('SUPER_ADMIN', 'FINANCE_ADMIN'),
-        requireCanCancel: auth.requireRole('RIDER', 'DRIVER'),
+        requireCanCancel: auth.requireRole(
+          'RIDER',
+          'DRIVER',
+          'SUPER_ADMIN',
+          'CITY_ADMIN',
+          'SUPPORT_ADMIN',
+        ),
         createRide: makeCreateRideController(createRideUseCase, actors),
         listRides: makeListRidesController(rideRepo, actors),
         driverEarnings: makeDriverEarningsSummaryController(driverEarningsUseCase, actors),
@@ -231,8 +241,13 @@ export function buildRidesContainer(deps: RidesContainerDeps): RidesContainer {
         checkoutStatus: qrControllers.status,
         disputePayment: makeDisputePaymentController(completeRideUseCase, actors),
         resolvePaymentDispute: makeResolvePaymentDisputeController(completeRideUseCase, actors),
-        listPaymentDisputes: makeListPaymentDisputesController(rideRepo, rideEventRepo, actors),
-        cancelRide: makeCancelRideController(cancelRideUseCase, actors),
+        listPaymentDisputes: makeListPaymentDisputesController(
+          rideRepo,
+          rideEventRepo,
+          actors,
+          walletRepo,
+        ),
+        cancelRide: makeCancelRideController(cancelRideUseCase, actors, rideRepo),
       }),
   };
 }

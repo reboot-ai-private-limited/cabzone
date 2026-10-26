@@ -11,7 +11,13 @@ import {
   cashoutSchema,
   resolutionSchema,
 } from './walletMoney.controller.js';
-import { driverListTransactionsQuerySchema } from './ledger.validation.js';
+import {
+  adminAdjustWalletSchema,
+  driverListTransactionsQuerySchema,
+  driverMyWalletQuerySchema,
+  listTransactionsQuerySchema,
+  listWalletsQuerySchema,
+} from './ledger.validation.js';
 
 const operation = z.object({
   id: z.string().uuid(),
@@ -45,6 +51,8 @@ const paginatedTransactions = z.object({
   offset: z.number().int(),
   hasMore: z.boolean(),
 });
+const ticketQuerySchema = z.object({ ticket: z.string() });
+const ticketBodySchema = z.object({ ticket: z.string() });
 const response = (schema: z.ZodTypeAny) => ({
   description: 'Wallet result',
   content: { 'application/json': { schema: successResponse(schema) } },
@@ -54,7 +62,51 @@ const denied = {
   content: { 'application/json': { schema: errorResponse } },
 };
 
-export function registerWalletMoneySwaggerPaths() {
+let registered = false;
+
+export function registerWalletMoneySwaggerPaths(): void {
+  if (registered) return;
+  registered = true;
+
+  // Public signed-ticket recharge checkout endpoints
+  registry.registerPath({
+    method: 'get',
+    path: '/v1/driver/wallet/recharge-checkout',
+    tags: ['Wallet'],
+    summary: 'Render signed-ticket hosted UPI recharge checkout page',
+    request: { query: ticketQuerySchema },
+    responses: {
+      200: { description: 'HTML checkout page' },
+      403: denied,
+    },
+  });
+  registry.registerPath({
+    method: 'post',
+    path: '/v1/driver/wallet/recharge-checkout/session',
+    tags: ['Wallet'],
+    summary: 'Load Razorpay checkout session for a signed driver recharge ticket',
+    request: { body: { content: { 'application/json': { schema: ticketBodySchema } } } },
+    responses: { 200: response(z.any()), 403: denied },
+  });
+  registry.registerPath({
+    method: 'post',
+    path: '/v1/driver/wallet/recharge-checkout/status',
+    tags: ['Wallet'],
+    summary: 'Poll and reconcile driver recharge capture using a signed recharge ticket',
+    request: { body: { content: { 'application/json': { schema: ticketBodySchema } } } },
+    responses: { 200: response(z.any()), 403: denied },
+  });
+
+  // Driver authenticated wallet routes
+  registry.registerPath({
+    method: 'get',
+    path: '/v1/driver/wallet/me',
+    tags: ['Wallet'],
+    security: bearerAuth,
+    summary: 'Get authenticated driver wallet summary and recent transactions',
+    request: { query: driverMyWalletQuerySchema },
+    responses: { 200: response(z.any()), 403: denied },
+  });
   registry.registerPath({
     method: 'get',
     path: '/v1/driver/wallet/me/transactions',
@@ -99,10 +151,56 @@ export function registerWalletMoneySwaggerPaths() {
     request: { body: { content: { 'application/json': { schema: cashoutSchema } } } },
     responses: { 201: response(operation), 400: denied, 409: denied },
   });
+
+  // Admin finance wallet routes
+  registry.registerPath({
+    method: 'get',
+    path: '/v1/admin/wallets/stats',
+    tags: ['Admin Finance'],
+    security: bearerAuth,
+    summary: 'Finance or super admin: aggregate ledger KPIs and balances',
+    responses: { 200: response(z.any()), 403: denied },
+  });
+  registry.registerPath({
+    method: 'get',
+    path: '/v1/admin/wallets/transactions',
+    tags: ['Admin Finance'],
+    security: bearerAuth,
+    summary: 'Finance or super admin: paginated global ledger transactions',
+    request: { query: listTransactionsQuerySchema },
+    responses: { 200: response(paginatedTransactions), 403: denied },
+  });
+  registry.registerPath({
+    method: 'get',
+    path: '/v1/admin/wallets',
+    tags: ['Admin Finance'],
+    security: bearerAuth,
+    summary: 'Finance or super admin: list driver and rider wallets with filters',
+    request: { query: listWalletsQuerySchema },
+    responses: { 200: response(z.any()), 403: denied },
+  });
+  registry.registerPath({
+    method: 'post',
+    path: '/v1/admin/wallets/adjustments',
+    tags: ['Admin Finance'],
+    security: bearerAuth,
+    summary: 'Finance or super admin: post manual credit or debit wallet adjustment with audit reason',
+    request: { body: { content: { 'application/json': { schema: adminAdjustWalletSchema } } } },
+    responses: { 200: response(z.any()), 400: denied, 403: denied },
+  });
+  registry.registerPath({
+    method: 'get',
+    path: '/v1/admin/wallets/{driverId}',
+    tags: ['Admin Finance'],
+    security: bearerAuth,
+    summary: 'Finance or super admin: inspect wallet summary and ledger entries by owner ID',
+    request: { params: z.object({ driverId: z.string() }) },
+    responses: { 200: response(z.any()), 403: denied, 404: denied },
+  });
   registry.registerPath({
     method: 'get',
     path: '/v1/admin/wallets/cashouts',
-    tags: ['Wallet'],
+    tags: ['Admin Finance'],
     security: bearerAuth,
     summary: 'Finance or super admin: latest 100 pending cashouts',
     responses: { 200: response(z.array(operation)), 403: denied },
@@ -110,7 +208,7 @@ export function registerWalletMoneySwaggerPaths() {
   registry.registerPath({
     method: 'post',
     path: '/v1/admin/wallets/cashouts/{id}/resolve',
-    tags: ['Wallet'],
+    tags: ['Admin Finance'],
     security: bearerAuth,
     summary:
       'Finance or super admin: record test transfer or reject and return funds; no payout initiated',

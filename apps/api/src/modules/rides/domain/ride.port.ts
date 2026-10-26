@@ -12,6 +12,7 @@ export interface RideCountFilter {
   driverId?: string | undefined;
   statuses?: readonly RideStatus[] | undefined;
   vehicleCategory?: VehicleCategory | undefined;
+  cityZoneIds?: readonly string[] | undefined;
   /** Only rides whose offer window closes after this instant. */
   offeringExpiresAfter?: Date | undefined;
 }

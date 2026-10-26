@@ -42,6 +42,21 @@ export class MongoRideEventRepository implements RideEventRepositoryPort {
     return docs.map((doc) => this.toEntity(doc));
   }
 
+  async findByEventTypes(
+    eventTypes: readonly string[],
+    limit: number,
+    offset = 0,
+  ): Promise<RideEventEntity[]> {
+    if (eventTypes.length === 0 || limit <= 0) return [];
+    const docs = await RideEventModel.find({ event_type: { $in: eventTypes } })
+      .sort({ created_at: -1 })
+      .skip(offset)
+      .limit(limit)
+      .lean<RideEventDocument[]>()
+      .exec();
+    return docs.map((doc) => this.toEntity(doc));
+  }
+
   private toEntity(doc: RideEventDocument): RideEventEntity {
     return {
       id: doc._id,

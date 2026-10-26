@@ -1,3 +1,4 @@
+import type { AdminRole } from '@cabzone/contracts';
 import {
   Car,
   FileCode2,
@@ -26,6 +27,8 @@ export interface NavItem {
   external?: boolean;
   /** Page not built yet: rendered greyed out, non-clickable, with a "Coming soon" hover hint. */
   comingSoon?: boolean;
+  /** Admin roles permitted to access this surface. Undefined means visible to all admin roles. */
+  allowedRoles?: readonly AdminRole[];
 }
 
 export interface NavSection {
@@ -43,37 +46,103 @@ export const navSections: NavSection[] = [
   {
     title: 'Operations',
     items: [
-      { label: 'Live Rides', href: '/rides', icon: Car, activePattern: /^\/rides/ },
-      { label: 'Drivers', href: '/drivers', icon: Users, activePattern: /^\/drivers/ },
-      { label: 'Customers', href: '/riders', icon: UserCircle, activePattern: /^\/riders/ },
+      {
+        label: 'Live Rides',
+        href: '/rides',
+        icon: Car,
+        activePattern: /^\/rides/,
+        allowedRoles: ['SUPER_ADMIN', 'CITY_ADMIN', 'SUPPORT_ADMIN', 'FINANCE_ADMIN'],
+      },
+      {
+        label: 'Drivers',
+        href: '/drivers',
+        icon: Users,
+        activePattern: /^\/drivers/,
+        allowedRoles: ['SUPER_ADMIN', 'SUPPORT_ADMIN', 'FINANCE_ADMIN'],
+      },
+      {
+        label: 'Customers',
+        href: '/riders',
+        icon: UserCircle,
+        activePattern: /^\/riders/,
+        allowedRoles: ['SUPER_ADMIN', 'SUPPORT_ADMIN'],
+      },
     ],
   },
   {
     title: 'Geography',
     items: [
-      { label: 'Zones', href: '/zones', icon: MapPin, activePattern: /^\/zones/ },
+      {
+        label: 'Zones',
+        href: '/zones',
+        icon: MapPin,
+        activePattern: /^\/zones/,
+        allowedRoles: ['SUPER_ADMIN', 'CITY_ADMIN'],
+      },
     ],
   },
   {
     title: 'Pricing',
     items: [
-      { label: 'Pricing', href: '/pricing', icon: Tag, activePattern: /^\/pricing/ },
+      {
+        label: 'Pricing',
+        href: '/pricing',
+        icon: Tag,
+        activePattern: /^\/pricing/,
+        allowedRoles: ['SUPER_ADMIN', 'CITY_ADMIN'],
+      },
     ],
   },
   {
     title: 'Finance',
     items: [
-      { label: 'Transactions', href: '/finance', icon: Receipt, activePattern: /^\/finance/ },
-      { label: 'Payouts', href: '/payouts', icon: Wallet, comingSoon: true },
-      { label: 'Refunds', href: '/refunds', icon: RotateCcw, comingSoon: true },
+      {
+        label: 'Transactions',
+        href: '/finance',
+        icon: Receipt,
+        activePattern: /^\/finance/,
+        allowedRoles: ['SUPER_ADMIN', 'FINANCE_ADMIN'],
+      },
+      {
+        label: 'Payouts',
+        href: '/payouts',
+        icon: Wallet,
+        comingSoon: true,
+        allowedRoles: ['SUPER_ADMIN', 'FINANCE_ADMIN'],
+      },
+      {
+        label: 'Refunds',
+        href: '/refunds',
+        icon: RotateCcw,
+        comingSoon: true,
+        allowedRoles: ['SUPER_ADMIN', 'FINANCE_ADMIN'],
+      },
     ],
   },
   {
     title: 'System',
     items: [
-      { label: 'Admin Users', href: '/admins', icon: ShieldCheck, activePattern: /^\/admins/ },
-      { label: 'Audit Log', href: '/audit', icon: FileText, comingSoon: true },
-      { label: 'Settings', href: '/settings', icon: Settings, comingSoon: true },
+      {
+        label: 'Admin Users',
+        href: '/admins',
+        icon: ShieldCheck,
+        activePattern: /^\/admins/,
+        allowedRoles: ['SUPER_ADMIN', 'CITY_ADMIN', 'SUPPORT_ADMIN', 'FINANCE_ADMIN'],
+      },
+      {
+        label: 'Audit Log',
+        href: '/audit',
+        icon: FileText,
+        comingSoon: true,
+        allowedRoles: ['SUPER_ADMIN'],
+      },
+      {
+        label: 'Settings',
+        href: '/settings',
+        icon: Settings,
+        comingSoon: true,
+        allowedRoles: ['SUPER_ADMIN'],
+      },
     ],
   },
   {
@@ -84,6 +153,7 @@ export const navSections: NavSection[] = [
         href: '/simulators',
         icon: FlaskConical,
         activePattern: /^\/(simulators|quotes)/,
+        allowedRoles: ['SUPER_ADMIN', 'CITY_ADMIN'],
       },
       {
         label: 'Swagger API Docs',
@@ -91,7 +161,28 @@ export const navSections: NavSection[] = [
         icon: FileCode2,
         external: true,
       },
-      { label: 'System Health', href: '/health', icon: HeartPulse, comingSoon: true },
+      {
+        label: 'System Health',
+        href: '/health',
+        icon: HeartPulse,
+        activePattern: /^\/health/,
+        allowedRoles: ['SUPER_ADMIN', 'CITY_ADMIN', 'SUPPORT_ADMIN', 'FINANCE_ADMIN'],
+      },
     ],
   },
 ];
+
+export function filterNavSectionsForRole(
+  sections: readonly NavSection[],
+  role: AdminRole | null,
+): NavSection[] {
+  if (role === null) return [...sections];
+  return sections
+    .map((section) => ({
+      ...section,
+      items: section.items.filter(
+        (item) => item.allowedRoles === undefined || item.allowedRoles.includes(role),
+      ),
+    }))
+    .filter((section) => section.items.length > 0);
+}

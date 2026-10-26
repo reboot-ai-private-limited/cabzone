@@ -10,6 +10,9 @@ import {
   createRideRequestSchema,
   startRideRequestSchema,
   cancelRideSchema,
+  counterResponseSchema,
+  driverCounterSchema,
+  listPaymentDisputesQuerySchema,
   listRidesQuerySchema,
   rideIdParamSchema,
   paymentDisputeSchema,
@@ -154,7 +157,131 @@ const driverEarningsReconciliationSchema = z.object({
   ),
 });
 
+let registered = false;
+
 export function registerRidesSwaggerPaths(): void {
+  if (registered) return;
+  registered = true;
+
+  const qrTicketQuery = z.object({ ticket: z.string() });
+  const qrTicketBody = z.object({ ticket: z.string() });
+  registry.registerPath({
+    method: 'get',
+    path: '/v1/rides/payment/upi/checkout',
+    tags: ['Rides'],
+    summary: 'Render signed QR-ticket hosted UPI checkout page for passenger scan',
+    request: { query: qrTicketQuery },
+    responses: {
+      200: { description: 'HTML checkout page' },
+      403: { description: 'Invalid or expired QR ticket', content: { 'application/json': { schema: errorResponse } } },
+    },
+  });
+  registry.registerPath({
+    method: 'post',
+    path: '/v1/rides/payment/upi/checkout/session',
+    tags: ['Rides'],
+    summary: 'Create or resume UPI checkout session from a signed passenger QR ticket',
+    request: { body: { content: { 'application/json': { schema: qrTicketBody } } } },
+    responses: {
+      200: { description: 'QR ticket payment session', content: { 'application/json': { schema: successResponse(z.any()) } } },
+      403: { description: 'Invalid or expired QR ticket', content: { 'application/json': { schema: errorResponse } } },
+    },
+  });
+  registry.registerPath({
+    method: 'post',
+    path: '/v1/rides/payment/upi/checkout/verify',
+    tags: ['Rides'],
+    summary: 'Verify Razorpay payment proof submitted from the signed QR checkout page',
+    request: {
+      body: {
+        content: {
+          'application/json': { schema: qrTicketBody.merge(upiPaymentProofSchema) },
+        },
+      },
+    },
+    responses: {
+      200: { description: 'Verified payment result', content: { 'application/json': { schema: successResponse(z.object({ paid: z.boolean() })) } } },
+      403: { description: 'Invalid or expired QR ticket', content: { 'application/json': { schema: errorResponse } } },
+    },
+  });
+  registry.registerPath({
+    method: 'post',
+    path: '/v1/rides/payment/upi/checkout/status',
+    tags: ['Rides'],
+    summary: 'Poll ride payment capture status using a signed QR ticket',
+    request: { body: { content: { 'application/json': { schema: qrTicketBody } } } },
+    responses: {
+      200: { description: 'Payment status', content: { 'application/json': { schema: successResponse(z.object({ paid: z.boolean() })) } } },
+      403: { description: 'Invalid or expired QR ticket', content: { 'application/json': { schema: errorResponse } } },
+    },
+  });
+  registry.registerPath({
+    method: 'post',
+    path: '/v1/rides/{id}/payment/upi/qr',
+    tags: ['Rides'],
+    security: bearerAuth,
+    summary: 'Generate signed driver-side UPI QR code for in-cab passenger scan (Driver only)',
+    request: { params: rideIdParamSchema },
+    responses: {
+      200: { description: 'Driver payment QR payload', content: { 'application/json': { schema: successResponse(z.any()) } } },
+      403: { description: 'Assigned driver required', content: { 'application/json': { schema: errorResponse } } },
+    },
+  });
+  registry.registerPath({
+    method: 'get',
+    path: '/v1/rides/{id}/payment/upi/driver-status',
+    tags: ['Rides'],
+    security: bearerAuth,
+    summary: 'Poll online payment settlement status for the assigned driver (Driver only)',
+    request: { params: rideIdParamSchema },
+    responses: {
+      200: { description: 'Driver payment status', content: { 'application/json': { schema: successResponse(z.object({ paid: z.boolean() })) } } },
+      403: { description: 'Assigned driver required', content: { 'application/json': { schema: errorResponse } } },
+    },
+  });
+  registry.registerPath({
+    method: 'get',
+    path: '/v1/rides/{id}/events',
+    tags: ['Rides'],
+    security: bearerAuth,
+    summary: 'Ordered ride event audit trail (scoped to assigned cities for CITY_ADMIN)',
+    request: { params: rideIdParamSchema },
+    responses: {
+      200: { description: 'Ordered ride events', content: { 'application/json': { schema: successResponse(z.array(z.any())) } } },
+      403: { description: 'City scope denied', content: { 'application/json': { schema: errorResponse } } },
+      404: { description: 'Ride not found', content: { 'application/json': { schema: errorResponse } } },
+    },
+  });
+  registry.registerPath({
+    method: 'post',
+    path: '/v1/rides/{id}/counter',
+    tags: ['Rides'],
+    security: bearerAuth,
+    summary: 'Submit a driver fare counter-offer during active negotiation window (Driver only)',
+    request: {
+      params: rideIdParamSchema,
+      body: { content: { 'application/json': { schema: driverCounterSchema } } },
+    },
+    responses: {
+      201: { description: 'Counter-offer sent to rider', content: { 'application/json': { schema: successResponse(z.any()) } } },
+      400: { description: 'Out of negotiation bounds', content: { 'application/json': { schema: errorResponse } } },
+    },
+  });
+  registry.registerPath({
+    method: 'post',
+    path: '/v1/rides/{id}/counter/respond',
+    tags: ['Rides'],
+    security: bearerAuth,
+    summary: 'Accept or decline a driver fare counter-offer (Rider only)',
+    request: {
+      params: rideIdParamSchema,
+      body: { content: { 'application/json': { schema: counterResponseSchema } } },
+    },
+    responses: {
+      200: { description: 'Counter-offer response applied', content: { 'application/json': { schema: successResponse(rideViewSchema) } } },
+      409: { description: 'Counter expired or ride already assigned', content: { 'application/json': { schema: errorResponse } } },
+    },
+  });
   registry.registerPath({
     method: 'post',
     path: '/v1/rides/{id}/payment/cash',
@@ -786,14 +913,35 @@ export function registerRidesSwaggerPaths(): void {
     method: 'get',
     path: '/v1/rides/payment/disputes',
     tags: ['Rides'],
-    summary: 'List open payment disputes for support or super admin',
+    summary: 'List open or resolved payment disputes with settlement and refund evidence (Super, Support, or Finance Admin)',
+    request: { query: listPaymentDisputesQuerySchema },
     security: bearerAuth,
     responses: {
       200: {
         description: 'Open disputes',
         content: {
           'application/json': {
-            schema: successResponse(z.array(z.object({ ride: rideViewSchema, ticket: z.any() }))),
+            schema: successResponse(
+              z.array(
+                z.object({
+                  ride: rideViewSchema,
+                  ticket: z.any().nullable(),
+                  resolution: z.any().nullable(),
+                  evidence: z.object({
+                    paymentCollection: z.enum(['DIRECT', 'CASH', 'RAZORPAY_TEST', 'RAZORPAY_UPI']),
+                    paymentMethod: z.string().nullable(),
+                    paymentConfirmedAt: z.string().nullable(),
+                    providerOrderId: z.string().nullable(),
+                    providerPaymentId: z.string().nullable(),
+                    providerQrId: z.string().nullable(),
+                    commissionChargedPaise: z.number().int(),
+                    commissionRefundedPaise: z.number().int(),
+                    refundTransactionId: z.string().nullable(),
+                    onlineEarningsCreditedPaise: z.number().int(),
+                  }),
+                }),
+              ),
+            ),
           },
         },
       },
