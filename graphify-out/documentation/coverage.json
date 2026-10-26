@@ -1,0 +1,523 @@
+{
+  "method": "Graphify local AST extraction, 74 explicit project Markdown files, no LLM semantic extraction",
+  "documents": [
+    {
+      "file": "apps/driver-mobile/AGENTS.md",
+      "kind": "project documentation",
+      "graph_nodes": 6,
+      "coverage": "structural",
+      "semantic_verified": false
+    },
+    {
+      "file": "apps/driver-mobile/DESIGN.md",
+      "kind": "project documentation",
+      "graph_nodes": 7,
+      "coverage": "structural",
+      "semantic_verified": false
+    },
+    {
+      "file": "apps/driver-mobile/README.md",
+      "kind": "project documentation",
+      "graph_nodes": 7,
+      "coverage": "structural",
+      "semantic_verified": false
+    },
+    {
+      "file": "audit.md",
+      "kind": "project documentation",
+      "graph_nodes": 45,
+      "coverage": "structural",
+      "semantic_verified": false
+    },
+    {
+      "file": "cabzon-zones-full-implementation-plan.md",
+      "kind": "project documentation",
+      "graph_nodes": 99,
+      "coverage": "structural",
+      "semantic_verified": false
+    },
+    {
+      "file": "CLAUDE.md",
+      "kind": "project documentation",
+      "graph_nodes": 2,
+      "coverage": "structural",
+      "semantic_verified": false
+    },
+    {
+      "file": "daily-work/14thoct.md",
+      "kind": "project documentation",
+      "graph_nodes": 3,
+      "coverage": "structural",
+      "semantic_verified": false
+    },
+    {
+      "file": "daily-work/15thoct.md",
+      "kind": "project documentation",
+      "graph_nodes": 3,
+      "coverage": "structural",
+      "semantic_verified": false
+    },
+    {
+      "file": "daily-work/22ndoct.md",
+      "kind": "project documentation",
+      "graph_nodes": 4,
+      "coverage": "structural",
+      "semantic_verified": false
+    },
+    {
+      "file": "daily-work/23rdoct.md",
+      "kind": "project documentation",
+      "graph_nodes": 10,
+      "coverage": "structural",
+      "semantic_verified": false
+    },
+    {
+      "file": "daily-work/24thoct.md",
+      "kind": "project documentation",
+      "graph_nodes": 7,
+      "coverage": "structural",
+      "semantic_verified": false
+    },
+    {
+      "file": "daily-work/25thsept.md",
+      "kind": "project documentation",
+      "graph_nodes": 10,
+      "coverage": "structural",
+      "semantic_verified": false
+    },
+    {
+      "file": "daily-work/26thsept.md",
+      "kind": "project documentation",
+      "graph_nodes": 16,
+      "coverage": "structural",
+      "semantic_verified": false
+    },
+    {
+      "file": "daily-work/28thsept.md",
+      "kind": "project documentation",
+      "graph_nodes": 8,
+      "coverage": "structural",
+      "semantic_verified": false
+    },
+    {
+      "file": "daily-work/29thsept.md",
+      "kind": "project documentation",
+      "graph_nodes": 10,
+      "coverage": "structural",
+      "semantic_verified": false
+    },
+    {
+      "file": "daily-work/5thoct.md",
+      "kind": "project documentation",
+      "graph_nodes": 15,
+      "coverage": "structural",
+      "semantic_verified": false
+    },
+    {
+      "file": "daily-work/6thoct.md",
+      "kind": "project documentation",
+      "graph_nodes": 7,
+      "coverage": "structural",
+      "semantic_verified": false
+    },
+    {
+      "file": "daily-work/7thoct.md",
+      "kind": "project documentation",
+      "graph_nodes": 3,
+      "coverage": "structural",
+      "semantic_verified": false
+    },
+    {
+      "file": "daily-work/9thoct.md",
+      "kind": "project documentation",
+      "graph_nodes": 3,
+      "coverage": "structural",
+      "semantic_verified": false
+    },
+    {
+      "file": "daily-work/mobile-setup-guide.md",
+      "kind": "project documentation",
+      "graph_nodes": 8,
+      "coverage": "structural",
+      "semantic_verified": false
+    },
+    {
+      "file": "dailyworklog.md",
+      "kind": "project documentation",
+      "graph_nodes": 2,
+      "coverage": "structural",
+      "semantic_verified": false
+    },
+    {
+      "file": "docs/decision-log.md",
+      "kind": "project documentation",
+      "graph_nodes": 45,
+      "coverage": "structural",
+      "semantic_verified": false
+    },
+    {
+      "file": "docs/engineering/adding-a-module.md",
+      "kind": "project documentation",
+      "graph_nodes": 12,
+      "coverage": "structural",
+      "semantic_verified": false
+    },
+    {
+      "file": "docs/engineering/ai-pairing-flow.md",
+      "kind": "project documentation",
+      "graph_nodes": 1,
+      "coverage": "structural",
+      "semantic_verified": false
+    },
+    {
+      "file": "docs/engineering/boundaries-and-enforcement.md",
+      "kind": "project documentation",
+      "graph_nodes": 11,
+      "coverage": "structural",
+      "semantic_verified": false
+    },
+    {
+      "file": "docs/engineering/build-and-deploy.md",
+      "kind": "project documentation",
+      "graph_nodes": 7,
+      "coverage": "structural",
+      "semantic_verified": false
+    },
+    {
+      "file": "docs/engineering/clean-architecture-and-solid.md",
+      "kind": "project documentation",
+      "graph_nodes": 15,
+      "coverage": "structural",
+      "semantic_verified": false
+    },
+    {
+      "file": "docs/engineering/coding-standards.md",
+      "kind": "project documentation",
+      "graph_nodes": 10,
+      "coverage": "structural",
+      "semantic_verified": false
+    },
+    {
+      "file": "docs/engineering/design-language.md",
+      "kind": "project documentation",
+      "graph_nodes": 9,
+      "coverage": "structural",
+      "semantic_verified": false
+    },
+    {
+      "file": "docs/engineering/devtostagestate.md",
+      "kind": "development to staging work order",
+      "graph_nodes": 24,
+      "coverage": "structural",
+      "semantic_verified": false
+    },
+    {
+      "file": "docs/engineering/driver-app-animation-spec-v1.md",
+      "kind": "project documentation",
+      "graph_nodes": 45,
+      "coverage": "structural",
+      "semantic_verified": false
+    },
+    {
+      "file": "docs/engineering/driver-app-architecture-and-implementation-plan.md",
+      "kind": "project documentation",
+      "graph_nodes": 44,
+      "coverage": "structural",
+      "semantic_verified": false
+    },
+    {
+      "file": "docs/engineering/driver-app-spec-v1.md",
+      "kind": "project documentation",
+      "graph_nodes": 61,
+      "coverage": "structural",
+      "semantic_verified": false
+    },
+    {
+      "file": "docs/engineering/driver-onboarding-flow-audit.md",
+      "kind": "project documentation",
+      "graph_nodes": 28,
+      "coverage": "structural",
+      "semantic_verified": false
+    },
+    {
+      "file": "docs/engineering/driver-realtime-websocket-fcm-plan.md",
+      "kind": "project documentation",
+      "graph_nodes": 21,
+      "coverage": "structural",
+      "semantic_verified": false
+    },
+    {
+      "file": "docs/engineering/driver-wallet-money-movement.md",
+      "kind": "project documentation",
+      "graph_nodes": 6,
+      "coverage": "structural",
+      "semantic_verified": false
+    },
+    {
+      "file": "docs/engineering/frontend-architecture.md",
+      "kind": "project documentation",
+      "graph_nodes": 8,
+      "coverage": "structural",
+      "semantic_verified": false
+    },
+    {
+      "file": "docs/engineering/git-workflow.md",
+      "kind": "project documentation",
+      "graph_nodes": 31,
+      "coverage": "structural",
+      "semantic_verified": false
+    },
+    {
+      "file": "docs/engineering/mobile-in-monorepo.md",
+      "kind": "project documentation",
+      "graph_nodes": 7,
+      "coverage": "structural",
+      "semantic_verified": false
+    },
+    {
+      "file": "docs/engineering/module-anatomy.md",
+      "kind": "project documentation",
+      "graph_nodes": 5,
+      "coverage": "structural",
+      "semantic_verified": false
+    },
+    {
+      "file": "docs/engineering/monorepo-layout.md",
+      "kind": "project documentation",
+      "graph_nodes": 6,
+      "coverage": "structural",
+      "semantic_verified": false
+    },
+    {
+      "file": "docs/engineering/my-notes.md",
+      "kind": "project documentation",
+      "graph_nodes": 13,
+      "coverage": "structural",
+      "semantic_verified": false
+    },
+    {
+      "file": "docs/engineering/project-tracker-graph-context.md",
+      "kind": "project documentation",
+      "graph_nodes": 34,
+      "coverage": "structural",
+      "semantic_verified": false
+    },
+    {
+      "file": "docs/engineering/razorpay-upi-test-checkout.md",
+      "kind": "project documentation",
+      "graph_nodes": 8,
+      "coverage": "structural",
+      "semantic_verified": false
+    },
+    {
+      "file": "docs/engineering/README.md",
+      "kind": "project documentation",
+      "graph_nodes": 5,
+      "coverage": "structural",
+      "semantic_verified": false
+    },
+    {
+      "file": "docs/engineering/real-world-gap-analysis-report.md",
+      "kind": "project documentation",
+      "graph_nodes": 31,
+      "coverage": "structural",
+      "semantic_verified": false
+    },
+    {
+      "file": "docs/engineering/rider-app-architecture-and-implementation-plan.md",
+      "kind": "project documentation",
+      "graph_nodes": 71,
+      "coverage": "structural",
+      "semantic_verified": false
+    },
+    {
+      "file": "docs/engineering/shared-packages.md",
+      "kind": "project documentation",
+      "graph_nodes": 9,
+      "coverage": "structural",
+      "semantic_verified": false
+    },
+    {
+      "file": "docs/engineering/tech-choices.md",
+      "kind": "project documentation",
+      "graph_nodes": 5,
+      "coverage": "structural",
+      "semantic_verified": false
+    },
+    {
+      "file": "docs/engineering/testing.md",
+      "kind": "project documentation",
+      "graph_nodes": 11,
+      "coverage": "structural",
+      "semantic_verified": false
+    },
+    {
+      "file": "docs/LLD/api-contracts.md",
+      "kind": "project documentation",
+      "graph_nodes": 43,
+      "coverage": "structural",
+      "semantic_verified": false
+    },
+    {
+      "file": "docs/LLD/auth.md",
+      "kind": "project documentation",
+      "graph_nodes": 20,
+      "coverage": "structural",
+      "semantic_verified": false
+    },
+    {
+      "file": "docs/LLD/database-schema.md",
+      "kind": "project documentation",
+      "graph_nodes": 47,
+      "coverage": "structural",
+      "semantic_verified": false
+    },
+    {
+      "file": "docs/LLD/dispatch-engine.md",
+      "kind": "project documentation",
+      "graph_nodes": 18,
+      "coverage": "structural",
+      "semantic_verified": false
+    },
+    {
+      "file": "docs/LLD/domain-model.md",
+      "kind": "project documentation",
+      "graph_nodes": 91,
+      "coverage": "structural",
+      "semantic_verified": false
+    },
+    {
+      "file": "docs/LLD/fare-engine.md",
+      "kind": "project documentation",
+      "graph_nodes": 18,
+      "coverage": "structural",
+      "semantic_verified": false
+    },
+    {
+      "file": "docs/LLD/geo-reference-and-routing.md",
+      "kind": "project documentation",
+      "graph_nodes": 60,
+      "coverage": "structural",
+      "semantic_verified": false
+    },
+    {
+      "file": "docs/LLD/negotiation-engine.md",
+      "kind": "project documentation",
+      "graph_nodes": 12,
+      "coverage": "structural",
+      "semantic_verified": false
+    },
+    {
+      "file": "docs/LLD/open-questions.md",
+      "kind": "project documentation",
+      "graph_nodes": 61,
+      "coverage": "structural",
+      "semantic_verified": false
+    },
+    {
+      "file": "docs/LLD/outstation-pricing-tier-plan.md",
+      "kind": "project documentation",
+      "graph_nodes": 15,
+      "coverage": "structural",
+      "semantic_verified": false
+    },
+    {
+      "file": "docs/LLD/ride-lifecycle.md",
+      "kind": "project documentation",
+      "graph_nodes": 32,
+      "coverage": "structural",
+      "semantic_verified": false
+    },
+    {
+      "file": "docs/LLD/routing-and-state-pricing-implementation-plan.md",
+      "kind": "project documentation",
+      "graph_nodes": 20,
+      "coverage": "structural",
+      "semantic_verified": false
+    },
+    {
+      "file": "docs/LLD/states-and-serviceability-implementation-plan.md",
+      "kind": "project documentation",
+      "graph_nodes": 19,
+      "coverage": "structural",
+      "semantic_verified": false
+    },
+    {
+      "file": "docs/LLD/trip-simulator-virtual-testing-plan.md",
+      "kind": "project documentation",
+      "graph_nodes": 16,
+      "coverage": "structural",
+      "semantic_verified": false
+    },
+    {
+      "file": "docs/LLD/wallet-and-commission.md",
+      "kind": "project documentation",
+      "graph_nodes": 15,
+      "coverage": "structural",
+      "semantic_verified": false
+    },
+    {
+      "file": "docs/LLD/websocket-contracts.md",
+      "kind": "project documentation",
+      "graph_nodes": 23,
+      "coverage": "structural",
+      "semantic_verified": false
+    },
+    {
+      "file": "docs/LLD/zone-engine.md",
+      "kind": "project documentation",
+      "graph_nodes": 16,
+      "coverage": "structural",
+      "semantic_verified": false
+    },
+    {
+      "file": "docs/LLD/zones.md",
+      "kind": "project documentation",
+      "graph_nodes": 77,
+      "coverage": "structural",
+      "semantic_verified": false
+    },
+    {
+      "file": "docs/prd.md",
+      "kind": "project documentation",
+      "graph_nodes": 26,
+      "coverage": "structural",
+      "semantic_verified": false
+    },
+    {
+      "file": "docs/README.md",
+      "kind": "project documentation",
+      "graph_nodes": 17,
+      "coverage": "structural",
+      "semantic_verified": false
+    },
+    {
+      "file": "docs/setup-development.md",
+      "kind": "project documentation",
+      "graph_nodes": 40,
+      "coverage": "structural",
+      "semantic_verified": false
+    },
+    {
+      "file": "indrive.md",
+      "kind": "project documentation",
+      "graph_nodes": 17,
+      "coverage": "structural",
+      "semantic_verified": false
+    },
+    {
+      "file": "README.md",
+      "kind": "project documentation",
+      "graph_nodes": 11,
+      "coverage": "structural",
+      "semantic_verified": false
+    },
+    {
+      "file": "setup-development.md",
+      "kind": "project documentation",
+      "graph_nodes": 40,
+      "coverage": "structural",
+      "semantic_verified": false
+    }
+  ]
+}
