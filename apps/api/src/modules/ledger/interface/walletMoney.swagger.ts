@@ -11,6 +11,7 @@ import {
   cashoutSchema,
   resolutionSchema,
 } from './walletMoney.controller.js';
+import { driverListTransactionsQuerySchema } from './ledger.validation.js';
 
 const operation = z.object({
   id: z.string().uuid(),
@@ -37,6 +38,13 @@ const activity = z.object({
   operations: z.array(operation),
   testMode: z.literal(true),
 });
+const paginatedTransactions = z.object({
+  items: z.array(z.any()),
+  total: z.number().int(),
+  limit: z.number().int(),
+  offset: z.number().int(),
+  hasMore: z.boolean(),
+});
 const response = (schema: z.ZodTypeAny) => ({
   description: 'Wallet result',
   content: { 'application/json': { schema: successResponse(schema) } },
@@ -47,6 +55,15 @@ const denied = {
 };
 
 export function registerWalletMoneySwaggerPaths() {
+  registry.registerPath({
+    method: 'get',
+    path: '/v1/driver/wallet/me/transactions',
+    tags: ['Wallet'],
+    security: bearerAuth,
+    summary: 'Paginated ledger transactions for the authenticated driver wallet',
+    request: { query: driverListTransactionsQuerySchema },
+    responses: { 200: response(paginatedTransactions), 403: denied },
+  });
   registry.registerPath({
     method: 'get',
     path: '/v1/driver/wallet/me/activity',

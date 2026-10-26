@@ -8,6 +8,7 @@ import { CancelRideUseCase } from './application/useCases/cancelRide.usecase.js'
 import { CompleteRideUseCase } from './application/useCases/completeRide.usecase.js';
 import { CreateRideUseCase } from './application/useCases/createRide.usecase.js';
 import { DriverArrivedUseCase } from './application/useCases/driverArrived.usecase.js';
+import { DriverEarningsUseCase } from './application/useCases/driverEarnings.usecase.js';
 import { DriverEnRouteUseCase } from './application/useCases/driverEnRoute.usecase.js';
 import { StartRideUseCase } from './application/useCases/startRide.usecase.js';
 import { NegotiateFareUseCase } from './application/useCases/negotiateFare.usecase.js';
@@ -28,6 +29,9 @@ import {
   makeCreateRideController,
   makeDriverArrivedController,
   makeDriverCounterController,
+  makeDriverEarningsSummaryController,
+  makeDriverHistoryController,
+  makeReconcileDriverEarningsController,
   makeRespondCounterController,
   makeRaiseFareController,
   makeDriverEnRouteController,
@@ -77,6 +81,7 @@ export interface RidesContainer {
   completeRideUseCase: CompleteRideUseCase;
   cancelRideUseCase: CancelRideUseCase;
   expireOffersUseCase: ExpireOffersUseCase;
+  driverEarningsUseCase: DriverEarningsUseCase;
   buildRidesRouter: (auth: RidesContainerAuth) => Router;
 }
 
@@ -148,6 +153,12 @@ export function buildRidesContainer(deps: RidesContainerDeps): RidesContainer {
     rideEventRepo,
     unitOfWork: deps.unitOfWork,
   });
+  const driverEarningsUseCase = new DriverEarningsUseCase({
+    rideRepo,
+    rideEventRepo,
+    walletRepo,
+    unitOfWork: deps.unitOfWork,
+  });
 
   const expireOffersUseCase = new ExpireOffersUseCase({
     unitOfWork: deps.unitOfWork,
@@ -180,6 +191,7 @@ export function buildRidesContainer(deps: RidesContainerDeps): RidesContainer {
     completeRideUseCase,
     cancelRideUseCase,
     expireOffersUseCase,
+    driverEarningsUseCase,
     buildRidesRouter: (auth) =>
       buildRidesRouter({
         authenticate: auth.authenticate,
@@ -187,10 +199,14 @@ export function buildRidesContainer(deps: RidesContainerDeps): RidesContainer {
         requireDriver: auth.requireRole('DRIVER'),
         requireCanRead: auth.requireRole('RIDER', 'DRIVER', ...ADMIN_ROLES),
         requireDisputeAdmin: auth.requireRole('SUPER_ADMIN', 'SUPPORT_ADMIN'),
+        requireFinanceAdmin: auth.requireRole('SUPER_ADMIN', 'FINANCE_ADMIN'),
         requireCanCancel: auth.requireRole('RIDER', 'DRIVER'),
         createRide: makeCreateRideController(createRideUseCase, actors),
         listRides: makeListRidesController(rideRepo, actors),
-        getRide: makeGetRideController(rideRepo, actors, rideEventRepo),
+        driverEarnings: makeDriverEarningsSummaryController(driverEarningsUseCase, actors),
+        driverHistory: makeDriverHistoryController(rideRepo, driverEarningsUseCase, actors),
+        reconcileDriverEarnings: makeReconcileDriverEarningsController(driverEarningsUseCase),
+        getRide: makeGetRideController(rideRepo, actors, rideEventRepo, driverEarningsUseCase),
         getRideEvents: makeRideEventsController(rideRepo, rideEventRepo, actors),
         acceptRide: makeAcceptRideController(acceptRideUseCase, actors),
         driverCounter: makeDriverCounterController(negotiateFareUseCase, actors),

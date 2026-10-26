@@ -6,7 +6,7 @@ export interface AtomicClaimResult {
   agreedFarePaise: number;
 }
 
-export interface RideListFilter {
+export interface RideCountFilter {
   /** Matches the booking rider or the passenger rider. */
   riderId?: string | undefined;
   driverId?: string | undefined;
@@ -14,6 +14,9 @@ export interface RideListFilter {
   vehicleCategory?: VehicleCategory | undefined;
   /** Only rides whose offer window closes after this instant. */
   offeringExpiresAfter?: Date | undefined;
+}
+
+export interface RideListFilter extends RideCountFilter {
   limit: number;
   offset: number;
 }
@@ -25,6 +28,12 @@ export interface RideRepositoryPort {
   findById(id: string): Promise<RideEntity | null>;
   /** Newest first. */
   list(filter: RideListFilter): Promise<RideEntity[]>;
+  count(filter: RideCountFilter): Promise<number>;
+  /**
+   * All rides assigned to `driverId` whose activity timestamps may fall on or after `since`
+   * (or all assigned rides when `since` is null). Used by server-owned earnings aggregation.
+   */
+  listDriverRidesInWindow(driverId: string, since: Date | null): Promise<RideEntity[]>;
   /** OFFERING rides whose offer window closed before `now`, oldest first. */
   findExpiredOfferings(now: Date, limit: number): Promise<RideEntity[]>;
   atomicClaimRide(opts: {

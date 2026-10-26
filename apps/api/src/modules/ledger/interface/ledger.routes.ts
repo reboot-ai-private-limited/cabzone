@@ -31,6 +31,7 @@ export interface DriverWalletRouterDeps {
   authenticate: RequestHandler;
   requireDriver: RequestHandler;
   getMyWallet: RequestHandler;
+  listMyTransactions: RequestHandler;
 }
 
 export function buildDriverWalletRouter(deps: DriverWalletRouterDeps): Router {
@@ -41,6 +42,7 @@ export function buildDriverWalletRouter(deps: DriverWalletRouterDeps): Router {
   router.use(deps.authenticate);
   router.use(deps.requireDriver);
   router.get('/me', deps.getMyWallet);
+  router.get('/me/transactions', deps.listMyTransactions);
   router.get('/me/activity', deps.money.activity);
   router.post('/me/recharges', deps.money.recharge);
   router.post('/me/recharges/:id/status', deps.money.rechargeStatus);

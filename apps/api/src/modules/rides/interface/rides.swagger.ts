@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { DRIVER_EARNINGS_PERIODS } from '@cabzone/contracts';
 import {
   registry,
   successResponse,
@@ -15,7 +16,19 @@ import {
   paymentDisputeResolutionSchema,
   proposeFareSchema,
   upiPaymentProofSchema,
+  driverEarningsQuerySchema,
+  driverHistoryQuerySchema,
+  reconcileDriverEarningsSchema,
 } from './rides.validation.js';
+
+export const driverSettlementSchema = z.object({
+  grossPaise: z.number().int(),
+  commissionChargedPaise: z.number().int(),
+  commissionRefundedPaise: z.number().int(),
+  netCommissionPaise: z.number().int(),
+  netEarningsPaise: z.number().int(),
+  settledVia: z.enum(['CASH', 'ONLINE_UPI', 'UNSETTLED']),
+});
 
 export const rideViewSchema = z.object({
   paymentCollection: z.enum(['DIRECT', 'CASH', 'RAZORPAY_TEST', 'RAZORPAY_UPI']).optional(),
@@ -79,8 +92,66 @@ export const rideViewSchema = z.object({
   cancelledAt: z.string().nullable(),
   version: z.number().int(),
   pickupOtp: z.string().optional(),
+  driverSettlement: driverSettlementSchema.optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
+});
+
+const driverEarningsSummarySchema = z.object({
+  period: z.enum(DRIVER_EARNINGS_PERIODS),
+  timezone: z.literal('Asia/Kolkata'),
+  periodStart: z.string().nullable(),
+  periodEnd: z.string(),
+  totalAssignedRidesCount: z.number().int(),
+  completedTripsCount: z.number().int(),
+  cancelledTripsCount: z.number().int(),
+  pendingPaymentTripsCount: z.number().int(),
+  pendingPaymentGrossPaise: z.number().int(),
+  disputedTripsCount: z.number().int(),
+  disputedGrossPaise: z.number().int(),
+  grossFarePaise: z.number().int(),
+  cashGrossPaise: z.number().int(),
+  onlineGrossPaise: z.number().int(),
+  commissionChargedPaise: z.number().int(),
+  commissionRefundedPaise: z.number().int(),
+  netCommissionPaise: z.number().int(),
+  netEarningsPaise: z.number().int(),
+  cancellationCompensationPaise: z.number().int(),
+  unreconciledRidesCount: z.number().int(),
+});
+
+const paginatedRidesSchema = z.object({
+  items: z.array(rideViewSchema),
+  total: z.number().int(),
+  limit: z.number().int(),
+  offset: z.number().int(),
+  hasMore: z.boolean(),
+});
+
+const driverEarningsReconciliationSchema = z.object({
+  mode: z.enum(['AUDIT', 'BACKFILL_ONLINE_EARNINGS']),
+  checkedSettledRides: z.number().int(),
+  cleanCashRides: z.number().int(),
+  cleanOnlineRides: z.number().int(),
+  backfilledRideIds: z.array(z.string().uuid()),
+  skippedRideIds: z.array(z.string().uuid()),
+  issues: z.array(
+    z.object({
+      code: z.enum([
+        'HISTORICAL_ONLINE_MISSING_EARNINGS',
+        'CASH_MISSING_COMMISSION',
+        'AMOUNT_MISMATCH',
+        'MISSING_DRIVER_WALLET',
+        'ORPHAN_LEDGER_RIDE_ENTRY',
+      ]),
+      rideId: z.string().nullable(),
+      driverId: z.string().nullable(),
+      transactionId: z.string().nullable().optional(),
+      expectedPaise: z.number().int().nullable().optional(),
+      actualPaise: z.number().int().nullable().optional(),
+      detail: z.string(),
+    }),
+  ),
 });
 
 export function registerRidesSwaggerPaths(): void {
@@ -308,6 +379,100 @@ export function registerRidesSwaggerPaths(): void {
       },
       403: {
         description: 'Insufficient permissions',
+        content: { 'application/json': { schema: errorResponse } },
+      },
+    },
+  });
+
+  registry.registerPath({
+    method: 'get',
+    path: '/v1/rides/driver/earnings',
+    tags: ['Rides'],
+    summary: 'Get server-owned driver earnings summary in Asia/Kolkata business time (Driver only)',
+    security: bearerAuth,
+    request: {
+      query: driverEarningsQuerySchema,
+    },
+    responses: {
+      200: {
+        description: 'Driver earnings summary retrieved successfully',
+        content: {
+          'application/json': {
+            schema: successResponse(driverEarningsSummarySchema),
+          },
+        },
+      },
+      401: {
+        description: 'Authentication required',
+        content: { 'application/json': { schema: errorResponse } },
+      },
+      403: {
+        description: 'Driver profile required',
+        content: { 'application/json': { schema: errorResponse } },
+      },
+    },
+  });
+
+  registry.registerPath({
+    method: 'get',
+    path: '/v1/rides/driver/history',
+    tags: ['Rides'],
+    summary: 'List paginated ride history with server-owned settlement breakdown (Driver only)',
+    security: bearerAuth,
+    request: {
+      query: driverHistoryQuerySchema,
+    },
+    responses: {
+      200: {
+        description: 'Paginated driver ride history retrieved successfully',
+        content: {
+          'application/json': {
+            schema: successResponse(paginatedRidesSchema),
+          },
+        },
+      },
+      401: {
+        description: 'Authentication required',
+        content: { 'application/json': { schema: errorResponse } },
+      },
+      403: {
+        description: 'Driver profile required',
+        content: { 'application/json': { schema: errorResponse } },
+      },
+    },
+  });
+
+  registry.registerPath({
+    method: 'post',
+    path: '/v1/rides/admin/reconcile-earnings',
+    tags: ['Rides'],
+    summary:
+      'Audit historical ride settlement entries or run guarded idempotent online earnings backfill (Finance/Super Admin)',
+    security: bearerAuth,
+    request: {
+      body: {
+        content: {
+          'application/json': {
+            schema: reconcileDriverEarningsSchema,
+          },
+        },
+      },
+    },
+    responses: {
+      200: {
+        description: 'Reconciliation report',
+        content: {
+          'application/json': {
+            schema: successResponse(driverEarningsReconciliationSchema),
+          },
+        },
+      },
+      400: {
+        description: 'Validation error or missing explicit rideIds on backfill',
+        content: { 'application/json': { schema: errorResponse } },
+      },
+      403: {
+        description: 'Finance or Super Admin role required',
         content: { 'application/json': { schema: errorResponse } },
       },
     },

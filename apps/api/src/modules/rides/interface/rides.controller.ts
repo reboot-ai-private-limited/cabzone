@@ -8,6 +8,7 @@ import type { CancelRideUseCase } from '../application/useCases/cancelRide.useca
 import type { CompleteRideUseCase } from '../application/useCases/completeRide.usecase.js';
 import type { CreateRideUseCase } from '../application/useCases/createRide.usecase.js';
 import type { DriverArrivedUseCase } from '../application/useCases/driverArrived.usecase.js';
+import type { DriverEarningsUseCase } from '../application/useCases/driverEarnings.usecase.js';
 import type { DriverEnRouteUseCase } from '../application/useCases/driverEnRoute.usecase.js';
 import type { StartRideUseCase } from '../application/useCases/startRide.usecase.js';
 import type { NegotiateFareUseCase } from '../application/useCases/negotiateFare.usecase.js';
@@ -19,11 +20,14 @@ import {
   cancelRideSchema,
   counterResponseSchema,
   driverCounterSchema,
+  driverEarningsQuerySchema,
+  driverHistoryQuerySchema,
   createRideRequestSchema,
   listRidesQuerySchema,
   paymentDisputeSchema,
   paymentDisputeResolutionSchema,
   proposeFareSchema,
+  reconcileDriverEarningsSchema,
   rideIdParamSchema,
   startRideRequestSchema,
 } from './rides.validation.js';
@@ -144,6 +148,7 @@ export function makeGetRideController(
   rideRepo: RideRepositoryPort,
   actors: RideHttpContext,
   paymentEvents?: RideEventRepositoryPort,
+  driverEarnings?: DriverEarningsUseCase,
 ): RequestHandler {
   return asyncHandler(async (req: Request, res: Response) => {
     const { id } = rideIdParamSchema.parse(req.params);
@@ -176,10 +181,21 @@ export function makeGetRideController(
         : paymentAudit.some((event) => event.eventType === 'UPI_ORDER_CREATED')
           ? 'RAZORPAY_TEST'
           : 'DIRECT';
+    const includeDriverSettlement =
+      driverEarnings &&
+      (req.auth?.role === 'DRIVER' || ADMIN_ROLES.has(req.auth?.role ?? ''));
+    const driverSettlement = includeDriverSettlement
+      ? (await driverEarnings.buildSettlementMap([ride])).get(ride.id)
+      : undefined;
     sendSuccess(
       req,
       res,
-      { ...view, paymentCollection, ...(pickupOtp ? { pickupOtp } : {}) },
+      {
+        ...view,
+        paymentCollection,
+        ...(driverSettlement ? { driverSettlement } : {}),
+        ...(pickupOtp ? { pickupOtp } : {}),
+      },
       'Ride retrieved successfully',
     );
   });
@@ -239,6 +255,74 @@ export function makeListRidesController(
     });
     const views = await Promise.all(rides.map((r) => toEnrichedRideView(r, actors)));
     sendSuccess(req, res, views, 'Rides retrieved successfully');
+  });
+}
+
+export function makeDriverEarningsSummaryController(
+  useCase: DriverEarningsUseCase,
+  actors: RideHttpContext,
+): RequestHandler {
+  return asyncHandler(async (req: Request, res: Response) => {
+    const { period } = driverEarningsQuerySchema.parse(req.query);
+    const driverId = await requireDriverId(req, actors);
+    const summary = await useCase.getSummary(driverId, period);
+    sendSuccess(req, res, summary, 'Driver earnings summary retrieved successfully');
+  });
+}
+
+export function makeDriverHistoryController(
+  rideRepo: RideRepositoryPort,
+  useCase: DriverEarningsUseCase,
+  actors: RideHttpContext,
+): RequestHandler {
+  return asyncHandler(async (req: Request, res: Response) => {
+    const q = driverHistoryQuerySchema.parse(req.query);
+    const driverId = await requireDriverId(req, actors);
+    const [total, rides] = await Promise.all([
+      rideRepo.count({ driverId, statuses: q.status }),
+      rideRepo.list({
+        driverId,
+        statuses: q.status,
+        limit: q.limit,
+        offset: q.offset,
+      }),
+    ]);
+    const [views, settlements] = await Promise.all([
+      Promise.all(rides.map((r) => toEnrichedRideView(r, actors))),
+      useCase.buildSettlementMap(rides),
+    ]);
+    const items = views.map((v) => {
+      const driverSettlement = settlements.get(v.id);
+      return driverSettlement ? { ...v, driverSettlement } : v;
+    });
+    sendSuccess(
+      req,
+      res,
+      {
+        items,
+        total,
+        limit: q.limit,
+        offset: q.offset,
+        hasMore: q.offset + items.length < total,
+      },
+      'Driver ride history retrieved successfully',
+    );
+  });
+}
+
+export function makeReconcileDriverEarningsController(
+  useCase: DriverEarningsUseCase,
+): RequestHandler {
+  return asyncHandler(async (req: Request, res: Response) => {
+    const { userId } = auth(req);
+    const body = reconcileDriverEarningsSchema.parse(req.body ?? {});
+    const report = await useCase.reconcile({
+      mode: body.mode,
+      driverId: body.driverId,
+      rideIds: body.rideIds,
+      adminId: userId,
+    });
+    sendSuccess(req, res, report, 'Driver earnings reconciliation completed');
   });
 }
 

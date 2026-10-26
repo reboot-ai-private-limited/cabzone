@@ -7,8 +7,12 @@ export interface RidesRouterDeps {
   requireCanCancel: RequestHandler;
   requireCanRead: RequestHandler;
   requireDisputeAdmin: RequestHandler;
+  requireFinanceAdmin: RequestHandler;
   createRide: RequestHandler;
   listRides: RequestHandler;
+  driverEarnings: RequestHandler;
+  driverHistory: RequestHandler;
+  reconcileDriverEarnings: RequestHandler;
   getRide: RequestHandler;
   getRideEvents: RequestHandler;
   acceptRide: RequestHandler;
@@ -48,9 +52,16 @@ export function buildRidesRouter(deps: RidesRouterDeps): Router {
   router.post('/payment/upi/checkout/status', deps.checkoutStatus);
   router.use(deps.authenticate);
 
-  // Rider
+  // Rider / Admin / Driver static collection routes (must precede /:id)
   router.post('/', deps.requireRider, deps.createRide);
   router.get('/payment/disputes', deps.requireDisputeAdmin, deps.listPaymentDisputes);
+  router.get('/driver/earnings', deps.requireDriver, deps.driverEarnings);
+  router.get('/driver/history', deps.requireDriver, deps.driverHistory);
+  router.post(
+    '/admin/reconcile-earnings',
+    deps.requireFinanceAdmin,
+    deps.reconcileDriverEarnings,
+  );
 
   // Rider / driver / admin
   router.get('/', deps.requireCanRead, deps.listRides);

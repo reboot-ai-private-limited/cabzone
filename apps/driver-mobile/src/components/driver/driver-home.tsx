@@ -26,9 +26,9 @@ export function DriverHome() {
     coords,
     lastTransmittedAt,
     locationStatus,
-    todayEarningsPaise,
-    todayGrossPaise,
-    todayCompletedTrips,
+    todaySummary,
+    summaryError,
+    isSummaryLoading,
     walletBalancePaise,
     useDevSimulatedLocation,
     setUseDevSimulatedLocation,
@@ -36,6 +36,7 @@ export function DriverHome() {
     clearError,
     goOnline,
     goOffline,
+    refreshSummary,
   } = useDuty();
 
   const {
@@ -168,9 +169,17 @@ export function DriverHome() {
             style={[styles.kpiCard, styles.earningsCard]}
             onPress={() => router.push('/(driver)/(tabs)/earnings')}>
             <Text style={styles.kpiLabel}>Today&apos;s Net Earnings</Text>
-            <Text style={styles.kpiValue}>₹{(todayEarningsPaise / 100).toFixed(0)}</Text>
+            <Text style={styles.kpiValue}>
+              {todaySummary != null ? `₹${(todaySummary.netEarningsPaise / 100).toFixed(0)}` : '—'}
+            </Text>
             <Text style={styles.kpiSub}>
-              Gross ₹{(todayGrossPaise / 100).toFixed(0)} · Direct Cash / UPI
+              {todaySummary == null
+                ? isSummaryLoading
+                  ? 'Loading IST summary...'
+                  : 'Summary unavailable'
+                : todaySummary.pendingPaymentTripsCount > 0
+                  ? `Gross ₹${(todaySummary.grossFarePaise / 100).toFixed(0)} · ${todaySummary.pendingPaymentTripsCount} awaiting payment`
+                  : `Gross ₹${(todaySummary.grossFarePaise / 100).toFixed(0)} · IST Today`}
             </Text>
           </Pressable>
 
@@ -178,8 +187,12 @@ export function DriverHome() {
             style={styles.kpiCard}
             onPress={() => router.push('/(driver)/(tabs)/rides')}>
             <Text style={styles.kpiLabel}>Completed Rides</Text>
-            <Text style={styles.kpiValue}>{todayCompletedTrips}</Text>
-            <Text style={styles.kpiSub}>Trips today</Text>
+            <Text style={styles.kpiValue}>
+              {todaySummary != null ? todaySummary.completedTripsCount : '—'}
+            </Text>
+            <Text style={styles.kpiSub}>
+              {todaySummary != null ? 'Settled today' : 'Unavailable'}
+            </Text>
           </Pressable>
 
           <Pressable
@@ -191,13 +204,38 @@ export function DriverHome() {
                 styles.kpiValue,
                 walletBalancePaise != null && walletBalancePaise < 0 ? styles.kpiNegative : null,
               ]}>
-              ₹{walletBalancePaise != null ? (walletBalancePaise / 100).toFixed(0) : '0'}
+              {walletBalancePaise != null ? `₹${(walletBalancePaise / 100).toFixed(0)}` : '—'}
             </Text>
             <Text style={styles.kpiSub}>
-              {walletBalancePaise != null && walletBalancePaise < 0 ? 'Commission due' : 'Available'}
+              {walletBalancePaise == null
+                ? isSummaryLoading
+                  ? 'Loading...'
+                  : 'Unavailable'
+                : walletBalancePaise < 0
+                  ? 'Commission due'
+                  : 'Available'}
             </Text>
           </Pressable>
         </View>
+
+        {summaryError ? (
+          <View style={styles.summaryRetryBanner}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.summaryRetryTitle}>Earnings or wallet sync failed</Text>
+              <Text style={styles.summaryRetryMsg}>{summaryError}</Text>
+            </View>
+            <Pressable
+              style={styles.summaryRetryBtn}
+              disabled={isSummaryLoading}
+              onPress={() => void refreshSummary()}
+              accessibilityRole="button"
+              accessibilityLabel="Retry summary sync">
+              <Text style={styles.summaryRetryBtnText}>
+                {isSummaryLoading ? 'Syncing...' : 'Retry'}
+              </Text>
+            </Pressable>
+          </View>
+        ) : null}
 
         {/* Backend Ineligibility / Duty Error Banner */}
         {error ? (
@@ -544,6 +582,38 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.xs,
     color: colors.secondary,
     marginTop: 2,
+  },
+  summaryRetryBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: '#FFFBEB',
+    borderWidth: 1,
+    borderColor: colors.amber,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 16,
+  },
+  summaryRetryTitle: {
+    fontSize: typography.sizes.xs,
+    fontWeight: '800',
+    color: colors.deepBrown,
+  },
+  summaryRetryMsg: {
+    fontSize: 11,
+    color: colors.secondary,
+    marginTop: 2,
+  },
+  summaryRetryBtn: {
+    backgroundColor: colors.amber,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+  },
+  summaryRetryBtnText: {
+    fontSize: typography.sizes.xs,
+    fontWeight: '800',
+    color: colors.deepBrown,
   },
   errorBanner: {
     flexDirection: 'row',
