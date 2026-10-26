@@ -12,12 +12,10 @@ import {
   Users,
   Wallet,
 } from 'lucide-react';
-import { Button, PageHeader, Input } from '@cabzone/design-system';
+import { Button, ErrorState, PageHeader, Input, Skeleton } from '@cabzone/design-system';
 import { formatPaise } from '@/lib/format';
-import {
-  useFinanceStats,
-  useTransactionsList,
-} from '../hooks/useFinance';
+import { ApiError } from '@/lib/api/ApiError';
+import { useFinanceStats, useTransactionsList } from '../hooks/useFinance';
 import { TransactionsLedgerTable } from './TransactionsLedgerTable';
 import { CashoutQueue } from './CashoutQueue';
 
@@ -30,27 +28,8 @@ export function FinanceScreen() {
   const transactionsQuery = useTransactionsList({
     search: deferredSearch.trim() ? deferredSearch.trim() : undefined,
   });
-
-  const stats = statsQuery.data ?? {
-    driver: {
-      totalBalancePaise: 0,
-      activeDriversCount: 3,
-      blockedDriversCount: 0,
-      totalDriversWithWallets: 3,
-      owedToCompanyPaise: 52000,
-      owedDriversCount: 3,
-      payableToDriversPaise: 0,
-      payableDriversCount: 0,
-      suspendedCount: 0,
-      driversWithActivityCount: 3,
-    },
-    transactions: {
-      totalVolumePaise: 50000,
-      platformCommissionPaise: 0,
-      adjustmentsPaise: 50000,
-      totalTransactionsCount: 6,
-    },
-  };
+  const stats =
+    statsQuery.data?.driver && statsQuery.data.transactions ? statsQuery.data : undefined;
 
   const handleRefresh = () => {
     void statsQuery.refetch();
@@ -95,72 +74,106 @@ export function FinanceScreen() {
 
       <CashoutQueue />
       {/* KPI Cards for Transactions */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Card 1: Platform Commissions */}
-        <div className="p-5 bg-surface border border-border rounded-xl shadow-xs flex flex-col justify-between">
-          <div className="flex items-center gap-2 text-xs font-semibold text-text-subtle uppercase tracking-wider">
-            <Receipt className="size-4 text-interactive" />
-            <span>Platform commissions</span>
-          </div>
-          <div className="mt-3">
-            <div className="text-2xl font-bold font-mono text-interactive tracking-tight">
-              {formatPaise(stats.transactions.platformCommissionPaise)}
+      {statsQuery.isPending ? (
+        <div
+          role="status"
+          aria-label="Loading finance summary"
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"
+        >
+          {Array.from({ length: 4 }, (_, index) => (
+            <div key={index} className="p-5 bg-surface border border-border rounded-xl space-y-5">
+              <Skeleton className="w-32" />
+              <Skeleton className="h-7 w-24" />
             </div>
-            <p className="text-xs text-text-subtle mt-1">Earned via 8% trip deductions</p>
-          </div>
+          ))}
         </div>
+      ) : statsQuery.isError || !stats ? (
+        <ErrorState
+          title="Finance summary unavailable"
+          message="Could not load the latest finance figures."
+          onRetry={
+            statsQuery.error instanceof ApiError && statsQuery.error.status === 403
+              ? undefined
+              : () => void statsQuery.refetch()
+          }
+        />
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Card 1: Platform Commissions */}
+          <div className="p-5 bg-surface border border-border rounded-xl shadow-xs flex flex-col justify-between">
+            <div className="flex items-center gap-2 text-xs font-semibold text-text-subtle uppercase tracking-wider">
+              <Receipt className="size-4 text-interactive" />
+              <span>Platform commissions</span>
+            </div>
+            <div className="mt-3">
+              <div className="text-2xl font-bold font-mono text-interactive tracking-tight">
+                {formatPaise(stats.transactions.platformCommissionPaise)}
+              </div>
+              <p className="text-xs text-text-subtle mt-1">Earned via 8% trip deductions</p>
+            </div>
+          </div>
 
-        {/* Card 2: Total Volume Processed */}
-        <div className="p-5 bg-surface border border-border rounded-xl shadow-xs flex flex-col justify-between">
-          <div className="flex items-center gap-2 text-xs font-semibold text-text-subtle uppercase tracking-wider">
-            <Coins className="size-4 text-slate-500" />
-            <span>Total volume processed</span>
-          </div>
-          <div className="mt-3">
-            <div className="text-2xl font-bold font-mono text-text tracking-tight">
-              {formatPaise(stats.transactions.totalVolumePaise)}
+          {/* Card 2: Total Volume Processed */}
+          <div className="p-5 bg-surface border border-border rounded-xl shadow-xs flex flex-col justify-between">
+            <div className="flex items-center gap-2 text-xs font-semibold text-text-subtle uppercase tracking-wider">
+              <Coins className="size-4 text-slate-500" />
+              <span>Total volume processed</span>
             </div>
-            <p className="text-xs text-text-subtle mt-1">Gross transaction turnover</p>
+            <div className="mt-3">
+              <div className="text-2xl font-bold font-mono text-text tracking-tight">
+                {formatPaise(stats.transactions.totalVolumePaise)}
+              </div>
+              <p className="text-xs text-text-subtle mt-1">Gross transaction turnover</p>
+            </div>
           </div>
-        </div>
 
-        {/* Card 3: Total Ledger Entries */}
-        <div className="p-5 bg-surface border border-border rounded-xl shadow-xs flex flex-col justify-between">
-          <div className="flex items-center gap-2 text-xs font-semibold text-text-subtle uppercase tracking-wider">
-            <History className="size-4 text-slate-500" />
-            <span>Ledger audit entries</span>
-          </div>
-          <div className="mt-3">
-            <div className="text-2xl font-bold font-mono text-text tracking-tight">
-              {stats.transactions.totalTransactionsCount}
+          {/* Card 3: Total Ledger Entries */}
+          <div className="p-5 bg-surface border border-border rounded-xl shadow-xs flex flex-col justify-between">
+            <div className="flex items-center gap-2 text-xs font-semibold text-text-subtle uppercase tracking-wider">
+              <History className="size-4 text-slate-500" />
+              <span>Ledger audit entries</span>
             </div>
-            <p className="text-xs text-text-subtle mt-1">Double-entry audit log count</p>
+            <div className="mt-3">
+              <div className="text-2xl font-bold font-mono text-text tracking-tight">
+                {stats.transactions.totalTransactionsCount}
+              </div>
+              <p className="text-xs text-text-subtle mt-1">Double-entry audit log count</p>
+            </div>
           </div>
-        </div>
 
-        {/* Card 4: Company Arrears Shortcut */}
-        <div className="p-5 bg-surface border border-border rounded-xl shadow-xs flex flex-col justify-between">
-          <div className="flex items-center gap-2 text-xs font-semibold text-text-subtle uppercase tracking-wider">
-            <AlertTriangle className="size-4 text-amber-500" />
-            <span>Driver arrears</span>
-          </div>
-          <div className="mt-3">
-            <div className="text-2xl font-bold font-mono text-red-600 tracking-tight">
-              {formatPaise(stats.driver.owedToCompanyPaise ?? 0)}
+          {/* Card 4: Company Arrears Shortcut */}
+          <div className="p-5 bg-surface border border-border rounded-xl shadow-xs flex flex-col justify-between">
+            <div className="flex items-center gap-2 text-xs font-semibold text-text-subtle uppercase tracking-wider">
+              <AlertTriangle className="size-4 text-amber-500" />
+              <span>Driver arrears</span>
             </div>
-            <p className="text-xs text-text-subtle mt-1">
-              Across {stats.driver.owedDriversCount ?? 0} drivers · Managed in Driver Profiles
-            </p>
+            <div className="mt-3">
+              <div className="text-2xl font-bold font-mono text-red-600 tracking-tight">
+                {stats.driver.owedToCompanyPaise === undefined
+                  ? '—'
+                  : formatPaise(stats.driver.owedToCompanyPaise)}
+              </div>
+              <p className="text-xs text-text-subtle mt-1">
+                {stats.driver.owedDriversCount === undefined
+                  ? 'Driver count unavailable'
+                  : `Across ${stats.driver.owedDriversCount} drivers`}{' '}
+                · Managed in Driver Profiles
+              </p>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Driver Balance Management Context Banner */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-xl bg-surface-muted/60 border border-border text-xs text-text-subtle">
         <div className="flex items-center gap-2.5">
           <Wallet className="size-4 text-interactive shrink-0" />
           <span>
-            <strong className="text-text font-medium">Individual driver balances and settlements</strong> are now managed directly on each respective driver&apos;s profile under the Financials tab.
+            <strong className="text-text font-medium">
+              Individual driver balances and settlements
+            </strong>{' '}
+            are now managed directly on each respective driver&apos;s profile under the Financials
+            tab.
           </span>
         </div>
         <Link
