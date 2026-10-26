@@ -133,17 +133,17 @@ The backend must reject invalid transitions regardless of client state.
 ## 6. Ride Creation
 
 1. Authenticate Rider.
-2. Validate pickup and destination.
-3. Validate passenger information.
-4. Resolve route.
-5. Classify zone.
-6. Load applicable pricing.
-7. Create immutable pricing snapshot.
-8. Calculate Suggested Fare.
-9. Create Ride in `REQUESTED`.
-10. Emit `RIDE_CREATED`.
-11. Start dispatch.
-12. Transition to `OFFERING`.
+2. Enforce **One-Active-Ride Guard (D-043)**: reject with `409 ACTIVE_RIDE_EXISTS` (returning the existing `rideId`) if `bookerRiderId` already has a ride in any of the 9 canonical booking-blocking statuses (`REQUESTED`, `OFFERING`, `DRIVER_ASSIGNED`, `DRIVER_EN_ROUTE`, `DRIVER_ARRIVED`, `TRIP_STARTED`, `TRIP_COMPLETED`, `PAYMENT_PENDING`, `PAYMENT_CONFIRMED`), while supporting idempotent retries for the same create request. `SETTLED`, `CANCELLED`, `EXPIRED`, and `PAYMENT_DISPUTED` do not block new bookings.
+3. Enforce **Rider Cancellation Arrears Gate (D-044)**: attach any unpaid `arrearsPaise` to the quote/ride snapshot and reject new **cash** bookings when unpaid rider arrears `>= cancellationFeePaise` (₹50 default) until cleared via online UPI.
+4. Validate pickup and destination.
+5. Validate passenger information.
+6. Resolve route and optional non-commissioned `tollSnapshot` (D-045).
+7. Classify zone.
+8. Load applicable pricing (including cancellation policy fields per D-044).
+9. Create immutable pricing, route, and toll snapshots.
+10. Calculate Suggested Fare (excluding tolls/permits per D-045).
+11. Create Ride in `REQUESTED` / `OFFERING` and emit `RIDE_CREATED`.
+12. Start dispatch.
 
 ## 7. Driver Assignment
 
@@ -306,7 +306,11 @@ TRIP_STARTED
 → Cannot be unilaterally cancelled; early drop-off becomes trip termination / dispute flow
 ```
 
-Cancellation fees incurred by the rider are split: fuel/time compensation credited to the driver, remainder to the platform.
+Per Decision D-044 ([`decision-log.md`](../decision-log.md#d-044--rider-cancellation--no-show-fee-arrears-ledger--configurable-policy)):
+
+- Fee and timing parameters (`cancellationFeePaise`, `driverCompensationPaise`, `platformCancellationFeePaise`, `riderCancellationGraceSeconds`, `driverNoShowWaitSeconds`) are configured on `PricingConfig` and read from the ride's frozen `RidePricingSnapshot`.
+- Incurred rider cancellation and no-show fees atomically record an immutable `CANCELLATION_FEE_ARREARS` debit on `bookerRiderId` alongside the driver's wallet compensation credit.
+- Unpaid arrears are itemized as `arrearsPaise` on the rider's next quote/ride and recovered upon online UPI capture or collecting-driver wallet debit at cash confirmation; unpaid arrears `>= cancellationFeePaise` block new cash bookings until cleared online.
 
 ## 15. No-Show
 
@@ -345,11 +349,18 @@ PAYMENT_CONFIRMED
 RIDE_SETTLED
 ```
 
+## 16b. Post-Settlement Ratings (D-046)
+
+- Only `SETTLED` rides accept ratings, within **7 days (168 hours)** of `settledAt`.
+- At most one immutable `1`–`5` star review (+ optional tags) per `(rideId, reviewerRole)` (`bookerRiderId` and assigned `driverId`).
+- Reviews remain double-blind (`HIDDEN`) and excluded from `ratingAverage` / `ratingCount` until **both submit** or the **7-day window expires**; public UIs show `"New"` until `ratingCount >= 5`.
+
 ## 17. Lifecycle Invariants
 
+- One `bookerRiderId` has at most one booking-blocking ride across the 9 active/settlement statuses (D-043).
 - One Ride has at most one assigned Driver.
 - Terminal states cannot transition back into active trip states.
-- Agreed Fare cannot be changed except through the extension workflow.
+- Agreed Fare cannot be changed except through the extension workflow (tolls/permits remain separate non-commissioned actuals per D-045).
 - Pricing snapshot cannot be modified.
 - Wallet balance cannot terminate an active ride.
 - Payment settlement cannot happen twice.

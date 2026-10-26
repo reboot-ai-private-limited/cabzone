@@ -672,6 +672,149 @@ SMS delivery, external KYC verification and wallet top-up providers are deferred
 
 After driver receipt confirmation, an authorized rider may dispute the payment. Support or super administration records a reasoned outcome. If the rider wins, refund the platform commission already charged through a single compensating driver-wallet ledger credit; if the driver wins, retain that commission. Keep the original debit and both dispute events in the audit history. A repeated resolution must not issue a second refund.
 
+---
+
+## D-042 — Internal Beta / Test Staging Target & Launch Exclusions
+
+**Decision ID:** D-042  
+**Date:** 2026-10-26  
+**Question:** Target release milestone and external-integration scope boundary (`docs/engineering/devtostagestate.md` Step 1, OQ-023, OQ-029)  
+**Status:** Decided
+
+**Decision:**
+The active release target is **Internal Beta / Controlled Test Staging**, governed by the following boundaries:
+
+1. **Payments & Driver Wallets**: Use Razorpay **test** UPI QR/checkout for online ride collection and driver wallet recharge (`₹100`–`₹1,00,000`), paired with manual Finance/Super Admin cashout review and test transfer-reference recording (`docs/engineering/driver-wallet-money-movement.md`). Test/seed wallet balances must never migrate into withdrawable real funds.
+2. **KYC & Onboarding**: Retain manual admin KYC verification with authenticated private document storage/preview, document expiry checks at acceptance, and scheduled expiry/renewal enforcement.
+3. **Authentication & SMS**: Non-development environments remain fail-closed against console SMS and in-memory OTP adapters (per D-040).
+4. **Rider Safety Scope**: Retain the existing rider active-ride safety actions (`Share Trip`, emergency-contact call, and `112` emergency dial).
+5. **Explicit Launch Exclusions (Deferred to Commercial Launch Gate)**: Live merchant UPI QR credentials and settlement transfers, automated bank payouts (RazorpayX), automated third-party KYC verification (Surepass/Cashfree), full SOS operations-center escalation (`OQ-029`), masked PSTN calling/in-app chat, and scheduled/multi-stop/pooled rides (`OQ-030`–`OQ-034`).
+
+**Alternatives Considered:** Immediate Live Paid Staging (rejected until device acceptance, policy enforcement, and live merchant onboarding complete); full commercial scope before beta (rejected due to external provider lead times blocking core ride/policy validation).  
+**Reason:** Separates engineering policy/reliability closure from external merchant, banking, and KYC vendor prerequisites while preventing test funds from mixing with real money.  
+**Affected Components:** Deployment/Staging Config, Wallet & Payment Modules, KYC Admin Ops, Rider & Driver Mobile Apps, Release Readiness Checklist.  
+**Migration/Reversal Strategy:** Promoting to Live Paid Staging requires isolated live credentials, clean non-migrated wallet balances, merchant UPI QR verification, and explicit sign-off on Step 17/18 launch gates.  
+**Approved by:** Product & Engineering
+
+---
+
+## D-043 — One-Active-Ride Booking Guard & Canonical Booking-Blocking Statuses
+
+**Decision ID:** D-043  
+**Date:** 2026-10-26  
+**Question:** Rider concurrent-booking restriction and canonical active status set (`docs/engineering/rider-app-architecture-and-implementation-plan.md` §2 / §6.1 / Q1)  
+**Status:** Decided
+
+**Decision:**
+1. **Single Active Booking per Booker**: A rider (`bookerRiderId`) may hold **at most one booking-blocking ride** at any time.
+2. **Canonical 9 Booking-Blocking Statuses**:
+   ```text
+   REQUESTED
+   OFFERING
+   DRIVER_ASSIGNED
+   DRIVER_EN_ROUTE
+   DRIVER_ARRIVED
+   TRIP_STARTED
+   TRIP_COMPLETED
+   PAYMENT_PENDING
+   PAYMENT_CONFIRMED
+   ```
+3. **Non-Blocking Statuses**: `SETTLED`, `CANCELLED`, `EXPIRED`, and `PAYMENT_DISPUTED` do **not** block creating a new ride. Post-confirmation payment disputes are asynchronous support states and must not strand a rider from booking future transport.
+4. **Server & Concurrency Enforcement**: `POST /api/v1/rides` must enforce this invariant server-side in a concurrency-safe manner per `bookerRiderId` (supporting idempotent retries for the same create request, and returning `409 ACTIVE_RIDE_EXISTS` including the existing `rideId` on conflict).
+5. **Client Parity**: Rider mobile bootstrap routing, persistent active-ride banners, deep-link resolution, and `isRideActive()` (`apps/rider-mobile/src/services/rider-helpers.ts`) must evaluate this exact 9-status set (including `PAYMENT_CONFIRMED`).
+
+**Alternatives Considered:** Blocking `passenger.riderId` in addition to `bookerRiderId` (rejected for MVP because passenger records are phone/name inputs without independent rider verification); allowing new bookings during `PAYMENT_PENDING` (rejected to prevent overlapping unsettled cash/UPI handoffs).  
+**Reason:** Prevents duplicate concurrent dispatches, ghost driver offers, and accidental double bookings under flaky mobile networks.  
+**Affected Components:** `CreateRideUseCase`, `MongoRideRepository` (active-rider query/partial unique guard), `@cabzone/contracts` (`ACTIVE_RIDE_STATUSES` / error payload), `apps/rider-mobile` (`isRideActive`, bootstrap gate, booking screens).  
+**Migration/Reversal Strategy:** Resolve or expire any duplicate in-flight dev/staging rides for the same `bookerRiderId` before deploying a partial unique index.  
+**Approved by:** Product & Engineering
+
+---
+
+## D-044 — Rider Cancellation & No-Show Fee Arrears Ledger & Configurable Policy
+
+**Decision ID:** D-044  
+**Date:** 2026-10-26  
+**Question:** OQ-028 & D-032 completion — how rider late-cancellation and no-show fees are configured, funded, and collected  
+**Status:** Decided (Completes D-032; resolves OQ-028)
+
+**Decision:**
+1. **Configuration-Driven Policy on `PricingConfig`**:
+   Move cancellation fee and timer parameters out of hardcoded domain constants onto `PricingConfig` (following the D-039 city → state → global hierarchy per `vehicleCategory`) and freeze them inside `RidePricingSnapshot` at ride creation, with defaults matching current behavior:
+   - `cancellationFeePaise`: `5000` (₹50)
+   - `driverCompensationPaise`: `3500` (₹35)
+   - `platformCancellationFeePaise`: `1500` (₹15; invariant: `driverCompensationPaise + platformCancellationFeePaise === cancellationFeePaise`)
+   - `riderCancellationGraceSeconds`: `120` (2 minutes from `acceptedAt` in `DRIVER_ASSIGNED` / `DRIVER_EN_ROUTE`)
+   - `driverNoShowWaitSeconds`: `300` (5 minutes from `arrivedAt` in `DRIVER_ARRIVED`)
+2. **Next-Ride Rider Arrears Ledger**:
+   When a rider incurs a late-cancellation or verified `RIDER_NO_SHOW` fee, `CancelRideUseCase` atomically records an immutable `cancellationFeePaise` rider arrears debit (`CANCELLATION_FEE_ARREARS`) against `bookerRiderId` in the same unit of work as the ride transition and driver compensation wallet credit.
+3. **Next-Ride Itemization & Settlement Recovery**:
+   - Quotes and ride snapshots surface `arrearsPaise` as a separate transparent line item above `agreedFarePaise` (`totalPayablePaise = agreedFarePaise + arrearsPaise`). Platform commission applies only to `agreedFarePaise`.
+   - **Online Razorpay UPI settlement**: Captures `totalPayablePaise`, settles the rider's outstanding arrears entry once, and credits the driver's net ride earnings (`agreedFarePaise - commissionPaise`).
+   - **Direct Cash / Personal UPI settlement**: The collecting driver receives `totalPayablePaise` from the rider; upon driver receipt confirmation, the server atomically debits both ride commission and `arrearsPaise` (`RIDER_ARREARS_COLLECTED`) from the collecting driver's prepaid wallet and marks the rider's arrears settled once.
+4. **Arrears Booking Gate & Dispute Reversal**:
+   - If a rider's unpaid arrears balance is `>= cancellationFeePaise` (default `5000` paise / ₹50), further **cash** ride bookings are blocked until the arrears are cleared via online UPI payment (or an online-settled ride).
+   - Admin/support waiver of a disputed cancellation fee appends an immutable compensating credit to the rider arrears ledger without mutating prior entries.
+
+**Alternatives Considered:** Absorbing rider fees indefinitely (rejected due to direct cash drain and rider–driver collusion risk); blocking all bookings until standalone UPI checkout (rejected as higher friction than next-ride settlement with an online payment requirement once threshold is reached).  
+**Reason:** Closes the unfunded ₹35 driver-compensation loophole while keeping low-friction recovery compatible with Cabzone's hybrid Cash/UPI model.  
+**Affected Components:** `PricingConfigEntity`, `RidePricingSnapshot`, `CancelRideUseCase`, `CreateQuoteUseCase`, `CreateRideUseCase`, Rider Arrears Ledger, Ride Settlement Use Cases, Admin Pricing UI, Rider & Driver Mobile Apps.  
+**Migration/Reversal Strategy:** Backfill default cancellation fields (`5000` / `3500` / `1500` / `120`s / `300`s) onto existing `PricingConfig` documents; historical cancelled rides prior to deployment are not retroactively billed to riders.  
+**Approved by:** Product & Engineering (via OQ-028)
+
+---
+
+## D-045 — Highway Toll & Interstate Permit Quote/Ride Treatment
+
+**Decision ID:** D-045  
+**Date:** 2026-10-26  
+**Question:** OQ-022 (Highway toll and interstate permit transparency and fare inclusion)  
+**Status:** Decided (Resolves OQ-022)
+
+**Decision:**
+1. **Excluded from Negotiated Fare & Commission**:
+   `suggestedFarePaise`, negotiation bounds (`[floorPaise, ceilingPaise]`), `agreedFarePaise`, and platform commission (`commissionPercent`) cover **strictly the ride fare** (`base + distance + buffer`). Tolls and state entry permits are never baked into `ratePerKmPaise` or `agreedFarePaise`, and **zero platform commission** is charged on tolls or permits.
+2. **Separate Non-Commissioned Estimate Snapshot**:
+   When `RouteProvider` returns toll data (`TollInfo`), the signed quote and `RideEntity` freeze an immutable `tollSnapshot` (`exists`, `estimatedAmountPaise`, `currency: 'INR'`, `provider`, `isEstimate: true`, `commercialVehicleCaveat: true`).
+3. **Unavailable Toll Integrity**:
+   When a route has tolls (`exists: true`) or crosses state borders without a provider price (`estimatedAmountPaise: null`), the system must **never** convert the unknown amount into `0` (`₹0`). APIs and UIs represent it explicitly as `"Toll / permit applicable — amount unavailable (payable at actuals)"`.
+4. **Payable at Actuals**:
+   The rider pays actual highway tolls (FASTag) and applicable interstate commercial permits over and above `agreedFarePaise` against receipt/actuals. Quotes, driver offer cards, active-ride screens, and final receipts display estimated tolls/permits as a separate informational disclosure line.
+
+**Alternatives Considered:** Bundling estimated tolls into `suggestedFarePaise` and `agreedFarePaise` (rejected because commercial state permits and return-toll rules vary from passenger-car API estimates, distorting negotiation bounds and driver net take-home); static text disclaimer with no route toll metadata (rejected where provider toll estimates are available to set upfront rider expectations).  
+**Reason:** Preserves clean negotiation bounds and commission accounting while giving riders and drivers transparent upfront toll expectations.  
+**Affected Components:** `RouteProviderPort` (`GoogleRoutesProvider`), `CreateQuoteUseCase`, `CreateRideUseCase`, `@cabzone/contracts` (`TollInfoDto` on quotes/rides), `docs/LLD/fare-engine.md`, `docs/LLD/geo-reference-and-routing.md`, Rider & Driver Mobile UIs.  
+**Migration/Reversal Strategy:** `tollSnapshot` is optional/nullable on legacy historical rides (`null` rendered as not captured).  
+**Approved by:** Product & Engineering (via OQ-022)
+
+---
+
+## D-046 — Double-Blind Post-Ride Ratings & Trust-Score Display Threshold
+
+**Decision ID:** D-046  
+**Date:** 2026-10-26  
+**Question:** OQ-018 (Trust-score inputs & display threshold) and OQ-019 (Post-ride review visibility & timing)  
+**Status:** Decided (Resolves OQ-018 and OQ-019)
+
+**Decision:**
+1. **Eligibility & One-Review Invariant**:
+   Ratings are permitted strictly on rides in `SETTLED` status within a **7-day (168-hour)** window from `settledAt`. Each ride supports at most two immutable review records — one by `bookerRiderId` rating the assigned `driverId`, and one by `driverId` rating `bookerRiderId` — enforced by a unique `(rideId, reviewerRole)` index (`1`–`5` integer stars plus optional preset feedback tags).
+2. **Double-Blind Reveal Rule**:
+   A submitted review remains `HIDDEN` from the counterparty and excluded from public aggregate counters until **either**:
+   - Both the rider and driver have submitted their reviews for that ride, **or**
+   - The 7-day (`168h`) review window from `settledAt` expires (via scheduled reveal sweep or read-time/submission trigger).
+   Upon reveal, `ratingAverage` and `ratingCount` on the target profile are atomically recomputed/incremented once (`revealedAt` recorded).
+3. **Anti-Fabrication & Minimum Sample Threshold (`>= 5`)**:
+   - Unrated accounts (`ratingCount === 0`) store `0` / `null` rather than a fabricated `5.0` default.
+   - Public-facing rider and driver UIs display `"New"` until `ratingCount >= 5` revealed ratings exist.
+   - Deterministic trust scores incorporate verified completed rides, revealed ratings, true rider/driver cancellations, no-shows, and recorded disputes, and remain hidden publicly until the user has at least `5` completed rides.
+
+**Alternatives Considered:** Immediate single-blind rating aggregation (rejected because drivers/riders taking sparse trips can immediately deduce who gave a low star rating and retaliate); deferring ratings past beta (rejected because trust/rating feedback is core to marketplace quality in a fare-negotiation model).  
+**Reason:** Eliminates retaliatory rating bias and prevents misleading synthetic `5.0` averages on new accounts.  
+**Affected Components:** Reviews/Ratings Domain & Repository, Scheduled Reveal Sweep, `RiderEntity` / `DriverEntity` Aggregates, `calculateTrustScore`, `@cabzone/contracts`, Rider & Driver Mobile Post-Ride / History Screens, Admin Directory Views.  
+**Migration/Reversal Strategy:** Reset or guard any unbacked default averages where `ratingCount < 5` so UIs render `"New"` until 5 real revealed reviews exist.  
+**Approved by:** Product & Engineering (via OQ-018, OQ-019)
+
 ## Explicitly Not Decided by This Log
 
 The PRD does not decide:

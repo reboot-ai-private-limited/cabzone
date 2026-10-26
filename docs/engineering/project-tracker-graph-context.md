@@ -7,7 +7,7 @@ The workbook has 27 tasks: 4 Complete, 2 In Progress, 2 At Risk, and 19 Not Star
 ## Product and documentation
 
 ### Confirm beta scope and launch exclusions
-Not Started · P0. Source: [rider MVP exit criteria](rider-app-architecture-and-implementation-plan.md), [driver release gate](driver-app-architecture-and-implementation-plan.md).
+Decided in docs (sync workbook row) · P0. Internal Beta / Test Staging target, launch exclusions, one-active-ride 9-status guard, next-ride cancellation arrears ledger, non-commissioned toll estimates, and double-blind 7-day ratings are recorded in [D-042–D-046](../decision-log.md) and [Step 1 of dev-to-staging](devtostagestate.md). Source: [rider MVP exit criteria](rider-app-architecture-and-implementation-plan.md), [driver release gate](driver-app-architecture-and-implementation-plan.md).
 
 ### Resolve live wallet provider launch scope
 At Risk · P1. The test wallet flow exists; live funding and payouts have separate prerequisites. Source: [driver wallet money movement](driver-wallet-money-movement.md).
