@@ -71,18 +71,32 @@ export interface RideEventDto {
 }
 
 export type DisputeQueueStatus = 'OPEN' | 'RESOLVED' | 'ALL';
+export type DisputeCollectionFilter = 'ALL' | 'CASH' | 'ONLINE';
+
+export interface PaymentDisputesQuery {
+  status?: DisputeQueueStatus;
+  collection?: DisputeCollectionFilter;
+  search?: string;
+}
 
 export interface PaymentDisputeEvidenceDto {
   paymentCollection: string | null;
   paymentMethod: string | null;
   paymentConfirmedAt: string | null;
+  providerMode?: 'live' | 'test' | null;
   providerOrderId: string | null;
   providerPaymentId: string | null;
   providerQrId: string | null;
+  providerRefundReference?: string | null;
+  receiptReference?: string | null;
+  isDuplicateUpiAfterCash?: boolean;
+  requiresManualProviderRefund?: boolean;
   commissionChargedPaise: number;
   commissionRefundedPaise: number;
   refundTransactionId: string | null;
   onlineEarningsCreditedPaise: number;
+  onlineEarningsReversedPaise?: number;
+  reversalTransactionId?: string | null;
 }
 
 export interface PaymentDisputeQueueItemDto {
@@ -231,19 +245,33 @@ export const ridesApi = {
     request<RideEventDto[]>(`/v1/rides/${rideId}/events`, { method: 'GET', token, signal }),
 
   listPaymentDisputes: (
-    status: DisputeQueueStatus = 'OPEN',
+    queryOrStatus: DisputeQueueStatus | PaymentDisputesQuery = 'OPEN',
     token?: string,
     signal?: AbortSignal,
-  ) =>
-    request<PaymentDisputeQueueItemDto[]>('/v1/rides/payment/disputes', {
+  ) => {
+    const q: PaymentDisputesQuery =
+      typeof queryOrStatus === 'string' ? { status: queryOrStatus } : queryOrStatus;
+    return request<PaymentDisputeQueueItemDto[]>('/v1/rides/payment/disputes', {
       method: 'GET',
-      query: { status, limit: 100, offset: 0 },
+      query: {
+        status: q.status ?? 'OPEN',
+        ...(q.collection && q.collection !== 'ALL' ? { collection: q.collection } : {}),
+        ...(q.search && q.search.trim() ? { search: q.search.trim() } : {}),
+        limit: 100,
+        offset: 0,
+      },
       token,
       signal,
-    }),
+    });
+  },
 
   reconcileEarnings: (
-    body: { mode?: 'AUDIT' | 'BACKFILL_ONLINE_EARNINGS'; driverId?: string } = { mode: 'AUDIT' },
+    body: {
+      mode?: 'AUDIT' | 'BACKFILL_ONLINE_EARNINGS' | 'RECONCILE_PENDING_ONLINE';
+      driverId?: string;
+      rideIds?: string[];
+      verifyProvider?: boolean;
+    } = { mode: 'AUDIT' },
     token?: string,
   ) =>
     request<DriverEarningsReconciliationDto>('/v1/rides/admin/reconcile-earnings', {
@@ -326,13 +354,23 @@ export const ridesApi = {
     rideId: string,
     outcome: 'RIDER_WINS' | 'DRIVER_WINS',
     reason: string,
-    token?: string,
-  ) =>
-    request<AdminRideDto>(`/v1/rides/${rideId}/payment/dispute/resolve`, {
+    optionsOrToken?: string | { refundReference?: string; token?: string },
+  ) => {
+    const token = typeof optionsOrToken === 'string' ? optionsOrToken : optionsOrToken?.token;
+    const refundReference =
+      typeof optionsOrToken === 'object' && optionsOrToken?.refundReference?.trim()
+        ? optionsOrToken.refundReference.trim()
+        : undefined;
+    return request<AdminRideDto>(`/v1/rides/${rideId}/payment/dispute/resolve`, {
       method: 'POST',
-      body: { outcome, reason },
+      body: {
+        outcome,
+        reason,
+        ...(refundReference ? { refundReference } : {}),
+      },
       token,
-    }),
+    });
+  },
 
   cancel: (rideId: string, reason: CancellationReason | string, token?: string) =>
     request<{ ride: AdminRideDto }>(`/v1/rides/${rideId}/cancel`, {

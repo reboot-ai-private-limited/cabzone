@@ -25,6 +25,7 @@ export const TRANSACTION_REFERENCE_TYPES = [
   'ONLINE_RIDE_EARNINGS',
   'WALLET_CASHOUT',
   'CASHOUT_REVERSAL',
+  'ONLINE_EARNINGS_REVERSAL',
 ] as const;
 export type TransactionReferenceType = (typeof TRANSACTION_REFERENCE_TYPES)[number];
 
@@ -188,4 +189,36 @@ export interface AdjustWalletRequestDto {
   type: 'CREDIT' | 'DEBIT';
   amountPaise: number;
   reason: string;
+}
+
+
+export type WalletLedgerReconciliationIssueCode =
+  | 'WALLET_BALANCE_DRIFT'
+  | 'BROKEN_TX_BALANCE_STEP'
+  | 'BROKEN_TX_CHAIN'
+  | 'DUPLICATE_EVENT_POSTING'
+  | 'MISSING_RECHARGE_LEDGER_ENTRY'
+  | 'UNRECONCILED_CAPTURED_RECHARGE'
+  | 'PROVIDER_PAYMENT_UNVERIFIED'
+  | 'CASHOUT_LEDGER_MISMATCH';
+
+export interface WalletLedgerReconciliationIssueDto {
+  code: WalletLedgerReconciliationIssueCode;
+  walletId: string | null;
+  driverId: string | null;
+  operationId?: string | null;
+  transactionId?: string | null;
+  bucket?: 'COMMISSION' | 'EARNINGS' | null;
+  expectedPaise?: number | null;
+  actualPaise?: number | null;
+  detail: string;
+}
+
+export interface WalletLedgerReconciliationDto {
+  mode: 'AUDIT' | 'RECONCILE_PENDING_RECHARGES';
+  checkedWallets: number;
+  cleanWallets: number;
+  checkedOperations: number;
+  reconciledRechargeIds: string[];
+  issues: WalletLedgerReconciliationIssueDto[];
 }

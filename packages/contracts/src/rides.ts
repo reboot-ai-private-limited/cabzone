@@ -243,6 +243,7 @@ export interface DriverRideSettlementDto {
   commissionRefundedPaise: number;
   netCommissionPaise: number;
   netEarningsPaise: number;
+  onlineEarningsReversedPaise?: number;
   settledVia: 'CASH' | 'ONLINE_UPI' | 'UNSETTLED';
 }
 
@@ -328,6 +329,7 @@ export interface DriverEarningsSummaryDto {
   commissionRefundedPaise: number;
   netCommissionPaise: number;
   netEarningsPaise: number;
+  onlineEarningsReversedPaise?: number;
   cancellationCompensationPaise: number;
   unreconciledRidesCount: number;
 }
@@ -345,7 +347,10 @@ export type RideEarningsReconciliationIssueCode =
   | 'CASH_MISSING_COMMISSION'
   | 'AMOUNT_MISMATCH'
   | 'MISSING_DRIVER_WALLET'
-  | 'ORPHAN_LEDGER_RIDE_ENTRY';
+  | 'ORPHAN_LEDGER_RIDE_ENTRY'
+  | 'PROVIDER_CAPTURED_RIDE_UNSETTLED'
+  | 'PROVIDER_SETTLEMENT_MISMATCH'
+  | 'ONLINE_REFUND_MISSING_REVERSAL';
 
 export interface RideEarningsReconciliationIssueDto {
   code: RideEarningsReconciliationIssueCode;
@@ -358,12 +363,14 @@ export interface RideEarningsReconciliationIssueDto {
 }
 
 export interface DriverEarningsReconciliationDto {
-  mode: 'AUDIT' | 'BACKFILL_ONLINE_EARNINGS';
+  mode: 'AUDIT' | 'BACKFILL_ONLINE_EARNINGS' | 'RECONCILE_PENDING_ONLINE';
   checkedSettledRides: number;
   cleanCashRides: number;
   cleanOnlineRides: number;
   backfilledRideIds: string[];
   skippedRideIds: string[];
+  checkedPendingOnlineRides?: number;
+  reconciledPendingRideIds?: string[];
   issues: RideEarningsReconciliationIssueDto[];
 }
 

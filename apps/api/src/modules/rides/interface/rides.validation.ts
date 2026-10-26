@@ -105,6 +105,7 @@ export const paymentDisputeSchema = z.object({ reason: z.string().trim().min(10)
 export const paymentDisputeResolutionSchema = z.object({
   outcome: z.enum(['RIDER_WINS', 'DRIVER_WINS']),
   reason: z.string().trim().min(10).max(1000),
+  refundReference: z.string().trim().min(4).max(128).optional(),
 });
 
 export const submitRideRatingSchema = z
@@ -117,6 +118,8 @@ export const submitRideRatingSchema = z
 
 export const listPaymentDisputesQuerySchema = z.object({
   status: z.enum(['OPEN', 'RESOLVED', 'ALL']).default('OPEN'),
+  collection: z.enum(['ALL', 'CASH', 'ONLINE']).default('ALL'),
+  search: z.string().trim().max(120).optional(),
   limit: z.coerce.number().int().min(1).max(100).default(20),
   offset: z.coerce.number().int().min(0).default(0),
 });
@@ -149,8 +152,11 @@ export const driverHistoryQuerySchema = z.object({
 
 export const reconcileDriverEarningsSchema = z
   .object({
-    mode: z.enum(['AUDIT', 'BACKFILL_ONLINE_EARNINGS']).default('AUDIT'),
+    mode: z
+      .enum(['AUDIT', 'BACKFILL_ONLINE_EARNINGS', 'RECONCILE_PENDING_ONLINE'])
+      .default('AUDIT'),
     driverId: z.string().min(1).max(128).optional(),
     rideIds: z.array(z.string().uuid()).max(200).optional(),
+    verifyProvider: z.boolean().optional(),
   })
   .strict();

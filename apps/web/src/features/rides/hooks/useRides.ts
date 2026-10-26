@@ -2,7 +2,11 @@
 
 import { useQuery } from '@tanstack/react-query';
 import type { RideStatus } from '@cabzone/contracts';
-import { type DisputeQueueStatus, ridesApi } from '@/lib/api/endpoints/rides';
+import {
+  type DisputeQueueStatus,
+  type PaymentDisputesQuery,
+  ridesApi,
+} from '@/lib/api/endpoints/rides';
 import { authedQueryOptions } from '@/lib/query/factory';
 import { keys } from '@/lib/query/keys';
 
@@ -31,11 +35,16 @@ export function useRideEvents(rideId: string | null) {
   });
 }
 
-export function usePaymentDisputes(status: DisputeQueueStatus, enabled = true) {
+export function usePaymentDisputes(
+  queryOrStatus: DisputeQueueStatus | PaymentDisputesQuery,
+  enabled = true,
+) {
+  const query: PaymentDisputesQuery =
+    typeof queryOrStatus === 'string' ? { status: queryOrStatus } : queryOrStatus;
   return useQuery({
     ...authedQueryOptions({
-      queryKey: keys.rides.disputes(status),
-      fetch: (token, signal) => ridesApi.listPaymentDisputes(status, token, signal),
+      queryKey: keys.rides.disputes(query),
+      fetch: (token, signal) => ridesApi.listPaymentDisputes(query, token, signal),
       staleTime: 0,
     }),
     enabled,

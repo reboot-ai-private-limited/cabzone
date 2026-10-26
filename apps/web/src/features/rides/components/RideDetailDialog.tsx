@@ -43,9 +43,17 @@ const CANCEL_OPTIONS = CANCELLATION_REASONS.map((r) => ({
   label: r.replaceAll('_', ' '),
 }));
 
-const DISPUTE_OUTCOME_OPTIONS = [
-  { value: 'RIDER_WINS', label: 'Rider wins — refund driver commission' },
+const CASH_DISPUTE_OUTCOME_OPTIONS = [
+  { value: 'RIDER_WINS', label: 'Rider wins — refund charged commission to driver' },
   { value: 'DRIVER_WINS', label: 'Driver wins — uphold settlement' },
+];
+
+const ONLINE_DISPUTE_OUTCOME_OPTIONS = [
+  {
+    value: 'RIDER_WINS',
+    label: 'Rider wins — record Razorpay refund & reverse online earnings',
+  },
+  { value: 'DRIVER_WINS', label: 'Driver wins — uphold online settlement' },
 ];
 
 function summarizeMetadata(e: RideEventDto): string | null {
@@ -56,8 +64,12 @@ function summarizeMetadata(e: RideEventDto): string | null {
   if (typeof m.reason === 'string' && m.reason.trim()) parts.push(`Reason: ${m.reason}`);
   if (typeof m.method === 'string') parts.push(`Method: ${m.method}`);
   if (typeof m.paymentId === 'string') parts.push(`Payment: ${m.paymentId}`);
+  if (typeof m.refundReference === 'string') parts.push(`Refund Ref: ${m.refundReference}`);
   if (typeof m.refundedCommissionPaise === 'number' && m.refundedCommissionPaise > 0) {
     parts.push(`Refunded commission: ${formatPaise(m.refundedCommissionPaise)}`);
+  }
+  if (typeof m.reversedOnlineEarningsPaise === 'number' && m.reversedOnlineEarningsPaise > 0) {
+    parts.push(`Reversed online earnings: ${formatPaise(m.reversedOnlineEarningsPaise)}`);
   }
   return parts.length > 0 ? parts.join(' · ') : null;
 }
@@ -80,6 +92,7 @@ export function RideDetailDialog({
   const [resolvedRole, setResolvedRole] = useState<AdminRole | null>(adminRoleProp ?? null);
   const [outcome, setOutcome] = useState<'RIDER_WINS' | 'DRIVER_WINS'>('RIDER_WINS');
   const [disputeReason, setDisputeReason] = useState('');
+  const [refundReference, setRefundReference] = useState('');
   const [cancelReason, setCancelReason] = useState<CancellationReason>('ADMIN_OVERRIDE');
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -90,18 +103,38 @@ export function RideDetailDialog({
   useEffect(() => {
     setActionError(null);
     setDisputeReason('');
+    setRefundReference('');
     setOutcome('RIDER_WINS');
     setCancelReason('ADMIN_OVERRIDE');
   }, [ride?.id]);
 
+  const evidence = dispute?.evidence;
+  const eventList = events.data ?? [];
+  const confirmedFromEvents = eventList.find((e) => e.eventType === 'PAYMENT_CONFIRMED');
+  const disputeFromEvents = [...eventList].reverse().find((e) => e.eventType === 'PAYMENT_DISPUTED');
+  const requiresManualProviderRefund =
+    evidence?.requiresManualProviderRefund ??
+    Boolean(
+      confirmedFromEvents?.metadata?.method === 'UPI' ||
+        (confirmedFromEvents &&
+          confirmedFromEvents.metadata?.method !== 'UPI' &&
+          typeof disputeFromEvents?.metadata?.paymentId === 'string') ||
+        ride?.paymentCollection === 'RAZORPAY_UPI' ||
+        ride?.paymentCollection === 'RAZORPAY_TEST',
+    );
+  const needsRefundReference = requiresManualProviderRefund && outcome === 'RIDER_WINS';
+
   const resolveMutation = useMutation({
     mutationFn: async () => {
       if (!ride) throw new Error('No ride selected');
-      return ridesApi.resolvePaymentDispute(ride.id, outcome, disputeReason.trim());
+      return ridesApi.resolvePaymentDispute(ride.id, outcome, disputeReason.trim(), {
+        ...(needsRefundReference ? { refundReference: refundReference.trim() } : {}),
+      });
     },
     onSuccess: (updated) => {
       setActionError(null);
       setDisputeReason('');
+      setRefundReference('');
       void queryClient.invalidateQueries({ queryKey: keys.rides.all() });
       void queryClient.invalidateQueries({ queryKey: keys.wallets.all() });
       onRideUpdated?.(updated);
@@ -138,7 +171,6 @@ export function RideDetailDialog({
       resolvedRole === 'CITY_ADMIN' ||
       resolvedRole === 'SUPPORT_ADMIN');
 
-  const evidence = dispute?.evidence;
   const settlement = ride?.driverSettlement;
 
   return (
@@ -195,6 +227,9 @@ export function RideDetailDialog({
                   {settlement.commissionRefundedPaise > 0
                     ? ` (Refunded ${formatPaise(settlement.commissionRefundedPaise)})`
                     : ''}
+                  {(settlement.onlineEarningsReversedPaise ?? 0) > 0
+                    ? ` (Online earnings reversed ${formatPaise(settlement.onlineEarningsReversedPaise ?? 0)})`
+                    : ''}
                 </span>
               </FieldRow>
             )}
@@ -210,10 +245,15 @@ export function RideDetailDialog({
               aria-label="Dispute Evidence"
               className="rounded-lg border border-border bg-surface-muted/50 p-3.5 flex flex-col gap-2 text-xs"
             >
-              <div className="flex items-center justify-between">
-                <h3 className="font-semibold uppercase tracking-wider text-text">
-                  Dispute &amp; Refund Evidence
-                </h3>
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <h3 className="font-semibold uppercase tracking-wider text-text">
+                    Dispute &amp; Receipt Evidence
+                  </h3>
+                  {dispute.evidence.isDuplicateUpiAfterCash && (
+                    <Badge tone="warning">DUPLICATE UPI AFTER CASH</Badge>
+                  )}
+                </div>
                 {dispute.resolution ? (
                   <Badge tone="success">RESOLVED</Badge>
                 ) : (
@@ -222,26 +262,54 @@ export function RideDetailDialog({
               </div>
               <p className="text-text">
                 <span className="font-semibold">Rider complaint:</span>{' '}
-                {typeof dispute.ticket.metadata?.reason === 'string'
+                {typeof dispute.ticket?.metadata?.reason === 'string'
                   ? dispute.ticket.metadata.reason
                   : '—'}
               </p>
-              <div className="grid grid-cols-2 gap-2 font-mono text-text-subtle pt-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 font-mono text-text-subtle pt-1">
+                <span>Receipt Ref: {dispute.evidence.receiptReference ?? '—'}</span>
                 <span>
-                  Order ID: {dispute.evidence.providerOrderId ?? '—'}
+                  Confirmed At:{' '}
+                  {dispute.evidence.paymentConfirmedAt
+                    ? fmt(dispute.evidence.paymentConfirmedAt)
+                    : '—'}
                 </span>
-                <span>
-                  Payment ID: {dispute.evidence.providerPaymentId ?? '—'}
-                </span>
+                <span>Order ID: {dispute.evidence.providerOrderId ?? '—'}</span>
+                <span>Payment ID: {dispute.evidence.providerPaymentId ?? '—'}</span>
+                {dispute.evidence.providerQrId && (
+                  <span>QR ID: {dispute.evidence.providerQrId}</span>
+                )}
+                {dispute.evidence.providerRefundReference && (
+                  <span className="text-info">
+                    Razorpay Refund Ref: {dispute.evidence.providerRefundReference}
+                  </span>
+                )}
                 <span>
                   Commission charged: {formatPaise(dispute.evidence.commissionChargedPaise)}
                 </span>
                 <span>
                   Commission refunded: {formatPaise(dispute.evidence.commissionRefundedPaise)}
                 </span>
+                {dispute.evidence.onlineEarningsCreditedPaise > 0 && (
+                  <span>
+                    Online earnings credited:{' '}
+                    {formatPaise(dispute.evidence.onlineEarningsCreditedPaise)}
+                  </span>
+                )}
+                {(dispute.evidence.onlineEarningsReversedPaise ?? 0) > 0 && (
+                  <span className="text-warning">
+                    Online earnings reversed:{' '}
+                    {formatPaise(dispute.evidence.onlineEarningsReversedPaise ?? 0)}
+                  </span>
+                )}
                 {dispute.evidence.refundTransactionId && (
-                  <span className="col-span-2">
+                  <span className="sm:col-span-2">
                     Refund Ledger Tx: {dispute.evidence.refundTransactionId}
+                  </span>
+                )}
+                {dispute.evidence.reversalTransactionId && (
+                  <span className="sm:col-span-2">
+                    Reversal Ledger Tx: {dispute.evidence.reversalTransactionId}
                   </span>
                 )}
               </div>
@@ -272,8 +340,26 @@ export function RideDetailDialog({
               <Select
                 value={outcome}
                 onValueChange={(v) => setOutcome(v as 'RIDER_WINS' | 'DRIVER_WINS')}
-                options={DISPUTE_OUTCOME_OPTIONS}
+                options={
+                  requiresManualProviderRefund
+                    ? ONLINE_DISPUTE_OUTCOME_OPTIONS
+                    : CASH_DISPUTE_OUTCOME_OPTIONS
+                }
               />
+              {needsRefundReference && (
+                <div className="flex flex-col gap-1">
+                  <Input
+                    type="text"
+                    value={refundReference}
+                    onChange={(e) => setRefundReference(e.target.value)}
+                    placeholder="Manual Razorpay refund ID (e.g. rfnd_...)..."
+                  />
+                  <span className="text-[11px] text-text-subtle">
+                    Issue the customer refund in Razorpay Dashboard first, then enter its refund
+                    reference to reconcile the ledger once.
+                  </span>
+                </div>
+              )}
               <Input
                 type="text"
                 value={disputeReason}
@@ -284,7 +370,10 @@ export function RideDetailDialog({
                 <Button
                   size="sm"
                   loading={resolveMutation.isPending}
-                  disabled={disputeReason.trim().length < 10}
+                  disabled={
+                    disputeReason.trim().length < 10 ||
+                    (needsRefundReference && refundReference.trim().length < 4)
+                  }
                   onClick={() => resolveMutation.mutate()}
                 >
                   Submit Ruling

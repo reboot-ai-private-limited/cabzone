@@ -26,7 +26,7 @@ export const keys = {
     all: () => ['rides'] as const,
     list: (filter?: unknown) => ['rides', 'list', filter] as const,
     events: (id: string) => ['rides', 'events', id] as const,
-    disputes: (status: string) => ['rides', 'disputes', status] as const,
+    disputes: (query?: unknown) => ['rides', 'disputes', query] as const,
   },
   drivers: {
     all: () => ['drivers'] as const,
