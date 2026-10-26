@@ -39,6 +39,11 @@ function provider() {
       if (name === 'react-native') return {};
       if (name === './auth-context') return { useAuth: () => ({ token: 'token-1' }) };
       if (name === '@/services/api') return { riderRidesApi: api, isApiError: (error) => error?.name === 'ApiError' };
+      if (name === '@/services/storage') return { getOrCreateDeviceId: async () => 'device-id' };
+      if (name === '@/services/push-notifications') return {
+        listenForPushTokenChanges: () => ({ remove() {} }),
+        registerForPushAsync: async () => null,
+      };
       if (name === '@/services/rider-helpers') return {
         extractPendingDriverCounters: () => [],
         isRideActive: () => false,

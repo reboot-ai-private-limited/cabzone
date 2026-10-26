@@ -109,22 +109,34 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
     if (!isAuthenticated || !token || !isKycVerified) return;
     let cancelled = false;
     let subscription: { remove: () => void } | null = null;
+    let appStateSubscription: { remove: () => void } | null = null;
     void getOrCreateDeviceId().then(async (installationId) => {
       if (cancelled) return;
       subscription = listenForPushTokenChanges((pushToken) => {
-        void dispatchApi.registerPushToken(token, pushToken, installationId).catch((error: unknown) => {
-          console.warn('Push token update failed:', error);
-        });
+        void dispatchApi
+          .registerPushToken(token, pushToken, installationId)
+          .catch((error: unknown) => {
+            console.warn('Push token update failed:', error);
+          });
       });
-      const pushToken = await registerForPushAsync();
-      if (!pushToken || cancelled) return;
-      await dispatchApi.registerPushToken(token, pushToken, installationId).catch((error: unknown) => {
-        console.warn('Push registration failed:', error);
+      const register = async () => {
+        const pushToken = await registerForPushAsync();
+        if (!pushToken || cancelled) return;
+        await dispatchApi
+          .registerPushToken(token, pushToken, installationId)
+          .catch((error: unknown) => {
+            console.warn('Push registration failed:', error);
+          });
+      };
+      appStateSubscription = AppState.addEventListener('change', (state) => {
+        if (state === 'active') void register();
       });
+      void register();
     });
     return () => {
       cancelled = true;
       subscription?.remove();
+      appStateSubscription?.remove();
     };
   }, [isAuthenticated, token, isKycVerified]);
 
@@ -226,7 +238,7 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
           seenRideIds.add(offer.rideId);
           return true;
         });
-        setRideError((previous) => previous?.startsWith(OFFER_CHECK_ERROR) ? null : previous);
+        setRideError((previous) => (previous?.startsWith(OFFER_CHECK_ERROR) ? null : previous));
 
         // Alert driver with sound/vibration/banner when a brand-new offer arrives
         for (const offer of valid) {
@@ -298,7 +310,9 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
           }
         }
       } catch (err: unknown) {
-        setRideError(`${OFFER_CHECK_ERROR}: ${err instanceof Error ? err.message : 'Check your connection and try again.'}`);
+        setRideError(
+          `${OFFER_CHECK_ERROR}: ${err instanceof Error ? err.message : 'Check your connection and try again.'}`,
+        );
       } finally {
         inFlightOffersRef.current = false;
         const nextRefresh = queuedOffersRefreshRef.current;
@@ -324,9 +338,12 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
       return earliest === null || ms < earliest ? ms : earliest;
     }, null);
     if (nextExpiryMs === null) return;
-    const timer = setTimeout(() => {
-      setOffers((prev) => prev.filter(isRideOfferValid));
-    }, Math.max(0, nextExpiryMs - Date.now()));
+    const timer = setTimeout(
+      () => {
+        setOffers((prev) => prev.filter(isRideOfferValid));
+      },
+      Math.max(0, nextExpiryMs - Date.now()),
+    );
     return () => clearTimeout(timer);
   }, [offers]);
 
@@ -476,7 +493,8 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
             frame.event === 'ride.cancelled'
           ) {
             const rideId = frame.data?.rideId;
-            if (rideId) setOffers((previous) => previous.filter((offer) => offer.rideId !== rideId));
+            if (rideId)
+              setOffers((previous) => previous.filter((offer) => offer.rideId !== rideId));
             resync();
           } else if (frame.event?.startsWith('ride.')) {
             resync();
@@ -488,7 +506,10 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
       socket.onclose = () => {
         setSocketConnected(false);
         if (!stopped && AppState.currentState === 'active') {
-          reconnectTimer = setTimeout(connect, Math.min(30_000, 1000 * 2 ** Math.min(retries++, 5)));
+          reconnectTimer = setTimeout(
+            connect,
+            Math.min(30_000, 1000 * 2 ** Math.min(retries++, 5)),
+          );
         }
       };
       socket.onerror = () => socket?.close();
@@ -632,7 +653,9 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
         return updated;
       } catch (err: unknown) {
         setRideError(
-          err instanceof Error ? err.message : 'Invalid pickup OTP. Please ask the passenger again.',
+          err instanceof Error
+            ? err.message
+            : 'Invalid pickup OTP. Please ask the passenger again.',
         );
         return null;
       } finally {
@@ -747,7 +770,8 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
         confirmDirectPayment,
         cancelTrip,
         fetchRideDetail,
-      }}>
+      }}
+    >
       {children}
     </RideContext.Provider>
   );

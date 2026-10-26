@@ -36,8 +36,9 @@ async function sendToExpo(messages: Array<Record<string, unknown>>): Promise<Exp
     }
     if (!res) throw new Error('Expo push unavailable');
     if (!res.ok) throw new Error(`Expo push rejected with HTTP ${res.status}`);
-    const body = await res.json() as { data?: ExpoResult[] };
-    if (!Array.isArray(body.data) || body.data.length !== batch.length) throw new Error('Invalid Expo push ticket response');
+    const body = (await res.json()) as { data?: ExpoResult[] };
+    if (!Array.isArray(body.data) || body.data.length !== batch.length)
+      throw new Error('Invalid Expo push ticket response');
     tickets.push(...body.data);
   }
   return tickets;
@@ -50,7 +51,7 @@ async function readReceipts(ids: string[]): Promise<Record<string, ExpoResult>> 
     body: JSON.stringify({ ids }),
   });
   if (!res.ok) throw new Error(`Expo receipts rejected with HTTP ${res.status}`);
-  const body = await res.json() as { data?: Record<string, ExpoResult> };
+  const body = (await res.json()) as { data?: Record<string, ExpoResult> };
   if (!body.data || typeof body.data !== 'object') throw new Error('Invalid Expo receipt response');
   return body.data;
 }
@@ -77,7 +78,13 @@ export class ExpoPushService {
   /** Best effort: never throws. */
   async notify(
     userIds: string[],
-    message: { title: string; body: string; data?: Record<string, unknown>; expiresAt?: Date | null },
+    message: {
+      title: string;
+      body: string;
+      data?: Record<string, unknown>;
+      expiresAt?: Date | null;
+      channelId?: string;
+    },
   ): Promise<void> {
     try {
       if (message.expiresAt && message.expiresAt <= new Date()) return;
@@ -86,12 +93,14 @@ export class ExpoPushService {
         to,
         sound: 'default',
         priority: 'high',
-        channelId: 'ride-offers',
-        ...(expiresAt ? { ttl: Math.max(1, Math.floor((expiresAt.getTime() - Date.now()) / 1000)) } : {}),
+        channelId: message.channelId ?? 'ride-offers',
+        ...(expiresAt
+          ? { ttl: Math.max(1, Math.floor((expiresAt.getTime() - Date.now()) / 1000)) }
+          : {}),
         ...content,
       }));
       if (messages.length === 0) return;
-      const tickets = await this.sender(messages) ?? [];
+      const tickets = (await this.sender(messages)) ?? [];
       for (const [index, ticket] of tickets.entries()) {
         const token = messages[index]?.to;
         if (typeof token !== 'string') continue;
@@ -119,7 +128,8 @@ export class ExpoPushService {
           await this.receipts.postpone(item.id, new Date(now.getTime() + 15 * 60_000));
           continue;
         }
-        if (result.details?.error === 'DeviceNotRegistered') await this.tokens.removeToken(item.token);
+        if (result.details?.error === 'DeviceNotRegistered')
+          await this.tokens.removeToken(item.token);
         else if (result.status === 'error') {
           logger.warn({ reason: result.details?.error ?? 'unknown' }, 'expo push receipt failed');
         }
@@ -127,7 +137,8 @@ export class ExpoPushService {
       }
     } catch (err) {
       logger.warn({ err: String(err) }, 'expo receipt check failed');
-      for (const item of pending) await this.receipts.postpone(item.id, new Date(now.getTime() + 60_000));
+      for (const item of pending)
+        await this.receipts.postpone(item.id, new Date(now.getTime() + 60_000));
     }
   }
 }

@@ -467,3 +467,26 @@ export const riderRidesApi = {
     );
   },
 };
+
+export const riderPushApi = {
+  async register(token: string, pushToken: string, installationId: string): Promise<void> {
+    await request(
+      '/api/v1/push-token',
+      {
+        method: 'POST',
+        body: JSON.stringify({ token: pushToken, installationId }),
+      },
+      token,
+    );
+  },
+  async unregister(token: string, installationId: string): Promise<void> {
+    await request(
+      '/api/v1/push-token',
+      {
+        method: 'DELETE',
+        body: JSON.stringify({ installationId }),
+      },
+      token,
+    );
+  },
+};

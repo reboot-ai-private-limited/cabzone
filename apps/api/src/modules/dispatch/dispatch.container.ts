@@ -36,8 +36,9 @@ import {
   makeListFleetController,
   makeSimulateFleetController,
 } from './interface/adminDispatch.controller.js';
-import { buildDispatchRouter } from './interface/dispatch.routes.js';
+import { buildDispatchRouter, buildPushTokenRouter } from './interface/dispatch.routes.js';
 import { buildAdminDispatchRouter } from './interface/adminDispatch.routes.js';
+import { registerPushTokenSwaggerPaths } from './interface/dispatch.swagger.js';
 
 export interface DispatchContainerDeps {
   presence: DriverPresencePort;
@@ -64,6 +65,7 @@ export interface DispatchContainer {
     authenticate: RequestHandler;
     requireRole: (...roles: AuthRole[]) => RequestHandler;
   }) => Router;
+  buildPushTokenRouter: (authenticate: RequestHandler) => Router;
   buildAdminDispatchRouter: (auth: {
     authenticate: RequestHandler;
     requireRole: (...roles: AuthRole[]) => RequestHandler;
@@ -71,6 +73,7 @@ export interface DispatchContainer {
 }
 
 export function buildDispatchContainer(deps: DispatchContainerDeps): DispatchContainer {
+  registerPushTokenSwaggerPaths();
   const config: DispatchConfig = { ...DEFAULT_DISPATCH_CONFIG, ...deps.config };
   const eligibility = new DriverOfferEligibility(deps.walletRepo, deps.rideRepo);
   const findCandidates = new FindCandidateDriversUseCase(deps.presence, eligibility, config);
@@ -120,6 +123,12 @@ export function buildDispatchContainer(deps: DispatchContainerDeps): DispatchCon
         getStatus: makeGetStatusController(setStatus),
         updateLocation: makeUpdateLocationController(updateLocation),
         listOffers: makeListOffersController(listDriverOffersUseCase),
+        registerPushToken: makeRegisterPushTokenController(push),
+        unregisterPushToken: makeUnregisterPushTokenController(push),
+      }),
+    buildPushTokenRouter: (authenticate) =>
+      buildPushTokenRouter({
+        authenticate,
         registerPushToken: makeRegisterPushTokenController(push),
         unregisterPushToken: makeUnregisterPushTokenController(push),
       }),

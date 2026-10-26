@@ -88,6 +88,7 @@ export function buildApiRouter(c: AppContainers): Router {
   router.use('/v1/admin/wallets', c.ledger.buildAdminWalletRouter(walletAuth));
   router.use('/v1/driver/wallet', c.ledger.buildDriverWalletRouter(walletAuth));
   router.use('/v1/driver', c.dispatch.buildDispatchRouter(walletAuth));
+  router.use('/v1/push-token', c.dispatch.buildPushTokenRouter(c.identity.authenticate));
   router.use('/v1/admin/dispatch', c.dispatch.buildAdminDispatchRouter(walletAuth));
   router.use(
     '/v1/rides',

@@ -9,6 +9,8 @@ module.exports = {
   addNotificationResponseReceivedListener: () => ({ remove: () => {} }),
   addPushTokenListener: () => ({ remove: () => {} }),
   getLastNotificationResponseAsync: async () => null,
+  getLastNotificationResponse: () => null,
+  clearLastNotificationResponse: () => {},
   AndroidImportance: {
     MAX: 5,
     HIGH: 4,

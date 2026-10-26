@@ -405,6 +405,37 @@ describe('Driver presence', () => {
 });
 
 describe('Dispatch: offers', () => {
+  it('registers rider tokens and pushes assignment after the rider disconnects', async () => {
+    const s = await setup();
+    const docs = await request(s.app).get('/api/docs/json');
+    expect(docs.body.paths['/v1/push-token']).toMatchObject({ post: {}, delete: {} });
+    const registration = await request(s.app)
+      .post('/api/v1/push-token')
+      .set('Authorization', s.bearer(s.riderToken))
+      .send({ token: 'ExpoPushToken[rider-test-token]', installationId: 'rider-device' });
+    expect(registration.status).toBe(200);
+    expect((await request(s.app).post('/api/v1/push-token').send({})).status).toBe(401);
+
+    await s.goOnline('near');
+    const rider = await s.listen(s.riderToken);
+    const notify = vi.spyOn(s.push, 'notify').mockResolvedValue();
+    const rideId = (await s.requestRide()).body.data.id as string;
+    await new Promise<void>((resolve) => {
+      rider.ws.once('close', () => resolve());
+      rider.ws.close();
+    });
+    notify.mockClear();
+
+    const accepted = await request(s.app)
+      .post(`/api/v1/rides/${rideId}/accept`)
+      .set('Authorization', s.bearer(s.tokens['near']!));
+    expect(accepted.status).toBe(200);
+    expect(notify).toHaveBeenCalledWith([RIDER_USER], expect.objectContaining({
+      channelId: 'ride-updates',
+      data: expect.objectContaining({ type: 'ride.driver.assigned', rideId }),
+    }));
+  });
+
   it('sends fallback push only to candidates without a foreground socket', async () => {
     const s = await setup();
     await s.goOnline('near');

@@ -33,7 +33,11 @@ export class RideRealtimeNotifier implements RideNotifierPort, DriverLocationObs
     try {
       const candidates = await this.findCandidates.execute(ride);
       if (ride.offeringExpiresAt) {
-        await this.offerRecipients?.save(ride.id, candidates.map((driver) => driver.userId), ride.offeringExpiresAt);
+        await this.offerRecipients?.save(
+          ride.id,
+          candidates.map((driver) => driver.userId),
+          ride.offeringExpiresAt,
+        );
       }
       for (const driver of candidates) {
         this.publisher.publishToUser(
@@ -44,20 +48,23 @@ export class RideRealtimeNotifier implements RideNotifierPort, DriverLocationObs
       }
       // Presence is user-scoped; a foreground session suppresses push to that user's installations.
       const backgroundUsers = this.push
-        ? (await Promise.all(candidates.map(async (d) => ({
-          userId: d.userId,
-          connected: await this.publisher.isConnected(d.userId),
-        })))).filter((d) => !d.connected).map((d) => d.userId)
+        ? (
+            await Promise.all(
+              candidates.map(async (d) => ({
+                userId: d.userId,
+                connected: await this.publisher.isConnected(d.userId),
+              })),
+            )
+          )
+            .filter((d) => !d.connected)
+            .map((d) => d.userId)
         : [];
-      void this.push?.notify(
-        backgroundUsers,
-        {
-          title: 'New ride request',
-          body: `₹${Math.round((ride.proposedFarePaise ?? ride.suggestedFarePaise) / 100)} offered. Open Cabzone to view the request.`,
-          data: { type: 'ride.offer.created', rideId: ride.id, rideVersion: ride.version },
-          expiresAt: ride.offeringExpiresAt,
-        },
-      );
+      void this.push?.notify(backgroundUsers, {
+        title: 'New ride request',
+        body: `₹${Math.round((ride.proposedFarePaise ?? ride.suggestedFarePaise) / 100)} offered. Open Cabzone to view the request.`,
+        data: { type: 'ride.offer.created', rideId: ride.id, rideVersion: ride.version },
+        expiresAt: ride.offeringExpiresAt,
+      });
       logger.info({ rideId: ride.id, offered: candidates.length }, 'ride offers dispatched');
     } catch (err) {
       logger.warn({ rideId: ride.id, err: String(err) }, 'offer dispatch failed');
@@ -88,6 +95,35 @@ export class RideRealtimeNotifier implements RideNotifierPort, DriverLocationObs
           event,
           pickupOtp === undefined ? base : { ...base, pickupOtp },
         );
+        if (this.push && !(await this.publisher.isConnected(riderUserId))) {
+          const notice =
+            event === 'ride.driver.assigned'
+              ? { title: 'Driver found', body: 'Your driver has accepted the ride.' }
+              : event === 'ride.driver.en_route'
+                ? {
+                    title: 'Driver on the way',
+                    body: 'Your driver is heading to the pickup point.',
+                  }
+                : event === 'ride.driver.arrived'
+                  ? { title: 'Driver arrived', body: 'Your driver is at the pickup point.' }
+                  : event === 'ride.started'
+                    ? { title: 'Ride started', body: 'Your trip is now underway.' }
+                    : event === 'ride.offer.expired'
+                      ? {
+                          title: 'Ride request expired',
+                          body: 'Your ride request needs another offer.',
+                        }
+                      : event === 'ride.cancelled'
+                        ? { title: 'Ride cancelled', body: 'Your ride has been cancelled.' }
+                        : null;
+          if (notice)
+            void this.push.notify([riderUserId], {
+              title: notice.title,
+              body: notice.body,
+              channelId: 'ride-updates',
+              data: { type: event, rideId: ride.id, rideVersion: ride.version },
+            });
+        }
       }
       if (ride.driverId) {
         const driverUserId = await this.lookups.getUserIdForDriver(ride.driverId);
@@ -108,16 +144,31 @@ export class RideRealtimeNotifier implements RideNotifierPort, DriverLocationObs
           this.publisher.publishToUser(driver.userId, event, base);
         }
       }
-      if (event === 'ride.driver.assigned' || event === 'ride.offer.expired' || event === 'ride.cancelled') {
-        const recipients = await this.offerRecipients?.take(ride.id) ?? [];
-        const winnerUserId = ride.driverId ? await this.lookups.getUserIdForDriver(ride.driverId) : null;
+      if (
+        event === 'ride.driver.assigned' ||
+        event === 'ride.offer.expired' ||
+        event === 'ride.cancelled'
+      ) {
+        const recipients = (await this.offerRecipients?.take(ride.id)) ?? [];
+        const winnerUserId = ride.driverId
+          ? await this.lookups.getUserIdForDriver(ride.driverId)
+          : null;
         for (const userId of recipients) {
           if (userId === winnerUserId) continue;
-          this.publisher.publishToUser(userId, event === 'ride.driver.assigned' ? 'ride.offer.taken' : event, {
-            rideId: ride.id,
-            rideVersion: ride.version,
-            reason: event === 'ride.driver.assigned' ? 'TAKEN' : event === 'ride.offer.expired' ? 'EXPIRED' : 'CANCELLED',
-          });
+          this.publisher.publishToUser(
+            userId,
+            event === 'ride.driver.assigned' ? 'ride.offer.taken' : event,
+            {
+              rideId: ride.id,
+              rideVersion: ride.version,
+              reason:
+                event === 'ride.driver.assigned'
+                  ? 'TAKEN'
+                  : event === 'ride.offer.expired'
+                    ? 'EXPIRED'
+                    : 'CANCELLED',
+            },
+          );
         }
       }
     } catch (err) {
@@ -141,9 +192,26 @@ export class RideRealtimeNotifier implements RideNotifierPort, DriverLocationObs
         event === 'ride.fare.countered'
           ? await this.lookups.getUserIdForRider(ride.bookerRiderId)
           : await this.lookups.getUserIdForDriver(payload.driverId);
-      if (userId) this.publisher.publishToUser(userId, event, body);
+      if (userId) {
+        this.publisher.publishToUser(userId, event, body);
+        if (
+          event === 'ride.fare.countered' &&
+          this.push &&
+          !(await this.publisher.isConnected(userId))
+        ) {
+          void this.push.notify([userId], {
+            title: 'Driver offered a fare',
+            body: 'Review the driver’s counter-offer.',
+            channelId: 'ride-updates',
+            data: { type: event, rideId: ride.id, rideVersion: ride.version },
+          });
+        }
+      }
     } catch (err) {
-      logger.warn({ rideId: ride.id, event, err: String(err) }, 'fare negotiation notification failed');
+      logger.warn(
+        { rideId: ride.id, event, err: String(err) },
+        'fare negotiation notification failed',
+      );
     }
   }
 

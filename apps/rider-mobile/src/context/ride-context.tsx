@@ -12,6 +12,7 @@ import type { CancellationReason, RideEventDto } from '@cabzone/contracts';
 import {
   getRealtimeWsUrl,
   isApiError,
+  riderPushApi,
   riderRidesApi,
   type CreateRiderRidePayload,
   type RiderRideViewDto,
@@ -22,6 +23,8 @@ import {
   type PendingDriverCounter,
 } from '@/services/rider-helpers';
 import { useAuth } from './auth-context';
+import { getOrCreateDeviceId } from '@/services/storage';
+import { listenForPushTokenChanges, registerForPushAsync } from '@/services/push-notifications';
 
 export interface BookingDraft {
   mode: 'IN_CITY' | 'OUTSTATION';
@@ -87,6 +90,37 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     activeRideIdRef.current = activeRide?.id ?? null;
   }, [activeRide?.id]);
+
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    let subscription: { remove: () => void } | null = null;
+    let appStateSubscription: { remove: () => void } | null = null;
+    void getOrCreateDeviceId().then(async (installationId) => {
+      if (cancelled) return;
+      subscription = listenForPushTokenChanges((pushToken) => {
+        void riderPushApi.register(token, pushToken, installationId).catch((error: unknown) => {
+          console.warn('Push token update failed:', error);
+        });
+      });
+      const register = async () => {
+        const pushToken = await registerForPushAsync();
+        if (!pushToken || cancelled) return;
+        await riderPushApi.register(token, pushToken, installationId).catch((error: unknown) => {
+          console.warn('Push registration failed:', error);
+        });
+      };
+      appStateSubscription = AppState.addEventListener('change', (state) => {
+        if (state === 'active') void register();
+      });
+      void register();
+    });
+    return () => {
+      cancelled = true;
+      subscription?.remove();
+      appStateSubscription?.remove();
+    };
+  }, [token]);
 
   const handleSyncError = useCallback((error: unknown) => {
     if (isApiError(error) && error.code === 'SESSION_CHANGED') return;
@@ -179,7 +213,7 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
     let attempt = 0;
 
     const connect = () => {
-      if (closed) return;
+      if (closed || (AppState.currentState ?? 'active') !== 'active') return;
       try {
         ws = new WebSocket(getRealtimeWsUrl(token));
       } catch {
@@ -244,14 +278,14 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
 
       ws.onclose = () => {
         setIsRealtimeConnected(false);
-        if (!closed) {
+        if (!closed && (AppState.currentState ?? 'active') === 'active') {
           scheduleReconnect();
         }
       };
     };
 
     const scheduleReconnect = () => {
-      if (closed) return;
+      if (closed || (AppState.currentState ?? 'active') !== 'active') return;
       if (reconnectTimer) clearTimeout(reconnectTimer);
       const delay = Math.min(1000 * Math.pow(2, attempt), 12000);
       attempt += 1;
@@ -259,10 +293,19 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
     };
 
     connect();
+    const appState = AppState.addEventListener('change', (state) => {
+      if (state !== 'active') {
+        if (reconnectTimer) clearTimeout(reconnectTimer);
+        ws?.close();
+      } else if (!ws || ws.readyState === WebSocket.CLOSED) {
+        connect();
+      }
+    });
 
     return () => {
       closed = true;
       if (reconnectTimer) clearTimeout(reconnectTimer);
+      appState.remove();
       if (ws) {
         try {
           ws.close();

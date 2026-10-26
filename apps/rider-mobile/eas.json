@@ -1,0 +1,10 @@
+{
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "env": { "EXPO_USE_PUSH": "1" },
+      "android": { "buildType": "apk" }
+    }
+  }
+}

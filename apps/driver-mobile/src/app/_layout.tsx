@@ -20,20 +20,25 @@ function NotificationNavigator() {
     import('expo-notifications')
       .then((Notifications) => {
         if (!active) return;
-        const handle = async (response: NonNullable<ReturnType<typeof Notifications.getLastNotificationResponse>>) => {
+        const handle = async (
+          response: NonNullable<ReturnType<typeof Notifications.getLastNotificationResponse>>,
+        ) => {
           const notification = response.notification;
           if (handledRef.current === notification.request.identifier) return;
           handledRef.current = notification.request.identifier;
           const { type, rideId } = notification.request.content.data ?? {};
           try {
-            if (type === 'ride.offer.created' && typeof rideId === 'string') {
+            const validRideId = typeof rideId === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(rideId);
+            if (type === 'ride.offer.created' && validRideId) {
               const offers = await dispatchApi.listOffers(token);
               await refreshOffers();
               router.push('/(driver)/(tabs)/home');
-              if (!offers.some((offer) => offer.rideId === rideId)) Alert.alert('Ride no longer available');
-            } else if (type === 'ride.driver.assigned' && typeof rideId === 'string') {
+              if (!offers.some((offer) => offer.rideId === rideId))
+                Alert.alert('Ride no longer available');
+            } else if (type === 'ride.driver.assigned' && validRideId) {
               const ride = await refreshActiveRide(rideId);
-              if (ride && ACTIVE_RIDE_STATUSES.has(ride.status)) router.push(`/(driver)/ride/${rideId}`);
+              if (ride && ACTIVE_RIDE_STATUSES.has(ride.status))
+                router.push(`/(driver)/ride/${rideId}`);
               else router.push('/(driver)/(tabs)/home');
             } else {
               router.push('/(driver)/(tabs)/home');

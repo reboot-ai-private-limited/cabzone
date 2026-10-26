@@ -1,19 +1,9 @@
-import React, {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-} from 'react';
-import type {
-  AuthenticatedUserSummary,
-  RiderDto,
-  UpdateRiderProfileDto,
-} from '@cabzone/contracts';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import type { AuthenticatedUserSummary, RiderDto, UpdateRiderProfileDto } from '@cabzone/contracts';
 import {
   authApi,
   isApiError,
+  riderPushApi,
   riderProfileApi,
   subscribeAccessToken,
 } from '@/services/api';
@@ -83,10 +73,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsBootstrapping(true);
     setBootstrapError(null);
     try {
-      const [storedToken, storedUser] = await Promise.all([
-        getAccessToken(),
-        getAuthUser(),
-      ]);
+      const [storedToken, storedUser] = await Promise.all([getAccessToken(), getAuthUser()]);
 
       if (!storedToken) {
         setToken(null);
@@ -232,6 +219,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = useCallback(async () => {
     const activeToken = token;
+    if (activeToken) {
+      await riderPushApi.unregister(activeToken, await getOrCreateDeviceId()).catch(() => {});
+    }
     await clearAuthTokens();
     setToken(null);
     setUser(null);

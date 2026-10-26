@@ -8,7 +8,8 @@
     "scheme": "drivermobile",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/images/icon.png"
+      "icon": "./assets/images/icon.png",
+      "bundleIdentifier": "com.cabzone.driver"
     },
     "android": {
       "adaptiveIcon": {

@@ -11,6 +11,16 @@ export interface DispatchRouterDeps {
   unregisterPushToken: RequestHandler;
 }
 
+export function buildPushTokenRouter(
+  deps: Pick<DispatchRouterDeps, 'authenticate' | 'registerPushToken' | 'unregisterPushToken'>,
+): Router {
+  const router = Router();
+  router.use(deps.authenticate);
+  router.post('/', deps.registerPushToken);
+  router.delete('/', deps.unregisterPushToken);
+  return router;
+}
+
 export function buildDispatchRouter(deps: DispatchRouterDeps): Router {
   const router = Router();
   router.use(deps.authenticate);
