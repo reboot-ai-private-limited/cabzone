@@ -135,6 +135,17 @@ export function buildContainers(overrides?: Partial<AppContainers>): AppContaine
     buildPricingContainer({
       unitOfWork,
       pricingConfigRepo: new MongoPricingConfigRepository(),
+      walletRepo,
+      resolveRiderIdFromAuthHeader: async (authHeader) => {
+        if (!authHeader?.startsWith('Bearer ') || !identity.verifyToken) return null;
+        try {
+          const auth = await identity.verifyToken(authHeader.slice(7).trim());
+          if (auth.role !== 'RIDER') return null;
+          return (await riderRepo.findByUserId(auth.userId))?.id ?? null;
+        } catch {
+          return null;
+        }
+      },
       serviceClassificationUseCase: zone.serviceClassificationUseCase,
       tokenSecret: env.JWT_ACCESS_SECRET,
       routingUseCase: routing.getRouteUseCase,
@@ -229,6 +240,11 @@ export function buildContainers(overrides?: Partial<AppContainers>): AppContaine
           };
         },
         getUserIdForRider: async (riderId) => (await riderRepo.findById(riderId))?.userId ?? null,
+        isPointInCityZones: async (lat, lng, cityZoneIds) => {
+          if (cityZoneIds.length === 0) return false;
+          const containing = await zone.zoneRepo.findActiveCitiesContainingPoint({ lat, lng });
+          return containing.some((z) => cityZoneIds.includes(z.id));
+        },
         getUserIdForDriver: async (driverId) =>
           (await driverRepo.findById(driverId))?.userId ?? null,
         getDriverInfo: async (driverId) => {

@@ -1,4 +1,6 @@
+import { ACTIVE_RIDE_STATUSES } from '@cabzone/contracts';
 import type {
+  RideCountFilter,
   RideEntity,
   RideListFilter,
   RideRepositoryPort,
@@ -8,6 +10,35 @@ import { RideModel, type RideDocument } from './ride.model.js';
 import { AppError } from '../../../../shared/errors/AppError.js';
 
 export class MongoRideRepository implements RideRepositoryPort {
+  async ensureReady(): Promise<void> {
+    await RideModel.init();
+  }
+
+  async create(ride: RideEntity): Promise<RideEntity> {
+    const [doc] = await RideModel.create([this.toPersistence(ride)]);
+    return this.toEntity(doc!.toObject());
+  }
+
+  private buildQuery(filter: RideCountFilter): Record<string, unknown> {
+    const query: Record<string, unknown> = {};
+    if (filter.riderId !== undefined) {
+      query['$or'] = [
+        { booker_rider_id: filter.riderId },
+        { 'passenger.rider_id': filter.riderId },
+      ];
+    }
+    if (filter.driverId !== undefined) query.driver_id = filter.driverId;
+    if (filter.statuses !== undefined) query.status = { $in: filter.statuses };
+    if (filter.vehicleCategory !== undefined) query.vehicle_category = filter.vehicleCategory;
+    if (filter.cityZoneIds !== undefined) {
+      query['zone_snapshot.city_zone_id'] = { $in: filter.cityZoneIds };
+    }
+    if (filter.offeringExpiresAfter !== undefined) {
+      query.offering_expires_at = { $gt: filter.offeringExpiresAfter };
+    }
+    return query;
+  }
+
   async update(ride: RideEntity, expectedVersion: number): Promise<RideEntity | null> {
     const doc = await RideModel.findOneAndUpdate(
       { _id: ride.id, version: expectedVersion },
@@ -36,27 +67,57 @@ export class MongoRideRepository implements RideRepositoryPort {
     return doc ? this.toEntity(doc) : null;
   }
 
-  async list(filter: RideListFilter): Promise<RideEntity[]> {
-    const query: Record<string, unknown> = {};
-    if (filter.riderId !== undefined) {
-      query['$or'] = [
-        { booker_rider_id: filter.riderId },
-        { 'passenger.rider_id': filter.riderId },
-      ];
-    }
-    if (filter.driverId !== undefined) query.driver_id = filter.driverId;
-    if (filter.statuses !== undefined) query.status = { $in: filter.statuses };
-    if (filter.vehicleCategory !== undefined) query.vehicle_category = filter.vehicleCategory;
-    if (filter.offeringExpiresAfter !== undefined) {
-      query.offering_expires_at = { $gt: filter.offeringExpiresAfter };
-    }
+  async findActiveByBookerRiderId(bookerRiderId: string): Promise<RideEntity | null> {
+    const doc = await RideModel.findOne({
+      booker_rider_id: bookerRiderId,
+      status: { $in: [...ACTIVE_RIDE_STATUSES] },
+    })
+      .lean<RideDocument | null>()
+      .exec();
+    return doc ? this.toEntity(doc) : null;
+  }
 
+  async findByBookerIdempotencyKey(
+    bookerRiderId: string,
+    idempotencyKey: string,
+  ): Promise<RideEntity | null> {
+    const doc = await RideModel.findOne({
+      booker_rider_id: bookerRiderId,
+      idempotency_key: idempotencyKey,
+    })
+      .lean<RideDocument | null>()
+      .exec();
+    return doc ? this.toEntity(doc) : null;
+  }
+
+  async list(filter: RideListFilter): Promise<RideEntity[]> {
+    const query = this.buildQuery(filter);
     const docs = await RideModel.find(query)
       .sort({ created_at: -1 })
       .skip(filter.offset)
       .limit(filter.limit)
       .lean<RideDocument[]>()
       .exec();
+    return docs.map((d) => this.toEntity(d));
+  }
+
+  async count(filter: RideCountFilter): Promise<number> {
+    return RideModel.countDocuments(this.buildQuery(filter)).exec();
+  }
+
+  async listDriverRidesInWindow(driverId: string, since: Date | null): Promise<RideEntity[]> {
+    // ponytail: per-driver document scan; add daily driver_earnings_rollups if lifetime rides/driver > 50k
+    const query: Record<string, unknown> = { driver_id: driverId };
+    if (since) {
+      query['$or'] = [
+        { settled_at: { $gte: since } },
+        { completed_at: { $gte: since } },
+        { cancelled_at: { $gte: since } },
+        { updated_at: { $gte: since } },
+        { created_at: { $gte: since } },
+      ];
+    }
+    const docs = await RideModel.find(query).sort({ created_at: -1 }).lean<RideDocument[]>().exec();
     return docs.map((d) => this.toEntity(d));
   }
 
@@ -309,6 +370,7 @@ export class MongoRideRepository implements RideRepositoryPort {
     return {
       _id: ride.id,
       booker_rider_id: ride.bookerRiderId,
+      idempotency_key: ride.idempotencyKey ?? null,
       passenger: {
         rider_id: ride.passenger.riderId,
         name: ride.passenger.name,
@@ -337,6 +399,7 @@ export class MongoRideRepository implements RideRepositoryPort {
       suggested_fare_paise: ride.suggestedFarePaise,
       proposed_fare_paise: ride.proposedFarePaise,
       agreed_fare_paise: ride.agreedFarePaise,
+      arrears_paise: ride.arrearsPaise ?? 0,
       status: ride.status,
       cancellation_reason: ride.cancellationReason,
       offering_expires_at: ride.offeringExpiresAt,
@@ -354,6 +417,7 @@ export class MongoRideRepository implements RideRepositoryPort {
     return {
       id: doc._id,
       bookerRiderId: doc.booker_rider_id,
+      idempotencyKey: doc.idempotency_key ?? null,
       passenger: {
         riderId: doc.passenger.rider_id,
         name: doc.passenger.name,
@@ -382,6 +446,7 @@ export class MongoRideRepository implements RideRepositoryPort {
       suggestedFarePaise: doc.suggested_fare_paise,
       proposedFarePaise: doc.proposed_fare_paise,
       agreedFarePaise: doc.agreed_fare_paise,
+      arrearsPaise: doc.arrears_paise ?? 0,
       status: doc.status,
       cancellationReason: doc.cancellation_reason,
       offeringExpiresAt: doc.offering_expires_at,

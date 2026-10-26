@@ -274,6 +274,7 @@ export function buildIdentityContainer(deps?: IdentityContainerDeps): IdentityCo
   const updateSelfRiderProfileUseCase = new UpdateSelfRiderProfileUseCase(riderProfileDeps);
 
   const authenticate = makeAuthenticate({
+    adminRepo,
     tokenVerifier: tokenAdapter,
     sessionRepo,
   });
@@ -343,6 +344,7 @@ export function buildIdentityContainer(deps?: IdentityContainerDeps): IdentityCo
         authenticate,
         // Applications currently have no authoritative city assignment.
         requireAdminRole: requireRole('SUPER_ADMIN'),
+        requireReadRole: requireRole('SUPER_ADMIN', 'SUPPORT_ADMIN', 'FINANCE_ADMIN'),
         reviewApplication: makeReviewDriverApplicationController(reviewDriverApplicationUseCase),
         updateDriverStatus: makeUpdateDriverStatusController(
           new UpdateDriverStatusUseCase(adminApplicationDeps),
@@ -364,7 +366,7 @@ export function buildIdentityContainer(deps?: IdentityContainerDeps): IdentityCo
     buildAdminRiderRouter: () =>
       buildAdminRiderRouter({
         authenticate,
-        requireAdminRole: requireRole('SUPER_ADMIN', 'CITY_ADMIN', 'SUPPORT_ADMIN'),
+        requireAdminRole: requireRole('SUPER_ADMIN', 'SUPPORT_ADMIN'),
         listRiders: makeListRidersController(listRidersUseCase),
         getRider: makeGetRiderDetailController(getRiderDetailUseCase),
         updateStatus: makeUpdateRiderStatusController(updateRiderStatusUseCase),
@@ -388,7 +390,7 @@ export function buildIdentityContainer(deps?: IdentityContainerDeps): IdentityCo
         getRolePermissions: makeGetAdminRolePermissionsController(),
       }),
     authenticate,
-    verifyToken: makeTokenVerifier({ tokenVerifier: tokenAdapter, sessionRepo }),
+    verifyToken: makeTokenVerifier({ tokenVerifier: tokenAdapter, sessionRepo, adminRepo }),
     requireRole,
     requireZoneAccess,
     requireAdminScope: makeRequireAdminScope(adminRepo),

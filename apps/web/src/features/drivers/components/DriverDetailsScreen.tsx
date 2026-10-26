@@ -504,6 +504,7 @@ export function DriverDetailsScreen({ id }: DriverDetailsScreenProps) {
                           {docFileUrl && !docIsPdf && (
                             <button
                               type="button"
+                              disabled={doc.storageKey === 'REDACTED'}
                               onClick={() => setSelectedDoc(doc)}
                               className="w-full h-36 rounded-lg bg-zinc-950 border border-border overflow-hidden cursor-pointer group relative"
                               title={`Click to view full ${docLabel}`}
@@ -524,9 +525,10 @@ export function DriverDetailsScreen({ id }: DriverDetailsScreenProps) {
                               size="sm"
                               variant="secondary"
                               icon={<Eye className="size-3.5" />}
+                              disabled={doc.storageKey === 'REDACTED'}
                               onClick={() => setSelectedDoc(doc)}
                             >
-                              View Original
+                              {doc.storageKey === 'REDACTED' ? 'KYC Restricted' : 'View Original'}
                             </Button>
                           </div>
                         </div>

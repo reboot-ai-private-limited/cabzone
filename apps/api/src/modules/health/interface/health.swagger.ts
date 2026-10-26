@@ -15,7 +15,11 @@ export const healthReportSchema = z.object({
   dependencies: z.record(z.string(), dependencyHealthSchema),
 });
 
+let registered = false;
+
 export function registerHealthSwaggerPaths(): void {
+  if (registered) return;
+  registered = true;
   registry.registerPath({
     method: 'get',
     path: '/health',

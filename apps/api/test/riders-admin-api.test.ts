@@ -178,6 +178,11 @@ class TestMemoryRideRepo implements RideRepositoryPort {
   }
   readonly rides = new Map<string, RideEntity>();
 
+  async create(ride: RideEntity): Promise<RideEntity> {
+    this.rides.set(ride.id, { ...ride });
+    return { ...ride };
+  }
+
   async save(ride: RideEntity): Promise<RideEntity> {
     this.rides.set(ride.id, { ...ride });
     return { ...ride };
@@ -188,10 +193,26 @@ class TestMemoryRideRepo implements RideRepositoryPort {
     return r ? { ...r } : null;
   }
 
+  async findActiveByBookerRiderId(): Promise<RideEntity | null> {
+    return null;
+  }
+
+  async findByBookerIdempotencyKey(): Promise<RideEntity | null> {
+    return null;
+  }
+
   async list(filter: RideListFilter): Promise<RideEntity[]> {
     return [...this.rides.values()]
       .filter((r) => filter.riderId === undefined || r.bookerRiderId === filter.riderId)
       .slice(filter.offset, filter.offset + filter.limit);
+  }
+
+  async count(): Promise<number> {
+    return this.rides.size;
+  }
+
+  async listDriverRidesInWindow(): Promise<RideEntity[]> {
+    return [];
   }
 
   async findExpiredOfferings(): Promise<RideEntity[]> {

@@ -69,9 +69,17 @@ export function makeActivatePricingConfigController(
 
 export function makeCreateQuoteController(
   useCase: CreateQuoteUseCase,
+  resolveRiderIdFromAuthHeader?: (authorizationHeader?: string) => Promise<string | null>,
 ): RequestHandler {
   return asyncHandler(async (req: Request, res: Response) => {
-    const result = await useCase.execute(req.body);
+    const riderId = resolveRiderIdFromAuthHeader
+      ? await resolveRiderIdFromAuthHeader(req.headers.authorization)
+      : null;
+    const body = typeof req.body === 'object' && req.body !== null ? req.body : {};
+    const result = await useCase.execute({
+      ...body,
+      riderId: riderId ?? undefined,
+    });
     sendSuccess(req, res, result, 'Quote created successfully', 200);
   });
 }

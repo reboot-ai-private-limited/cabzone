@@ -216,6 +216,8 @@ export default function ActiveRideScreen() {
     meta.subtitle = 'UPI payment verified. Your earnings are recorded; bank settlement is pending.';
   }
   const breakdown = computeRideEarningsBreakdown(ride);
+  const arrearsPaise = ride.arrearsPaise ?? 0;
+  const totalCollectablePaise = breakdown.grossPaise + arrearsPaise;
   const distanceKm = Number(((ride.routeSnapshot?.distanceM ?? 0) / 1000).toFixed(1));
   const durationMin = Math.max(1, Math.round((ride.routeSnapshot?.durationSeconds ?? 0) / 60));
 
@@ -410,7 +412,7 @@ export default function ActiveRideScreen() {
           <RidePaymentQr
             key={ride.id}
             rideId={ride.id}
-            amountPaise={breakdown.grossPaise}
+            amountPaise={totalCollectablePaise}
             onPaid={loadRide}
             onCashReceived={async () => {
               const result = await confirmDirectPayment(ride.id);
@@ -536,6 +538,14 @@ export default function ActiveRideScreen() {
             <Text style={styles.breakdownTotalLabel}>Your Net Trip Earnings</Text>
             <Text style={styles.breakdownTotalValue}>₹{(breakdown.netPaise / 100).toFixed(2)}</Text>
           </View>
+          {arrearsPaise > 0 ? (
+            <View style={styles.breakdownRow}>
+              <Text style={styles.breakdownLabel}>
+                Rider Prior Cancellation Fee (Platform Arrears · No Commission)
+              </Text>
+              <Text style={styles.breakdownValue}>₹{(arrearsPaise / 100).toFixed(2)}</Text>
+            </View>
+          ) : null}
           {settlementSummary ? (
             <View style={styles.walletAfterNotice}>
               <Text style={styles.walletAfterText}>

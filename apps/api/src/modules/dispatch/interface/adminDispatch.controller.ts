@@ -19,7 +19,12 @@ export const simulateFleetBodySchema = z.object({
 export function makeListFleetController(useCase: ListFleetDriversUseCase): RequestHandler {
   return asyncHandler(async (req: Request, res: Response) => {
     const query = listFleetQuerySchema.parse(req.query);
-    const result = await useCase.execute(query);
+    const cityZoneIds =
+      req.auth?.role === 'CITY_ADMIN' ? (req.adminCityZoneIds ?? []) : req.adminCityZoneIds;
+    const result = await useCase.execute({
+      ...query,
+      ...(cityZoneIds !== undefined ? { cityZoneIds } : {}),
+    });
     sendSuccess(req, res, result, 'Fleet retrieved successfully');
   });
 }

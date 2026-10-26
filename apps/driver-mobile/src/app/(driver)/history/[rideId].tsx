@@ -63,7 +63,13 @@ export default function RideHistoryDetailScreen() {
     );
   }
 
+  const settlement = ride.driverSettlement;
   const breakdown = computeRideEarningsBreakdown(ride);
+  const isSettled = settlement
+    ? settlement.settledVia !== 'UNSETTLED'
+    : ride.status === 'SETTLED' || ride.status === 'PAYMENT_CONFIRMED';
+  const isPendingPayment = ride.status === 'TRIP_COMPLETED' || ride.status === 'PAYMENT_PENDING';
+  const isDisputed = ride.status === 'PAYMENT_DISPUTED';
   const distanceKm = Number(((ride.routeSnapshot?.distanceM ?? 0) / 1000).toFixed(1));
   const durationMin = Math.max(1, Math.round((ride.routeSnapshot?.durationSeconds ?? 0) / 60));
 
@@ -86,8 +92,18 @@ export default function RideHistoryDetailScreen() {
         {/* Summary Header Card */}
         <View style={styles.summaryCard}>
           <Text style={styles.statusLabel}>{ride.status.replace(/_/g, ' ')}</Text>
-          <Text style={styles.netAmount}>₹{(breakdown.netPaise / 100).toFixed(2)}</Text>
-          <Text style={styles.netCaption}>Net Driver Earnings</Text>
+          <Text style={styles.netAmount}>
+            {isSettled ? `₹${(breakdown.netPaise / 100).toFixed(2)}` : '₹0.00'}
+          </Text>
+          <Text style={styles.netCaption}>
+            {isSettled
+              ? `Settled Net Earnings (${settlement?.settledVia === 'ONLINE_UPI' ? 'Online UPI' : 'Cash / Direct'})`
+              : isPendingPayment
+                ? 'Awaiting Payment Confirmation'
+                : isDisputed
+                  ? 'Under Payment Dispute Review'
+                  : 'Not Settled'}
+          </Text>
 
           <View style={styles.metaStrip}>
             <View style={styles.metaCol}>
@@ -143,11 +159,26 @@ export default function RideHistoryDetailScreen() {
             <Text style={styles.rowLabel}>
               Platform Commission ({ride.pricingSnapshot?.commissionPercent ?? 8}%)
             </Text>
-            <Text style={styles.rowDebit}>-₹{(breakdown.commissionPaise / 100).toFixed(2)}</Text>
+            <Text style={styles.rowDebit}>
+              -₹
+              {(
+                ((settlement?.commissionChargedPaise ?? breakdown.commissionPaise) || 0) / 100
+              ).toFixed(2)}
+            </Text>
           </View>
+          {settlement && settlement.commissionRefundedPaise > 0 ? (
+            <View style={styles.row}>
+              <Text style={styles.rowLabel}>Dispute Commission Refund</Text>
+              <Text style={[styles.rowVal, { color: colors.success }]}>
+                +₹{(settlement.commissionRefundedPaise / 100).toFixed(2)}
+              </Text>
+            </View>
+          ) : null}
           <View style={[styles.row, styles.rowTotal]}>
-            <Text style={styles.rowTotalLabel}>Net Driver Earnings</Text>
-            <Text style={styles.rowTotalVal}>₹{(breakdown.netPaise / 100).toFixed(2)}</Text>
+            <Text style={styles.rowTotalLabel}>Settled Net Driver Earnings</Text>
+            <Text style={styles.rowTotalVal}>
+              ₹{((isSettled ? breakdown.netPaise : 0) / 100).toFixed(2)}
+            </Text>
           </View>
         </View>
 
@@ -281,6 +312,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginTop: 2,
     marginBottom: 16,
+    textAlign: 'center',
   },
   metaStrip: {
     flexDirection: 'row',

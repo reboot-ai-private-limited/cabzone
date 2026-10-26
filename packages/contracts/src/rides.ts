@@ -29,6 +29,37 @@ export const RIDE_STATUSES = [
 
 export type RideStatus = (typeof RIDE_STATUSES)[number];
 
+/**
+ * Ride statuses that block a rider (`bookerRiderId`) from creating another ride (Decision D-043).
+ * Non-blocking statuses: SETTLED, CANCELLED, EXPIRED, PAYMENT_DISPUTED.
+ */
+export const ACTIVE_RIDE_STATUSES = [
+  'REQUESTED',
+  'OFFERING',
+  'DRIVER_ASSIGNED',
+  'DRIVER_EN_ROUTE',
+  'DRIVER_ARRIVED',
+  'TRIP_STARTED',
+  'TRIP_COMPLETED',
+  'PAYMENT_PENDING',
+  'PAYMENT_CONFIRMED',
+] as const satisfies readonly RideStatus[];
+
+export type ActiveRideStatus = (typeof ACTIVE_RIDE_STATUSES)[number];
+
+const ACTIVE_RIDE_STATUS_SET: ReadonlySet<RideStatus> = new Set(ACTIVE_RIDE_STATUSES);
+
+export function isActiveRideStatus(status: RideStatus): boolean {
+  return ACTIVE_RIDE_STATUS_SET.has(status);
+}
+
+export interface ActiveRideConflictDetailsDto {
+  code: 'ACTIVE_RIDE_EXISTS';
+  rideId: string;
+  status: RideStatus;
+  ridePath: string;
+}
+
 export const CANCELLATION_REASONS = [
   'RIDER_CHANGED_MIND',
   'DRIVER_DELAYED',
@@ -52,7 +83,7 @@ export interface StateSegmentDto {
 
 /**
  * Immutable pricing snapshot locked at ride creation.
- * Per Decision D-034.
+ * Per Decisions D-034 and D-044.
  */
 export interface RidePricingSnapshot {
   pricingConfigId: string;
@@ -65,9 +96,15 @@ export interface RidePricingSnapshot {
   negotiationFloorPercent: number;
   negotiationCeilingPercent: number;
   commissionPercent: number;
+  cancellationFeePaise?: number;
+  driverCompensationPaise?: number;
+  platformCancellationFeePaise?: number;
+  riderCancellationGraceSeconds?: number;
+  driverNoShowWaitSeconds?: number;
   zoneType: ZoneClassificationType;
   stateSegments?: StateSegmentDto[];
   stateBreakdown?: StateDistanceBreakdown[];
+  statePricingVersions?: { stateCode: string; configId: string; version: number }[];
 }
 
 export interface RideAssignedDriverVehicleDto {
@@ -200,8 +237,18 @@ export function formatPublicRatingLabel(
   return ratingAverage.toFixed(decimals);
 }
 
+export interface DriverRideSettlementDto {
+  grossPaise: number;
+  commissionChargedPaise: number;
+  commissionRefundedPaise: number;
+  netCommissionPaise: number;
+  netEarningsPaise: number;
+  settledVia: 'CASH' | 'ONLINE_UPI' | 'UNSETTLED';
+}
+
 export interface RideDto {
   paymentCollection?: 'DIRECT' | 'CASH' | 'RAZORPAY_TEST' | 'RAZORPAY_UPI';
+  driverSettlement?: DriverRideSettlementDto;
   id: string;
   bookerRiderId: string;
   passenger: {
@@ -241,6 +288,10 @@ export interface RideDto {
   suggestedFarePaise: number;
   proposedFarePaise: number | null;
   agreedFarePaise: number | null;
+  /** Unpaid rider cancellation/no-show fee arrears attached to this ride (D-044). */
+  arrearsPaise?: number;
+  /** Total amount payable for this ride: active fare + arrearsPaise (D-044). */
+  totalPayablePaise?: number;
   pricingSnapshot: RidePricingSnapshot;
   cancellationReason: CancellationReason | null;
   offeringExpiresAt: string | null;
@@ -253,6 +304,67 @@ export interface RideDto {
   version: number;
   createdAt: string;
   updatedAt: string;
+}
+
+export const DRIVER_EARNINGS_PERIODS = ['TODAY', 'WEEK', 'MONTH', 'ALL'] as const;
+export type DriverEarningsPeriod = (typeof DRIVER_EARNINGS_PERIODS)[number];
+
+export interface DriverEarningsSummaryDto {
+  period: DriverEarningsPeriod;
+  timezone: 'Asia/Kolkata';
+  periodStart: string | null;
+  periodEnd: string;
+  totalAssignedRidesCount: number;
+  completedTripsCount: number;
+  cancelledTripsCount: number;
+  pendingPaymentTripsCount: number;
+  pendingPaymentGrossPaise: number;
+  disputedTripsCount: number;
+  disputedGrossPaise: number;
+  grossFarePaise: number;
+  cashGrossPaise: number;
+  onlineGrossPaise: number;
+  commissionChargedPaise: number;
+  commissionRefundedPaise: number;
+  netCommissionPaise: number;
+  netEarningsPaise: number;
+  cancellationCompensationPaise: number;
+  unreconciledRidesCount: number;
+}
+
+export interface PaginatedRidesDto {
+  items: RideDto[];
+  total: number;
+  limit: number;
+  offset: number;
+  hasMore: boolean;
+}
+
+export type RideEarningsReconciliationIssueCode =
+  | 'HISTORICAL_ONLINE_MISSING_EARNINGS'
+  | 'CASH_MISSING_COMMISSION'
+  | 'AMOUNT_MISMATCH'
+  | 'MISSING_DRIVER_WALLET'
+  | 'ORPHAN_LEDGER_RIDE_ENTRY';
+
+export interface RideEarningsReconciliationIssueDto {
+  code: RideEarningsReconciliationIssueCode;
+  rideId: string | null;
+  driverId: string | null;
+  transactionId?: string | null;
+  expectedPaise?: number | null;
+  actualPaise?: number | null;
+  detail: string;
+}
+
+export interface DriverEarningsReconciliationDto {
+  mode: 'AUDIT' | 'BACKFILL_ONLINE_EARNINGS';
+  checkedSettledRides: number;
+  cleanCashRides: number;
+  cleanOnlineRides: number;
+  backfilledRideIds: string[];
+  skippedRideIds: string[];
+  issues: RideEarningsReconciliationIssueDto[];
 }
 
 export const NEGOTIATION_ACTIONS = ['PROPOSED', 'REJECTED', 'ACCEPTED', 'EXPIRED'] as const;

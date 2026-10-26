@@ -1,5 +1,8 @@
 import { z } from 'zod';
 import {
+  DEFAULT_CANCELLATION_FEE_PAISE,
+  DEFAULT_DRIVER_COMPENSATION_PAISE,
+  DEFAULT_PLATFORM_CANCELLATION_FEE_PAISE,
   PRICING_CONFIG_LEVELS,
   PRICING_CONFIG_STATUSES,
   VEHICLE_CATEGORIES,
@@ -30,6 +33,36 @@ export const updateCityZoneSchema = z.object({
   currentPricingConfigId: z.string().uuid().nullable().optional(),
 });
 
+function isValidCancellationFeeInput(data: {
+  cancellationFeePaise?: number | undefined;
+  driverCompensationPaise?: number | undefined;
+  platformCancellationFeePaise?: number | undefined;
+}): boolean {
+  const { cancellationFeePaise: total, driverCompensationPaise: driver, platformCancellationFeePaise: platform } = data;
+  if (total !== undefined && driver !== undefined && platform !== undefined) {
+    return driver + platform === total;
+  }
+  if (total !== undefined && driver !== undefined && platform === undefined) {
+    return total - driver >= 0;
+  }
+  if (total !== undefined && platform !== undefined && driver === undefined) {
+    return total - platform >= 0;
+  }
+  if (driver !== undefined && platform !== undefined && total === undefined) {
+    return true;
+  }
+  if (total !== undefined && driver === undefined && platform === undefined) {
+    return total === DEFAULT_DRIVER_COMPENSATION_PAISE + DEFAULT_PLATFORM_CANCELLATION_FEE_PAISE;
+  }
+  if (driver !== undefined && total === undefined && platform === undefined) {
+    return driver + DEFAULT_PLATFORM_CANCELLATION_FEE_PAISE === DEFAULT_CANCELLATION_FEE_PAISE;
+  }
+  if (platform !== undefined && total === undefined && driver === undefined) {
+    return DEFAULT_DRIVER_COMPENSATION_PAISE + platform === DEFAULT_CANCELLATION_FEE_PAISE;
+  }
+  return true;
+}
+
 export const createPricingConfigSchema = z
   .object({
     level: z.enum(PRICING_CONFIG_LEVELS).optional(),
@@ -59,6 +92,11 @@ export const createPricingConfigSchema = z
     negotiationCeilingPercent: z.number().int().min(100).max(300).default(150),
     negotiationWindowSeconds: z.number().int().min(15).max(300).default(90),
     commissionPercent: z.number().min(0).max(100).default(8),
+    cancellationFeePaise: z.number().int().min(0).optional(),
+    driverCompensationPaise: z.number().int().min(0).optional(),
+    platformCancellationFeePaise: z.number().int().min(0).optional(),
+    riderCancellationGraceSeconds: z.number().int().min(0).max(3600).optional(),
+    driverNoShowWaitSeconds: z.number().int().min(0).max(3600).optional(),
     status: z.enum(['DRAFT', 'ACTIVE']).default('DRAFT'),
     effectiveFrom: z.string().optional(),
     effectiveTo: z.string().nullable().optional(),
@@ -100,7 +138,12 @@ export const createPricingConfigSchema = z
       message: 'outstationMinimumFarePaise must be greater than or equal to outstationBaseFarePaise',
       path: ['outstationMinimumFarePaise'],
     },
-  );
+  )
+  .refine(isValidCancellationFeeInput, {
+    message:
+      'driverCompensationPaise + platformCancellationFeePaise must equal cancellationFeePaise and all amounts must be non-negative',
+    path: ['cancellationFeePaise'],
+  });
 
 export const updatePricingConfigSchema = z
   .object({
@@ -128,6 +171,11 @@ export const updatePricingConfigSchema = z
     negotiationCeilingPercent: z.number().int().min(100).max(300).optional(),
     negotiationWindowSeconds: z.number().int().min(15).max(300).optional(),
     commissionPercent: z.number().min(0).max(100).optional(),
+    cancellationFeePaise: z.number().int().min(0).optional(),
+    driverCompensationPaise: z.number().int().min(0).optional(),
+    platformCancellationFeePaise: z.number().int().min(0).optional(),
+    riderCancellationGraceSeconds: z.number().int().min(0).max(3600).optional(),
+    driverNoShowWaitSeconds: z.number().int().min(0).max(3600).optional(),
     effectiveFrom: z.string().optional(),
     status: z.enum(PRICING_CONFIG_STATUSES).optional(),
   })
@@ -160,6 +208,18 @@ export const updatePricingConfigSchema = z
       message: 'outstationMinimumFarePaise must be greater than or equal to outstationBaseFarePaise',
       path: ['outstationMinimumFarePaise'],
     },
+  )
+  .refine(
+    (data) =>
+      data.cancellationFeePaise === undefined ||
+      data.driverCompensationPaise === undefined ||
+      data.platformCancellationFeePaise === undefined ||
+      data.driverCompensationPaise + data.platformCancellationFeePaise === data.cancellationFeePaise,
+    {
+      message:
+        'driverCompensationPaise + platformCancellationFeePaise must equal cancellationFeePaise',
+      path: ['cancellationFeePaise'],
+    },
   );
 
 export const listPricingConfigsSchema = z.object({
@@ -169,4 +229,3 @@ export const listPricingConfigsSchema = z.object({
   vehicleType: z.enum(VEHICLE_CATEGORIES).optional(),
   status: z.enum(PRICING_CONFIG_STATUSES).optional(),
 });
-

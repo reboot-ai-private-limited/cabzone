@@ -1,5 +1,6 @@
 import mongoose, { type Document, Schema } from 'mongoose';
 import {
+  ACTIVE_RIDE_STATUSES,
   CANCELLATION_REASONS,
   RIDE_STATUSES,
   VEHICLE_CATEGORIES,
@@ -13,6 +14,7 @@ import type { LocationPoint, RouteSnapshot, ZoneSnapshot } from '../../domain/ri
 export interface RideDocument extends Document<string> {
   _id: string;
   booker_rider_id: string;
+  idempotency_key?: string | null;
   passenger: {
     rider_id: string | null;
     name: string;
@@ -33,6 +35,7 @@ export interface RideDocument extends Document<string> {
   suggested_fare_paise: number;
   proposed_fare_paise: number | null;
   agreed_fare_paise: number | null;
+  arrears_paise?: number;
   status: RideStatus;
   cancellation_reason: CancellationReason | null;
   offering_expires_at: Date | null;
@@ -73,6 +76,7 @@ const rideSchema = new Schema<RideDocument>(
   {
     _id: { type: String, required: true },
     booker_rider_id: { type: String, required: true, index: true },
+    idempotency_key: { type: String, default: null },
     passenger: { type: passengerSchema, required: true },
     driver_id: { type: String, default: null, index: true },
     vehicle_id: { type: String, default: null },
@@ -89,6 +93,7 @@ const rideSchema = new Schema<RideDocument>(
     suggested_fare_paise: { type: Number, required: true, min: 0 },
     proposed_fare_paise: { type: Number, default: null },
     agreed_fare_paise: { type: Number, default: null },
+    arrears_paise: { type: Number, default: 0, min: 0 },
     status: {
       type: String,
       enum: RIDE_STATUSES,
@@ -118,15 +123,39 @@ const rideSchema = new Schema<RideDocument>(
 );
 
 rideSchema.index({ booker_rider_id: 1, created_at: -1 });
-rideSchema.index({ driver_id: 1, created_at: -1 });
-rideSchema.index({ driver_id: 1 }, {
-  name: 'one_active_ride_per_driver',
-  unique: true,
-  partialFilterExpression: {
-    driver_id: { $type: 'string' },
-    status: { $in: ['DRIVER_ASSIGNED', 'DRIVER_EN_ROUTE', 'DRIVER_ARRIVED', 'TRIP_STARTED'] },
+rideSchema.index(
+  { booker_rider_id: 1 },
+  {
+    name: 'one_active_ride_per_rider',
+    unique: true,
+    partialFilterExpression: {
+      status: { $in: [...ACTIVE_RIDE_STATUSES] },
+    },
   },
-});
+);
+rideSchema.index(
+  { booker_rider_id: 1, idempotency_key: 1 },
+  {
+    name: 'rider_create_idempotency',
+    unique: true,
+    partialFilterExpression: {
+      idempotency_key: { $type: 'string' },
+    },
+  },
+);
+rideSchema.index({ driver_id: 1, created_at: -1 });
+rideSchema.index({ driver_id: 1, settled_at: -1 });
+rideSchema.index(
+  { driver_id: 1 },
+  {
+    name: 'one_active_ride_per_driver',
+    unique: true,
+    partialFilterExpression: {
+      driver_id: { $type: 'string' },
+      status: { $in: ['DRIVER_ASSIGNED', 'DRIVER_EN_ROUTE', 'DRIVER_ARRIVED', 'TRIP_STARTED'] },
+    },
+  },
+);
 rideSchema.index({ status: 1, created_at: -1 });
 rideSchema.index({ status: 1, offering_expires_at: 1 });
 rideSchema.index({ vehicle_id: 1, created_at: -1 });

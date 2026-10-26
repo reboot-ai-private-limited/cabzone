@@ -1,4 +1,6 @@
+import { isActiveRideStatus } from '@cabzone/contracts';
 import type {
+  RideCountFilter,
   RideEntity,
   RideListFilter,
   RideRepositoryPort,
@@ -6,11 +8,62 @@ import type {
 } from '../../domain/index.js';
 import { AppError } from '../../../../shared/errors/AppError.js';
 
+function duplicateKeyError(message: string): Error & { code: number } {
+  return Object.assign(new Error(message), { code: 11000 });
+}
+
 export class MemoryRideRepository implements RideRepositoryPort {
   private readonly rides = new Map<string, RideEntity>();
 
+  private assertUniqueConstraints(ride: RideEntity): void {
+    for (const existing of this.rides.values()) {
+      if (existing.id === ride.id) continue;
+      if (
+        typeof ride.idempotencyKey === 'string' &&
+        existing.bookerRiderId === ride.bookerRiderId &&
+        existing.idempotencyKey === ride.idempotencyKey
+      ) {
+        throw duplicateKeyError('E11000 duplicate key error index: rider_create_idempotency');
+      }
+      if (
+        isActiveRideStatus(ride.status) &&
+        existing.bookerRiderId === ride.bookerRiderId &&
+        isActiveRideStatus(existing.status)
+      ) {
+        throw duplicateKeyError('E11000 duplicate key error index: one_active_ride_per_rider');
+      }
+    }
+  }
+
+  async create(ride: RideEntity): Promise<RideEntity> {
+    if (this.rides.has(ride.id)) {
+      throw duplicateKeyError('E11000 duplicate key error index: _id_');
+    }
+    this.assertUniqueConstraints(ride);
+    const stored = structuredClone({ ...ride, updatedAt: new Date() });
+    this.rides.set(ride.id, stored);
+    return structuredClone(stored);
+  }
+
+  private matches(r: RideEntity, filter: RideCountFilter): boolean {
+    return (
+      (filter.riderId === undefined ||
+        r.bookerRiderId === filter.riderId ||
+        r.passenger.riderId === filter.riderId) &&
+      (filter.driverId === undefined || r.driverId === filter.driverId) &&
+      (filter.statuses === undefined || filter.statuses.includes(r.status)) &&
+      (filter.vehicleCategory === undefined || r.vehicleCategory === filter.vehicleCategory) &&
+      (filter.cityZoneIds === undefined ||
+        (Boolean(r.zoneSnapshot?.cityZoneId) &&
+          filter.cityZoneIds.includes(r.zoneSnapshot.cityZoneId!))) &&
+      (filter.offeringExpiresAfter === undefined ||
+        (r.offeringExpiresAt !== null && r.offeringExpiresAt > filter.offeringExpiresAfter))
+    );
+  }
+
   async save(ride: RideEntity): Promise<RideEntity> {
-    this.rides.set(ride.id, structuredClone({ ...ride, updatedAt: new Date() }));
+    this.assertUniqueConstraints(ride);
+    this.rides.set(ride.id, structuredClone({ ...ride, updatedAt: ride.updatedAt ?? new Date() }));
     return structuredClone(this.rides.get(ride.id)!);
   }
 
@@ -25,21 +78,53 @@ export class MemoryRideRepository implements RideRepositoryPort {
     return ride ? structuredClone(ride) : null;
   }
 
+  async findActiveByBookerRiderId(bookerRiderId: string): Promise<RideEntity | null> {
+    const ride = [...this.rides.values()].find(
+      (r) => r.bookerRiderId === bookerRiderId && isActiveRideStatus(r.status),
+    );
+    return ride ? structuredClone(ride) : null;
+  }
+
+  async findByBookerIdempotencyKey(
+    bookerRiderId: string,
+    idempotencyKey: string,
+  ): Promise<RideEntity | null> {
+    const ride = [...this.rides.values()].find(
+      (r) => r.bookerRiderId === bookerRiderId && r.idempotencyKey === idempotencyKey,
+    );
+    return ride ? structuredClone(ride) : null;
+  }
+
   async list(filter: RideListFilter): Promise<RideEntity[]> {
     return [...this.rides.values()]
-      .filter(
-        (r) =>
-          (filter.riderId === undefined ||
-            r.bookerRiderId === filter.riderId ||
-            r.passenger.riderId === filter.riderId) &&
-          (filter.driverId === undefined || r.driverId === filter.driverId) &&
-          (filter.statuses === undefined || filter.statuses.includes(r.status)) &&
-          (filter.vehicleCategory === undefined || r.vehicleCategory === filter.vehicleCategory) &&
-          (filter.offeringExpiresAfter === undefined ||
-            (r.offeringExpiresAt !== null && r.offeringExpiresAt > filter.offeringExpiresAfter)),
-      )
+      .filter((r) => this.matches(r, filter))
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
       .slice(filter.offset, filter.offset + filter.limit)
+      .map((r) => structuredClone(r));
+  }
+
+  async count(filter: RideCountFilter): Promise<number> {
+    let total = 0;
+    for (const r of this.rides.values()) {
+      if (this.matches(r, filter)) total += 1;
+    }
+    return total;
+  }
+
+  async listDriverRidesInWindow(driverId: string, since: Date | null): Promise<RideEntity[]> {
+    return [...this.rides.values()]
+      .filter((r) => {
+        if (r.driverId !== driverId) return false;
+        if (!since) return true;
+        return (
+          (r.settledAt !== null && r.settledAt >= since) ||
+          (r.completedAt !== null && r.completedAt >= since) ||
+          (r.cancelledAt !== null && r.cancelledAt >= since) ||
+          r.updatedAt >= since ||
+          r.createdAt >= since
+        );
+      })
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
       .map((r) => structuredClone(r));
   }
 

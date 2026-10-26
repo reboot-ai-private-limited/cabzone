@@ -19,6 +19,7 @@ export const TRANSACTION_REFERENCE_TYPES = [
   'CANCELLATION_COMPENSATION',
   'CANCELLATION_FEE_ARREARS',
   'ARREARS_PAYMENT',
+  'RIDER_ARREARS_COLLECTED',
   'RIDER_PROMO_CREDIT',
   'RIDER_REFUND',
   'ONLINE_RIDE_EARNINGS',
@@ -84,6 +85,14 @@ export interface WalletTransactionDto {
   createdBy: string | null;
   note?: string | null | undefined;
   createdAt: string;
+}
+
+export interface PaginatedWalletTransactionsDto {
+  items: WalletTransactionDto[];
+  total: number;
+  limit: number;
+  offset: number;
+  hasMore: boolean;
 }
 
 export interface WalletOperationDto {
@@ -161,7 +170,10 @@ export interface ListTransactionsQueryDto {
   riderId?: string | undefined;
   ownerType?: WalletOwnerType | undefined;
   type?: WalletTransactionType | undefined;
+  types?: readonly WalletTransactionType[] | undefined;
   referenceType?: TransactionReferenceType | undefined;
+  referenceTypes?: readonly TransactionReferenceType[] | undefined;
+  referenceIds?: readonly string[] | undefined;
   search?: string | undefined;
   limit?: number | undefined;
   offset?: number | undefined;

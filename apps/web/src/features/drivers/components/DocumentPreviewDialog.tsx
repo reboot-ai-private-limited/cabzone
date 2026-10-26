@@ -77,6 +77,7 @@ export function DocumentPreviewDialog({
   const docTitle = DOCUMENT_TYPE_LABELS[document.type] ?? document.type.replace(/_/g, ' ');
   const isExpired =
     document.expiresAt !== null && new Date(document.expiresAt).getTime() < Date.now();
+  const isRedacted = document.storageKey === 'REDACTED';
   const fileUrl = resolveDocumentFileUrl(document);
   const isPdf = isPdfDocument(document, fileUrl);
 
@@ -212,14 +213,18 @@ export function DocumentPreviewDialog({
                 <FileText className="size-6" />
               </div>
               <p className="text-sm font-semibold text-white">
-                {imageError
-                  ? 'Could not load original document image'
-                  : 'No original file attached (Test / Seeded Record)'}
+                {isRedacted
+                  ? 'Document preview restricted for your role'
+                  : imageError
+                    ? 'Could not load original document image'
+                    : 'No original file attached (Test / Seeded Record)'}
               </p>
               <p className="text-xs text-zinc-400 leading-relaxed">
-                {imageError
-                  ? 'The uploaded document could not be rendered inline. Try opening the original file link above.'
-                  : `This document entry (${document.storageKey}) was created via a development seed/shortcut without an uploaded file.`}
+                {isRedacted
+                  ? 'Original KYC document images are restricted to Super Admin and Support Admin operators.'
+                  : imageError
+                    ? 'The uploaded document could not be rendered inline. Try opening the original file link above.'
+                    : `This document entry (${document.storageKey}) was created via a development seed/shortcut without an uploaded file.`}
               </p>
             </div>
           )}
@@ -233,13 +238,17 @@ export function DocumentPreviewDialog({
               {document.storageKey}
             </code>
           </div>
-          <Button
-            size="sm"
-            icon={copied ? <Check className="size-3.5 text-success" /> : <Copy className="size-3.5" />}
-            onClick={handleCopyHash}
-          >
-            {copied ? 'Copied' : 'Copy Key'}
-          </Button>
+          {!isRedacted && (
+            <Button
+              size="sm"
+              icon={
+                copied ? <Check className="size-3.5 text-success" /> : <Copy className="size-3.5" />
+              }
+              onClick={handleCopyHash}
+            >
+              {copied ? 'Copied' : 'Copy Key'}
+            </Button>
+          )}
         </div>
       </div>
     </Dialog>

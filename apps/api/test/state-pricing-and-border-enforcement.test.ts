@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import { haversineDistanceM } from '@cabzone/geo';
 import { CreateQuoteUseCase } from '../src/modules/pricing/application/useCases/createQuote.usecase.js';
 import { MemoryPricingConfigRepository } from '../src/modules/pricing/infrastructure/persistence/memoryPricingConfig.repository.js';
 import type { PricingConfigEntity } from '../src/modules/pricing/domain/pricingConfig.entity.js';
@@ -8,6 +7,12 @@ import { ResolveZonesUseCase } from '../src/modules/zone/application/useCases/re
 import { ServiceClassificationUseCase } from '../src/modules/zone/application/useCases/serviceClassification.usecase.js';
 import { OfflineIndiaGeoResolver } from '../src/modules/routing/infrastructure/offlineGeoResolver.js';
 import type { ZoneEntity } from '../src/modules/zone/domain/zone.entity.js';
+import {
+  CreateRideUseCase,
+  MemoryRideEventRepository,
+  MemoryRideRepository,
+} from '../src/modules/rides/index.js';
+import { unitOfWork } from './helpers/unitOfWork.js';
 
 describe('State Pricing Architecture & Sovereign Border Enforcement', () => {
   const TEST_SECRET = 'test-secret-key-32-chars-long-for-hmac-token-verification';
@@ -267,6 +272,28 @@ describe('State Pricing Architecture & Sovereign Border Enforcement', () => {
       expect(quote.pricingConfigId).toBe(siliguriCityConfig.id);
     });
 
+    it('uses the selected city outstation rate for an intrastate route', async () => {
+      const { createQuoteUseCase } = setupEngine();
+      const quote = await createQuoteUseCase.execute({
+        pickup: { lat: 26.7141, lng: 88.4334 },
+        drop: { lat: 26.3242, lng: 89.451 }, // Cooch Behar, West Bengal
+        vehicleCategory: 'CAB',
+      });
+
+      expect(quote.routeScope).toBe('INTRA_STATE');
+      expect(quote.pricingConfigId).toBe(siliguriCityConfig.id);
+      expect(
+        CreateQuoteUseCase.verifyQuoteToken(quote.quoteToken, TEST_SECRET).statePricingVersions,
+      ).toEqual([]);
+      expect(quote.suggestedFarePaise).toBe(
+        Math.max(
+          siliguriCityConfig.outstationMinimumFarePaise,
+          siliguriCityConfig.outstationBaseFarePaise +
+            Math.round((quote.distanceM * siliguriCityConfig.outstationRatePerKmPaise) / 1000),
+        ),
+      );
+    });
+
     it('pickup outside city polygon but WITHIN buffer distance is priced as IN_CITY with buffer surcharge', async () => {
       const { createQuoteUseCase } = setupEngine();
 
@@ -335,7 +362,7 @@ describe('State Pricing Architecture & Sovereign Border Enforcement', () => {
 
   describe('Part 3: State Distance Breakdown & Multi-State Pricing', () => {
     it('returns exact state distance breakdown for interstate route', async () => {
-      const { createQuoteUseCase } = setupEngine();
+      const { createQuoteUseCase, pricingConfigRepo } = setupEngine();
 
       const quote = await createQuoteUseCase.execute({
         pickup: { lat: 26.7141, lng: 88.4334 }, // Siliguri, WB
@@ -373,6 +400,27 @@ describe('State Pricing Architecture & Sovereign Border Enforcement', () => {
           ),
       );
       expect(quote.suggestedFarePaise).toBe(expectedFare);
+
+      const ride = await new CreateRideUseCase({
+        unitOfWork,
+        rideEventRepo: new MemoryRideEventRepository(),
+        rideRepo: new MemoryRideRepository(),
+        pricingConfigRepo,
+        tokenSecret: TEST_SECRET,
+      }).execute({
+        quoteToken: quote.quoteToken,
+        proposedFarePaise: quote.suggestedFarePaise,
+        riderId: 'rider-1',
+        passengerName: 'Rider',
+        passengerPhoneE164: '+919000000000',
+        pickup: { lat: 26.7141, lng: 88.4334 },
+        drop: { lat: 26.0984, lng: 87.9482 },
+        vehicleCategory: 'CAB',
+      });
+      expect(ride.pricingSnapshot.statePricingVersions).toEqual(
+        CreateQuoteUseCase.verifyQuoteToken(quote.quoteToken, TEST_SECRET).statePricingVersions,
+      );
+      expect(ride.pricingSnapshot.stateBreakdown).toEqual(quote.stateBreakdown);
     });
   });
 });

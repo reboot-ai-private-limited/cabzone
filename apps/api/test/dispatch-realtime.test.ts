@@ -51,7 +51,9 @@ interface DriverFixture {
 }
 
 const RIDER_USER = id(0xa1);
+const OTHER_RIDER_USER = id(0xa2);
 const RIDER_ID = id(0x201);
+const OTHER_RIDER_ID = id(0x202);
 const drivers: Record<string, DriverFixture> = {
   near: { userId: id(0xb1), driverId: id(0x101), category: 'CAB', balancePaise: 250_000, lat: 26.712, lng: 88.421 },
   near2: { userId: id(0xb6), driverId: id(0x106), category: 'CAB', balancePaise: 250_000, lat: 26.713, lng: 88.422 },
@@ -247,7 +249,8 @@ async function setup() {
     walletRepo,
     pricingConfigRepo,
     tokenSecret: QUOTE_SECRET,
-    resolveRiderId: async (u) => (u === RIDER_USER ? RIDER_ID : null),
+    resolveRiderId: async (u) =>
+      u === RIDER_USER ? RIDER_ID : u === OTHER_RIDER_USER ? OTHER_RIDER_ID : null,
     resolveDriverId: async (u) => byUser.get(u)?.driverId ?? null,
     notifier: dispatch.notifier,
     pickupOtpSecret: 'otp-secret-for-tests',
@@ -292,6 +295,7 @@ async function setup() {
 
   const bearer = (t: string) => `Bearer ${t}`;
   const riderToken = await login(RIDER_USER, 'RIDER');
+  const otherRiderToken = await login(OTHER_RIDER_USER, 'RIDER');
   const tokens: Record<string, string> = {};
   for (const [name, d] of Object.entries(drivers)) tokens[name] = await login(d.userId, 'DRIVER');
 
@@ -303,7 +307,7 @@ async function setup() {
       .send({ status: 'ONLINE', lat: d.lat, lng: d.lng });
   }
 
-  async function requestRide() {
+  async function requestRide(token = riderToken) {
     const quote = await quoteUseCase.execute({
       pickup,
       drop,
@@ -313,7 +317,7 @@ async function setup() {
     });
     return request(app)
       .post('/api/v1/rides')
-      .set('Authorization', bearer(riderToken))
+      .set('Authorization', bearer(token))
       .send({
         quoteToken: quote.quoteToken,
         proposedFarePaise: quote.suggestedFarePaise,
@@ -333,6 +337,7 @@ async function setup() {
     rides,
     tokens,
     riderToken,
+    otherRiderToken,
     bearer,
     listen,
     goOnline,
@@ -577,7 +582,7 @@ describe('Dispatch: full trip with realtime', () => {
       .set('Authorization', s.bearer(s.tokens['near']!));
 
     const probe = await s.listen(s.tokens['near']!);
-    await s.requestRide();
+    expect((await s.requestRide(s.otherRiderToken)).status).toBe(201);
     await probe.expectNone('ride.offer.created');
   });
 

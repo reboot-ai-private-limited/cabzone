@@ -156,7 +156,19 @@ export function makeGetDriverApplicationController(useCase: GetDriverApplication
   return asyncHandler(async (req: Request, res: Response) => {
     const applicationId = req.params.id;
     if (!applicationId) throw AppError.badRequest('Application ID is required');
-    sendSuccess(req, res, await useCase.execute(applicationId), 'Driver application retrieved', 200);
+    const detail = await useCase.execute(applicationId);
+    const data =
+      req.auth?.role === 'FINANCE_ADMIN'
+        ? {
+            ...detail,
+            documents: detail.documents.map((doc) => ({
+              ...doc,
+              storageKey: 'REDACTED',
+              fileUrl: null,
+            })),
+          }
+        : detail;
+    sendSuccess(req, res, data, 'Driver application retrieved', 200);
   });
 }
 

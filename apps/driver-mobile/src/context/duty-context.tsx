@@ -8,7 +8,11 @@ import React, {
 } from 'react';
 import { Alert, Platform } from 'react-native';
 import * as Location from 'expo-location';
-import type { RideDto, WalletTransactionDto } from '@cabzone/contracts';
+import type {
+  DriverEarningsSummaryDto,
+  RideDto,
+  WalletTransactionDto,
+} from '@cabzone/contracts';
 import { dispatchApi, isApiError, ridesApi, walletApi } from '@/services/api';
 import { startBackgroundLocation, stopBackgroundLocation } from '@/services/background-location';
 import { useAuth } from './auth-context';
@@ -43,6 +47,9 @@ interface DutyContextType {
   walletBalancePaise: number | null;
   walletTransactions: WalletTransactionDto[];
   myRides: RideDto[];
+  todaySummary: DriverEarningsSummaryDto | null;
+  summaryError: string | null;
+  isSummaryLoading: boolean;
   todayEarningsPaise: number;
   todayGrossPaise: number;
   todayCommissionPaise: number;
@@ -73,6 +80,13 @@ export function computeRideEarningsBreakdown(ride: RideDto): {
   commissionPaise: number;
   netPaise: number;
 } {
+  if (ride.driverSettlement) {
+    return {
+      grossPaise: ride.driverSettlement.grossPaise,
+      commissionPaise: ride.driverSettlement.netCommissionPaise,
+      netPaise: ride.driverSettlement.netEarningsPaise,
+    };
+  }
   const grossPaise =
     ride.agreedFarePaise ?? ride.proposedFarePaise ?? ride.suggestedFarePaise ?? 0;
   const commissionPercent = ride.pricingSnapshot?.commissionPercent ?? 8;
@@ -91,10 +105,9 @@ export function DutyProvider({ children }: { children: React.ReactNode }) {
   const [walletBalancePaise, setWalletBalancePaise] = useState<number | null>(null);
   const [walletTransactions, setWalletTransactions] = useState<WalletTransactionDto[]>([]);
   const [myRides, setMyRides] = useState<RideDto[]>([]);
-  const [todayEarningsPaise, setTodayEarningsPaise] = useState<number>(0);
-  const [todayGrossPaise, setTodayGrossPaise] = useState<number>(0);
-  const [todayCommissionPaise, setTodayCommissionPaise] = useState<number>(0);
-  const [todayCompletedTrips, setTodayCompletedTrips] = useState<number>(0);
+  const [todaySummary, setTodaySummary] = useState<DriverEarningsSummaryDto | null>(null);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
+  const [isSummaryLoading, setIsSummaryLoading] = useState<boolean>(false);
   const [useDevSimulatedLocation, setUseDevSimulatedLocation] = useState<boolean>(__DEV__);
   const [error, setError] = useState<string | null>(null);
 
@@ -133,58 +146,58 @@ export function DutyProvider({ children }: { children: React.ReactNode }) {
       setWalletBalancePaise(null);
       setWalletTransactions([]);
       setMyRides([]);
-      setTodayEarningsPaise(0);
-      setTodayGrossPaise(0);
-      setTodayCommissionPaise(0);
-      setTodayCompletedTrips(0);
+      setTodaySummary(null);
+      setSummaryError(null);
+      setIsSummaryLoading(false);
       setError(null);
     }
     lastUserIdRef.current = currentUserId;
   }, [isAuthenticated, user?.id, stopTelemetryLoop]);
 
-  // Refresh driver wallet and accurate ride-derived earnings summary
+  // Refresh server-owned driver wallet and IST day earnings summary
   const refreshSummary = useCallback(async () => {
     if (!token) return;
+    setIsSummaryLoading(true);
     try {
-      const [walletData, ridesList] = await Promise.all([
-        walletApi.getMyWallet(token),
-        ridesApi.listMyRides(token, { limit: 100 }).catch(() => [] as RideDto[]),
+      const [walletRes, earningsRes, activeRidesRes] = await Promise.allSettled([
+        walletApi.getMyWallet(token, { txLimit: 10 }),
+        ridesApi.getDriverEarnings(token, 'TODAY'),
+        ridesApi.listMyRides(token, {
+          status: Array.from(ACTIVE_RIDE_STATUSES) as RideDto['status'][],
+          limit: 5,
+        }),
       ]);
 
-      if (walletData?.wallet) {
-        setWalletBalancePaise(walletData.wallet.balancePaise);
-      }
-      if (walletData?.transactions) {
-        setWalletTransactions(walletData.transactions);
-      }
+      const errors: string[] = [];
 
-      setMyRides(ridesList);
-
-      const todayStr = new Date().toDateString();
-      const todaysSettledRides = ridesList.filter((r) => {
-        if (r.status !== 'SETTLED' && r.status !== 'PAYMENT_CONFIRMED' && r.status !== 'TRIP_COMPLETED') {
-          return false;
-        }
-        const timestamp = r.settledAt || r.completedAt || r.updatedAt || r.createdAt;
-        return Boolean(timestamp && new Date(timestamp).toDateString() === todayStr);
-      });
-
-      let grossSum = 0;
-      let commissionSum = 0;
-      let netSum = 0;
-      for (const r of todaysSettledRides) {
-        const b = computeRideEarningsBreakdown(r);
-        grossSum += b.grossPaise;
-        commissionSum += b.commissionPaise;
-        netSum += b.netPaise;
+      if (walletRes.status === 'fulfilled') {
+        setWalletBalancePaise(walletRes.value.wallet ? walletRes.value.wallet.balancePaise : 0);
+        setWalletTransactions(walletRes.value.transactions);
+      } else {
+        errors.push(
+          walletRes.reason instanceof Error
+            ? walletRes.reason.message
+            : 'Wallet balance unavailable',
+        );
       }
 
-      setTodayGrossPaise(grossSum);
-      setTodayCommissionPaise(commissionSum);
-      setTodayEarningsPaise(netSum);
-      setTodayCompletedTrips(todaysSettledRides.length);
-    } catch {
-      // ignore background summary error
+      if (earningsRes.status === 'fulfilled') {
+        setTodaySummary(earningsRes.value);
+      } else {
+        errors.push(
+          earningsRes.reason instanceof Error
+            ? earningsRes.reason.message
+            : 'Earnings summary unavailable',
+        );
+      }
+
+      if (activeRidesRes.status === 'fulfilled') {
+        setMyRides(activeRidesRes.value);
+      }
+
+      setSummaryError(errors.length > 0 ? errors[0] : null);
+    } finally {
+      setIsSummaryLoading(false);
     }
   }, [token]);
 
@@ -486,6 +499,11 @@ export function DutyProvider({ children }: { children: React.ReactNode }) {
     }
   }, [token, myRides, stopTelemetryLoop]);
 
+  const todayEarningsPaise = todaySummary?.netEarningsPaise ?? 0;
+  const todayGrossPaise = todaySummary?.grossFarePaise ?? 0;
+  const todayCommissionPaise = todaySummary?.netCommissionPaise ?? 0;
+  const todayCompletedTrips = todaySummary?.completedTripsCount ?? 0;
+
   return (
     <DutyContext.Provider
       value={{
@@ -497,6 +515,9 @@ export function DutyProvider({ children }: { children: React.ReactNode }) {
         walletBalancePaise,
         walletTransactions,
         myRides,
+        todaySummary,
+        summaryError,
+        isSummaryLoading,
         todayEarningsPaise,
         todayGrossPaise,
         todayCommissionPaise,

@@ -8,6 +8,7 @@ import { CancelRideUseCase } from './application/useCases/cancelRide.usecase.js'
 import { CompleteRideUseCase } from './application/useCases/completeRide.usecase.js';
 import { CreateRideUseCase } from './application/useCases/createRide.usecase.js';
 import { DriverArrivedUseCase } from './application/useCases/driverArrived.usecase.js';
+import { DriverEarningsUseCase } from './application/useCases/driverEarnings.usecase.js';
 import { DriverEnRouteUseCase } from './application/useCases/driverEnRoute.usecase.js';
 import { StartRideUseCase } from './application/useCases/startRide.usecase.js';
 import { NegotiateFareUseCase } from './application/useCases/negotiateFare.usecase.js';
@@ -31,6 +32,9 @@ import {
   makeCreateRideController,
   makeDriverArrivedController,
   makeDriverCounterController,
+  makeDriverEarningsSummaryController,
+  makeDriverHistoryController,
+  makeReconcileDriverEarningsController,
   makeRespondCounterController,
   makeRaiseFareController,
   makeDriverEnRouteController,
@@ -40,9 +44,11 @@ import {
   makeRideEventsController,
   makeStartRideController,
   makeSubmitRideRatingController,
+  makeWaiveCancellationFeeController,
   type RideHttpContext,
 } from './interface/rides.controller.js';
 import { buildRidesRouter } from './interface/rides.routes.js';
+import { registerRidesSwaggerPaths } from './interface/rides.swagger.js';
 import { RideUpiPaymentUseCase } from './application/useCases/rideUpiPayment.usecase.js';
 import {
   makeRideUpiController,
@@ -88,12 +94,14 @@ export interface RidesContainer {
   cancelRideUseCase: CancelRideUseCase;
   expireOffersUseCase: ExpireOffersUseCase;
   rideRatingsUseCase: RideRatingsUseCase;
+  driverEarningsUseCase: DriverEarningsUseCase;
   buildRidesRouter: (auth: RidesContainerAuth) => Router;
 }
 
 const ADMIN_ROLES: AuthRole[] = ['SUPER_ADMIN', 'CITY_ADMIN', 'SUPPORT_ADMIN', 'FINANCE_ADMIN'];
 
 export function buildRidesContainer(deps: RidesContainerDeps): RidesContainer {
+  registerRidesSwaggerPaths();
   const { rideRepo, rideEventRepo, walletRepo } = deps;
   const rideReviewRepo = deps.rideReviewRepo ?? new MemoryRideReviewRepository();
   const applyRevealedProfileRating: ProfileRatingApplierPort =
@@ -117,6 +125,7 @@ export function buildRidesContainer(deps: RidesContainerDeps): RidesContainer {
     rideEventRepo,
     rideRepo,
     pricingConfigRepo: deps.pricingConfigRepo,
+    walletRepo,
     tokenSecret: deps.tokenSecret,
   });
   const acceptRideUseCase = new AcceptRideUseCase({
@@ -163,6 +172,12 @@ export function buildRidesContainer(deps: RidesContainerDeps): RidesContainer {
     rideEventRepo,
     unitOfWork: deps.unitOfWork,
   });
+  const driverEarningsUseCase = new DriverEarningsUseCase({
+    rideRepo,
+    rideEventRepo,
+    walletRepo,
+    unitOfWork: deps.unitOfWork,
+  });
 
   const expireOffersUseCase = new ExpireOffersUseCase({
     unitOfWork: deps.unitOfWork,
@@ -206,17 +221,31 @@ export function buildRidesContainer(deps: RidesContainerDeps): RidesContainer {
     cancelRideUseCase,
     expireOffersUseCase,
     rideRatingsUseCase,
+    driverEarningsUseCase,
     buildRidesRouter: (auth) =>
       buildRidesRouter({
         authenticate: auth.authenticate,
         requireRider: auth.requireRole('RIDER'),
         requireDriver: auth.requireRole('DRIVER'),
+        requireParticipant: auth.requireRole('RIDER', 'DRIVER'),
         requireCanRead: auth.requireRole('RIDER', 'DRIVER', ...ADMIN_ROLES),
         requireDisputeAdmin: auth.requireRole('SUPER_ADMIN', 'SUPPORT_ADMIN'),
-        requireCanCancel: auth.requireRole('RIDER', 'DRIVER'),
+        requireWaiverAdmin: auth.requireRole('SUPER_ADMIN', 'SUPPORT_ADMIN', 'FINANCE_ADMIN'),
+        requireDisputeReadAdmin: auth.requireRole('SUPER_ADMIN', 'SUPPORT_ADMIN', 'FINANCE_ADMIN'),
+        requireFinanceAdmin: auth.requireRole('SUPER_ADMIN', 'FINANCE_ADMIN'),
+        requireCanCancel: auth.requireRole(
+          'RIDER',
+          'DRIVER',
+          'SUPER_ADMIN',
+          'CITY_ADMIN',
+          'SUPPORT_ADMIN',
+        ),
         createRide: makeCreateRideController(createRideUseCase, actors),
         listRides: makeListRidesController(rideRepo, actors),
-        getRide: makeGetRideController(rideRepo, actors, rideEventRepo),
+        driverEarnings: makeDriverEarningsSummaryController(driverEarningsUseCase, actors),
+        driverHistory: makeDriverHistoryController(rideRepo, driverEarningsUseCase, actors),
+        reconcileDriverEarnings: makeReconcileDriverEarningsController(driverEarningsUseCase),
+        getRide: makeGetRideController(rideRepo, actors, rideEventRepo, driverEarningsUseCase),
         getRideEvents: makeRideEventsController(rideRepo, rideEventRepo, actors),
         getRideRating: makeGetRideRatingController(rideRepo, rideRatingsUseCase, actors),
         submitRideRating: makeSubmitRideRatingController(rideRepo, rideRatingsUseCase, actors),
@@ -243,8 +272,14 @@ export function buildRidesContainer(deps: RidesContainerDeps): RidesContainer {
         checkoutStatus: qrControllers.status,
         disputePayment: makeDisputePaymentController(completeRideUseCase, actors),
         resolvePaymentDispute: makeResolvePaymentDisputeController(completeRideUseCase, actors),
-        listPaymentDisputes: makeListPaymentDisputesController(rideRepo, rideEventRepo, actors),
-        cancelRide: makeCancelRideController(cancelRideUseCase, actors),
+        listPaymentDisputes: makeListPaymentDisputesController(
+          rideRepo,
+          rideEventRepo,
+          actors,
+          walletRepo,
+        ),
+        cancelRide: makeCancelRideController(cancelRideUseCase, actors, rideRepo),
+        waiveCancellationFee: makeWaiveCancellationFeeController(cancelRideUseCase, actors),
       }),
   };
 }

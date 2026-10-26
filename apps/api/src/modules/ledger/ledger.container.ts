@@ -14,6 +14,7 @@ import {
   makeAdminListTransactionsController,
   makeAdminListWalletsController,
   makeMyWalletController,
+  makeMyWalletTransactionsController,
 } from './interface/ledger.controller.js';
 import { buildAdminWalletRouter, buildDriverWalletRouter } from './interface/ledger.routes.js';
 import { env, isProdLike } from '../../config/env.js';
@@ -103,6 +104,11 @@ export function buildLedgerContainer(deps: LedgerContainerDeps): LedgerContainer
         authenticate: auth.authenticate,
         requireDriver: auth.requireRole('DRIVER'),
         getMyWallet: makeMyWalletController(getWalletUseCase, deps.resolveDriverId),
+        listMyTransactions: makeMyWalletTransactionsController(
+          deps.walletRepo,
+          listTransactionsUseCase,
+          deps.resolveDriverId,
+        ),
       }),
   };
 }
