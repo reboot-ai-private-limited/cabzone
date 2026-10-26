@@ -6,8 +6,10 @@ import type {
   DriverApplicationDto,
   DriverDocumentDto,
   DriverProfileDetailDto,
+  KycComplianceSummaryDto,
 } from '@cabzone/contracts';
 import { authApi, dispatchApi, driverApi, isApiError, subscribeAccessToken } from '@/services/api';
+import { canAccessDriverShell as evaluateCanAccessDriverShell } from '@/services/profile';
 import {
   clearAuthTokens,
   getAccessToken,
@@ -34,8 +36,10 @@ interface AuthContextType {
   vehicle: VehicleDto | null;
   application: DriverApplicationDto | null;
   documents: DriverDocumentDto[];
+  compliance: KycComplianceSummaryDto | null;
   kycStatus: string;
   isKycVerified: boolean;
+  canAccessDriverShell: boolean;
   hasVehicle: boolean;
   token: string | null;
   isAuthenticated: boolean;
@@ -116,8 +120,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setDriverProfile(profile);
         } catch (profileErr: unknown) {
           const isAuthRevoked =
-            (isApiError(refreshErr) && refreshErr.isUnauthorized) &&
-            (isApiError(profileErr) && profileErr.isUnauthorized);
+            isApiError(refreshErr) &&
+            refreshErr.isUnauthorized &&
+            isApiError(profileErr) &&
+            profileErr.isUnauthorized;
 
           if (isAuthRevoked) {
             await clearAuthTokens();
@@ -157,24 +163,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let active = true;
     const listener = AppState.addEventListener('change', (state) => {
       if (state !== 'active') return;
-      void getAccessToken().then((stored) => {
-        if (active && stored) setToken((current) => current === stored ? current : stored);
+      void getAccessToken().then(async (stored) => {
+        if (!active || !stored) return;
+        setToken((current) => (current === stored ? current : stored));
+        try {
+          const freshProfile = await authApi.getDriverProfile(stored);
+          if (active) setDriverProfile(freshProfile);
+        } catch {
+          // Ignore transient foreground profile sync error
+        }
       });
     });
-    return () => { active = false; listener.remove(); };
+    return () => {
+      active = false;
+      listener.remove();
+    };
   }, [user, token]);
 
-  useEffect(() => subscribeAccessToken((freshToken) => {
-    if (freshToken) {
-      setToken(freshToken);
-    } else {
-      void clearAuthTokens();
-      setToken(null);
-      setUser(null);
-      setDriverProfile(null);
-      setBootstrapError('Session expired. Please sign in again.');
-    }
-  }), []);
+  useEffect(
+    () =>
+      subscribeAccessToken((freshToken) => {
+        if (freshToken) {
+          setToken(freshToken);
+        } else {
+          void clearAuthTokens();
+          setToken(null);
+          setUser(null);
+          setDriverProfile(null);
+          setBootstrapError('Session expired. Please sign in again.');
+        }
+      }),
+    [],
+  );
 
   const formatE164 = (raw: string): string => {
     const cleaned = raw.replace(/\D/g, '');
@@ -204,8 +224,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         const res = await authApi.requestOtp(formatted);
         setPhone(formatted);
-        // Do NOT set step to 'otp' here since SignupStep handles the OTP UI now
-        // setStep('otp');
         setOtpCooldown(res.retryAfterSeconds || 60);
         return true;
       } catch (err: unknown) {
@@ -310,8 +328,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const vehicle = driverProfile?.vehicle || null;
   const application = driverProfile?.application || null;
   const documents = driverProfile?.documents || [];
+  const compliance = driverProfile?.compliance || null;
   const kycStatus = driver?.kycStatus || 'PENDING';
   const isKycVerified = driver?.kycStatus === 'VERIFIED' && driver?.status === 'ACTIVE';
+  const canAccessDriverShell = evaluateCanAccessDriverShell(driver);
   const hasVehicle = !!driver?.currentVehicleId;
 
   return (
@@ -323,8 +343,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         vehicle,
         application,
         documents,
+        compliance,
         kycStatus,
         isKycVerified,
+        canAccessDriverShell,
         hasVehicle,
         token,
         isAuthenticated: !!token && !!user,
@@ -343,8 +365,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         logout,
         refreshProfile,
         testApprove,
-      }}
-    >
+      }}>
       {children}
     </AuthContext.Provider>
   );

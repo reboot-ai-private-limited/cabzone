@@ -49,6 +49,7 @@ export interface DriverDocumentDto {
   id: string;
   driverId: string;
   applicationId: string;
+  vehicleId?: string | null;
   type: DocumentType;
   storageKey: string;
   documentHash: string;
@@ -61,9 +62,43 @@ export interface DriverDocumentDto {
   updatedAt: string;
 }
 
+export const KYC_EXPIRY_STATUSES = ['VALID', 'EXPIRING_SOON', 'EXPIRED', 'MISSING'] as const;
+export type KycExpiryStatus = (typeof KYC_EXPIRY_STATUSES)[number];
+
+export const KYC_OVERALL_COMPLIANCE_STATUSES = ['COMPLIANT', 'EXPIRING_SOON', 'EXPIRED', 'INCOMPLETE'] as const;
+export type KycOverallComplianceStatus = (typeof KYC_OVERALL_COMPLIANCE_STATUSES)[number];
+
+export interface DriverDocumentComplianceItemDto {
+  type: DocumentType;
+  documentId: string | null;
+  status: KycExpiryStatus;
+  expiresAt: string | null;
+  daysRemaining: number | null;
+  urgent: boolean;
+  hasPendingRenewal: boolean;
+  vehicleId: string | null;
+}
+
+export interface KycComplianceSummaryDto {
+  overallStatus: KycOverallComplianceStatus;
+  canRenew: boolean;
+  hasPendingRenewal: boolean;
+  expiredTypes: DocumentType[];
+  expiringSoonTypes: DocumentType[];
+  items: DriverDocumentComplianceItemDto[];
+}
+
+export interface AdminDocumentPreviewDto {
+  documentId: string;
+  url: string;
+  mimeType: 'application/pdf' | 'image/jpeg' | 'image/png';
+  expiresAt: string;
+}
+
 export interface DriverProfileDetailDto {
   driver: DriverDto | null;
   vehicle: VehicleDto | null;
   application: DriverApplicationDto | null;
   documents: DriverDocumentDto[];
+  compliance?: KycComplianceSummaryDto;
 }

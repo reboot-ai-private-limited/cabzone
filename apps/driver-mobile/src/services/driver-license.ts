@@ -11,7 +11,7 @@ export interface SelectedDriverLicense {
 
 export async function pickDriverLicense(label = 'Licence'): Promise<SelectedDriverLicense | null> {
   const result = await DocumentPicker.getDocumentAsync({
-    type: ['application/pdf', 'image/jpeg'],
+    type: ['application/pdf', 'image/jpeg', 'image/png'],
     multiple: false,
     // Expo Go can deny reads from DocumentPicker's cache copy on Android; read the granted URI immediately.
     copyToCacheDirectory: Platform.OS !== 'android',
@@ -22,9 +22,15 @@ export async function pickDriverLicense(label = 'Licence'): Promise<SelectedDriv
   const asset = result.assets[0];
   if (!asset) throw new Error('No file was selected.');
   const extension = asset.name.split('.').at(-1)?.toLowerCase();
-  const mimeType = extension === 'pdf' ? 'application/pdf' :
-    extension === 'jpg' || extension === 'jpeg' ? 'image/jpeg' : null;
-  if (!mimeType) throw new Error('Select a PDF, JPG, or JPEG file.');
+  const mimeType =
+    extension === 'pdf'
+      ? 'application/pdf'
+      : extension === 'jpg' || extension === 'jpeg'
+        ? 'image/jpeg'
+        : extension === 'png'
+          ? 'image/png'
+          : null;
+  if (!mimeType) throw new Error('Select a PDF, JPG, JPEG, or PNG file.');
   if (asset.size !== undefined && asset.size > MAX_LICENSE_BYTES) {
     throw new Error(`${label} file must be 500 KB or smaller.`);
   }
@@ -38,7 +44,9 @@ export async function pickDriverLicense(label = 'Licence'): Promise<SelectedDriv
     if (file.size > MAX_LICENSE_BYTES) throw new Error(`${label} file must be 500 KB or smaller.`);
     encoded = await file.base64();
   }
-  const decodedSize = Math.floor(encoded.length * 3 / 4) - (encoded.endsWith('==') ? 2 : encoded.endsWith('=') ? 1 : 0);
+  const decodedSize =
+    Math.floor((encoded.length * 3) / 4) -
+    (encoded.endsWith('==') ? 2 : encoded.endsWith('=') ? 1 : 0);
   if (decodedSize === 0 || decodedSize > MAX_LICENSE_BYTES) {
     throw new Error(`${label} file must be 500 KB or smaller.`);
   }

@@ -2,6 +2,8 @@ import type {
   DocumentType,
   DriverDocumentDto,
   DriverDto,
+  DriverProfileDetailDto,
+  KycComplianceSummaryDto,
   SaveDriverProfileRequestDto,
   VehicleDto,
 } from '@cabzone/contracts';
@@ -456,4 +458,123 @@ export function mapSubmissionError(err: unknown): {
     };
   }
   return { message: raw };
+}
+
+export function canAccessDriverShell(driver: DriverDto | null | undefined): boolean {
+  return Boolean(driver && driver.status === 'ACTIVE');
+}
+
+export interface KycBannerState {
+  tone: 'danger' | 'warning' | 'info';
+  title: string;
+  message: string;
+  ctaLabel: string;
+}
+
+export function deriveKycBannerState(
+  profile: Pick<DriverProfileDetailDto, 'driver' | 'application' | 'compliance'> | null | undefined,
+): KycBannerState | null {
+  if (!profile?.driver) return null;
+  const { driver, application, compliance } = profile;
+
+  const isExpired =
+    driver.kycStatus === 'EXPIRED' || compliance?.overallStatus === 'EXPIRED';
+  const hasSubmittedRenewal = Boolean(
+    compliance?.hasPendingRenewal ||
+      (application &&
+        ['SUBMITTED', 'UNDER_REVIEW_AUTO', 'UNDER_REVIEW_ADMIN', 'REAPPLIED'].includes(
+          application.status,
+        ) &&
+        driver.status === 'ACTIVE'),
+  );
+  const isFixableRejected =
+    application?.status === 'REJECTED' && application.rejectionType === 'FIXABLE';
+
+  if (isExpired) {
+    if (hasSubmittedRenewal) {
+      return {
+        tone: 'info',
+        title: 'Renewal Under Review',
+        message:
+          'Your renewed compliance documents are under admin review. You can go back online once approved.',
+        ctaLabel: 'View Status',
+      };
+    }
+    if (isFixableRejected) {
+      return {
+        tone: 'danger',
+        title: 'Renewal Needs Attention',
+        message:
+          application.rejectionReason ||
+          'Please re-upload the requested compliance document to restore online eligibility.',
+        ctaLabel: 'Fix Documents',
+      };
+    }
+    return {
+      tone: 'danger',
+      title: 'KYC Document Expired',
+      message:
+        'One or more compliance documents have expired. Upload a renewed copy in Compliance Documents to go online.',
+      ctaLabel: 'Renew Documents',
+    };
+  }
+
+  if (isFixableRejected && driver.status === 'ACTIVE') {
+    return {
+      tone: 'warning',
+      title: 'Renewal Rejected — Action Needed',
+      message:
+        application.rejectionReason ||
+        'Your recent document renewal needs a clearer upload before your current document expires.',
+      ctaLabel: 'Update Document',
+    };
+  }
+
+  if (hasSubmittedRenewal) {
+    return {
+      tone: 'info',
+      title: 'Document Renewal Under Review',
+      message:
+        'Your updated documents are awaiting verification. You can continue driving while existing verified documents remain valid.',
+      ctaLabel: 'View Documents',
+    };
+  }
+
+  if (compliance?.overallStatus === 'EXPIRING_SOON') {
+    const minDays = (compliance.items ?? [])
+      .filter((item) => item.status === 'EXPIRING_SOON' && item.daysRemaining !== null)
+      .reduce<number>(
+        (acc, item) => Math.min(acc, item.daysRemaining ?? acc),
+        30,
+      );
+    const urgent = minDays <= 7;
+    return {
+      tone: urgent ? 'danger' : 'warning',
+      title:
+        minDays <= 1
+          ? 'Compliance Document Expires Tomorrow'
+          : `Compliance Document Expiring in ${minDays} Days`,
+      message:
+        'Upload your renewed document early in Compliance Documents to avoid going offline automatically.',
+      ctaLabel: 'Renew Early',
+    };
+  }
+
+  if (compliance?.overallStatus === 'INCOMPLETE' && driver.status === 'ACTIVE') {
+    return {
+      tone: 'warning',
+      title: 'Vehicle or Compliance Approval Pending',
+      message:
+        'Upload current documents for your registered vehicle and submit for verification before going online.',
+      ctaLabel: 'Review Documents',
+    };
+  }
+
+  return null;
+}
+
+export function resolveComplianceSummaryFallback(
+  profile: DriverProfileDetailDto | null,
+): KycComplianceSummaryDto | null {
+  return profile?.compliance ?? null;
 }

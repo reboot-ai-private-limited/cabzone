@@ -3,11 +3,12 @@ import { newUuid } from '../../../../shared/ids.js';
 import { AppError } from '../../../../shared/errors/AppError.js';
 import { parseDriverLicenseFile } from '../driverLicenseFile.js';
 import type { DriverLicenseStoragePort } from '../../domain/driverLicenseStorage.port.js';
-import type {
-  DriverApplicationRepositoryPort,
-  DriverDocumentEntity,
-  DriverDocumentRepositoryPort,
-  DriverRepositoryPort,
+import {
+  isVehicleScopedDocumentType,
+  type DriverApplicationRepositoryPort,
+  type DriverDocumentEntity,
+  type DriverDocumentRepositoryPort,
+  type DriverRepositoryPort,
 } from '../../domain/index.js';
 
 export interface UploadDriverDocumentDeps {
@@ -22,6 +23,7 @@ export interface UploadDriverDocumentDto {
   type: DocumentType;
   storageKey: string;
   documentHash: string;
+  vehicleId?: string | null | undefined;
   documentNumberMasked?: string | null | undefined;
   issuedAt?: Date | null | undefined;
   expiresAt?: Date | null | undefined;
@@ -46,7 +48,11 @@ export class UploadDriverDocumentUseCase {
     if (!dto.fileDataUrl) {
       const documents = await this.deps.documentRepo.findByApplicationId(application.id);
       const existing = documents.find((document) => document.type === 'DRIVING_LICENSE');
-      if (!existing || existing.storageKey.startsWith('mock/') || existing.documentNumberMasked !== `****${dto.dlNumber.slice(-4)}`) {
+      if (
+        !existing ||
+        existing.storageKey.startsWith('mock/') ||
+        existing.documentNumberMasked !== `****${dto.dlNumber.slice(-4)}`
+      ) {
         throw AppError.badRequest('Select the licence file for this licence number.');
       }
       return this.execute({
@@ -92,6 +98,7 @@ export class UploadDriverDocumentUseCase {
     return this.execute({
       userId: dto.userId,
       type: dto.type,
+      vehicleId: driver.currentVehicleId ?? null,
       storageKey,
       documentHash: file.sha256,
       expiresAt: dto.expiresAt,
@@ -137,17 +144,24 @@ export class UploadDriverDocumentUseCase {
     const existingDocs = await this.deps.documentRepo.findByApplicationId(application.id);
     const existing = existingDocs.find((d) => d.type === dto.type);
     const now = new Date();
+    const resolvedVehicleId = isVehicleScopedDocumentType(dto.type)
+      ? dto.vehicleId !== undefined
+        ? dto.vehicleId
+        : (driver.currentVehicleId ?? existing?.vehicleId ?? null)
+      : null;
 
     if (existing) {
       const updated: DriverDocumentEntity = {
         ...existing,
+        vehicleId: resolvedVehicleId,
         storageKey: dto.storageKey,
         documentHash: dto.documentHash,
         documentNumberMasked: dto.documentNumberMasked ?? existing.documentNumberMasked,
-        issuedAt: dto.issuedAt ?? existing.issuedAt,
-        expiresAt: dto.expiresAt ?? existing.expiresAt,
+        issuedAt: dto.issuedAt !== undefined ? dto.issuedAt : existing.issuedAt,
+        expiresAt: dto.expiresAt !== undefined ? dto.expiresAt : existing.expiresAt,
         verificationStatus: 'PENDING',
         verifiedAt: null,
+        lastExpiryReminderDays: null,
         updatedAt: now,
       };
       return this.deps.documentRepo.update(updated);
@@ -157,6 +171,7 @@ export class UploadDriverDocumentUseCase {
       id: newUuid(),
       driverId: driver.id,
       applicationId: application.id,
+      vehicleId: resolvedVehicleId,
       type: dto.type,
       storageKey: dto.storageKey,
       documentHash: dto.documentHash,
@@ -165,6 +180,7 @@ export class UploadDriverDocumentUseCase {
       expiresAt: dto.expiresAt ?? null,
       verificationStatus: 'PENDING',
       verifiedAt: null,
+      lastExpiryReminderDays: null,
       createdAt: now,
       updatedAt: now,
     };

@@ -1,12 +1,24 @@
-import React from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useState } from 'react';
+import {
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { DOCUMENT_TYPES, type DocumentType } from '@cabzone/contracts';
 import { useAuth } from '@/context/auth-context';
+import { driverApi } from '@/services/api';
+import { pickDriverLicense, type SelectedDriverLicense } from '@/services/driver-license';
+import { formatDateInput, toDisplayDate, validateFutureExpiryDate } from '@/services/profile';
 import { colors, typography } from '@/design-system';
 
-const DOC_LABELS: Record<string, string> = {
+const DOC_LABELS: Record<DocumentType, string> = {
   GOVERNMENT_ID: 'Government Identity Proof (Aadhaar / PAN / Voter ID)',
   DRIVING_LICENSE: 'Commercial Driving Licence',
   REGISTRATION_CERTIFICATE: 'Vehicle Registration Certificate (RC)',
@@ -16,7 +28,138 @@ const DOC_LABELS: Record<string, string> = {
 
 export default function DriverDocumentsScreen() {
   const router = useRouter();
-  const { driver, documents } = useAuth();
+  const { token, driver, application, documents, compliance, refreshProfile } = useAuth();
+
+  const [editingType, setEditingType] = useState<DocumentType | null>(null);
+  const [selectedFile, setSelectedFile] = useState<SelectedDriverLicense | null>(null);
+  const [expiryInput, setExpiryInput] = useState('');
+  const [dlNumberInput, setDlNumberInput] = useState('');
+  const [isUploading, setIsUploading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [actionSuccess, setActionSuccess] = useState<string | null>(null);
+
+  const isUnderReview = Boolean(
+    application &&
+      ['SUBMITTED', 'UNDER_REVIEW_AUTO', 'UNDER_REVIEW_ADMIN'].includes(application.status),
+  );
+  const isRenewalDraft = Boolean(
+    application && ['DRAFT', 'REAPPLIED'].includes(application.status),
+  );
+  const hasStagedPendingDoc = Boolean(
+    application &&
+      isRenewalDraft &&
+      documents.some(
+        (d) => d.applicationId === application.id && d.verificationStatus === 'PENDING',
+      ),
+  );
+  const canEditDocuments =
+    !isUnderReview &&
+    driver?.status !== 'SUSPENDED' &&
+    driver?.status !== 'REJECTED' &&
+    application?.rejectionType !== 'HARD_FRAUD';
+
+  const openEditor = (type: DocumentType) => {
+    setEditingType(type);
+    setSelectedFile(null);
+    setExpiryInput('');
+    setDlNumberInput(driver?.dlNumber?.trim().toUpperCase() ?? '');
+    setActionError(null);
+    setActionSuccess(null);
+  };
+
+  const handlePickFile = async (type: DocumentType) => {
+    setActionError(null);
+    try {
+      const picked = await pickDriverLicense(DOC_LABELS[type]);
+      if (picked) {
+        setSelectedFile(picked);
+      }
+    } catch (err: unknown) {
+      setActionError(err instanceof Error ? err.message : 'Could not select document file.');
+    }
+  };
+
+  const handleUploadReplacement = async (type: DocumentType) => {
+    if (!token) return;
+    if (!selectedFile) {
+      setActionError('Select a PDF, JPG, or PNG file (max 500 KB) first.');
+      return;
+    }
+
+    let isoTimestamp: string | undefined;
+    if (type !== 'GOVERNMENT_ID') {
+      const check = validateFutureExpiryDate(expiryInput);
+      if (!check.valid || !check.isoTimestamp) {
+        setActionError(check.error || 'Enter a valid future expiry date (DD/MM/YYYY).');
+        return;
+      }
+      isoTimestamp = check.isoTimestamp;
+    }
+
+    const cleanedDl = dlNumberInput.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (type === 'DRIVING_LICENSE' && !/^[A-Z0-9]{8,16}$/.test(cleanedDl)) {
+      setActionError('Enter a valid 8-16 character driving licence number.');
+      return;
+    }
+
+    setIsUploading(true);
+    setActionError(null);
+    setActionSuccess(null);
+    try {
+      if (!isRenewalDraft) {
+        await driverApi.renewApplication(token);
+      }
+
+      if (type === 'DRIVING_LICENSE') {
+        await driverApi.uploadLicenseFile(token, {
+          fileDataUrl: selectedFile.dataUrl,
+          dlNumber: cleanedDl,
+          expiresAt: isoTimestamp!,
+        });
+      } else if (type === 'GOVERNMENT_ID') {
+        await driverApi.uploadIdentityDocumentFile(token, selectedFile.dataUrl);
+      } else {
+        await driverApi.uploadVehicleDocumentFile(token, {
+          type,
+          fileDataUrl: selectedFile.dataUrl,
+          expiresAt: isoTimestamp!,
+        });
+      }
+
+      await refreshProfile();
+      setEditingType(null);
+      setSelectedFile(null);
+      setExpiryInput('');
+      setActionSuccess(
+        `${DOC_LABELS[type]} uploaded to your renewal draft. Submit below when ready for admin verification.`,
+      );
+    } catch (err: unknown) {
+      setActionError(err instanceof Error ? err.message : 'Failed to upload document.');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleSubmitRenewal = async () => {
+    if (!token) return;
+    setIsSubmitting(true);
+    setActionError(null);
+    setActionSuccess(null);
+    try {
+      await driverApi.submitApplication(token);
+      await refreshProfile();
+      setActionSuccess(
+        'Renewal submitted for admin review. Still-valid verified documents keep you eligible to drive while your update is reviewed.',
+      );
+    } catch (err: unknown) {
+      setActionError(err instanceof Error ? err.message : 'Could not submit renewal application.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const overallStatus = compliance?.overallStatus ?? (driver?.kycStatus === 'EXPIRED' ? 'EXPIRED' : 'COMPLIANT');
 
   return (
     <SafeAreaView style={styles.container}>
@@ -30,64 +173,244 @@ export default function DriverDocumentsScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        <View style={styles.summaryCard}>
-          <Text style={styles.summaryLabel}>OVERALL KYC STATUS</Text>
-          <Text style={styles.summaryValue}>{driver?.kycStatus || 'VERIFIED'}</Text>
+        <View
+          style={[
+            styles.summaryCard,
+            overallStatus === 'EXPIRED'
+              ? styles.summaryDanger
+              : overallStatus === 'EXPIRING_SOON'
+                ? styles.summaryWarning
+                : null,
+          ]}>
+          <Text style={styles.summaryLabel}>COMPLIANCE & KYC STATUS</Text>
+          <Text style={styles.summaryValue}>
+            {overallStatus === 'EXPIRING_SOON'
+              ? 'EXPIRING SOON'
+              : overallStatus === 'EXPIRED'
+                ? 'EXPIRED'
+                : driver?.kycStatus || 'VERIFIED'}
+          </Text>
           {driver?.dlNumber ? (
             <Text style={styles.summarySub}>Driving Licence: {driver.dlNumber}</Text>
           ) : null}
+          <Text style={styles.summaryHint}>
+            {overallStatus === 'EXPIRED'
+              ? 'Upload renewals for expired documents below and submit for review to go back online.'
+              : overallStatus === 'EXPIRING_SOON'
+                ? 'Renew expiring documents up to 30 days early without interrupting active duty.'
+                : 'Valid verified documents are automatically carried forward when you renew.'}
+          </Text>
         </View>
+
+        {isUnderReview ? (
+          <View style={styles.infoBanner}>
+            <Ionicons name="time-outline" size={20} color={colors.deepBrown} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.infoBannerTitle}>Renewal Under Admin Review</Text>
+              <Text style={styles.infoBannerSub}>
+                Your updated compliance package has been submitted. You will be notified as soon as verification completes.
+              </Text>
+            </View>
+          </View>
+        ) : null}
+
+        {application?.status === 'REJECTED' && application.rejectionReason ? (
+          <View style={styles.errorBanner}>
+            <Ionicons name="alert-circle-outline" size={20} color={colors.error} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.errorBannerTitle}>Review Feedback</Text>
+              <Text style={styles.errorBannerSub}>{application.rejectionReason}</Text>
+            </View>
+          </View>
+        ) : null}
+
+        {actionError ? (
+          <View style={styles.errorBanner}>
+            <Ionicons name="warning-outline" size={20} color={colors.error} />
+            <Text style={[styles.errorBannerSub, { flex: 1 }]}>{actionError}</Text>
+          </View>
+        ) : null}
+
+        {actionSuccess ? (
+          <View style={styles.successBanner}>
+            <Ionicons name="checkmark-circle-outline" size={20} color="#15803D" />
+            <Text style={styles.successBannerText}>{actionSuccess}</Text>
+          </View>
+        ) : null}
 
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Uploaded Documents</Text>
-          {documents.length === 0 ? (
-            <Text style={styles.emptyText}>No document records found.</Text>
-          ) : (
-            documents.map((doc) => {
-              const isVerified = doc.verificationStatus === 'VERIFIED';
-              const isExpired =
-                doc.verificationStatus === 'EXPIRED' ||
-                Boolean(doc.expiresAt && new Date(doc.expiresAt) < new Date());
+          <Text style={styles.cardTitle}>Mandatory Compliance Documents</Text>
+          {DOCUMENT_TYPES.map((type, idx) => {
+            const compItem = compliance?.items.find((i) => i.type === type);
+            const matchingDocs = documents
+              .filter((d) => d.type === type)
+              .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+            const latestDoc = matchingDocs[0];
+            const stagedDraftDoc =
+              isRenewalDraft && application
+                ? matchingDocs.find(
+                    (d) =>
+                      d.applicationId === application.id && d.verificationStatus === 'PENDING',
+                  )
+                : undefined;
 
-              return (
-                <View key={doc.id} style={styles.docRow}>
+            const isExpired =
+              compItem?.status === 'EXPIRED' ||
+              (!compItem &&
+                latestDoc &&
+                (latestDoc.verificationStatus === 'EXPIRED' ||
+                  Boolean(latestDoc.expiresAt && new Date(latestDoc.expiresAt) <= new Date())));
+            const isExpiringSoon = compItem?.status === 'EXPIRING_SOON';
+            const daysRemaining = compItem?.daysRemaining ?? null;
+            const effectiveExpiry =
+              stagedDraftDoc?.expiresAt ?? compItem?.expiresAt ?? latestDoc?.expiresAt ?? null;
+
+            let badgeLabel: string = latestDoc?.verificationStatus ?? 'MISSING';
+            let badgeStyle: { backgroundColor: string; borderColor: string } = styles.badgeAmber;
+            let badgeTextColor: string = colors.brandBrown;
+
+            if (stagedDraftDoc) {
+              badgeLabel = 'RENEWAL READY';
+              badgeStyle = styles.badgeAmber;
+              badgeTextColor = colors.deepBrown;
+            } else if (compItem?.hasPendingRenewal && isUnderReview) {
+              badgeLabel = 'UNDER REVIEW';
+              badgeStyle = styles.badgeAmber;
+              badgeTextColor = colors.deepBrown;
+            } else if (isExpired) {
+              badgeLabel = 'EXPIRED';
+              badgeStyle = styles.badgeRed;
+              badgeTextColor = colors.error;
+            } else if (isExpiringSoon && daysRemaining !== null) {
+              badgeLabel = daysRemaining <= 1 ? '1d LEFT' : `${daysRemaining}d LEFT`;
+              badgeStyle = compItem?.urgent ? styles.badgeRed : styles.badgeAmber;
+              badgeTextColor = compItem?.urgent ? colors.error : colors.brandBrown;
+            } else if (compItem?.status === 'VALID' || latestDoc?.verificationStatus === 'VERIFIED') {
+              badgeLabel = 'VERIFIED';
+              badgeStyle = styles.badgeGreen;
+              badgeTextColor = '#15803D';
+            }
+
+            const isEditing = editingType === type;
+
+            return (
+              <View key={type} style={[styles.docBlock, idx > 0 && styles.docBlockBorder]}>
+                <View style={styles.docRow}>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.docName}>{DOC_LABELS[doc.type] || doc.type}</Text>
-                    {doc.documentNumberMasked ? (
-                      <Text style={styles.docMeta}>Ref: {doc.documentNumberMasked}</Text>
+                    <Text style={styles.docName}>{DOC_LABELS[type]}</Text>
+                    {latestDoc?.documentNumberMasked ? (
+                      <Text style={styles.docMeta}>Ref: {latestDoc.documentNumberMasked}</Text>
                     ) : null}
                     <Text style={styles.docMeta}>
-                      {doc.expiresAt
-                        ? `Expires: ${new Date(doc.expiresAt).toLocaleDateString('en-IN')}`
-                        : 'No expiry required'}
+                      {effectiveExpiry
+                        ? `${stagedDraftDoc ? 'New expiry' : 'Expires'}: ${toDisplayDate(effectiveExpiry)}`
+                        : type === 'GOVERNMENT_ID'
+                          ? 'No expiry required'
+                          : 'Expiry required'}
                     </Text>
                   </View>
-                  <View
-                    style={[
-                      styles.badge,
-                      isExpired
-                        ? styles.badgeRed
-                        : isVerified
-                          ? styles.badgeGreen
-                          : styles.badgeAmber,
-                    ]}>
-                    <Text
-                      style={[
-                        styles.badgeText,
-                        isExpired
-                          ? { color: colors.error }
-                          : isVerified
-                            ? { color: colors.success }
-                            : { color: colors.brandBrown },
-                      ]}>
-                      {isExpired ? 'EXPIRED' : doc.verificationStatus}
-                    </Text>
+
+                  <View style={styles.docRight}>
+                    <View style={[styles.badge, badgeStyle]}>
+                      <Text style={[styles.badgeText, { color: badgeTextColor }]}>
+                        {badgeLabel}
+                      </Text>
+                    </View>
+                    {canEditDocuments ? (
+                      <Pressable
+                        style={styles.replaceTrigger}
+                        onPress={() => (isEditing ? setEditingType(null) : openEditor(type))}>
+                        <Text style={styles.replaceTriggerText}>
+                          {isEditing
+                            ? 'Cancel'
+                            : isExpired || isExpiringSoon || !latestDoc
+                              ? 'Renew'
+                              : 'Replace'}
+                        </Text>
+                      </Pressable>
+                    ) : null}
                   </View>
                 </View>
-              );
-            })
-          )}
+
+                {isEditing ? (
+                  <View style={styles.editorBox}>
+                    <Pressable
+                      style={styles.filePickerBtn}
+                      onPress={() => void handlePickFile(type)}
+                      disabled={isUploading}>
+                      <Ionicons name="cloud-upload-outline" size={18} color={colors.deepBrown} />
+                      <Text style={styles.filePickerText} numberOfLines={1}>
+                        {selectedFile
+                          ? `Selected: ${selectedFile.name}`
+                          : 'Choose PDF, JPG, or PNG (max 500 KB)'}
+                      </Text>
+                    </Pressable>
+
+                    {type === 'DRIVING_LICENSE' ? (
+                      <View style={styles.inputGroup}>
+                        <Text style={styles.inputLabel}>Driving Licence Number</Text>
+                        <TextInput
+                          style={styles.input}
+                          value={dlNumberInput}
+                          onChangeText={(val) => setDlNumberInput(val.toUpperCase())}
+                          placeholder="e.g. WB7420220012345"
+                          placeholderTextColor={colors.secondary}
+                          autoCapitalize="characters"
+                          maxLength={16}
+                        />
+                      </View>
+                    ) : null}
+
+                    {type !== 'GOVERNMENT_ID' ? (
+                      <View style={styles.inputGroup}>
+                        <Text style={styles.inputLabel}>New Expiry Date (DD/MM/YYYY)</Text>
+                        <TextInput
+                          style={styles.input}
+                          value={expiryInput}
+                          onChangeText={(val) => setExpiryInput(formatDateInput(val))}
+                          placeholder="DD/MM/YYYY"
+                          placeholderTextColor={colors.secondary}
+                          keyboardType="number-pad"
+                          maxLength={10}
+                        />
+                      </View>
+                    ) : null}
+
+                    <Pressable
+                      style={[styles.uploadConfirmBtn, isUploading && styles.btnDisabled]}
+                      disabled={isUploading}
+                      onPress={() => void handleUploadReplacement(type)}>
+                      {isUploading ? (
+                        <ActivityIndicator size="small" color={colors.deepBrown} />
+                      ) : (
+                        <Text style={styles.uploadConfirmText}>Save Document to Renewal</Text>
+                      )}
+                    </Pressable>
+                  </View>
+                ) : null}
+              </View>
+            );
+          })}
         </View>
+
+        {hasStagedPendingDoc && canEditDocuments ? (
+          <View style={styles.submitCard}>
+            <Text style={styles.submitTitle}>Ready to Submit Renewal?</Text>
+            <Text style={styles.submitSub}>
+              All other valid verified documents are carried forward automatically. Submit now so an administrator can verify your updated document(s).
+            </Text>
+            <Pressable
+              style={[styles.submitBtn, isSubmitting && styles.btnDisabled]}
+              disabled={isSubmitting}
+              onPress={() => void handleSubmitRenewal()}>
+              {isSubmitting ? (
+                <ActivityIndicator size="small" color={colors.white} />
+              ) : (
+                <Text style={styles.submitBtnText}>Submit Renewal for Verification →</Text>
+              )}
+            </Pressable>
+          </View>
+        ) : null}
       </ScrollView>
     </SafeAreaView>
   );
@@ -107,7 +430,7 @@ const styles = StyleSheet.create({
   backBtn: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   backText: { fontSize: typography.sizes.sm, fontWeight: '700', color: colors.deepBrown },
   topTitle: { fontSize: typography.sizes.base, fontWeight: '800', color: colors.deepBrown },
-  scrollContent: { padding: 20, gap: 16 },
+  scrollContent: { padding: 20, paddingBottom: 48, gap: 16 },
   summaryCard: {
     backgroundColor: colors.cream,
     borderRadius: 20,
@@ -116,27 +439,95 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     alignItems: 'center',
   },
+  summaryDanger: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#FCA5A5',
+  },
+  summaryWarning: {
+    backgroundColor: '#FFFBEB',
+    borderColor: colors.amber,
+  },
   summaryLabel: { fontSize: 10, fontWeight: '800', color: colors.brandBrown, letterSpacing: 0.6 },
-  summaryValue: { fontSize: 24, fontWeight: '800', color: colors.deepBrown, marginVertical: 4 },
-  summarySub: { fontSize: typography.sizes.xs, color: colors.secondary, fontWeight: '600' },
+  summaryValue: { fontSize: 22, fontWeight: '800', color: colors.deepBrown, marginVertical: 4 },
+  summarySub: { fontSize: typography.sizes.xs, color: colors.deepBrown, fontWeight: '700' },
+  summaryHint: {
+    fontSize: 11,
+    color: colors.secondary,
+    textAlign: 'center',
+    marginTop: 6,
+    lineHeight: 16,
+  },
+  infoBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 14,
+    borderRadius: 14,
+    backgroundColor: colors.cream,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  infoBannerTitle: { fontSize: typography.sizes.xs, fontWeight: '800', color: colors.deepBrown },
+  infoBannerSub: { fontSize: 11, color: colors.secondary, marginTop: 2, lineHeight: 15 },
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 14,
+    borderRadius: 14,
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FCA5A5',
+  },
+  errorBannerTitle: { fontSize: typography.sizes.xs, fontWeight: '800', color: colors.error },
+  errorBannerSub: { fontSize: 11, color: '#991B1B', marginTop: 1, lineHeight: 15 },
+  successBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 14,
+    borderRadius: 14,
+    backgroundColor: '#DCFCE7',
+    borderWidth: 1,
+    borderColor: '#86EFAC',
+  },
+  successBannerText: {
+    flex: 1,
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#15803D',
+    lineHeight: 15,
+  },
   card: {
     backgroundColor: colors.white,
     borderRadius: 20,
     padding: 18,
     borderWidth: 1,
     borderColor: colors.border,
-    gap: 12,
+    gap: 8,
   },
-  cardTitle: { fontSize: typography.sizes.base, fontWeight: '800', color: colors.deepBrown },
-  emptyText: { fontSize: typography.sizes.xs, color: colors.secondary },
+  cardTitle: {
+    fontSize: typography.sizes.base,
+    fontWeight: '800',
+    color: colors.deepBrown,
+    marginBottom: 4,
+  },
+  docBlock: {
+    paddingVertical: 10,
+  },
+  docBlockBorder: {
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
   docRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 10,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
     gap: 12,
+  },
+  docRight: {
+    alignItems: 'flex-end',
+    gap: 6,
   },
   docName: { fontSize: typography.sizes.xs, fontWeight: '800', color: colors.deepBrown },
   docMeta: { fontSize: 11, color: colors.secondary, marginTop: 2 },
@@ -145,4 +536,107 @@ const styles = StyleSheet.create({
   badgeAmber: { backgroundColor: colors.lightCream, borderColor: colors.border },
   badgeRed: { backgroundColor: '#FEE2E2', borderColor: '#FCA5A5' },
   badgeText: { fontSize: 10, fontWeight: '800' },
+  replaceTrigger: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    backgroundColor: colors.cream,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  replaceTriggerText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: colors.deepBrown,
+  },
+  editorBox: {
+    marginTop: 12,
+    padding: 12,
+    borderRadius: 14,
+    backgroundColor: colors.lightCream,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: 10,
+  },
+  filePickerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 12,
+    borderRadius: 10,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  filePickerText: {
+    flex: 1,
+    fontSize: typography.sizes.xs,
+    fontWeight: '700',
+    color: colors.deepBrown,
+  },
+  inputGroup: {
+    gap: 4,
+  },
+  inputLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.secondary,
+  },
+  input: {
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: typography.sizes.sm,
+    fontWeight: '700',
+    color: colors.deepBrown,
+  },
+  uploadConfirmBtn: {
+    backgroundColor: colors.amber,
+    borderRadius: 10,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  uploadConfirmText: {
+    fontSize: typography.sizes.xs,
+    fontWeight: '800',
+    color: colors.deepBrown,
+  },
+  submitCard: {
+    backgroundColor: colors.cream,
+    borderRadius: 20,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: colors.amber,
+    gap: 10,
+  },
+  submitTitle: {
+    fontSize: typography.sizes.base,
+    fontWeight: '800',
+    color: colors.deepBrown,
+  },
+  submitSub: {
+    fontSize: typography.sizes.xs,
+    color: colors.secondary,
+    lineHeight: 17,
+  },
+  submitBtn: {
+    backgroundColor: colors.deepBrown,
+    borderRadius: 12,
+    height: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 4,
+  },
+  submitBtnText: {
+    fontSize: typography.sizes.sm,
+    fontWeight: '800',
+    color: colors.white,
+  },
+  btnDisabled: {
+    opacity: 0.6,
+  },
 });

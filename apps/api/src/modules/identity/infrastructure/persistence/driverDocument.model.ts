@@ -10,6 +10,7 @@ export interface DriverDocumentDocument extends Document<string> {
   _id: string;
   driver_id: string;
   application_id: string;
+  vehicle_id?: string | null;
   type: DocumentType;
   storage_key: string;
   document_hash: string;
@@ -18,6 +19,7 @@ export interface DriverDocumentDocument extends Document<string> {
   expires_at: Date | null;
   verification_status: DocumentVerificationStatus;
   verified_at: Date | null;
+  last_expiry_reminder_days?: number | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -27,6 +29,7 @@ const driverDocumentSchema = new Schema<DriverDocumentDocument>(
     _id: { type: String, required: true },
     driver_id: { type: String, required: true },
     application_id: { type: String, required: true, index: true },
+    vehicle_id: { type: String, default: null, index: true },
     type: {
       type: String,
       enum: DOCUMENT_TYPES,
@@ -43,6 +46,7 @@ const driverDocumentSchema = new Schema<DriverDocumentDocument>(
       default: 'PENDING',
     },
     verified_at: { type: Date, default: null },
+    last_expiry_reminder_days: { type: Number, default: null },
   },
   {
     collection: 'driver_documents',

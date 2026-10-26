@@ -274,6 +274,17 @@ export const driverApi = {
     );
   },
 
+  async renewApplication(token: string): Promise<any> {
+    return request<any>(
+      '/api/v1/driver/application/renew',
+      {
+        method: 'POST',
+        body: JSON.stringify({}),
+      },
+      token,
+    );
+  },
+
   async registerVehicle(token: string, payload: RegisterVehiclePayload): Promise<any> {
     return request<any>(
       '/api/v1/driver/vehicles',

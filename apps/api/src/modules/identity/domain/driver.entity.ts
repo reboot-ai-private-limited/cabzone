@@ -1,3 +1,10 @@
+import {
+  REQUIRED_DRIVER_DOCUMENT_TYPES,
+  isDocumentValidForVehicle,
+  type DriverDocumentEntity,
+} from './driverDocument.entity.js';
+import { isVehicleApproved, type VehicleEntity } from './vehicle.entity.js';
+
 export type DriverStatus = 'PENDING' | 'ACTIVE' | 'SUSPENDED' | 'REJECTED';
 export type DriverKycStatus = 'PENDING' | 'VERIFIED' | 'EXPIRED' | 'FAILED';
 export type DriverOperationalStatus = 'OFFLINE' | 'ONLINE' | 'BUSY';
@@ -33,15 +40,55 @@ export interface DriverEligibilityResult {
   reason?: string;
 }
 
-export function canDriverGoOnline(driver: DriverEntity): DriverEligibilityResult {
+export interface CanDriverGoOnlineOptions {
+  vehicle?: VehicleEntity | null;
+  documents?: DriverDocumentEntity[];
+  now?: Date;
+}
+
+export function canDriverGoOnline(
+  driver: DriverEntity,
+  opts?: CanDriverGoOnlineOptions,
+): DriverEligibilityResult {
   if (driver.status !== 'ACTIVE') {
     return { eligible: false, reason: `Driver account is ${driver.status}` };
   }
-  if (driver.kycStatus !== 'VERIFIED') {
+  if (
+    driver.kycStatus !== 'VERIFIED' &&
+    !(driver.kycStatus === 'PENDING' && opts?.documents !== undefined)
+  ) {
     return { eligible: false, reason: `KYC verification is ${driver.kycStatus}` };
   }
   if (!driver.currentVehicleId) {
     return { eligible: false, reason: 'No vehicle currently assigned' };
   }
+
+  if (opts && 'vehicle' in opts) {
+    const vehicle = opts.vehicle;
+    if (
+      !vehicle ||
+      vehicle.id !== driver.currentVehicleId ||
+      vehicle.driverId !== driver.id ||
+      !isVehicleApproved(vehicle)
+    ) {
+      return { eligible: false, reason: 'Assigned vehicle is not approved' };
+    }
+  }
+
+  if (opts?.documents !== undefined) {
+    const now = opts.now ?? new Date();
+    for (const type of REQUIRED_DRIVER_DOCUMENT_TYPES) {
+      const hasValid = opts.documents.some(
+        (doc) => doc.type === type && isDocumentValidForVehicle(doc, driver.currentVehicleId, now),
+      );
+      if (!hasValid) {
+        return {
+          eligible: false,
+          reason: `Compliance document ${type} is missing or expired`,
+        };
+      }
+    }
+  }
+
   return { eligible: true };
 }

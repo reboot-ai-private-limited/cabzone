@@ -5,6 +5,7 @@ export interface DriverRouterDeps {
   createProfile: RequestHandler;
   getProfile: RequestHandler;
   createApplication: RequestHandler;
+  renewApplication?: RequestHandler | undefined;
   uploadDocument: RequestHandler;
   uploadLicenseFile: RequestHandler;
   uploadVehicleDocumentFile: RequestHandler;
@@ -22,6 +23,9 @@ export function buildDriverRouter(deps: DriverRouterDeps): Router {
   router.post('/profile', deps.createProfile);
   router.get('/profile/me', deps.getProfile);
   router.post('/application', deps.createApplication);
+  if (deps.renewApplication) {
+    router.post('/application/renew', deps.renewApplication);
+  }
   router.post('/documents', deps.uploadDocument);
   router.post('/documents/license', deps.uploadLicenseFile);
   router.post('/documents/vehicle', deps.uploadVehicleDocumentFile);
@@ -38,19 +42,35 @@ export function buildDriverRouter(deps: DriverRouterDeps): Router {
 export interface AdminDriverRouterDeps {
   authenticate: RequestHandler;
   requireAdminRole: RequestHandler;
+  requireApplicationScope?: RequestHandler | undefined;
   reviewApplication: RequestHandler;
   listApplications: RequestHandler;
   getApplication: RequestHandler;
   updateDriverStatus?: RequestHandler | undefined;
+  previewDocument?: RequestHandler | undefined;
+  streamDocumentContent?: RequestHandler | undefined;
 }
 
 export function buildAdminDriverRouter(deps: AdminDriverRouterDeps): Router {
   const router = Router();
+  const singleAppGuard = deps.requireApplicationScope ?? deps.requireAdminRole;
+
   router.get('/driver-applications', deps.authenticate, deps.requireAdminRole, deps.listApplications);
-  router.get('/driver-applications/:id', deps.authenticate, deps.requireAdminRole, deps.getApplication);
-  router.post('/driver-applications/:id/review', deps.authenticate, deps.requireAdminRole, deps.reviewApplication);
+  router.get('/driver-applications/:id', deps.authenticate, singleAppGuard, deps.getApplication);
+  router.post('/driver-applications/:id/review', deps.authenticate, singleAppGuard, deps.reviewApplication);
   if (deps.updateDriverStatus) {
-    router.patch('/driver-applications/:id/status', deps.authenticate, deps.requireAdminRole, deps.updateDriverStatus);
+    router.patch('/driver-applications/:id/status', deps.authenticate, singleAppGuard, deps.updateDriverStatus);
+  }
+  if (deps.previewDocument) {
+    router.post(
+      '/driver-applications/:id/documents/:documentId/preview',
+      deps.authenticate,
+      singleAppGuard,
+      deps.previewDocument,
+    );
+  }
+  if (deps.streamDocumentContent) {
+    router.get('/driver-documents/:documentId/content', deps.streamDocumentContent);
   }
 
   return router;

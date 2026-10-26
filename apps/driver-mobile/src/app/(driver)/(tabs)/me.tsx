@@ -14,11 +14,21 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/context/auth-context';
 import { useDuty } from '@/context/duty-context';
 import { useRide } from '@/context/ride-context';
+import { deriveKycBannerState } from '@/services/profile';
 import { colors, typography } from '@/design-system';
 
 export default function DriverMeTab() {
   const router = useRouter();
-  const { user, driver, vehicle, documents, logout, isLoading: isAuthLoading } = useAuth();
+  const {
+    user,
+    driver,
+    driverProfile,
+    vehicle,
+    documents,
+    compliance,
+    logout,
+    isLoading: isAuthLoading,
+  } = useAuth();
   const { status: dutyStatus, goOffline } = useDuty();
   const { activeRide } = useRide();
 
@@ -29,6 +39,9 @@ export default function DriverMeTab() {
   const driverName = driver?.name || 'Driver Partner';
   const phone = user?.phoneE164 || '';
   const rating = driver?.ratingAverage != null ? driver.ratingAverage.toFixed(1) : '5.0';
+  const kycBanner = deriveKycBannerState(driverProfile);
+  const isExpired =
+    driver?.kycStatus === 'EXPIRED' || compliance?.overallStatus === 'EXPIRED';
 
   const handleConfirmLogout = async () => {
     if (activeRide) {
@@ -48,10 +61,19 @@ export default function DriverMeTab() {
     }
   };
 
+  const kycSubtitle =
+    compliance?.overallStatus === 'EXPIRED'
+      ? `Action needed · ${compliance.expiredTypes.length || 1} expired`
+      : compliance?.overallStatus === 'EXPIRING_SOON'
+        ? `${compliance.expiringSoonTypes.length} expiring within 30 days`
+        : `${documents.length} uploaded · Status: ${driver?.kycStatus ?? 'VERIFIED'}`;
+
   const menuItems = [
     {
       label: 'Personal Details',
-      sub: driver?.address ? `Operating city: ${driver.address}` : 'Name, DOB, gender & emergency contact',
+      sub: driver?.address
+        ? `Operating city: ${driver.address}`
+        : 'Name, DOB, gender & emergency contact',
       icon: 'person-circle-outline' as const,
       href: '/(driver)/account/personal-details' as const,
     },
@@ -65,7 +87,7 @@ export default function DriverMeTab() {
     },
     {
       label: 'KYC & Compliance Documents',
-      sub: `${documents.length} uploaded · Status: ${driver?.kycStatus ?? 'VERIFIED'}`,
+      sub: kycSubtitle,
       icon: 'document-text-outline' as const,
       href: '/(driver)/account/documents' as const,
     },
@@ -103,8 +125,10 @@ export default function DriverMeTab() {
             <Text style={styles.driverName}>{driverName}</Text>
             <Text style={styles.driverPhone}>{phone}</Text>
             <View style={styles.badgeRow}>
-              <View style={styles.verifiedPill}>
-                <Text style={styles.verifiedPillText}>✓ VERIFIED DRIVER</Text>
+              <View style={isExpired ? styles.expiredPill : styles.verifiedPill}>
+                <Text style={isExpired ? styles.expiredPillText : styles.verifiedPillText}>
+                  {isExpired ? '! KYC EXPIRED' : '✓ VERIFIED DRIVER'}
+                </Text>
               </View>
               <View style={styles.ratingPill}>
                 <Text style={styles.ratingPillText}>⭐ {rating}</Text>
@@ -112,6 +136,23 @@ export default function DriverMeTab() {
             </View>
           </View>
         </View>
+
+        {kycBanner ? (
+          <Pressable
+            style={[
+              styles.kycAlertCard,
+              kycBanner.tone === 'danger' ? styles.kycAlertDanger : styles.kycAlertWarn,
+            ]}
+            onPress={() => router.push('/(driver)/account/documents')}
+            accessibilityRole="button"
+            accessibilityLabel={kycBanner.ctaLabel}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.kycAlertTitle}>{kycBanner.title}</Text>
+              <Text style={styles.kycAlertSub}>{kycBanner.message}</Text>
+            </View>
+            <Text style={styles.kycAlertAction}>{kycBanner.ctaLabel} →</Text>
+          </Pressable>
+        ) : null}
 
         {/* Menu Sections */}
         <View style={styles.menuCard}>
@@ -257,6 +298,19 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#15803D',
   },
+  expiredPill: {
+    backgroundColor: '#FEE2E2',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#FCA5A5',
+  },
+  expiredPillText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: colors.error,
+  },
   ratingPill: {
     backgroundColor: colors.lightCream,
     paddingHorizontal: 10,
@@ -267,6 +321,38 @@ const styles = StyleSheet.create({
   },
   ratingPillText: {
     fontSize: 11,
+    fontWeight: '800',
+    color: colors.deepBrown,
+  },
+  kycAlertCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 16,
+    borderRadius: 18,
+    borderWidth: 1,
+  },
+  kycAlertDanger: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#FCA5A5',
+  },
+  kycAlertWarn: {
+    backgroundColor: '#FFFBEB',
+    borderColor: colors.amber,
+  },
+  kycAlertTitle: {
+    fontSize: typography.sizes.sm,
+    fontWeight: '800',
+    color: colors.deepBrown,
+  },
+  kycAlertSub: {
+    fontSize: typography.sizes.xs,
+    color: colors.secondary,
+    marginTop: 3,
+    lineHeight: 16,
+  },
+  kycAlertAction: {
+    fontSize: typography.sizes.xs,
     fontWeight: '800',
     color: colors.deepBrown,
   },

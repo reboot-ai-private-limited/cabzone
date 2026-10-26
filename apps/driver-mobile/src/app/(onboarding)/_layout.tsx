@@ -3,13 +3,13 @@ import { Redirect, Stack } from 'expo-router';
 import { useAuth } from '@/context/auth-context';
 
 export default function OnboardingGroupLayout() {
-  const { isAuthenticated, isLoading, isKycVerified } = useAuth();
+  const { isAuthenticated, isLoading, canAccessDriverShell } = useAuth();
 
   if (!isLoading && !isAuthenticated) {
     return <Redirect href="/(auth)/welcome" />;
   }
 
-  if (!isLoading && isKycVerified) {
+  if (!isLoading && canAccessDriverShell) {
     return <Redirect href="/(driver)/(tabs)/home" />;
   }
 

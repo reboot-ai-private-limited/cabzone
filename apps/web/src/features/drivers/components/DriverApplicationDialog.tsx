@@ -23,7 +23,7 @@ import {
 } from '@cabzone/design-system';
 import { REJECTION_TYPES, type RejectionType } from '@cabzone/contracts';
 import { useDriverApplication, useReviewApplication } from '../hooks/useDriverApplications';
-import { REVIEWABLE, StatusBadge, VehicleStatusBadge } from './StatusBadge';
+import { KycStatusBadge, REVIEWABLE, StatusBadge, VehicleStatusBadge } from './StatusBadge';
 import { DocumentViewerCard } from './DocumentViewerCard';
 
 export interface DriverApplicationDialogProps {
@@ -76,6 +76,7 @@ export function DriverApplicationDialog({
                 Current Status:
               </span>
               <StatusBadge status={d.application.status} />
+              {d.driver && <KycStatusBadge status={d.driver.kycStatus} />}
               {d.application.reapplyCount > 0 && (
                 <Badge tone="warning">Reapplied ({d.application.reapplyCount})</Badge>
               )}
@@ -214,6 +215,7 @@ export function DriverApplicationDialog({
                 {d.documents.map((doc) => (
                   <DocumentViewerCard
                     key={doc.id}
+                    applicationId={d.application.id}
                     document={doc}
                     driverPhone={d.phoneE164}
                   />

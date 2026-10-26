@@ -16,6 +16,7 @@ import {
   Eye,
   FileSpreadsheet,
   IndianRupee,
+  Lock,
   Printer,
   ShieldCheck,
   Star,
@@ -24,7 +25,11 @@ import {
   Wallet,
 } from 'lucide-react';
 import type { WalletSummaryDto } from '@cabzone/contracts';
-import type { DriverDocumentAdminDto } from '@/lib/api/endpoints/drivers';
+import {
+  hasDocumentPreviewFile,
+  resolveSafeProfilePhotoUrl,
+  type DriverDocumentAdminDto,
+} from '@/lib/api/endpoints/drivers';
 import {
   Badge,
   Button,
@@ -43,10 +48,14 @@ import { SettleDriverDialog } from '../../finance/components/SettleDriverDialog'
 import {
   DOCUMENT_TYPE_LABELS,
   DocumentPreviewDialog,
-  isPdfDocument,
-  resolveDocumentFileUrl,
 } from './DocumentPreviewDialog';
-import { OperationalStatusBadge, VehicleStatusBadge } from './StatusBadge';
+import {
+  DocumentStatusBadge,
+  KycStatusBadge,
+  OperationalStatusBadge,
+  VehicleStatusBadge,
+  computeDocumentExpiryBadge,
+} from './StatusBadge';
 import { TrustScoreBadge } from '../../identity/components/TrustScoreBadge';
 
 export interface DriverDetailsScreenProps {
@@ -267,10 +276,7 @@ export function DriverDetailsScreen({ id }: DriverDetailsScreenProps) {
             <span>{isSuspended ? 'Activate' : 'Suspend'}</span>
           </button>
 
-          <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-interactive/10 text-interactive border border-interactive/20">
-            <CheckCircle2 className="size-3.5" />
-            <span>Verified</span>
-          </span>
+          <KycStatusBadge status={d.driver?.kycStatus ?? 'VERIFIED'} />
 
           <button
             type="button"
@@ -333,9 +339,9 @@ export function DriverDetailsScreen({ id }: DriverDetailsScreenProps) {
             <div className="flex flex-col md:flex-row items-center md:items-start gap-8">
               {/* Avatar & Identity Box */}
               <div className="flex flex-col items-center justify-center text-center w-full md:w-56 shrink-0 pt-1">
-                {d.driver?.profilePhotoUrl ? (
+                {resolveSafeProfilePhotoUrl(d.driver?.profilePhotoUrl) ? (
                   <img
-                    src={d.driver.profilePhotoUrl}
+                    src={resolveSafeProfilePhotoUrl(d.driver?.profilePhotoUrl)!}
                     alt={driverDisplayName}
                     className="size-24 rounded-full object-cover border border-slate-200 shadow-xs mb-3"
                   />
@@ -476,8 +482,11 @@ export function DriverDetailsScreen({ id }: DriverDetailsScreenProps) {
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {d.documents.map((doc) => {
-                      const docFileUrl = resolveDocumentFileUrl(doc);
-                      const docIsPdf = isPdfDocument(doc, docFileUrl);
+                      const expiryBadge = computeDocumentExpiryBadge(
+                        doc.expiresAt,
+                        doc.verificationStatus,
+                      );
+                      const hasFile = hasDocumentPreviewFile(doc);
                       const docLabel =
                         DOCUMENT_TYPE_LABELS[doc.type] ?? doc.type.replace(/_/g, ' ');
 
@@ -495,28 +504,33 @@ export function DriverDetailsScreen({ id }: DriverDetailsScreenProps) {
                                 </span>
                               )}
                             </div>
-                            <Badge tone={doc.verificationStatus === 'VERIFIED' ? 'success' : 'warning'}>
-                              {doc.verificationStatus}
-                            </Badge>
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <DocumentStatusBadge status={doc.verificationStatus} />
+                              {expiryBadge && (
+                                <Badge tone={expiryBadge.tone}>{expiryBadge.label}</Badge>
+                              )}
+                            </div>
                           </div>
 
-                          {docFileUrl && !docIsPdf && (
-                            <button
-                              type="button"
-                              onClick={() => setSelectedDoc(doc)}
-                              className="w-full h-36 rounded-lg bg-zinc-950 border border-border overflow-hidden cursor-pointer group relative"
-                              title={`Click to view full ${docLabel}`}
-                            >
-                              <img
-                                src={docFileUrl}
-                                alt={docLabel}
-                                className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-200"
-                              />
-                            </button>
-                          )}
+                          <div className="flex items-center gap-1.5 text-[11px] text-text-subtle">
+                            <Lock className="size-3 text-interactive shrink-0" />
+                            <span>
+                              {hasFile
+                                ? 'Stored in private KYC vault (audited preview)'
+                                : 'Metadata record only'}
+                            </span>
+                          </div>
 
                           <div className="flex items-center justify-between pt-2 border-t border-border/60 text-xs">
-                            <span className="text-text-subtle">
+                            <span
+                              className={
+                                expiryBadge?.tone === 'danger'
+                                  ? 'text-danger font-medium'
+                                  : expiryBadge?.tone === 'warning'
+                                    ? 'text-warning font-medium'
+                                    : 'text-text-subtle'
+                              }
+                            >
                               {doc.expiresAt ? `Expires: ${formatDate(doc.expiresAt)}` : 'No expiry'}
                             </span>
                             <Button
@@ -525,7 +539,7 @@ export function DriverDetailsScreen({ id }: DriverDetailsScreenProps) {
                               icon={<Eye className="size-3.5" />}
                               onClick={() => setSelectedDoc(doc)}
                             >
-                              View Original
+                              Inspect Original
                             </Button>
                           </div>
                         </div>
@@ -861,6 +875,7 @@ export function DriverDetailsScreen({ id }: DriverDetailsScreenProps) {
 
       {/* Document Viewer Modal */}
       <DocumentPreviewDialog
+        applicationId={d.application.id}
         document={selectedDoc}
         driverPhone={d.phoneE164}
         open={selectedDoc !== null}

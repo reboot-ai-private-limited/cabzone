@@ -40,6 +40,8 @@ import { useDriverApplications } from '../hooks/useDriverApplications';
 import { DriverDetailModal } from './DriverDetailModal';
 import {
   DriverStatusBadge,
+  KycStatusBadge,
+  computeDocumentExpiryBadge,
   REVIEWABLE,
   StatusBadge,
 } from './StatusBadge';
@@ -450,9 +452,15 @@ export function DriversScreen() {
     {
       key: 'licenseExpiry',
       header: 'License Expiry',
-      render: (r) => (
-        <span className="text-xs text-text-subtle">{formatDate(r.driver?.dlExpiry)}</span>
-      ),
+      render: (r) => {
+        const badge = computeDocumentExpiryBadge(r.driver?.dlExpiry, r.driver?.kycStatus);
+        return (
+          <div className="flex flex-col gap-1 items-start">
+            <span className="text-xs text-text-subtle">{formatDate(r.driver?.dlExpiry)}</span>
+            {badge && <Badge tone={badge.tone}>{badge.label}</Badge>}
+          </div>
+        );
+      },
     },
     {
       key: 'lastRide',
@@ -492,7 +500,12 @@ export function DriversScreen() {
     {
       key: 'status',
       header: 'Status',
-      render: (r) => <DriverStatusBadge status={r.driver?.status ?? 'ACTIVE'} />,
+      render: (r) => (
+        <div className="flex items-center gap-1.5">
+          <DriverStatusBadge status={r.driver?.status ?? 'ACTIVE'} />
+          {r.driver?.kycStatus === 'EXPIRED' && <KycStatusBadge status="EXPIRED" />}
+        </div>
+      ),
     },
     {
       key: 'actions',

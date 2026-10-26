@@ -7,7 +7,6 @@ import {
   CheckCircle2,
   CreditCard,
   ExternalLink,
-  ShieldCheck,
   Star,
   User,
 } from 'lucide-react';
@@ -20,7 +19,13 @@ import {
 } from '@cabzone/design-system';
 import type { DriverApplicationSummaryDto } from '@/lib/api/endpoints/drivers';
 import { useUpdateDriverStatus } from '../hooks/useDriverApplications';
-import { DriverStatusBadge, OperationalStatusBadge, VehicleStatusBadge } from './StatusBadge';
+import {
+  DriverStatusBadge,
+  KycStatusBadge,
+  OperationalStatusBadge,
+  VehicleStatusBadge,
+  computeDocumentExpiryBadge,
+} from './StatusBadge';
 import { TrustScoreBadge } from '../../identity/components/TrustScoreBadge';
 
 export interface DriverDetailModalProps {
@@ -45,6 +50,7 @@ export function DriverDetailModal({
 
   const { driver, application, vehicle, phoneE164 } = driverSummary;
   const isSuspended = driver?.status === 'SUSPENDED';
+  const dlExpiryBadge = computeDocumentExpiryBadge(driver?.dlExpiry, driver?.kycStatus);
 
   return (
     <Dialog
@@ -62,7 +68,9 @@ export function DriverDetailModal({
               Account:
             </span>
             <DriverStatusBadge status={driver?.status ?? 'ACTIVE'} />
-            <OperationalStatusBadge status={isSuspended ? 'OFFLINE' : 'ONLINE'} />
+            <OperationalStatusBadge
+              status={isSuspended || driver?.kycStatus === 'EXPIRED' ? 'OFFLINE' : 'ONLINE'}
+            />
           </div>
 
           <div className="flex items-center gap-3">
@@ -96,15 +104,17 @@ export function DriverDetailModal({
               <span className="font-mono font-medium text-text">{phoneE164 ?? '—'}</span>
             </FieldRow>
             <FieldRow label="Driving Licence">
-              <span className="font-mono text-xs text-text">
-                {driver?.dlNumber || 'Not available'}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-xs text-text">
+                  {driver?.dlNumber || 'Not available'}
+                </span>
+                {dlExpiryBadge && (
+                  <Badge tone={dlExpiryBadge.tone}>{dlExpiryBadge.label}</Badge>
+                )}
+              </div>
             </FieldRow>
             <FieldRow label="KYC Status">
-              <span className="inline-flex items-center gap-1 text-xs text-success font-medium">
-                <ShieldCheck className="size-3.5" />
-                VERIFIED
-              </span>
+              <KycStatusBadge status={driver?.kycStatus ?? 'VERIFIED'} />
             </FieldRow>
             <FieldRow label="Approved On">
               <span className="text-xs text-text">

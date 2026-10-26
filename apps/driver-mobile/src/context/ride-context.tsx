@@ -73,7 +73,16 @@ export function isRideOfferValid(offer: RideOfferDto): boolean {
 }
 
 export function RideProvider({ children }: { children: React.ReactNode }) {
-  const { token, user, driver, isAuthenticated, isKycVerified } = useAuth();
+  const {
+    token,
+    user,
+    driver,
+    isAuthenticated,
+    isKycVerified,
+    canAccessDriverShell: authShellAccess,
+    refreshProfile,
+  } = useAuth();
+  const canAccessDriverShell = authShellAccess ?? isKycVerified;
   const { status: dutyStatus, refreshSummary } = useDuty();
 
   const [offers, setOffers] = useState<RideOfferDto[]>([]);
@@ -106,7 +115,7 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
 
   // Register this device for push so offers reach the driver while the app is backgrounded.
   useEffect(() => {
-    if (!isAuthenticated || !token || !isKycVerified) return;
+    if (!isAuthenticated || !token || !canAccessDriverShell) return;
     let cancelled = false;
     let subscription: { remove: () => void } | null = null;
     void getOrCreateDeviceId().then(async (installationId) => {
@@ -126,7 +135,7 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
       cancelled = true;
       subscription?.remove();
     };
-  }, [isAuthenticated, token, isKycVerified]);
+  }, [isAuthenticated, token, canAccessDriverShell]);
 
   // Reset state when user logs out or switches identity
   useEffect(() => {
@@ -178,7 +187,7 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
   );
 
   useEffect(() => {
-    if (!isAuthenticated || !token || !isKycVerified) {
+    if (!isAuthenticated || !token || !canAccessDriverShell) {
       return;
     }
     let cancelled = false;
@@ -201,7 +210,7 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [isAuthenticated, token, isKycVerified]);
+  }, [isAuthenticated, token, canAccessDriverShell]);
 
   const refreshOffers = useCallback(
     async (forceCheck = false) => {
@@ -403,7 +412,7 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
   }, [token, activeRide?.id, refreshSummary]);
 
   useEffect(() => {
-    if (!token || !isAuthenticated || !isKycVerified) return;
+    if (!token || !isAuthenticated || !canAccessDriverShell) return;
     let stopped = false;
     let socket: WebSocket | null = null;
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -431,6 +440,8 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
             retries = 0;
             setSocketConnected(true);
             resync();
+          } else if (frame.event === 'driver.kyc.expiring' || frame.event === 'driver.kyc.expired') {
+            void refreshProfile();
           } else if (frame.event === 'ride.offer.created') {
             void refreshRef.current.offers();
           } else if (frame.event === 'ride.fare.raised') {
@@ -511,7 +522,7 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
       appState.remove();
       socket?.close();
     };
-  }, [token, isAuthenticated, isKycVerified]);
+  }, [token, isAuthenticated, canAccessDriverShell, refreshProfile]);
 
   const ignoreOffer = useCallback((rideId: string) => {
     setIgnoredOfferIds((prev) => {

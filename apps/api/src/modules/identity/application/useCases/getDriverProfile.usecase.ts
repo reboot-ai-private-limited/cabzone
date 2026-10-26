@@ -1,12 +1,14 @@
-import type {
-  DriverApplicationEntity,
-  DriverApplicationRepositoryPort,
-  DriverDocumentEntity,
-  DriverDocumentRepositoryPort,
-  DriverEntity,
-  DriverRepositoryPort,
-  VehicleEntity,
-  VehicleRepositoryPort,
+import type { KycComplianceSummaryDto } from '@cabzone/contracts';
+import {
+  evaluateDriverKycCompliance,
+  type DriverApplicationEntity,
+  type DriverApplicationRepositoryPort,
+  type DriverDocumentEntity,
+  type DriverDocumentRepositoryPort,
+  type DriverEntity,
+  type DriverRepositoryPort,
+  type VehicleEntity,
+  type VehicleRepositoryPort,
 } from '../../domain/index.js';
 
 export interface GetDriverProfileDeps {
@@ -21,6 +23,7 @@ export interface DriverProfileDetail {
   vehicle: VehicleEntity | null;
   application: DriverApplicationEntity | null;
   documents: DriverDocumentEntity[];
+  compliance: KycComplianceSummaryDto;
 }
 
 export class GetDriverProfileUseCase {
@@ -34,6 +37,12 @@ export class GetDriverProfileUseCase {
         vehicle: null,
         application: null,
         documents: [],
+        compliance: evaluateDriverKycCompliance({
+          driver: null,
+          vehicle: null,
+          application: null,
+          documents: [],
+        }),
       };
     }
 
@@ -48,6 +57,12 @@ export class GetDriverProfileUseCase {
       vehicle,
       application,
       documents,
+      compliance: evaluateDriverKycCompliance({
+        driver,
+        vehicle,
+        application,
+        documents,
+      }),
     };
   }
 }
