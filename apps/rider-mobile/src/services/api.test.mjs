@@ -1,3 +1,4 @@
+import './location-names.test.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -6,6 +7,9 @@ import vm from 'node:vm';
 
 const require = createRequire(import.meta.url);
 const ts = require('typescript');
+
+const locationCode = ts.transpileModule(readFileSync(new URL('./location-names.ts', import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.ESNext } }).outputText;
+const locationNames = await import(`data:text/javascript;base64,${Buffer.from(locationCode).toString('base64')}`);
 const code = ts.transpileModule(
   readFileSync(new URL('./api.ts', import.meta.url), 'utf8'),
   { compilerOptions: { module: ts.ModuleKind.CommonJS, esModuleInterop: true } },
@@ -38,6 +42,7 @@ function apiSession() {
       return runtime.respond(call);
     },
     require: (name) => {
+      if (name === './location-names' || name === '@/services/location-names') return locationNames;
       if (name === 'expo-constants') return { default: { expoConfig: {} }, __esModule: true };
       if (name === 'react-native') return { Platform: { OS: 'web' } };
       if (name === './storage') return {

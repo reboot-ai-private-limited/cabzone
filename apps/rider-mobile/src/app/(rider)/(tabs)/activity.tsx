@@ -1,36 +1,31 @@
+import { locationLabel } from '@/services/location-names';
 import React, { useMemo, useState } from 'react';
-import {
-  ActivityIndicator,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useRide } from '@/context/ride-context';
 import type { RiderRideViewDto } from '@/services/api';
-import {
-  formatRupeesFromPaise,
-  getRideStatusMeta,
-  isRideActive,
-} from '@/services/rider-helpers';
+import { formatRupeesFromPaise, getRideStatusMeta, isRideActive } from '@/services/rider-helpers';
 import { colors, radii, spacing, typography } from '@/design-system';
 
 type FilterTab = 'ALL' | 'COMPLETED' | 'CANCELLED';
 
 export default function ActivityScreen() {
   const router = useRouter();
-  const { activeRide, rideHistory, isLoadingRides, syncError, refreshRides, setBookingDraft } = useRide();
+  const { activeRide, rideHistory, isLoadingRides, syncError, refreshRides, setBookingDraft } =
+    useRide();
   const [filter, setFilter] = useState<FilterTab>('ALL');
 
   const pastRides = useMemo(() => {
     return rideHistory.filter((r) => {
       if (isRideActive(r.status)) return false;
       if (filter === 'COMPLETED') {
-        return r.status === 'SETTLED' || r.status === 'PAYMENT_CONFIRMED' || r.status === 'PAYMENT_DISPUTED';
+        return (
+          r.status === 'SETTLED' ||
+          r.status === 'PAYMENT_CONFIRMED' ||
+          r.status === 'PAYMENT_DISPUTED'
+        );
       }
       if (filter === 'CANCELLED') {
         return r.status === 'CANCELLED' || r.status === 'EXPIRED';
@@ -49,16 +44,12 @@ export default function ActivityScreen() {
     const pickupLoc = {
       lat: ride.pickup.lat,
       lng: ride.pickup.lng,
-      address:
-        ride.pickup.address ||
-        `Pin (${ride.pickup.lat.toFixed(3)}, ${ride.pickup.lng.toFixed(3)})`,
+      address: locationLabel(ride.pickup.address, 'Pickup location'),
     };
     const dropLoc = {
       lat: ride.drop.lat,
       lng: ride.drop.lng,
-      address:
-        ride.drop.address ||
-        `Pin (${ride.drop.lat.toFixed(3)}, ${ride.drop.lng.toFixed(3)})`,
+      address: locationLabel(ride.drop.address, 'Destination'),
     };
 
     setBookingDraft({
@@ -87,7 +78,11 @@ export default function ActivityScreen() {
           </Pressable>
         </View>
 
-        {syncError ? <Text style={styles.syncError} accessibilityRole="alert">{syncError}</Text> : null}
+        {syncError ? (
+          <Text style={styles.syncError} accessibilityRole="alert">
+            {syncError}
+          </Text>
+        ) : null}
 
         {/* Active Ride Card */}
         {activeRide ? (
@@ -111,7 +106,8 @@ export default function ActivityScreen() {
               {getRideStatusMeta(activeRide.status).label}
             </Text>
             <Text style={styles.activeRouteText} numberOfLines={1}>
-              {activeRide.pickup.address || 'Pickup'} → {activeRide.drop.address || 'Drop'}
+              {locationLabel(activeRide.pickup.address, 'Pickup location')} →{' '}
+              {locationLabel(activeRide.drop.address, 'Destination')}
             </Text>
             <View style={styles.openTripRow}>
               <Text style={styles.openTripText}>
@@ -132,12 +128,7 @@ export default function ActivityScreen() {
               style={[styles.filterChip, filter === tab && styles.filterChipActive]}
               onPress={() => setFilter(tab)}
             >
-              <Text
-                style={[
-                  styles.filterChipText,
-                  filter === tab && styles.filterChipTextActive,
-                ]}
-              >
+              <Text style={[styles.filterChipText, filter === tab && styles.filterChipTextActive]}>
                 {tab === 'ALL' ? 'All Trips' : tab === 'COMPLETED' ? 'Settled' : 'Cancelled'}
               </Text>
             </Pressable>
@@ -149,14 +140,14 @@ export default function ActivityScreen() {
             <Ionicons name="receipt-outline" size={38} color={colors.secondary} />
             <Text style={styles.emptyTitle}>No past rides yet</Text>
             <Text style={styles.emptySubtitle}>
-              Your completed trips, itemized receipts, and quick repeat/return route buttons will appear here.
+              Your completed trips, itemized receipts, and quick repeat/return route buttons will
+              appear here.
             </Text>
           </View>
         ) : (
           pastRides.map((ride) => {
             const meta = getRideStatusMeta(ride.status);
-            const fare =
-              ride.agreedFarePaise ?? ride.proposedFarePaise ?? ride.suggestedFarePaise;
+            const fare = ride.agreedFarePaise ?? ride.proposedFarePaise ?? ride.suggestedFarePaise;
             const dateStr = new Date(ride.createdAt).toLocaleString('en-IN', {
               day: 'numeric',
               month: 'short',
@@ -186,10 +177,10 @@ export default function ActivityScreen() {
 
                   <View style={styles.historyRouteBlock}>
                     <Text style={styles.historyAddress} numberOfLines={1}>
-                      🟢 {ride.pickup.address || `${ride.pickup.lat.toFixed(3)}, ${ride.pickup.lng.toFixed(3)}`}
+                      🟢 {locationLabel(ride.pickup.address, 'Pickup location')}
                     </Text>
                     <Text style={styles.historyAddress} numberOfLines={1}>
-                      🟤 {ride.drop.address || `${ride.drop.lat.toFixed(3)}, ${ride.drop.lng.toFixed(3)}`}
+                      🟤 {locationLabel(ride.drop.address, 'Destination')}
                     </Text>
                   </View>
                 </Pressable>

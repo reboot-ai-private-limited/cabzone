@@ -1,12 +1,6 @@
+import { locationLabel } from '@/services/location-names';
 import React, { useEffect, useState } from 'react';
-import {
-  Animated,
-  Dimensions,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { Animated, Dimensions, Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors, motion } from '@/design-system';
 import { CabzonButton } from '@/components/buttons/cabzon-button';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
@@ -32,12 +26,8 @@ export function mapRideOfferDtoToCardData(offer: RideOfferDto): CabzonRideOfferD
   return {
     rideId: offer.rideId,
     farePaise: offer.proposedFarePaise,
-    pickupAddress:
-      offer.pickup.address ||
-      `${offer.pickup.lat.toFixed(4)}, ${offer.pickup.lng.toFixed(4)}`,
-    dropoffAddress:
-      offer.drop.address ||
-      `${offer.drop.lat.toFixed(4)}, ${offer.drop.lng.toFixed(4)}`,
+    pickupAddress: locationLabel(offer.pickup.address, 'Pickup location'),
+    dropoffAddress: locationLabel(offer.drop.address, 'Destination'),
     distanceKm,
     serviceType: offer.vehicleCategory,
     expiresAt: offer.expiresAt,
@@ -164,9 +154,7 @@ export function CabzonRideOffer({
           </Text>
         </View>
         <View style={styles.metricsBadge}>
-          <Text style={styles.metricsText}>
-            {offer.distanceKm} km away
-          </Text>
+          <Text style={styles.metricsText}>{offer.distanceKm} km away</Text>
         </View>
       </View>
 
@@ -207,7 +195,8 @@ export function CabzonRideOffer({
       {rejectedFarePaise != null && counteredFarePaise == null && counterFare == null ? (
         <View style={styles.counterRejectedPill}>
           <Text style={styles.counterRejectedText}>
-            Passenger declined ₹{Math.round(rejectedFarePaise / 100)} — accept ₹{grossRupees} or send another counter
+            Passenger declined ₹{Math.round(rejectedFarePaise / 100)} — accept ₹{grossRupees} or
+            send another counter
           </Text>
         </View>
       ) : null}
@@ -217,9 +206,13 @@ export function CabzonRideOffer({
           <View style={styles.counterBox}>
             <Pressable
               accessibilityLabel="Decrease counter fare"
-              style={[styles.stepBtn, counterFare - COUNTER_STEP_PAISE < floorPaise && styles.stepBtnOff]}
+              style={[
+                styles.stepBtn,
+                counterFare - COUNTER_STEP_PAISE < floorPaise && styles.stepBtnOff,
+              ]}
               disabled={counterFare - COUNTER_STEP_PAISE < floorPaise}
-              onPress={() => setCounterFare(counterFare - COUNTER_STEP_PAISE)}>
+              onPress={() => setCounterFare(counterFare - COUNTER_STEP_PAISE)}
+            >
               <Text style={styles.stepText}>−10</Text>
             </Pressable>
             <View style={{ alignItems: 'center' }}>
@@ -230,9 +223,13 @@ export function CabzonRideOffer({
             </View>
             <Pressable
               accessibilityLabel="Increase counter fare"
-              style={[styles.stepBtn, counterFare + COUNTER_STEP_PAISE > ceilingPaise && styles.stepBtnOff]}
+              style={[
+                styles.stepBtn,
+                counterFare + COUNTER_STEP_PAISE > ceilingPaise && styles.stepBtnOff,
+              ]}
               disabled={counterFare + COUNTER_STEP_PAISE > ceilingPaise}
-              onPress={() => setCounterFare(counterFare + COUNTER_STEP_PAISE)}>
+              onPress={() => setCounterFare(counterFare + COUNTER_STEP_PAISE)}
+            >
               <Text style={styles.stepText}>+10</Text>
             </Pressable>
           </View>

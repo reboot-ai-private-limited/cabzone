@@ -6,6 +6,9 @@ import vm from 'node:vm';
 
 const require = createRequire(import.meta.url);
 const ts = require('typescript');
+
+const locationCode = ts.transpileModule(readFileSync(new URL('../../services/location-names.ts', import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.ESNext } }).outputText;
+const locationNames = await import(`data:text/javascript;base64,${Buffer.from(locationCode).toString('base64')}`);
 const code = ts.transpileModule(
   readFileSync(new URL('./ongoing-ride-view.tsx', import.meta.url), 'utf8'),
   {
@@ -47,6 +50,7 @@ function screen(clock = Date.now()) {
     },
     exports: module.exports,
     require: (name) => {
+      if (name === './location-names' || name === '@/services/location-names') return locationNames;
       if (name === 'react') return React;
       if (name === 'react-native')
         return {

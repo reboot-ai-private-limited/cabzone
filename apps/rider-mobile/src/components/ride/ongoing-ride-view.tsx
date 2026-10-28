@@ -1,3 +1,4 @@
+import { locationLabel } from '@/services/location-names';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Animated,
@@ -65,8 +66,8 @@ export function OngoingRideView({
       : Math.min(420, height * 0.55);
   const expandedHeight = Math.max(collapsedHeight + 1, height - 72);
   const fare = ride.agreedFarePaise ?? ride.proposedFarePaise ?? ride.suggestedFarePaise;
-  const pickup = { ...ride.pickup, address: ride.pickup.address || 'Pickup location' };
-  const drop = { ...ride.drop, address: ride.drop.address || 'Destination' };
+  const pickup = { ...ride.pickup, address: locationLabel(ride.pickup.address, 'Pickup location') };
+  const drop = { ...ride.drop, address: locationLabel(ride.drop.address, 'Destination') };
   const driverInfo = useMemo(() => formatAssignedDriverSummary(ride), [ride]);
   const routeCoordinates = useMemo(() => {
     try {

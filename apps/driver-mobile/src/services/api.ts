@@ -1,3 +1,4 @@
+import { createRouteNameResolver } from './location-names';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { getAccessToken, getOrCreateDeviceId, getRefreshToken, saveAuthTokens } from './storage';
@@ -150,6 +151,23 @@ async function recoverAccessToken(failedToken: string): Promise<string> {
   return refreshInFlight;
 }
 
+const resolveRouteNames = createRouteNameResolver(async (lat, lng) => {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 4000);
+  try {
+    const response = await fetch(
+      `${API_BASE_URL}/api/v1/routing/reverse-geocode?lat=${lat}&lng=${lng}`,
+      { signal: controller.signal },
+    );
+    if (!response.ok) throw new Error('Location lookup unavailable');
+    const result = await response.json();
+    if (!result.success || !result.data) throw new Error('Location lookup unavailable');
+    return result.data;
+  } finally {
+    clearTimeout(timeout);
+  }
+});
+
 async function request<T>(
   path: string,
   options: RequestInit = {},
@@ -199,7 +217,9 @@ async function request<T>(
     });
   }
 
-  return json.data;
+  return /\/rides(?:\/|$|\?)|\/driver\/offers/.test(path)
+    ? resolveRouteNames(json.data)
+    : json.data;
 }
 
 export const authApi = {

@@ -1,3 +1,4 @@
+import { locationLabel } from '@/services/location-names';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import React, { useEffect, useState } from 'react';
 import {
@@ -41,14 +42,8 @@ export function DriverHome() {
     refreshSummary,
   } = useDuty();
 
-  const {
-    offers,
-    activeRide,
-    rideError,
-    clearRideError,
-    refreshOffers,
-    refreshActiveRide,
-  } = useRide();
+  const { offers, activeRide, rideError, clearRideError, refreshOffers, refreshActiveRide } =
+    useRide();
 
   const [timeAgo, setTimeAgo] = useState('just now');
   const [isVerifyingOnline, setIsVerifyingOnline] = useState(false);
@@ -127,10 +122,20 @@ export function DriverHome() {
             </Text>
           </View>
           <View style={[styles.statusBadge, isOnline ? styles.statusOnline : styles.statusOffline]}>
-            <Text style={[styles.statusDot, isOnline ? styles.statusDotOnline : styles.statusDotOffline]}>
+            <Text
+              style={[
+                styles.statusDot,
+                isOnline ? styles.statusDotOnline : styles.statusDotOffline,
+              ]}
+            >
               ●
             </Text>
-            <Text style={[styles.statusText, isOnline ? styles.statusTextOnline : styles.statusTextOffline]}>
+            <Text
+              style={[
+                styles.statusText,
+                isOnline ? styles.statusTextOnline : styles.statusTextOffline,
+              ]}
+            >
               {isOnline ? 'ONLINE' : 'OFFLINE'}
             </Text>
           </View>
@@ -147,7 +152,8 @@ export function DriverHome() {
               })
             }
             accessibilityRole="button"
-            accessibilityLabel="Resume active ride">
+            accessibilityLabel="Resume active ride"
+          >
             <View style={styles.activeRideLeft}>
               <View style={styles.activeRidePulseDot} />
               <View style={{ flex: 1 }}>
@@ -155,7 +161,8 @@ export function DriverHome() {
                   ACTIVE RIDE · {activeRide.status.replace(/_/g, ' ')}
                 </Text>
                 <Text style={styles.activeRideRoute} numberOfLines={1}>
-                  {activeRide.pickup.address || 'Pickup'} → {activeRide.drop.address || 'Destination'}
+                  {locationLabel(activeRide.pickup.address, 'Pickup location')} →{' '}
+                  {locationLabel(activeRide.drop.address, 'Destination')}
                 </Text>
               </View>
             </View>
@@ -177,7 +184,8 @@ export function DriverHome() {
             ]}
             onPress={() => router.push('/(driver)/account/documents')}
             accessibilityRole="button"
-            accessibilityLabel={kycBanner.ctaLabel}>
+            accessibilityLabel={kycBanner.ctaLabel}
+          >
             <Ionicons
               name={
                 kycBanner.tone === 'danger'
@@ -209,7 +217,8 @@ export function DriverHome() {
         <View style={styles.kpiContainer}>
           <Pressable
             style={[styles.kpiCard, styles.earningsCard]}
-            onPress={() => router.push('/(driver)/(tabs)/earnings')}>
+            onPress={() => router.push('/(driver)/(tabs)/earnings')}
+          >
             <Text style={styles.kpiLabel}>Today&apos;s Net Earnings</Text>
             <Text style={styles.kpiValue}>
               {todaySummary != null ? `₹${(todaySummary.netEarningsPaise / 100).toFixed(0)}` : '—'}
@@ -225,9 +234,7 @@ export function DriverHome() {
             </Text>
           </Pressable>
 
-          <Pressable
-            style={styles.kpiCard}
-            onPress={() => router.push('/(driver)/(tabs)/rides')}>
+          <Pressable style={styles.kpiCard} onPress={() => router.push('/(driver)/(tabs)/rides')}>
             <Text style={styles.kpiLabel}>Completed Rides</Text>
             <Text style={styles.kpiValue}>
               {todaySummary != null ? todaySummary.completedTripsCount : '—'}
@@ -237,15 +244,14 @@ export function DriverHome() {
             </Text>
           </Pressable>
 
-          <Pressable
-            style={styles.kpiCard}
-            onPress={() => router.push('/(driver)/wallet')}>
+          <Pressable style={styles.kpiCard} onPress={() => router.push('/(driver)/wallet')}>
             <Text style={styles.kpiLabel}>Wallet balance</Text>
             <Text
               style={[
                 styles.kpiValue,
                 walletBalancePaise != null && walletBalancePaise < 0 ? styles.kpiNegative : null,
-              ]}>
+              ]}
+            >
               {walletBalancePaise != null ? `₹${(walletBalancePaise / 100).toFixed(0)}` : '—'}
             </Text>
             <Text style={styles.kpiSub}>
@@ -271,7 +277,8 @@ export function DriverHome() {
               disabled={isSummaryLoading}
               onPress={() => void refreshSummary()}
               accessibilityRole="button"
-              accessibilityLabel="Retry summary sync">
+              accessibilityLabel="Retry summary sync"
+            >
               <Text style={styles.summaryRetryBtnText}>
                 {isSummaryLoading ? 'Syncing...' : 'Retry'}
               </Text>
@@ -294,7 +301,8 @@ export function DriverHome() {
               style={styles.errorClose}
               accessibilityRole="button"
               accessibilityLabel="Dismiss error"
-              hitSlop={12}>
+              hitSlop={12}
+            >
               <Text style={styles.errorCloseText}>✕</Text>
             </Pressable>
           </View>
@@ -315,7 +323,8 @@ export function DriverHome() {
               style={styles.errorClose}
               accessibilityRole="button"
               accessibilityLabel="Dismiss ride notice"
-              hitSlop={12}>
+              hitSlop={12}
+            >
               <Text style={styles.errorCloseText}>✕</Text>
             </Pressable>
           </View>
@@ -338,7 +347,8 @@ export function DriverHome() {
                   : 'Searching for rides...'}
               </Text>
               <Text style={styles.onlineSub}>
-                Stay in your service zone to receive ride offers. You will see pickup distance and fare before accepting.
+                Stay in your service zone to receive ride offers. You will see pickup distance and
+                fare before accepting.
               </Text>
 
               {/* Keep the duty location state readable at a glance. */}
@@ -352,7 +362,9 @@ export function DriverHome() {
                 {__DEV__ ? (
                   <View style={styles.telemetryRow}>
                     <Text style={styles.telemetryLabel}>Diagnostics</Text>
-                    <Text style={styles.telemetryVal}>{locationStatus} · {timeAgo}</Text>
+                    <Text style={styles.telemetryVal}>
+                      {locationStatus} · {timeAgo}
+                    </Text>
                   </View>
                 ) : null}
               </View>
@@ -363,7 +375,8 @@ export function DriverHome() {
                 disabled={isCheckingRequests}
                 accessibilityRole="button"
                 accessibilityLabel="Check for active ride requests"
-                onPress={handleCheckRideRequests}>
+                onPress={handleCheckRideRequests}
+              >
                 {isCheckingRequests ? (
                   <ActivityIndicator size="small" color={colors.deepBrown} />
                 ) : (
@@ -385,7 +398,8 @@ export function DriverHome() {
                 accessibilityRole="button"
                 accessibilityLabel="Go offline"
                 accessibilityState={{ disabled: isToggling, busy: isToggling }}
-                onPress={goOffline}>
+                onPress={goOffline}
+              >
                 {isToggling ? (
                   <ActivityIndicator color={colors.deepBrown} />
                 ) : (
@@ -411,9 +425,7 @@ export function DriverHome() {
                   <Text style={isKycVerified ? styles.checkOk : styles.checkWait}>
                     {isKycVerified ? '✓' : '●'}
                   </Text>
-                  <Text style={styles.checkText}>
-                    KYC status: {driver?.kycStatus ?? 'Unknown'}
-                  </Text>
+                  <Text style={styles.checkText}>KYC status: {driver?.kycStatus ?? 'Unknown'}</Text>
                 </View>
                 <View style={styles.checkItem}>
                   <Text style={hasVehicle ? styles.checkOk : styles.checkWait}>
@@ -427,16 +439,21 @@ export function DriverHome() {
 
               {/* GO ONLINE Action Button */}
               <Pressable
-                style={[styles.onlineButton, (isToggling || isVerifyingOnline) && styles.buttonDisabled]}
+                style={[
+                  styles.onlineButton,
+                  (isToggling || isVerifyingOnline) && styles.buttonDisabled,
+                ]}
                 disabled={isToggling || isVerifyingOnline}
                 accessibilityRole="button"
                 accessibilityLabel="Go online"
-                accessibilityState={{ disabled: isToggling || isVerifyingOnline, busy: isToggling || isVerifyingOnline }}
+                accessibilityState={{
+                  disabled: isToggling || isVerifyingOnline,
+                  busy: isToggling || isVerifyingOnline,
+                }}
                 onPress={
-                  isKycVerified
-                    ? handleGoOnline
-                    : () => router.push('/(driver)/account/documents')
-                }>
+                  isKycVerified ? handleGoOnline : () => router.push('/(driver)/account/documents')
+                }
+              >
                 {isToggling || isVerifyingOnline ? (
                   <ActivityIndicator color={colors.deepBrown} />
                 ) : (
@@ -453,10 +470,16 @@ export function DriverHome() {
         {isVerifyingOnline ? (
           <View style={styles.verifyingOverlay}>
             <View style={styles.verifyingCard}>
-              <ActivityIndicator size="large" color={colors.deepBrown} style={{ marginBottom: 16 }} />
+              <ActivityIndicator
+                size="large"
+                color={colors.deepBrown}
+                style={{ marginBottom: 16 }}
+              />
               <Text style={styles.verifyingTitle}>Getting you online...</Text>
               <View style={styles.verifyingList}>
-                <Text style={styles.verifyingItem}>Checking account, vehicle, location and wallet</Text>
+                <Text style={styles.verifyingItem}>
+                  Checking account, vehicle, location and wallet
+                </Text>
               </View>
             </View>
           </View>

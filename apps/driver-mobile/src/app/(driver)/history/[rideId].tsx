@@ -1,12 +1,6 @@
+import { locationLabel } from '@/services/location-names';
 import React, { useEffect, useState } from 'react';
-import {
-  ActivityIndicator,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -80,7 +74,8 @@ export default function RideHistoryDetailScreen() {
           style={styles.topBackBtn}
           onPress={() => router.back()}
           accessibilityRole="button"
-          accessibilityLabel="Back">
+          accessibilityLabel="Back"
+        >
           <Ionicons name="arrow-back" size={20} color={colors.deepBrown} />
           <Text style={styles.topBackText}>Rides</Text>
         </Pressable>
@@ -129,7 +124,7 @@ export default function RideHistoryDetailScreen() {
             <View style={{ flex: 1 }}>
               <Text style={styles.pointLabel}>PICKUP</Text>
               <Text style={styles.pointAddress}>
-                {ride.pickup.address || `${ride.pickup.lat.toFixed(4)}, ${ride.pickup.lng.toFixed(4)}`}
+                {locationLabel(ride.pickup.address, 'Pickup location')}
               </Text>
             </View>
           </View>
@@ -138,7 +133,7 @@ export default function RideHistoryDetailScreen() {
             <View style={{ flex: 1 }}>
               <Text style={styles.pointLabel}>DESTINATION</Text>
               <Text style={styles.pointAddress}>
-                {ride.drop.address || `${ride.drop.lat.toFixed(4)}, ${ride.drop.lng.toFixed(4)}`}
+                {locationLabel(ride.drop.address, 'Destination')}
               </Text>
             </View>
           </View>
@@ -183,10 +178,7 @@ export default function RideHistoryDetailScreen() {
         </View>
 
         {ride.status === 'SETTLED' ? (
-          <RideRatingCard
-            rideId={ride.id}
-            passengerName={ride.passenger?.name || 'Passenger'}
-          />
+          <RideRatingCard rideId={ride.id} passengerName={ride.passenger?.name || 'Passenger'} />
         ) : null}
 
         {/* Audit Event Timeline */}
@@ -212,9 +204,7 @@ export default function RideHistoryDetailScreen() {
         </View>
 
         {/* Support Shortcut */}
-        <Pressable
-          style={styles.helpButton}
-          onPress={() => router.push('/(driver)/account/help')}>
+        <Pressable style={styles.helpButton} onPress={() => router.push('/(driver)/account/help')}>
           <Ionicons name="help-buoy-outline" size={18} color={colors.deepBrown} />
           <Text style={styles.helpButtonText}>Need help with this trip?</Text>
         </Pressable>

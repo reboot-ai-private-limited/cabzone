@@ -1,3 +1,4 @@
+import { locationLabel } from './location-names';
 import Constants from 'expo-constants';
 import * as Device from 'expo-device';
 import { AndroidImportance } from 'expo-notifications';
@@ -43,7 +44,9 @@ export async function registerForPushAsync(): Promise<string | null> {
     const projectId =
       Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId ?? undefined;
     if (!projectId) {
-      console.warn('Push registration requires an EAS project ID. Configure the Driver Android build first.');
+      console.warn(
+        'Push registration requires an EAS project ID. Configure the Driver Android build first.',
+      );
       return null;
     }
     const { data } = await Notifications.getExpoPushTokenAsync({ projectId });
@@ -54,9 +57,9 @@ export async function registerForPushAsync(): Promise<string | null> {
   }
 }
 
-export function listenForPushTokenChanges(
-  onToken: (token: string) => void,
-): { remove: () => void } {
+export function listenForPushTokenChanges(onToken: (token: string) => void): {
+  remove: () => void;
+} {
   if (
     Platform.OS === 'web' ||
     !Device.isDevice ||
@@ -75,7 +78,8 @@ function playWebChime(freq = 880): void {
   if (Platform.OS !== 'web' || typeof window === 'undefined') return;
   try {
     const AudioCtx =
-      window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
     if (!AudioCtx) return;
     const ctx = new AudioCtx();
     const osc = ctx.createOscillator();
@@ -101,7 +105,7 @@ export async function notifyIncomingOfferLocal(offer: {
   pickup?: { address?: string | null };
 }): Promise<void> {
   const rupees = Math.round(offer.proposedFarePaise / 100);
-  const pickupLabel = offer.pickup?.address || 'Nearby passenger';
+  const pickupLabel = locationLabel(offer.pickup?.address, 'Nearby passenger');
   playWebChime(784);
   if (Platform.OS === 'web' || typeof Notifications?.scheduleNotificationAsync !== 'function') {
     return;

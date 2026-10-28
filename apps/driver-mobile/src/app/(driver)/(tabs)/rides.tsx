@@ -1,3 +1,4 @@
+import { locationLabel } from '@/services/location-names';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -291,7 +292,8 @@ export default function DriverRidesTab() {
           onPress={handleRefresh}
           disabled={isRefreshing}
           accessibilityRole="button"
-          accessibilityLabel="Refresh rides">
+          accessibilityLabel="Refresh rides"
+        >
           {isRefreshing ? (
             <ActivityIndicator size="small" color={colors.deepBrown} />
           ) : (
@@ -329,7 +331,8 @@ export default function DriverRidesTab() {
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.filterBarContent}>
+          contentContainerStyle={styles.filterBarContent}
+        >
           {FILTER_TABS.map((tab) => {
             const active = filter === tab.key;
             return (
@@ -338,7 +341,8 @@ export default function DriverRidesTab() {
                 style={[styles.filterPill, active && styles.filterPillActive]}
                 accessibilityRole="button"
                 accessibilityLabel={tab.label}
-                onPress={() => handleSelectFilter(tab.key)}>
+                onPress={() => handleSelectFilter(tab.key)}
+              >
                 <Text style={[styles.filterPillText, active && styles.filterPillTextActive]}>
                   {tab.label}
                 </Text>
@@ -357,7 +361,8 @@ export default function DriverRidesTab() {
             onRefresh={handleRefresh}
             tintColor={colors.deepBrown}
           />
-        }>
+        }
+      >
         {/* Active Ride Banner */}
         {activeRide ? (
           <Pressable
@@ -367,13 +372,15 @@ export default function DriverRidesTab() {
                 pathname: '/(driver)/ride/[rideId]',
                 params: { rideId: activeRide.id },
               })
-            }>
+            }
+          >
             <View style={{ flex: 1 }}>
               <Text style={styles.activeBannerTag}>
                 ACTIVE TRIP · {activeRide.status.replace(/_/g, ' ')}
               </Text>
               <Text style={styles.activeBannerRoute} numberOfLines={1}>
-                {activeRide.pickup.address || 'Pickup'} → {activeRide.drop.address || 'Drop'}
+                {locationLabel(activeRide.pickup.address, 'Pickup location')} →{' '}
+                {locationLabel(activeRide.drop.address, 'Destination')}
               </Text>
               <Text style={styles.activeBannerSub}>
                 Agreed Fare ₹
@@ -436,15 +443,13 @@ export default function DriverRidesTab() {
                     <View style={styles.pointRow}>
                       <View style={[styles.dot, { backgroundColor: colors.success }]} />
                       <Text style={styles.pointText} numberOfLines={1}>
-                        {offer.pickup.address ||
-                          `${offer.pickup.lat.toFixed(4)}, ${offer.pickup.lng.toFixed(4)}`}
+                        {locationLabel(offer.pickup.address, 'Pickup location')}
                       </Text>
                     </View>
                     <View style={styles.pointRow}>
                       <View style={[styles.dot, { backgroundColor: colors.error }]} />
                       <Text style={styles.pointText} numberOfLines={1}>
-                        {offer.drop.address ||
-                          `${offer.drop.lat.toFixed(4)}, ${offer.drop.lng.toFixed(4)}`}
+                        {locationLabel(offer.drop.address, 'Destination')}
                       </Text>
                     </View>
                   </View>
@@ -460,7 +465,8 @@ export default function DriverRidesTab() {
                   {rejectedPaise != null && counteredPaise == null && draftPaise == null ? (
                     <View style={styles.rejectedNoticeBox}>
                       <Text style={styles.rejectedNoticeText}>
-                        Customer declined ₹{Math.round(rejectedPaise / 100)} — accept ₹{grossRupees} or counter again
+                        Customer declined ₹{Math.round(rejectedPaise / 100)} — accept ₹{grossRupees}{' '}
+                        or counter again
                       </Text>
                     </View>
                   ) : null}
@@ -479,12 +485,11 @@ export default function DriverRidesTab() {
                               ...prev,
                               [offer.rideId]: draftPaise - COUNTER_STEP_PAISE,
                             }))
-                          }>
+                          }
+                        >
                           <Text style={styles.inlineStepBtnText}>−₹10</Text>
                         </Pressable>
-                        <Text style={styles.inlineDraftValue}>
-                          ₹{Math.round(draftPaise / 100)}
-                        </Text>
+                        <Text style={styles.inlineDraftValue}>₹{Math.round(draftPaise / 100)}</Text>
                         <Pressable
                           style={[
                             styles.inlineStepBtn,
@@ -496,7 +501,8 @@ export default function DriverRidesTab() {
                               ...prev,
                               [offer.rideId]: draftPaise + COUNTER_STEP_PAISE,
                             }))
-                          }>
+                          }
+                        >
                           <Text style={styles.inlineStepBtnText}>+₹10</Text>
                         </Pressable>
                       </View>
@@ -509,7 +515,8 @@ export default function DriverRidesTab() {
                               delete next[offer.rideId];
                               return next;
                             })
-                          }>
+                          }
+                        >
                           <Text style={styles.offerSecondaryBtnText}>Cancel</Text>
                         </Pressable>
                         <Pressable
@@ -524,7 +531,8 @@ export default function DriverRidesTab() {
                                 return next;
                               });
                             }
-                          }}>
+                          }}
+                        >
                           <Text style={styles.offerPrimaryBtnText}>
                             Send Counter ₹{Math.round(draftPaise / 100)}
                           </Text>
@@ -536,7 +544,8 @@ export default function DriverRidesTab() {
                       <Pressable
                         style={styles.offerSecondaryBtn}
                         disabled={isMutatingRide}
-                        onPress={() => ignoreOffer(offer.rideId)}>
+                        onPress={() => ignoreOffer(offer.rideId)}
+                      >
                         <Text style={styles.offerSecondaryBtnText}>Ignore</Text>
                       </Pressable>
                       <Pressable
@@ -549,13 +558,15 @@ export default function DriverRidesTab() {
                               counteredPaise ??
                               Math.min(ceilingPaise, offer.proposedFarePaise + COUNTER_STEP_PAISE),
                           }))
-                        }>
+                        }
+                      >
                         <Text style={styles.offerSecondaryBtnText}>Counter</Text>
                       </Pressable>
                       <Pressable
                         style={[styles.offerPrimaryBtn, isMutatingRide && styles.disabledBtn]}
                         disabled={isMutatingRide}
-                        onPress={() => handleAcceptFromList(offer.rideId)}>
+                        onPress={() => handleAcceptFromList(offer.rideId)}
+                      >
                         <Text style={styles.offerPrimaryBtnText}>Accept ₹{grossRupees}</Text>
                       </Pressable>
                     </View>
@@ -579,7 +590,8 @@ export default function DriverRidesTab() {
               onPress={() => {
                 void loadAllTimeStats();
                 void loadFirstPage(filter, { clearCurrent: true });
-              }}>
+              }}
+            >
               <Text style={styles.goHomeBtnText}>Retry</Text>
             </Pressable>
           </View>
@@ -603,7 +615,8 @@ export default function DriverRidesTab() {
             </Text>
             <Pressable
               style={styles.goHomeBtn}
-              onPress={() => router.push('/(driver)/(tabs)/home')}>
+              onPress={() => router.push('/(driver)/(tabs)/home')}
+            >
               <Text style={styles.goHomeBtnText}>Go to Home Dashboard</Text>
             </Pressable>
           </View>
@@ -612,9 +625,7 @@ export default function DriverRidesTab() {
             {historyError ? (
               <View style={styles.inlineErrorBox}>
                 <Text style={styles.inlineErrorText}>{historyError}</Text>
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={() => void handleLoadMore()}>
+                <Pressable accessibilityRole="button" onPress={() => void handleLoadMore()}>
                   <Text style={styles.inlineRetryText}>Retry</Text>
                 </Pressable>
               </View>
@@ -647,7 +658,8 @@ export default function DriverRidesTab() {
                   key={ride.id}
                   style={styles.rideCard}
                   accessibilityRole="button"
-                  onPress={() => handlePressRide(ride)}>
+                  onPress={() => handlePressRide(ride)}
+                >
                   <View style={styles.rideCardTop}>
                     <View>
                       <Text style={styles.rideDate}>{dateStr}</Text>
@@ -666,7 +678,8 @@ export default function DriverRidesTab() {
                         style={[
                           styles.statusBadge,
                           { backgroundColor: pill.bg, borderColor: pill.border },
-                        ]}>
+                        ]}
+                      >
                         <Text style={[styles.statusBadgeText, { color: pill.text }]}>
                           {pill.label}
                         </Text>
@@ -678,15 +691,13 @@ export default function DriverRidesTab() {
                     <View style={styles.pointRow}>
                       <View style={[styles.dot, { backgroundColor: colors.success }]} />
                       <Text style={styles.pointText} numberOfLines={1}>
-                        {ride.pickup.address ||
-                          `${ride.pickup.lat.toFixed(4)}, ${ride.pickup.lng.toFixed(4)}`}
+                        {locationLabel(ride.pickup.address, 'Pickup location')}
                       </Text>
                     </View>
                     <View style={styles.pointRow}>
                       <View style={[styles.dot, { backgroundColor: colors.error }]} />
                       <Text style={styles.pointText} numberOfLines={1}>
-                        {ride.drop.address ||
-                          `${ride.drop.lat.toFixed(4)}, ${ride.drop.lng.toFixed(4)}`}
+                        {locationLabel(ride.drop.address, 'Destination')}
                       </Text>
                     </View>
                   </View>
@@ -703,10 +714,8 @@ export default function DriverRidesTab() {
                         {isSettled ? 'Net Driver Earnings' : 'Settled Earnings'}
                       </Text>
                       <Text
-                        style={[
-                          styles.fareNetValue,
-                          !isSettled && { color: colors.secondary },
-                        ]}>
+                        style={[styles.fareNetValue, !isSettled && { color: colors.secondary }]}
+                      >
                         {isSettled ? `₹${(breakdown.netPaise / 100).toFixed(0)}` : 'Pending / ₹0'}
                       </Text>
                     </View>
@@ -721,7 +730,8 @@ export default function DriverRidesTab() {
                 disabled={isLoadingMore}
                 accessibilityRole="button"
                 accessibilityLabel="Load more trips"
-                onPress={handleLoadMore}>
+                onPress={handleLoadMore}
+              >
                 {isLoadingMore ? (
                   <ActivityIndicator size="small" color={colors.deepBrown} />
                 ) : (
