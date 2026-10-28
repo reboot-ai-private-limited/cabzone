@@ -82,7 +82,7 @@ export function DriverDetailModal({
                 {formatPublicRatingLabel(driver?.ratingAverage, driver?.ratingCount)}
               </span>
               <span className="text-text-subtle">
-                ({driver?.ratingCount ?? 0} {driver?.ratingCount === 1 ? 'ride' : 'rides'})
+                ({driver?.ratingCount ?? 0} {driver?.ratingCount === 1 ? 'review' : 'reviews'})
               </span>
             </div>
           </div>

@@ -124,435 +124,6 @@ function CopyPhoneButton({ phone }: { phone: string }) {
   );
 }
 
-// Realistic filler customer dataset for empty/preview mode
-const FILLER_CUSTOMERS: AdminRiderSummaryDto[] = [
-  {
-    id: '01900000-0000-7000-8000-000000000003',
-    userId: '01900000-0000-7000-8000-000000000003',
-    phoneE164: '+919830123456',
-    status: 'ACTIVE',
-    name: 'Priya Mukherjee',
-    email: 'priya.mukherjee@example.com',
-    preferredLanguage: 'Bengali',
-    emergencyContact: {
-      name: 'Amit Mukherjee',
-      phoneE164: '+919830987654',
-    },
-    ratingAverage: 4.9,
-    ratingCount: 28,
-    totalRides: 32,
-    completedRides: 30,
-    createdAt: '2025-11-14T08:30:00.000Z',
-    updatedAt: '2026-03-01T12:00:00.000Z',
-  },
-  {
-    id: '01900000-0000-7000-8000-000000000004',
-    userId: '01900000-0000-7000-8000-000000000004',
-    phoneE164: '+919874561230',
-    status: 'ACTIVE',
-    name: 'Rahul Sharma',
-    email: 'rahul.sharma@example.com',
-    preferredLanguage: 'Hindi',
-    emergencyContact: {
-      name: 'Neha Sharma',
-      phoneE164: '+919874561231',
-    },
-    ratingAverage: 4.8,
-    ratingCount: 19,
-    totalRides: 24,
-    completedRides: 22,
-    createdAt: '2025-12-02T10:15:00.000Z',
-    updatedAt: '2026-02-18T14:20:00.000Z',
-  },
-  {
-    id: '01900000-0000-7000-8000-000000000005',
-    userId: '01900000-0000-7000-8000-000000000005',
-    phoneE164: '+919800112233',
-    status: 'ACTIVE',
-    name: 'Ananya Sen',
-    email: 'ananya.sen@example.com',
-    preferredLanguage: 'English',
-    emergencyContact: {
-      name: 'Subhash Sen',
-      phoneE164: '+919800112234',
-    },
-    ratingAverage: 5.0,
-    ratingCount: 14,
-    totalRides: 15,
-    completedRides: 15,
-    createdAt: '2026-01-10T14:45:00.000Z',
-    updatedAt: '2026-03-12T09:10:00.000Z',
-  },
-  {
-    id: '01900000-0000-7000-8000-000000000006',
-    userId: '01900000-0000-7000-8000-000000000006',
-    phoneE164: '+919434055667',
-    status: 'ACTIVE',
-    name: 'Vikram Roy',
-    email: 'vikram.roy@example.com',
-    preferredLanguage: 'English',
-    emergencyContact: {
-      name: 'Rupa Roy',
-      phoneE164: '+919434055668',
-    },
-    ratingAverage: 4.3,
-    ratingCount: 42,
-    totalRides: 48,
-    completedRides: 44,
-    createdAt: '2025-08-20T11:20:00.000Z',
-    updatedAt: '2026-03-20T16:40:00.000Z',
-  },
-  {
-    id: '01900000-0000-7000-8000-000000000007',
-    userId: '01900000-0000-7000-8000-000000000007',
-    phoneE164: '+919733099881',
-    status: 'ACTIVE',
-    name: 'Sneha Patel',
-    email: 'sneha.patel@example.com',
-    preferredLanguage: 'Hindi',
-    emergencyContact: {
-      name: 'Rajesh Patel',
-      phoneE164: '+919733099882',
-    },
-    ratingAverage: 4.7,
-    ratingCount: 9,
-    totalRides: 11,
-    completedRides: 10,
-    createdAt: '2026-02-05T09:00:00.000Z',
-    updatedAt: '2026-03-25T11:30:00.000Z',
-  },
-  {
-    id: '01900000-0000-7000-8000-000000000008',
-    userId: '01900000-0000-7000-8000-000000000008',
-    phoneE164: '+919832044556',
-    status: 'SUSPENDED',
-    name: 'Amit Das',
-    email: 'amit.das@example.com',
-    preferredLanguage: 'Bengali',
-    emergencyContact: {
-      name: 'Priya Das',
-      phoneE164: '+919832044557',
-    },
-    ratingAverage: 3.6,
-    ratingCount: 22,
-    totalRides: 25,
-    completedRides: 20,
-    createdAt: '2025-09-15T16:10:00.000Z',
-    updatedAt: '2026-02-28T18:00:00.000Z',
-  },
-  {
-    id: '01900000-0000-7000-8000-000000000009',
-    userId: '01900000-0000-7000-8000-000000000009',
-    phoneE164: '+919641077889',
-    status: 'ACTIVE',
-    name: 'Neha Agarwal',
-    email: 'neha.agarwal@example.com',
-    preferredLanguage: 'English',
-    emergencyContact: {
-      name: 'Vivek Agarwal',
-      phoneE164: '+919641077890',
-    },
-    ratingAverage: 4.9,
-    ratingCount: 31,
-    totalRides: 36,
-    completedRides: 35,
-    createdAt: '2025-10-18T13:40:00.000Z',
-    updatedAt: '2026-03-30T10:15:00.000Z',
-  },
-  {
-    id: '01900000-0000-7000-8000-000000000010',
-    userId: '01900000-0000-7000-8000-000000000010',
-    phoneE164: '+919933066778',
-    status: 'ACTIVE',
-    name: 'Debashis Paul',
-    email: 'debashis.paul@example.com',
-    preferredLanguage: 'Bengali',
-    emergencyContact: null,
-    ratingAverage: null,
-    ratingCount: 0,
-    totalRides: 1,
-    completedRides: 0,
-    createdAt: '2026-03-28T15:20:00.000Z',
-    updatedAt: '2026-03-28T15:20:00.000Z',
-  },
-  {
-    id: '01900000-0000-7000-8000-000000000011',
-    userId: '01900000-0000-7000-8000-000000000011',
-    phoneE164: '+919474022334',
-    status: 'ACTIVE',
-    name: 'Sunita Chettri',
-    email: 'sunita.chettri@example.com',
-    preferredLanguage: 'Nepali',
-    emergencyContact: {
-      name: 'Bikash Chettri',
-      phoneE164: '+919474022335',
-    },
-    ratingAverage: 4.8,
-    ratingCount: 16,
-    totalRides: 18,
-    completedRides: 18,
-    createdAt: '2025-11-28T12:00:00.000Z',
-    updatedAt: '2026-03-15T17:30:00.000Z',
-  },
-  {
-    id: '01900000-0000-7000-8000-000000000012',
-    userId: '01900000-0000-7000-8000-000000000012',
-    phoneE164: '+919831955443',
-    status: 'ACTIVE',
-    name: 'Tanmoy Banerjee',
-    email: 'tanmoy.banerjee@example.com',
-    preferredLanguage: 'Bengali',
-    emergencyContact: {
-      name: 'Rina Banerjee',
-      phoneE164: '+919831955444',
-    },
-    ratingAverage: 4.6,
-    ratingCount: 20,
-    totalRides: 22,
-    completedRides: 21,
-    createdAt: '2025-12-14T07:50:00.000Z',
-    updatedAt: '2026-03-22T08:45:00.000Z',
-  },
-  {
-    id: '01900000-0000-7000-8000-000000000013',
-    userId: '01900000-0000-7000-8000-000000000013',
-    phoneE164: '+919832188990',
-    status: 'ACTIVE',
-    name: 'Rajesh Ghosh',
-    email: 'rajesh.ghosh@example.com',
-    preferredLanguage: 'Bengali',
-    emergencyContact: {
-      name: 'Maya Ghosh',
-      phoneE164: '+919832188991',
-    },
-    ratingAverage: 4.5,
-    ratingCount: 35,
-    totalRides: 40,
-    completedRides: 38,
-    createdAt: '2025-07-19T09:30:00.000Z',
-    updatedAt: '2026-03-29T14:15:00.000Z',
-  },
-  {
-    id: '01900000-0000-7000-8000-000000000014',
-    userId: '01900000-0000-7000-8000-000000000014',
-    phoneE164: '+919734155667',
-    status: 'ACTIVE',
-    name: 'Pooja Verma',
-    email: 'pooja.verma@example.com',
-    preferredLanguage: 'Hindi',
-    emergencyContact: {
-      name: 'Arun Verma',
-      phoneE164: '+919734155668',
-    },
-    ratingAverage: 4.9,
-    ratingCount: 25,
-    totalRides: 27,
-    completedRides: 26,
-    createdAt: '2025-10-05T11:45:00.000Z',
-    updatedAt: '2026-03-18T10:00:00.000Z',
-  },
-  {
-    id: '01900000-0000-7000-8000-000000000015',
-    userId: '01900000-0000-7000-8000-000000000015',
-    phoneE164: '+919830234567',
-    status: 'ACTIVE',
-    name: 'Subrata Mondal',
-    email: 'subrata.mondal@example.com',
-    preferredLanguage: 'Bengali',
-    emergencyContact: {
-      name: 'Mitali Mondal',
-      phoneE164: '+919830234568',
-    },
-    ratingAverage: 4.8,
-    ratingCount: 18,
-    totalRides: 20,
-    completedRides: 19,
-    createdAt: '2025-11-05T08:15:00.000Z',
-    updatedAt: '2026-03-10T11:20:00.000Z',
-  },
-  {
-    id: '01900000-0000-7000-8000-000000000016',
-    userId: '01900000-0000-7000-8000-000000000016',
-    phoneE164: '+919874112233',
-    status: 'ACTIVE',
-    name: 'Kavita Joshi',
-    email: 'kavita.joshi@example.com',
-    preferredLanguage: 'Hindi',
-    emergencyContact: {
-      name: 'Manoj Joshi',
-      phoneE164: '+919874112234',
-    },
-    ratingAverage: 4.9,
-    ratingCount: 30,
-    totalRides: 34,
-    completedRides: 33,
-    createdAt: '2025-10-22T09:40:00.000Z',
-    updatedAt: '2026-03-22T14:10:00.000Z',
-  },
-  {
-    id: '01900000-0000-7000-8000-000000000017',
-    userId: '01900000-0000-7000-8000-000000000017',
-    phoneE164: '+919433123456',
-    status: 'ACTIVE',
-    name: 'Deepak Roy',
-    email: 'deepak.roy@example.com',
-    preferredLanguage: 'English',
-    emergencyContact: null,
-    ratingAverage: 4.4,
-    ratingCount: 12,
-    totalRides: 14,
-    completedRides: 12,
-    createdAt: '2025-12-18T13:25:00.000Z',
-    updatedAt: '2026-03-14T09:50:00.000Z',
-  },
-  {
-    id: '01900000-0000-7000-8000-000000000018',
-    userId: '01900000-0000-7000-8000-000000000018',
-    phoneE164: '+919831778899',
-    status: 'ACTIVE',
-    name: 'Meera Bose',
-    email: 'meera.bose@example.com',
-    preferredLanguage: 'Bengali',
-    emergencyContact: {
-      name: 'Siddharth Bose',
-      phoneE164: '+919831778890',
-    },
-    ratingAverage: 5.0,
-    ratingCount: 22,
-    totalRides: 24,
-    completedRides: 24,
-    createdAt: '2026-01-08T15:30:00.000Z',
-    updatedAt: '2026-03-28T16:05:00.000Z',
-  },
-  {
-    id: '01900000-0000-7000-8000-000000000019',
-    userId: '01900000-0000-7000-8000-000000000019',
-    phoneE164: '+919732445566',
-    status: 'SUSPENDED',
-    name: 'Rakesh Choudhury',
-    email: 'rakesh.choudhury@example.com',
-    preferredLanguage: 'Hindi',
-    emergencyContact: null,
-    ratingAverage: 3.4,
-    ratingCount: 8,
-    totalRides: 10,
-    completedRides: 7,
-    createdAt: '2026-02-12T11:10:00.000Z',
-    updatedAt: '2026-03-05T12:00:00.000Z',
-  },
-  {
-    id: '01900000-0000-7000-8000-000000000020',
-    userId: '01900000-0000-7000-8000-000000000020',
-    phoneE164: '+919641223344',
-    status: 'ACTIVE',
-    name: 'Swati Chakraborty',
-    email: 'swati.c@example.com',
-    preferredLanguage: 'Bengali',
-    emergencyContact: {
-      name: 'Anirban Chakraborty',
-      phoneE164: '+919641223345',
-    },
-    ratingAverage: 4.7,
-    ratingCount: 15,
-    totalRides: 17,
-    completedRides: 16,
-    createdAt: '2025-11-20T10:00:00.000Z',
-    updatedAt: '2026-03-19T13:45:00.000Z',
-  },
-  {
-    id: '01900000-0000-7000-8000-000000000021',
-    userId: '01900000-0000-7000-8000-000000000021',
-    phoneE164: '+919932556677',
-    status: 'ACTIVE',
-    name: 'Rohit Ganguly',
-    email: 'rohit.ganguly@example.com',
-    preferredLanguage: 'English',
-    emergencyContact: {
-      name: 'Sunita Ganguly',
-      phoneE164: '+919932556678',
-    },
-    ratingAverage: 4.9,
-    ratingCount: 40,
-    totalRides: 45,
-    completedRides: 43,
-    createdAt: '2025-09-01T07:30:00.000Z',
-    updatedAt: '2026-03-26T17:15:00.000Z',
-  },
-  {
-    id: '01900000-0000-7000-8000-000000000022',
-    userId: '01900000-0000-7000-8000-000000000022',
-    phoneE164: '+919833667788',
-    status: 'ACTIVE',
-    name: 'Alok Nath',
-    email: 'alok.nath@example.com',
-    preferredLanguage: 'Hindi',
-    emergencyContact: null,
-    ratingAverage: 4.6,
-    ratingCount: 11,
-    totalRides: 12,
-    completedRides: 11,
-    createdAt: '2026-01-25T14:10:00.000Z',
-    updatedAt: '2026-03-17T15:30:00.000Z',
-  },
-  {
-    id: '01900000-0000-7000-8000-000000000023',
-    userId: '01900000-0000-7000-8000-000000000023',
-    phoneE164: '+919475112244',
-    status: 'ACTIVE',
-    name: 'Bhavna Chawla',
-    email: 'bhavna.chawla@example.com',
-    preferredLanguage: 'Hindi',
-    emergencyContact: {
-      name: 'Sanjay Chawla',
-      phoneE164: '+919475112245',
-    },
-    ratingAverage: 4.8,
-    ratingCount: 26,
-    totalRides: 29,
-    completedRides: 28,
-    createdAt: '2025-10-12T16:40:00.000Z',
-    updatedAt: '2026-03-24T09:25:00.000Z',
-  },
-  {
-    id: '01900000-0000-7000-8000-000000000024',
-    userId: '01900000-0000-7000-8000-000000000024',
-    phoneE164: '+919830776655',
-    status: 'ACTIVE',
-    name: 'Suman Chatterjee',
-    email: 'suman.c@example.com',
-    preferredLanguage: 'Bengali',
-    emergencyContact: {
-      name: 'Mousumi Chatterjee',
-      phoneE164: '+919830776656',
-    },
-    ratingAverage: 4.5,
-    ratingCount: 17,
-    totalRides: 19,
-    completedRides: 18,
-    createdAt: '2025-12-05T12:20:00.000Z',
-    updatedAt: '2026-03-21T18:40:00.000Z',
-  },
-  {
-    id: '01900000-0000-7000-8000-000000000025',
-    userId: '01900000-0000-7000-8000-000000000025',
-    phoneE164: '+919733441122',
-    status: 'ACTIVE',
-    name: 'Pallabi Sengupta',
-    email: 'pallabi.s@example.com',
-    preferredLanguage: 'Bengali',
-    emergencyContact: {
-      name: 'Debjit Sengupta',
-      phoneE164: '+919733441123',
-    },
-    ratingAverage: 5.0,
-    ratingCount: 38,
-    totalRides: 42,
-    completedRides: 41,
-    createdAt: '2025-08-14T08:50:00.000Z',
-    updatedAt: '2026-03-27T10:30:00.000Z',
-  },
-];
-
 export function RidersScreen() {
   const [segmentView, setSegmentView] = useState<SegmentView>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
@@ -569,7 +140,7 @@ export function RidersScreen() {
   const [editTargetRider, setEditTargetRider] = useState<AdminRiderSummaryDto | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
-  // Query for KPI aggregates from live API
+  // Query for KPI aggregates from live API (never supplemented with fabricated sample records)
   const allQuery = useRidersList({ limit: 100 });
 
   // Map segment to backend UserStatus when possible
@@ -584,77 +155,51 @@ export function RidersScreen() {
     offset: (page - 1) * PAGE_SIZE,
   });
 
-  // Unified full dataset: live database records prioritized, supplemented with filler customers
-  // so the directory is always full and richly populated
-  const allRidersPool = useMemo(() => {
-    const live = allQuery.data?.riders ?? [];
-    const livePhones = new Set(live.map((r) => r.phoneE164));
-    const liveIds = new Set(live.map((r) => r.id));
+  const allRidersPool = useMemo(() => allQuery.data?.riders ?? [], [allQuery.data?.riders]);
 
-    const supplemental = FILLER_CUSTOMERS.filter(
-      (f) => !livePhones.has(f.phoneE164) && !liveIds.has(f.id)
-    );
-
-    return [...live, ...supplemental];
-  }, [allQuery.data?.riders]);
-
-  // Comprehensive KPI Stats computed across the rich dataset
+  // Honest KPI Stats computed strictly from live server records
   const kpis = useMemo(() => {
+    if (allQuery.isError || !allQuery.data) {
+      return {
+        total: null as number | null,
+        active: null as number | null,
+        suspended: null as number | null,
+        avgRating: '—',
+      };
+    }
+
     let active = 0;
     let suspended = 0;
-    let topRated = 0;
     let ratingSum = 0;
     let ratingCount = 0;
-    let totalCompleted = 0;
 
     for (const r of allRidersPool) {
       if (r.status === 'ACTIVE') active++;
       if (r.status === 'SUSPENDED') suspended++;
-      totalCompleted += r.completedRides;
       if (r.ratingCount >= MIN_PUBLIC_RATING_COUNT && r.ratingAverage !== null) {
         ratingSum += r.ratingAverage;
         ratingCount++;
-        if (r.ratingAverage >= 4.8) topRated++;
       }
     }
 
     const avgRating = ratingCount > 0 ? (ratingSum / ratingCount).toFixed(1) : '—';
     return {
-      total: allRidersPool.length,
+      total: allQuery.data.total,
       active,
       suspended,
-      topRated,
       avgRating,
-      totalCompleted,
     };
-  }, [allRidersPool]);
+  }, [allQuery.data, allQuery.isError, allRidersPool]);
 
-  // Active rows calculation with search, filter, and pagination
   const { currentRows, totalCount, pageCount } = useMemo(() => {
-    let list = [...allRidersPool];
-
-    if (segmentView === 'ACTIVE') {
-      list = list.filter((r) => r.status === 'ACTIVE');
-    } else if (segmentView === 'SUSPENDED') {
-      list = list.filter((r) => r.status === 'SUSPENDED');
-    }
-
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase().trim();
-      list = list.filter(
-        (r) =>
-          r.phoneE164.toLowerCase().includes(q) ||
-          (r.name && r.name.toLowerCase().includes(q)) ||
-          (r.email && r.email.toLowerCase().includes(q))
-      );
-    }
-
-    list.sort((a, b) => {
+    const serverRows = query.data?.riders ?? [];
+    const total = query.data?.total ?? 0;
+    const sorted = [...serverRows].sort((a, b) => {
       switch (sortOption) {
         case 'OLDEST':
           return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
         case 'RATING_DESC':
-          return (b.ratingAverage ?? 0) - (a.ratingAverage ?? 0);
+          return (b.ratingAverage ?? -1) - (a.ratingAverage ?? -1);
         case 'TRIPS_DESC':
           return b.totalRides - a.totalRides;
         case 'NAME_ASC':
@@ -665,16 +210,12 @@ export function RidersScreen() {
       }
     });
 
-    const total = list.length;
-    const start = (page - 1) * PAGE_SIZE;
-    const paged = list.slice(start, start + PAGE_SIZE);
-
     return {
-      currentRows: paged,
+      currentRows: sorted,
       totalCount: total,
       pageCount: Math.max(1, Math.ceil(total / PAGE_SIZE)),
     };
-  }, [allRidersPool, segmentView, searchQuery, sortOption, page]);
+  }, [query.data, sortOption]);
 
   const handleOpenDetail = (rider: AdminRiderSummaryDto) => {
     setSelectedRider(rider);
@@ -694,9 +235,7 @@ export function RidersScreen() {
   };
 
   const hasActiveFilters =
-    searchQuery.trim().length > 0 ||
-    sortOption !== 'NEWEST' ||
-    segmentView !== 'ALL';
+    searchQuery.trim().length > 0 || sortOption !== 'NEWEST' || segmentView !== 'ALL';
 
   const handleClearFilters = () => {
     setSearchQuery('');
@@ -779,13 +318,17 @@ export function RidersScreen() {
               {formatPublicRatingLabel(r.ratingAverage, r.ratingCount)}
             </span>
             <span className="text-xs text-text-subtle whitespace-nowrap">
-              ({r.ratingCount} {r.ratingCount === 1 ? 'trip' : 'trips'})
+              ({r.ratingCount} {r.ratingCount === 1 ? 'review' : 'reviews'})
             </span>
           </div>
           <span className="text-[11px] text-text-subtle whitespace-nowrap">
-            {r.ratingCount >= MIN_PUBLIC_RATING_COUNT && r.ratingAverage !== null && r.ratingAverage >= 4.8
+            {r.ratingCount >= MIN_PUBLIC_RATING_COUNT &&
+            r.ratingAverage !== null &&
+            r.ratingAverage >= 4.8
               ? 'Top Customer'
-              : r.ratingCount >= MIN_PUBLIC_RATING_COUNT && r.ratingAverage !== null && r.ratingAverage < 4.0
+              : r.ratingCount >= MIN_PUBLIC_RATING_COUNT &&
+                  r.ratingAverage !== null &&
+                  r.ratingAverage < 4.0
                 ? 'Needs Attention'
                 : r.ratingCount >= MIN_PUBLIC_RATING_COUNT && r.ratingAverage !== null
                   ? 'Good Standing'
@@ -807,12 +350,12 @@ export function RidersScreen() {
     },
     {
       key: 'bookings',
-      header: 'Bookings & Volume',
+      header: 'Bookings & Trips',
       render: (r) => (
         <div className="flex flex-col gap-0.5 whitespace-nowrap">
           <div className="flex items-center gap-2 whitespace-nowrap">
             <span className="font-semibold text-sm text-text">
-              {r.totalRides} Bookings
+              {r.totalRides} {r.totalRides === 1 ? 'Booking' : 'Bookings'}
             </span>
             {r.completedRides > 0 && (
               <Badge tone="neutral" className="text-[10px] py-0 px-1.5 font-mono">
@@ -821,7 +364,7 @@ export function RidersScreen() {
             )}
           </div>
           <span className="text-xs text-text-subtle mt-0.5 whitespace-nowrap">
-            ₹{((r.completedRides * 48000) / 100).toLocaleString('en-IN')} lifetime spend
+            {r.completedRides} completed of {r.totalRides} requested
           </span>
         </div>
       ),
@@ -908,15 +451,17 @@ export function RidersScreen() {
         breadcrumbs={[{ label: 'Admin', href: '/' }, { label: 'Customers' }]}
         actions={
           <div className="flex items-center gap-2">
-            <Badge tone="neutral" className="text-xs py-1 px-2.5 font-medium">
-              {kpis.total} Total Customers
-            </Badge>
+            {kpis.total !== null && (
+              <Badge tone="neutral" className="text-xs py-1 px-2.5 font-medium">
+                {kpis.total} Total Customers
+              </Badge>
+            )}
             <Button
               icon={<RefreshCw className={`size-4 ${query.isFetching ? 'animate-spin' : ''}`} />}
               loading={query.isFetching}
               onClick={() => {
-                query.refetch();
-                allQuery.refetch();
+                void query.refetch();
+                void allQuery.refetch();
               }}
             >
               Refresh
@@ -925,43 +470,43 @@ export function RidersScreen() {
         }
       />
 
-      {/* Operational KPI Stat Tiles matching screenshot */}
+      {/* Operational KPI Stat Tiles */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatTile
           label="Total Customers"
-          value={kpis.total}
+          value={kpis.total ?? '—'}
           icon={<Users className="size-4 text-interactive" />}
           hint="Registered mobile accounts"
           tone="default"
-          loading={query.isLoading && allRidersPool.length === 0}
+          loading={allQuery.isPending}
         />
         <StatTile
           label="Active Accounts"
-          value={kpis.active}
+          value={kpis.active ?? '—'}
           icon={<CheckCircle2 className="size-4 text-success" />}
           hint="Eligible to book rides"
           tone="success"
-          loading={query.isLoading && allRidersPool.length === 0}
+          loading={allQuery.isPending}
         />
         <StatTile
           label="Suspended Accounts"
-          value={kpis.suspended}
+          value={kpis.suspended ?? '—'}
           icon={<XCircle className="size-4 text-danger" />}
           hint="Access revoked by operations"
-          tone={kpis.suspended > 0 ? 'danger' : 'default'}
-          loading={query.isLoading && allRidersPool.length === 0}
+          tone={(kpis.suspended ?? 0) > 0 ? 'danger' : 'default'}
+          loading={allQuery.isPending}
         />
         <StatTile
           label="Average Customer Rating"
           value={kpis.avgRating !== '—' ? `${kpis.avgRating} ★` : '—'}
           icon={<Star className="size-4 text-amber-500 fill-amber-400" />}
-          hint="Platform satisfaction score"
+          hint="Revealed ratings (5+ reviews)"
           tone="warning"
-          loading={query.isLoading && allRidersPool.length === 0}
+          loading={allQuery.isPending}
         />
       </div>
 
-      {/* View Switcher Bar matching screenshot */}
+      {/* View Switcher Bar */}
       <div className="flex items-center justify-between border-b border-border pb-3">
         <SegmentedControl<SegmentView>
           label="Account Status"
@@ -973,17 +518,17 @@ export function RidersScreen() {
           segments={[
             {
               value: 'ALL',
-              label: `All (${kpis.total})`,
+              label: kpis.total !== null ? `All (${kpis.total})` : 'All',
               icon: <Users className="size-3.5" />,
             },
             {
               value: 'ACTIVE',
-              label: `Active (${kpis.active})`,
+              label: kpis.active !== null ? `Active (${kpis.active})` : 'Active',
               icon: <UserCheck className="size-3.5 text-success" />,
             },
             {
               value: 'SUSPENDED',
-              label: `Suspended (${kpis.suspended})`,
+              label: kpis.suspended !== null ? `Suspended (${kpis.suspended})` : 'Suspended',
               icon: <UserX className="size-3.5 text-danger" />,
             },
           ]}
@@ -1024,16 +569,20 @@ export function RidersScreen() {
       </FilterBar>
 
       {/* Table & Data Representation */}
-      {query.isLoading && allRidersPool.length === 0 ? (
+      {query.isPending ? (
         <div className="flex flex-col gap-3">
           <Skeleton className="h-12 w-full rounded-md" />
           <Skeleton className="h-64 w-full rounded-md" />
         </div>
-      ) : query.isError && allRidersPool.length === 0 ? (
+      ) : query.isError ? (
         <ErrorState
           title="Failed to load customer list"
-          message="Could not connect to identity service. Please verify your connection and permissions."
-          onRetry={() => query.refetch()}
+          message={
+            query.error instanceof Error
+              ? query.error.message
+              : 'Could not connect to identity service. Please verify your connection and permissions.'
+          }
+          onRetry={() => void query.refetch()}
         />
       ) : currentRows.length === 0 ? (
         <EmptyState
@@ -1081,8 +630,8 @@ export function RidersScreen() {
         open={isDetailOpen}
         onOpenChange={setIsDetailOpen}
         onRefresh={() => {
-          query.refetch();
-          allQuery.refetch();
+          void query.refetch();
+          void allQuery.refetch();
         }}
       />
 
@@ -1091,8 +640,8 @@ export function RidersScreen() {
         open={isStatusDialogOpen}
         onOpenChange={setIsStatusDialogOpen}
         onSuccess={() => {
-          query.refetch();
-          allQuery.refetch();
+          void query.refetch();
+          void allQuery.refetch();
         }}
       />
 
@@ -1101,8 +650,8 @@ export function RidersScreen() {
         open={isEditDialogOpen}
         onOpenChange={setIsEditDialogOpen}
         onSuccess={() => {
-          query.refetch();
-          allQuery.refetch();
+          void query.refetch();
+          void allQuery.refetch();
         }}
       />
     </div>
