@@ -316,6 +316,45 @@ export class CompleteRideUseCase {
             });
             reversedOnlineEarningsPaise = totalToReverse;
           }
+          const paidArrears = await this.deps.walletRepo.findTransactionByIdempotencyKey(
+            `rider_arrears_paid_${ride.id}`,
+          );
+          if (paidArrears && paidArrears.amountPaise > 0) {
+            const riderWallet = await this.deps.walletRepo.findById(paidArrears.walletId);
+            if (!riderWallet || riderWallet.riderId !== ride.bookerRiderId) {
+              throw AppError.conflict('WALLET_NOT_FOUND: Rider arrears wallet is unavailable.');
+            }
+            refundedCollectedArrearsPaise = paidArrears.amountPaise;
+            const balanceAfter = calculateNewBalance(
+              riderWallet.balancePaise,
+              refundedCollectedArrearsPaise,
+              'DEBIT',
+            );
+            await this.deps.walletRepo.recordTransaction({
+              id: newUuid(),
+              walletId: riderWallet.id,
+              ownerType: 'RIDER',
+              driverId: null,
+              riderId: ride.bookerRiderId,
+              type: 'DEBIT',
+              amountPaise: refundedCollectedArrearsPaise,
+              referenceType: 'CANCELLATION_FEE_ARREARS',
+              referenceId: ride.id,
+              idempotencyKey: `dispute_arrears_reinstate_${ride.id}`,
+              balanceBeforePaise: riderWallet.balancePaise,
+              balanceAfterPaise: balanceAfter,
+              createdBy: input.adminId,
+              note: `${input.reason} (refund ${refundReference})`,
+              createdAt: now,
+            });
+            await this.deps.walletRepo.save({
+              ...riderWallet,
+              balancePaise: balanceAfter,
+              owedPaise: Math.max(0, -balanceAfter),
+              version: riderWallet.version + 1,
+              updatedAt: now,
+            });
+          }
         } else if (!isDuplicateUpiAfterCash) {
           const charged = await this.deps.walletRepo.findTransactionByIdempotencyKey(
             `commission_debit_${ride.id}`,

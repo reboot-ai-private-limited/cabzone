@@ -426,6 +426,69 @@ describe('Step 6 — Historical money & payment operations reconciliation', () =
     expect(ledgerAudit.cleanWallets).toBe(1);
   });
 
+  it('reinstates refunded online arrears once without charging them to driver earnings', async () => {
+    const h = buildTestHarness();
+    const now = new Date();
+    await h.walletRepo.save({
+      id: 'driver-wallet',
+      driverId: 'driver-1',
+      balancePaise: 5000,
+      earningsBalancePaise: 0,
+      status: 'ACTIVE',
+      version: 1,
+      createdAt: now,
+      updatedAt: now,
+    });
+    await h.walletRepo.save({
+      id: 'rider-wallet',
+      ownerType: 'RIDER',
+      driverId: '',
+      riderId: 'rider-1',
+      balancePaise: -3000,
+      owedPaise: 3000,
+      status: 'ACTIVE',
+      version: 1,
+      createdAt: now,
+      updatedAt: now,
+    });
+    const rideId = newUuid();
+    await h.rideRepo.save(
+      makeRide({
+        id: rideId,
+        agreedFarePaise: 20000,
+        arrearsPaise: 3000,
+        status: 'PAYMENT_PENDING',
+      }),
+    );
+    const checkout = await h.upiPayment.create(rideId, 'rider-1');
+    h.capturedOrders.set(checkout.orderId, { paymentId: 'pay_arrears_refund', amountPaise: 23000 });
+    await h.upiPayment.reconcile(rideId, 'rider-1');
+    expect((await h.walletRepo.findByRiderId('rider-1'))?.balancePaise).toBe(0);
+    await h.completeRide.disputePayment({
+      rideId,
+      riderId: 'rider-1',
+      reason: 'Full refund requested',
+    });
+    const resolution = {
+      rideId,
+      adminId: 'support-1',
+      outcome: 'RIDER_WINS' as const,
+      reason: 'Full payment refunded including arrears',
+      refundReference: 'rfnd_arrears',
+    };
+    await h.completeRide.resolveDispute(resolution);
+    await h.completeRide.resolveDispute(resolution);
+    const riderWallet = await h.walletRepo.findByRiderId('rider-1');
+    expect(riderWallet?.balancePaise).toBe(-3000);
+    expect(riderWallet?.owedPaise).toBe(3000);
+    expect((await h.walletRepo.findByDriverId('driver-1'))?.earningsBalancePaise).toBe(0);
+    expect((await h.walletRepo.findByDriverId('driver-1'))?.balancePaise).toBe(5000);
+    const reinstated = await h.walletRepo.findTransactionByIdempotencyKey(
+      `dispute_arrears_reinstate_${rideId}`,
+    );
+    expect(reinstated?.amountPaise).toBe(3000);
+  });
+
   it('enforces manual refundReference on online UPI disputes, reverses online earnings once (including post-cashout clawback), and supports searchable closed disputes', async () => {
     const h = buildTestHarness();
     const now = new Date('2026-10-26T10:30:00.000Z');
