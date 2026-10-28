@@ -61,6 +61,36 @@ function verifyBucketChain(
     }
   }
 
+  const links = new Map<number, Set<number>>();
+  for (const tx of txs) {
+    for (const [from, to] of [
+      [tx.balanceBeforePaise, tx.balanceAfterPaise],
+      [tx.balanceAfterPaise, tx.balanceBeforePaise],
+    ] as const) {
+      if (!links.has(from)) links.set(from, new Set());
+      links.get(from)!.add(to);
+    }
+  }
+  const reached = new Set<number>();
+  const pending = [txs[0]!.balanceBeforePaise];
+  while (pending.length) {
+    const balance = pending.pop()!;
+    if (reached.has(balance)) continue;
+    reached.add(balance);
+    for (const next of links.get(balance) ?? []) pending.push(next);
+  }
+  if (reached.size !== links.size) {
+    clean = false;
+    issues.push({
+      code: 'BROKEN_TX_CHAIN',
+      walletId: wallet.id,
+      driverId: wallet.driverId || null,
+      bucket,
+      actualPaise: currentBalancePaise,
+      detail: `${bucket} ledger contains disconnected transaction chains.`,
+    });
+  }
+
   const beforeCounts = new Map<number, number>();
   const afterCounts = new Map<number, number>();
   for (const tx of txs) {
@@ -193,7 +223,13 @@ export class ReconcileWalletLedgerUseCase {
       const commissionTxs = txs.filter((t) => (t.bucket ?? 'COMMISSION') === 'COMMISSION');
       const earningsTxs = txs.filter((t) => t.bucket === 'EARNINGS');
 
-      const cOk = verifyBucketChain(wallet, 'COMMISSION', commissionTxs, wallet.balancePaise, issues);
+      const cOk = verifyBucketChain(
+        wallet,
+        'COMMISSION',
+        commissionTxs,
+        wallet.balancePaise,
+        issues,
+      );
       const eOk = verifyBucketChain(
         wallet,
         'EARNINGS',
@@ -208,7 +244,13 @@ export class ReconcileWalletLedgerUseCase {
         if (!tx.referenceId) continue;
         let eventKey: string | null = null;
         if (SINGLE_EVENT_REF_TYPES.has(tx.referenceType)) {
-          eventKey = `${tx.referenceType}:${tx.referenceId}`;
+          const action =
+            tx.referenceType === 'DISPUTE_REFUND'
+              ? tx.idempotencyKey === `dispute_arrears_refund_${tx.referenceId}`
+                ? ':ARREARS'
+                : ':COMMISSION'
+              : '';
+          eventKey = `${tx.referenceType}:${tx.referenceId}${action}`;
         } else if (BUCKET_SCOPED_SINGLE_REF_TYPES.has(tx.referenceType)) {
           eventKey = `${tx.referenceType}:${tx.referenceId}:${tx.bucket ?? 'COMMISSION'}`;
         }
@@ -272,7 +314,10 @@ export class ReconcileWalletLedgerUseCase {
               op.orderId,
               op.amountPaise,
             );
-            if (!providerPaymentId || (op.providerPaymentId && providerPaymentId !== op.providerPaymentId)) {
+            if (
+              !providerPaymentId ||
+              (op.providerPaymentId && providerPaymentId !== op.providerPaymentId)
+            ) {
               issues.push({
                 code: 'PROVIDER_PAYMENT_UNVERIFIED',
                 walletId: driverWallet?.id ?? null,

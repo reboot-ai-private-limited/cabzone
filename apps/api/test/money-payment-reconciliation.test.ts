@@ -282,6 +282,110 @@ function buildTestHarness() {
 }
 
 describe('Step 6 — Historical money & payment operations reconciliation', () => {
+  it('rejects disconnected ledger cycles and permits separate commission and arrears refunds', async () => {
+    const h = buildTestHarness();
+    const now = new Date();
+    await h.walletRepo.save({
+      id: 'audit-wallet',
+      driverId: 'driver-1',
+      balancePaise: 100,
+      status: 'ACTIVE',
+      version: 1,
+      createdAt: now,
+      updatedAt: now,
+    });
+    for (const [id, before, after] of [
+      ['a', 0, 100],
+      ['b', 500, 600],
+      ['c', 600, 500],
+    ] as const) {
+      await h.walletRepo.recordTransaction({
+        id,
+        walletId: 'audit-wallet',
+        driverId: 'driver-1',
+        type: after > before ? 'CREDIT' : 'DEBIT',
+        amountPaise: Math.abs(after - before),
+        referenceType: 'ADMIN_ADJUSTMENT',
+        referenceId: id,
+        idempotencyKey: id,
+        balanceBeforePaise: before,
+        balanceAfterPaise: after,
+        createdBy: null,
+        createdAt: now,
+      });
+    }
+    expect(
+      (await h.reconcileLedger.execute()).issues.some((i) => i.code === 'BROKEN_TX_CHAIN'),
+    ).toBe(true);
+    const valid = buildTestHarness();
+    await valid.walletRepo.save({
+      id: 'valid-wallet',
+      driverId: 'driver-1',
+      balancePaise: 400,
+      status: 'ACTIVE',
+      version: 1,
+      createdAt: now,
+      updatedAt: now,
+    });
+    for (const [key, before, after] of [
+      ['dispute_refund_ride1', 0, 100],
+      ['dispute_arrears_refund_ride1', 100, 400],
+    ] as const) {
+      await valid.walletRepo.recordTransaction({
+        id: key,
+        walletId: 'valid-wallet',
+        driverId: 'driver-1',
+        type: 'CREDIT',
+        amountPaise: after - before,
+        referenceType: 'DISPUTE_REFUND',
+        referenceId: 'ride1',
+        idempotencyKey: key,
+        balanceBeforePaise: before,
+        balanceAfterPaise: after,
+        createdBy: null,
+        createdAt: now,
+      });
+    }
+    expect((await valid.reconcileLedger.execute()).issues).toEqual([]);
+  });
+
+  it('recovers a captured fare plus arrears and audits the full provider amount', async () => {
+    const h = buildTestHarness();
+    const now = new Date();
+    await h.walletRepo.save({
+      id: 'driver-wallet',
+      driverId: 'driver-1',
+      balancePaise: 5000,
+      earningsBalancePaise: 0,
+      status: 'ACTIVE',
+      version: 1,
+      createdAt: now,
+      updatedAt: now,
+    });
+    const rideId = newUuid();
+    await h.rideRepo.save(
+      makeRide({
+        id: rideId,
+        agreedFarePaise: 20000,
+        arrearsPaise: 3000,
+        status: 'PAYMENT_PENDING',
+      }),
+    );
+    const checkout = await h.upiPayment.create(rideId, 'rider-1');
+    h.capturedOrders.set(checkout.orderId, {
+      paymentId: 'pay_recovery_arrears',
+      amountPaise: 23000,
+    });
+    const recovery = await h.driverEarnings.reconcile({
+      mode: 'RECONCILE_PENDING_ONLINE',
+      rideIds: [rideId],
+    });
+    expect(recovery.reconciledPendingRideIds).toContain(rideId);
+    expect((await h.walletRepo.findByDriverId('driver-1'))?.earningsBalancePaise).toBe(18400);
+    const audit = await h.driverEarnings.reconcile({ mode: 'AUDIT', rideIds: [rideId] });
+    expect(audit.issues).toEqual([]);
+  });
+
   it('verifies provider capture before backfilling historical online rides and recovers captured pending online rides once', async () => {
     const h = buildTestHarness();
     const now = new Date('2026-10-26T10:00:00.000Z');
