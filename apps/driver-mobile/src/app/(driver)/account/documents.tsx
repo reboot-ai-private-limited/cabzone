@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Keyboard,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -12,6 +12,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { DOCUMENT_TYPES, type DocumentType } from '@cabzone/contracts';
+import {
+  OnboardingFormScroll,
+  type OnboardingFormScrollHandle,
+} from '@/components/kyc/onboarding-form-scroll';
 import { useAuth } from '@/context/auth-context';
 import { driverApi } from '@/services/api';
 import { pickDriverLicense, type SelectedDriverLicense } from '@/services/driver-license';
@@ -29,11 +33,18 @@ const DOC_LABELS: Record<DocumentType, string> = {
 export default function DriverDocumentsScreen() {
   const router = useRouter();
   const { token, driver, application, documents, compliance, refreshProfile } = useAuth();
+  const formScrollRef = useRef<OnboardingFormScrollHandle>(null);
+  const dlInputRef = useRef<React.ComponentRef<typeof TextInput>>(null);
+  const expiryInputRef = useRef<React.ComponentRef<typeof TextInput>>(null);
+  const dlBoxRef = useRef<React.ComponentRef<typeof View>>(null);
+  const expiryBoxRef = useRef<React.ComponentRef<typeof View>>(null);
+  const editorBoxRef = useRef<React.ComponentRef<typeof View>>(null);
 
   const [editingType, setEditingType] = useState<DocumentType | null>(null);
   const [selectedFile, setSelectedFile] = useState<SelectedDriverLicense | null>(null);
   const [expiryInput, setExpiryInput] = useState('');
   const [dlNumberInput, setDlNumberInput] = useState('');
+  const [focusedField, setFocusedField] = useState<'dl' | 'expiry' | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -60,20 +71,32 @@ export default function DriverDocumentsScreen() {
     application?.rejectionType !== 'HARD_FRAUD';
 
   const openEditor = (type: DocumentType) => {
+    Keyboard.dismiss();
     setEditingType(type);
     setSelectedFile(null);
     setExpiryInput('');
     setDlNumberInput(driver?.dlNumber?.trim().toUpperCase() ?? '');
     setActionError(null);
     setActionSuccess(null);
+    setTimeout(() => {
+      formScrollRef.current?.focusTarget(editorBoxRef.current);
+    }, 80);
   };
 
   const handlePickFile = async (type: DocumentType) => {
+    Keyboard.dismiss();
     setActionError(null);
     try {
       const picked = await pickDriverLicense(DOC_LABELS[type]);
       if (picked) {
         setSelectedFile(picked);
+        setTimeout(() => {
+          if (type === 'DRIVING_LICENSE' && dlNumberInput.trim().length < 8) {
+            dlInputRef.current?.focus();
+          } else if (type !== 'GOVERNMENT_ID' && !validateFutureExpiryDate(expiryInput).valid) {
+            expiryInputRef.current?.focus();
+          }
+        }, 180);
       }
     } catch (err: unknown) {
       setActionError(err instanceof Error ? err.message : 'Could not select document file.');
@@ -82,6 +105,7 @@ export default function DriverDocumentsScreen() {
 
   const handleUploadReplacement = async (type: DocumentType) => {
     if (!token) return;
+    Keyboard.dismiss();
     if (!selectedFile) {
       setActionError('Select a PDF, JPG, or PNG file (max 500 KB) first.');
       return;
@@ -143,6 +167,7 @@ export default function DriverDocumentsScreen() {
 
   const handleSubmitRenewal = async () => {
     if (!token) return;
+    Keyboard.dismiss();
     setIsSubmitting(true);
     setActionError(null);
     setActionSuccess(null);
@@ -164,7 +189,14 @@ export default function DriverDocumentsScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.topBar}>
-        <Pressable style={styles.backBtn} onPress={() => router.back()}>
+        <Pressable
+          style={styles.backBtn}
+          onPress={() => {
+            Keyboard.dismiss();
+            router.back();
+          }}
+          accessibilityRole="button"
+          accessibilityLabel="Back to Account">
           <Ionicons name="arrow-back" size={20} color={colors.deepBrown} />
           <Text style={styles.backText}>Account</Text>
         </Pressable>
@@ -172,7 +204,11 @@ export default function DriverDocumentsScreen() {
         <View style={{ width: 60 }} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <OnboardingFormScroll
+        ref={formScrollRef}
+        topPadding={20}
+        baseBottomPadding={48}
+        contentContainerStyle={styles.scrollContent}>
         <View
           style={[
             styles.summaryCard,
@@ -225,14 +261,14 @@ export default function DriverDocumentsScreen() {
         ) : null}
 
         {actionError ? (
-          <View style={styles.errorBanner}>
+          <View style={styles.errorBanner} accessibilityRole="alert">
             <Ionicons name="warning-outline" size={20} color={colors.error} />
             <Text style={[styles.errorBannerSub, { flex: 1 }]}>{actionError}</Text>
           </View>
         ) : null}
 
         {actionSuccess ? (
-          <View style={styles.successBanner}>
+          <View style={styles.successBanner} accessibilityRole="alert">
             <Ionicons name="checkmark-circle-outline" size={20} color="#15803D" />
             <Text style={styles.successBannerText}>{actionSuccess}</Text>
           </View>
@@ -319,7 +355,17 @@ export default function DriverDocumentsScreen() {
                     {canEditDocuments ? (
                       <Pressable
                         style={styles.replaceTrigger}
-                        onPress={() => (isEditing ? setEditingType(null) : openEditor(type))}>
+                        hitSlop={6}
+                        onPress={() => {
+                          if (isEditing) {
+                            Keyboard.dismiss();
+                            setEditingType(null);
+                          } else {
+                            openEditor(type);
+                          }
+                        }}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${isEditing ? 'Cancel' : 'Renew or replace'} ${DOC_LABELS[type]}`}>
                         <Text style={styles.replaceTriggerText}>
                           {isEditing
                             ? 'Cancel'
@@ -333,11 +379,13 @@ export default function DriverDocumentsScreen() {
                 </View>
 
                 {isEditing ? (
-                  <View style={styles.editorBox}>
+                  <View ref={editorBoxRef} collapsable={false} style={styles.editorBox}>
                     <Pressable
                       style={styles.filePickerBtn}
                       onPress={() => void handlePickFile(type)}
-                      disabled={isUploading}>
+                      disabled={isUploading}
+                      accessibilityRole="button"
+                      accessibilityLabel="Choose replacement document file">
                       <Ionicons name="cloud-upload-outline" size={18} color={colors.deepBrown} />
                       <Text style={styles.filePickerText} numberOfLines={1}>
                         {selectedFile
@@ -347,31 +395,53 @@ export default function DriverDocumentsScreen() {
                     </Pressable>
 
                     {type === 'DRIVING_LICENSE' ? (
-                      <View style={styles.inputGroup}>
+                      <View ref={dlBoxRef} collapsable={false} style={styles.inputGroup}>
                         <Text style={styles.inputLabel}>Driving Licence Number</Text>
                         <TextInput
-                          style={styles.input}
+                          ref={dlInputRef}
+                          style={[styles.input, focusedField === 'dl' && styles.inputFocused]}
                           value={dlNumberInput}
-                          onChangeText={(val) => setDlNumberInput(val.toUpperCase())}
+                          onChangeText={(val) =>
+                            setDlNumberInput(val.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 16))
+                          }
+                          onFocus={() => {
+                            setFocusedField('dl');
+                            formScrollRef.current?.focusTarget(dlBoxRef.current);
+                          }}
+                          onBlur={() => setFocusedField((prev) => (prev === 'dl' ? null : prev))}
                           placeholder="e.g. WB7420220012345"
                           placeholderTextColor={colors.secondary}
                           autoCapitalize="characters"
+                          autoCorrect={false}
+                          blurOnSubmit={false}
+                          returnKeyType="next"
+                          onSubmitEditing={() => expiryInputRef.current?.focus()}
                           maxLength={16}
+                          accessibilityLabel="Driving Licence Number"
                         />
                       </View>
                     ) : null}
 
                     {type !== 'GOVERNMENT_ID' ? (
-                      <View style={styles.inputGroup}>
+                      <View ref={expiryBoxRef} collapsable={false} style={styles.inputGroup}>
                         <Text style={styles.inputLabel}>New Expiry Date (DD/MM/YYYY)</Text>
                         <TextInput
-                          style={styles.input}
+                          ref={expiryInputRef}
+                          style={[styles.input, focusedField === 'expiry' && styles.inputFocused]}
                           value={expiryInput}
                           onChangeText={(val) => setExpiryInput(formatDateInput(val))}
+                          onFocus={() => {
+                            setFocusedField('expiry');
+                            formScrollRef.current?.focusTarget(expiryBoxRef.current);
+                          }}
+                          onBlur={() => setFocusedField((prev) => (prev === 'expiry' ? null : prev))}
                           placeholder="DD/MM/YYYY"
                           placeholderTextColor={colors.secondary}
                           keyboardType="number-pad"
+                          returnKeyType="done"
+                          onSubmitEditing={() => Keyboard.dismiss()}
                           maxLength={10}
+                          accessibilityLabel="New Expiry Date"
                         />
                       </View>
                     ) : null}
@@ -379,7 +449,9 @@ export default function DriverDocumentsScreen() {
                     <Pressable
                       style={[styles.uploadConfirmBtn, isUploading && styles.btnDisabled]}
                       disabled={isUploading}
-                      onPress={() => void handleUploadReplacement(type)}>
+                      onPress={() => void handleUploadReplacement(type)}
+                      accessibilityRole="button"
+                      accessibilityLabel="Save Document to Renewal">
                       {isUploading ? (
                         <ActivityIndicator size="small" color={colors.deepBrown} />
                       ) : (
@@ -402,7 +474,9 @@ export default function DriverDocumentsScreen() {
             <Pressable
               style={[styles.submitBtn, isSubmitting && styles.btnDisabled]}
               disabled={isSubmitting}
-              onPress={() => void handleSubmitRenewal()}>
+              onPress={() => void handleSubmitRenewal()}
+              accessibilityRole="button"
+              accessibilityLabel="Submit Renewal for Verification">
               {isSubmitting ? (
                 <ActivityIndicator size="small" color={colors.white} />
               ) : (
@@ -411,7 +485,7 @@ export default function DriverDocumentsScreen() {
             </Pressable>
           </View>
         ) : null}
-      </ScrollView>
+      </OnboardingFormScroll>
     </SafeAreaView>
   );
 }
@@ -423,14 +497,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingVertical: 14,
+    paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  backBtn: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  backBtn: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6 },
   backText: { fontSize: typography.sizes.sm, fontWeight: '700', color: colors.deepBrown },
   topTitle: { fontSize: typography.sizes.base, fontWeight: '800', color: colors.deepBrown },
-  scrollContent: { padding: 20, paddingBottom: 48, gap: 16 },
+  scrollContent: { gap: 16 },
   summaryCard: {
     backgroundColor: colors.cream,
     borderRadius: 20,
@@ -537,8 +611,8 @@ const styles = StyleSheet.create({
   badgeRed: { backgroundColor: '#FEE2E2', borderColor: '#FCA5A5' },
   badgeText: { fontSize: 10, fontWeight: '800' },
   replaceTrigger: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: 8,
     backgroundColor: colors.cream,
     borderWidth: 1,
@@ -562,6 +636,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    minHeight: 46,
     padding: 12,
     borderRadius: 10,
     backgroundColor: colors.white,
@@ -584,19 +659,22 @@ const styles = StyleSheet.create({
   },
   input: {
     backgroundColor: colors.white,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: colors.border,
     borderRadius: 10,
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    height: 46,
     fontSize: typography.sizes.sm,
     fontWeight: '700',
     color: colors.deepBrown,
   },
+  inputFocused: {
+    borderColor: colors.deepBrown,
+  },
   uploadConfirmBtn: {
     backgroundColor: colors.amber,
     borderRadius: 10,
-    height: 44,
+    height: 46,
     alignItems: 'center',
     justifyContent: 'center',
   },
