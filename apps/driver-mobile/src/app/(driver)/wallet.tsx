@@ -235,6 +235,7 @@ export default function DriverWalletScreen() {
                 style={[styles.filterPill, active && styles.filterPillActive]}
                 accessibilityRole="button"
                 accessibilityLabel={key}
+                accessibilityState={{ selected: active }}
                 onPress={() => handleSelectTxFilter(key)}>
                 <Text style={[styles.filterText, active && styles.filterTextActive]}>
                   {key === 'ALL'
@@ -353,6 +354,7 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   backBtn: {
+    minHeight: 44,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
@@ -368,6 +370,8 @@ const styles = StyleSheet.create({
     color: colors.deepBrown,
   },
   refreshBtn: {
+    minWidth: 44,
+    minHeight: 44,
     width: 36,
     height: 36,
     borderRadius: 18,
@@ -441,6 +445,8 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   filterPill: {
+    minHeight: 44,
+    justifyContent: 'center',
     flex: 1,
     paddingVertical: 9,
     borderRadius: 12,

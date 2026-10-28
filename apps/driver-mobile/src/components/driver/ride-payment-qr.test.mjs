@@ -72,6 +72,16 @@ function screen() {
   return {
     api,
     calls,
+    renderWith(overrides = {}) {
+      cursor = 0;
+      return module.exports.RidePaymentQr({
+        rideId: 'ride',
+        amountPaise: 16500,
+        onPaid: async () => calls.push('paid'),
+        onCashReceived: async () => calls.push('confirmed'),
+        ...overrides,
+      });
+    },
     render() {
       cursor = 0;
       return module.exports.RidePaymentQr({
@@ -218,4 +228,34 @@ test('cash selection hides QR and requires a separate confirmation after collect
   label(s.render(), 'Confirm cash received').props.onPress();
   await flush();
   assert.deepEqual(s.calls, ['confirmed', 'paid']);
+});
+
+
+test('itemizes trip fare + rider arrears, explains wallet effect, and hides cash switch when cashAllowed is false', () => {
+  const s = screen();
+  // Override render props via a direct call with arrears & cashAllowed=false
+  const tree = s.renderWith({
+    farePaise: 16500,
+    arrearsPaise: 5000,
+    commissionPaise: 1320,
+    amountPaise: 21500,
+    cashAllowed: false,
+    cashBlockedReason: 'Cash collection is disabled while ₹50.00 in prior rider cancellation fees is due.',
+  });
+  assert.equal(label(tree, 'Change payment'), null);
+  assert.ok(find(tree, (node) => node.children.includes('Rider prior cancellation fee')));
+  assert.ok(
+    find(tree, (node) =>
+      node.children.includes(
+        'Cash collection is disabled while ₹50.00 in prior rider cancellation fees is due.',
+      ),
+    ),
+  );
+  assert.ok(
+    find(tree, (node) =>
+      node.children.includes(
+        'UPI wallet effect: Net trip earnings credit to your wallet; Cabzone retains commission and ₹50.00 rider arrears.',
+      ),
+    ),
+  );
 });
