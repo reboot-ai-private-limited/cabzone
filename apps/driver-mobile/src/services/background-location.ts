@@ -5,12 +5,24 @@ import { dispatchApi, isApiError } from './api';
 import { getAccessToken } from './storage';
 
 const TASK_NAME = 'cabzone-driver-location';
+const MAX_FIX_AGE_MS = 30_000;
+const MAX_HORIZONTAL_ACCURACY_M = 200;
+
+export function isEligibleBackgroundFix(
+  fix: Pick<Location.LocationObject, 'timestamp' | 'coords'> | undefined,
+  nowMs = Date.now(),
+): fix is Pick<Location.LocationObject, 'timestamp' | 'coords'> {
+  if (!fix) return false;
+  if (nowMs - fix.timestamp > MAX_FIX_AGE_MS) return false;
+  if ((fix.coords.accuracy ?? 0) > MAX_HORIZONTAL_ACCURACY_M) return false;
+  return Number.isFinite(fix.coords.latitude) && Number.isFinite(fix.coords.longitude);
+}
 
 TaskManager.defineTask(TASK_NAME, async ({ data, error }) => {
   if (error || AppState.currentState === 'active') return;
   const locations = (data as { locations?: Location.LocationObject[] } | undefined)?.locations;
   const fix = locations?.at(-1);
-  if (!fix || Date.now() - fix.timestamp > 30_000 || (fix.coords.accuracy ?? 0) > 200) return;
+  if (!isEligibleBackgroundFix(fix)) return;
   const token = await getAccessToken();
   if (!token) return;
   const coords = {
@@ -23,7 +35,11 @@ TaskManager.defineTask(TASK_NAME, async ({ data, error }) => {
     await dispatchApi.updateLocation(token, coords);
   } catch (requestError) {
     if (isApiError(requestError) && requestError.status === 409) {
-      await dispatchApi.setStatus(token, 'ONLINE', { lat: coords.lat, lng: coords.lng }).catch(() => {});
+      // Re-read token in case updateLocation refreshed an expired access token before receiving 409.
+      const latestToken = (await getAccessToken()) ?? token;
+      await dispatchApi
+        .setStatus(latestToken, 'ONLINE', { lat: coords.lat, lng: coords.lng })
+        .catch(() => {});
       return;
     }
     // The API client refreshes expired access tokens once; a remaining error is left for foreground recovery.

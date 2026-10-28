@@ -7,14 +7,18 @@ const originalResolveRequest = config.resolver.resolveRequest;
 
 // expo-notifications throws at module-init time in Expo Go (SDK 53+) because
 // DevicePushTokenAutoRegistration.fx.js calls addPushTokenListener unconditionally.
-// We redirect the import to a safe stub; the stub exports the same API surface as
-// no-ops so all call sites compile and run without changes.
-// In a real dev-build or production build, remove this block or set EXPO_USE_PUSH=1.
+// Development builds, EAS builds, and production bundles resolve the real native module.
+function shouldUsePushStub(env = process.env) {
+  if (env.EXPO_USE_PUSH === '1') return false;
+  if (env.EXPO_USE_PUSH === '0') return true;
+  if (env.EAS_BUILD === 'true' || env.NODE_ENV === 'production') return false;
+  return true;
+}
+
 const EXPO_NOTIFICATIONS_STUB = path.resolve(__dirname, 'src/lib/expo-notifications-stub.js');
-const usePushStub = process.env.EXPO_USE_PUSH !== '1';
 
 config.resolver.resolveRequest = (context, moduleName, platform) => {
-  if (usePushStub && moduleName === 'expo-notifications') {
+  if (shouldUsePushStub() && moduleName === 'expo-notifications') {
     return { filePath: EXPO_NOTIFICATIONS_STUB, type: 'sourceFile' };
   }
 
@@ -30,4 +34,5 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
   return (originalResolveRequest || context.resolveRequest)(context, moduleName, platform);
 };
 
+config.shouldUsePushStub = shouldUsePushStub;
 module.exports = config;
