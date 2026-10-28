@@ -69,6 +69,19 @@ Detailed scope, files, dependencies, acceptance criteria, and verification are i
 
 ## Execution evidence and shared-file handoffs
 
+### System audit repair checkpoint
+
+- [x] Finding 1: verify fare plus arrears with the provider; keep commission on fare only (`fb1180e`).
+- [x] Finding 2: reject disconnected wallet transaction chains (`fb1180e`).
+- [ ] Finding 3: require verified refund amount/payment evidence before online dispute reversal.
+- [x] Finding 4: correct web Docker package filter and copy geo/design-system workspace dependencies (`36b1c86`). Docker engine unavailable; image smoke test remains open.
+- [ ] Finding 5: real SMS integration; provider choice requested from the release owner.
+- [x] Finding 6: distinguish commission and arrears dispute refunds in duplicate detection (`fb1180e`).
+- [x] Finding 7: search beyond 500 dispute candidates (`645996d`).
+- [ ] Finding 8: remove address lookup from the ride response critical path and bound concurrent geocoding.
+
+Validation: API typecheck and 452/452 API tests including Mongo passed. Graphify remains blocked by Windows Application Control. Unrelated mobile KYC edits were preserved.
+
 Append one row per task/handoff. Include base/feature SHA, tests and results, downstream schema/event changes, and target environment. Do not include tokens, keys, OTPs or personal data. Use `Blocked: <input>; owner: <role>` for external prerequisites instead of checking the task.
 
 | Task              | Owner | Base/feature or installed-build SHA                          | Tests / evidence / downstream handoff                                                     | State               |
