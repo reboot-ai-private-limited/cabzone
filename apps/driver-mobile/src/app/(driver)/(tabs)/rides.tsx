@@ -103,6 +103,7 @@ export default function DriverRidesTab() {
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [counterDrafts, setCounterDrafts] = useState<Record<string, number>>({});
+  const [ratingWindowNowMs, setRatingWindowNowMs] = useState<number>(() => Date.now());
 
   const historySeqRef = useRef(0);
 
@@ -144,6 +145,7 @@ export default function DriverRidesTab() {
         });
         if (historySeqRef.current !== seq) return;
         setHistoryItems(page.items);
+        setRatingWindowNowMs(Date.now());
         setHistoryTotal(page.total);
         setHasMore(page.hasMore);
       } catch (err: unknown) {
@@ -184,6 +186,7 @@ export default function DriverRidesTab() {
       .then((page) => {
         if (historySeqRef.current !== seq) return;
         setHistoryItems(page.items);
+        setRatingWindowNowMs(Date.now());
         setHistoryTotal(page.total);
         setHasMore(page.hasMore);
         setHistoryError(null);
@@ -659,7 +662,7 @@ export default function DriverRidesTab() {
                     </View>
                     <View style={styles.badgeGroup}>
                       {ride.status === 'SETTLED' &&
-                      Date.now() -
+                      ratingWindowNowMs -
                         Date.parse(ride.settledAt || ride.completedAt || ride.createdAt) <=
                         7 * 24 * 60 * 60 * 1000 ? (
                         <View style={styles.negotiatedPill}>

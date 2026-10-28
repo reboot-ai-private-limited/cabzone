@@ -111,7 +111,7 @@ export default function ActiveRideScreen() {
 
   useEffect(() => {
     if (!showCancelModal) return;
-    setCancelClockNow(Date.now());
+    setTimeout(() => setCancelClockNow(Date.now()), 0);
     const timer = setInterval(() => setCancelClockNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, [showCancelModal]);
@@ -259,6 +259,7 @@ export default function ActiveRideScreen() {
   const openCancelSheet = () => {
     setActionError(null);
     setSelectedCancelReason(null);
+    setCancelClockNow(Date.now());
     setShowCancelModal(true);
   };
 

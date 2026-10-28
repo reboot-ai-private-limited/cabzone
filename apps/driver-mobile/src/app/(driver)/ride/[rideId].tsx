@@ -184,7 +184,7 @@ export default function ActiveRideScreen() {
   const [arrivalClockNow, setArrivalClockNow] = useState<number>(() => Date.now());
   useEffect(() => {
     if (ride?.status !== 'DRIVER_ARRIVED' && !showCancelModal) return;
-    setArrivalClockNow(Date.now());
+    setTimeout(() => setArrivalClockNow(Date.now()), 0);
     const timer = setInterval(() => {
       setArrivalClockNow(Date.now());
     }, 1000);
@@ -679,6 +679,7 @@ export default function ActiveRideScreen() {
             accessibilityRole="button"
             accessibilityLabel="Cancel ride"
             onPress={() => {
+              setArrivalClockNow(Date.now());
               setSelectedCancelReason(
                 noShowStatus.canMarkNoShow ? 'RIDER_NO_SHOW' : 'DRIVER_DELAYED',
               );
