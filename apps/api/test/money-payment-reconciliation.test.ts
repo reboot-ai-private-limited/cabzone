@@ -386,6 +386,30 @@ describe('Step 6 — Historical money & payment operations reconciliation', () =
     expect(audit.issues).toEqual([]);
   });
 
+  it('finds a dispute beyond the first 500 records', async () => {
+    const h = buildTestHarness();
+    const ids = Array.from({ length: 505 }, () => newUuid());
+    for (const [index, id] of ids.entries()) {
+      await h.rideRepo.save(
+        makeRide({
+          id,
+          status: 'PAYMENT_DISPUTED',
+          passenger: {
+            name: index === 0 ? 'OlderUniquePassenger' : 'Passenger',
+            phoneE164: '+919876543210',
+            riderId: 'rider-1',
+          },
+          updatedAt: new Date(Date.UTC(2026, 0, 1, 0, index)),
+        }),
+      );
+    }
+    const result = await request(h.app)
+      .get('/api/v1/rides/payment/disputes?status=OPEN&search=OlderUniquePassenger')
+      .set('x-test-auth', 'sup-1:SUPPORT_ADMIN')
+      .expect(200);
+    expect(JSON.stringify(result.body)).toContain(ids[0]);
+  });
+
   it('verifies provider capture before backfilling historical online rides and recovers captured pending online rides once', async () => {
     const h = buildTestHarness();
     const now = new Date('2026-10-26T10:00:00.000Z');

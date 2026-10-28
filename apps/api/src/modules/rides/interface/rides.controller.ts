@@ -585,21 +585,33 @@ export function makeListPaymentDisputesController(
     );
     const normalizedSearch = search?.trim().toLowerCase() ?? '';
     const hasPostFilter = collection !== 'ALL' || normalizedSearch.length > 0;
-    const scanLimit = hasPostFilter ? 500 : limit + offset;
+    const scanLimit = limit + offset;
+    async function readAll<T>(read: (offset: number) => Promise<T[]>): Promise<T[]> {
+      const result: T[] = [];
+      for (let cursor = 0; ; cursor += 200) {
+        const page = await read(cursor);
+        result.push(...page);
+        if (page.length < 200) return result;
+      }
+    }
+    const loadOpen = () =>
+      hasPostFilter
+        ? readAll((cursor) =>
+            rideRepo.list({ statuses: ['PAYMENT_DISPUTED'], limit: 200, offset: cursor }),
+          )
+        : rideRepo.list({ statuses: ['PAYMENT_DISPUTED'], limit: scanLimit, offset: 0 });
+    const loadResolved = () =>
+      hasPostFilter
+        ? readAll((cursor) => eventRepo.findByEventTypes(['PAYMENT_DISPUTE_RESOLVED'], 200, cursor))
+        : eventRepo.findByEventTypes(['PAYMENT_DISPUTE_RESOLVED'], scanLimit, 0);
 
     let rides: RideEntity[];
     if (status === 'OPEN') {
-      rides = await rideRepo.list({
-        statuses: ['PAYMENT_DISPUTED'],
-        limit: hasPostFilter ? scanLimit : limit,
-        offset: hasPostFilter ? 0 : offset,
-      });
+      rides = hasPostFilter
+        ? await loadOpen()
+        : await rideRepo.list({ statuses: ['PAYMENT_DISPUTED'], limit, offset });
     } else if (status === 'RESOLVED') {
-      const resolvedEvents = await eventRepo.findByEventTypes(
-        ['PAYMENT_DISPUTE_RESOLVED'],
-        scanLimit,
-        0,
-      );
+      const resolvedEvents = await loadResolved();
       const uniqueIds: string[] = [];
       for (const ev of resolvedEvents) {
         if (!uniqueIds.includes(ev.rideId)) uniqueIds.push(ev.rideId);
@@ -608,10 +620,7 @@ export function makeListPaymentDisputesController(
       const fetched = await Promise.all(candidateIds.map((id) => rideRepo.findById(id)));
       rides = fetched.filter((r): r is RideEntity => r !== null && r.status !== 'PAYMENT_DISPUTED');
     } else {
-      const [openRides, resolvedEvents] = await Promise.all([
-        rideRepo.list({ statuses: ['PAYMENT_DISPUTED'], limit: scanLimit, offset: 0 }),
-        eventRepo.findByEventTypes(['PAYMENT_DISPUTE_RESOLVED'], scanLimit, 0),
-      ]);
+      const [openRides, resolvedEvents] = await Promise.all([loadOpen(), loadResolved()]);
       const byId = new Map<string, RideEntity>(openRides.map((r) => [r.id, r]));
       const missingIds = [...new Set(resolvedEvents.map((e) => e.rideId))].filter(
         (id) => !byId.has(id),
