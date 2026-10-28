@@ -1,9 +1,9 @@
 import { colors, typography } from '@/design-system';
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Image,
-  KeyboardAvoidingView,
+  Keyboard,
   Modal,
   Platform,
   Pressable,
@@ -17,6 +17,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { pickProfilePhoto } from '@/services/profile-photo';
 import { CandyButton } from '@/components/buttons/candy-button';
+import {
+  OnboardingFormScroll,
+  type OnboardingFormScrollHandle,
+} from './onboarding-form-scroll';
 import type { OnboardingDraft } from './types';
 import {
   formatDateInput,
@@ -53,9 +57,11 @@ const YEARS = Array.from(
   { length: MAX_ELIGIBLE_YEAR - MIN_DOB_YEAR + 1 },
   (_, i) => MAX_ELIGIBLE_YEAR - i,
 );
+const PICKER_ITEM_HEIGHT = 40;
 
 export function StepPersonalInfo({ draft, onUpdate, onNext, onClose }: StepPersonalInfoProps) {
   const insets = useSafeAreaInsets();
+  const formScrollRef = useRef<OnboardingFormScrollHandle>(null);
 
   // Form states
   const [firstName, setFirstName] = useState(draft.firstName || '');
@@ -69,10 +75,18 @@ export function StepPersonalInfo({ draft, onUpdate, onNext, onClose }: StepPerso
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  // Input refs for responsive focus
+  // Input & wrapper refs for responsive focus and scroll-into-view
   const firstNameRef = useRef<React.ComponentRef<typeof TextInput>>(null);
   const lastNameRef = useRef<React.ComponentRef<typeof TextInput>>(null);
   const dobInputRef = useRef<React.ComponentRef<typeof TextInput>>(null);
+  const firstNameBoxRef = useRef<React.ComponentRef<typeof View>>(null);
+  const lastNameBoxRef = useRef<React.ComponentRef<typeof View>>(null);
+  const dobBoxRef = useRef<React.ComponentRef<typeof View>>(null);
+
+  // Date picker column scroll refs
+  const dayScrollRef = useRef<React.ComponentRef<typeof ScrollView>>(null);
+  const monthScrollRef = useRef<React.ComponentRef<typeof ScrollView>>(null);
+  const yearScrollRef = useRef<React.ComponentRef<typeof ScrollView>>(null);
 
   // Focus tracking for warm borders
   const [focusedField, setFocusedField] = useState<'firstName' | 'lastName' | 'dob' | null>(null);
@@ -109,6 +123,31 @@ export function StepPersonalInfo({ draft, onUpdate, onNext, onClose }: StepPerso
   const isFirstNameValid = firstName.trim().length >= 2;
   const isGenderValid = gender === 'MALE' || gender === 'FEMALE' || gender === 'OTHER';
   const isValid = isFirstNameValid && isAgeValid && isGenderValid;
+
+  // Scroll DOB picker columns to active day/month/year when modal opens
+  useEffect(() => {
+    if (!showDatePicker) return;
+    const timer = setTimeout(() => {
+      const dayIdx = Math.max(0, pickerDay - 1);
+      const monthIdx = Math.max(0, pickerMonth - 1);
+      const yearIdx = Math.max(0, YEARS.indexOf(pickerYear));
+      dayScrollRef.current?.scrollTo({
+        y: Math.max(0, dayIdx * PICKER_ITEM_HEIGHT - 60),
+        animated: false,
+      });
+      monthScrollRef.current?.scrollTo({
+        y: Math.max(0, monthIdx * PICKER_ITEM_HEIGHT - 60),
+        animated: false,
+      });
+      yearScrollRef.current?.scrollTo({
+        y: Math.max(0, yearIdx * PICKER_ITEM_HEIGHT - 60),
+        animated: false,
+      });
+    }, 60);
+    return () => clearTimeout(timer);
+    // Only center on modal open so manual taps inside columns don't jump unexpectedly
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showDatePicker]);
 
   // Handle Photo Picker
   const handlePickImage = async (useCamera: boolean) => {
@@ -149,6 +188,7 @@ export function StepPersonalInfo({ draft, onUpdate, onNext, onClose }: StepPerso
 
   // Open Date Picker Modal synced with current DOB
   const handleOpenDatePicker = () => {
+    Keyboard.dismiss();
     setPickerDay(parsedDate.day);
     setPickerMonth(parsedDate.month);
     setPickerYear(parsedDate.year);
@@ -157,6 +197,7 @@ export function StepPersonalInfo({ draft, onUpdate, onNext, onClose }: StepPerso
 
   // Confirm Date from Modal
   const handleConfirmDate = () => {
+    Keyboard.dismiss();
     const safeDay = Math.min(pickerDay, daysInMonth);
     const dd = String(safeDay).padStart(2, '0');
     const mm = String(pickerMonth).padStart(2, '0');
@@ -170,6 +211,7 @@ export function StepPersonalInfo({ draft, onUpdate, onNext, onClose }: StepPerso
   // Handle Continue
   const handleContinue = async () => {
     if (!isValid || isSaving) return;
+    Keyboard.dismiss();
     const values: OnboardingDraft = {
       ...draft,
       firstName: firstName.trim(),
@@ -194,25 +236,19 @@ export function StepPersonalInfo({ draft, onUpdate, onNext, onClose }: StepPerso
   };
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      style={styles.container}
-    >
-      <ScrollView
-        contentContainerStyle={[
-          styles.scrollContent,
-          {
-            paddingTop: Math.max(insets.top, 16),
-            paddingBottom: Math.max(insets.bottom, 24) + 20,
-          },
-        ]}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
+    <View style={styles.container}>
+      <OnboardingFormScroll
+        ref={formScrollRef}
+        topPadding={Math.max(insets.top, 16)}
+        baseBottomPadding={Math.max(insets.bottom, 24) + 24}
       >
         {/* Top Header Bar */}
         <View style={styles.topBar}>
           <Pressable
-            onPress={onClose}
+            onPress={() => {
+              Keyboard.dismiss();
+              onClose();
+            }}
             style={({ pressed }) => [styles.closeBtn, pressed && styles.btnPressed]}
             hitSlop={12}
             accessibilityRole="button"
@@ -251,7 +287,10 @@ export function StepPersonalInfo({ draft, onUpdate, onNext, onClose }: StepPerso
         {/* Profile Photo Upload Section */}
         <View style={styles.avatarSection}>
           <Pressable
-            onPress={() => setShowPhotoModal(true)}
+            onPress={() => {
+              Keyboard.dismiss();
+              setShowPhotoModal(true);
+            }}
             style={({ pressed }) => [styles.avatarTouchable, pressed && styles.btnPressed]}
             accessibilityRole="button"
             accessibilityLabel="Upload driver profile photo"
@@ -288,92 +327,105 @@ export function StepPersonalInfo({ draft, onUpdate, onNext, onClose }: StepPerso
                 <Text style={styles.fieldError}>Min 2 chars</Text>
               )}
             </View>
-            <Pressable
-              onPress={() => firstNameRef.current?.focus()}
-              style={[
-                styles.inputWrapper,
-                focusedField === 'firstName' && styles.inputWrapperFocused,
-              ]}
-            >
-              <Ionicons name="person-outline" size={19} color="#8C5A20" style={styles.inputIcon} />
-              <TextInput
-                ref={firstNameRef}
-                style={styles.textInput}
-                placeholder="e.g. Rahul"
-                placeholderTextColor="#53616C"
-                value={firstName}
-                onChangeText={(val) => {
-                  setFirstName(val);
-                  onUpdate({ firstName: val });
-                }}
-                onFocus={() => setFocusedField('firstName')}
-                onBlur={() => setFocusedField(null)}
-                autoCapitalize="words"
-                autoCorrect={false}
-                returnKeyType="next"
-                onSubmitEditing={() => lastNameRef.current?.focus()}
-                editable={true}
-                accessibilityLabel="First name, required"
-              />
-              {firstName.length > 0 && (
-                <Pressable
-                  onPress={() => {
-                    setFirstName('');
-                    onUpdate({ firstName: '' });
+            <View ref={firstNameBoxRef} collapsable={false}>
+              <Pressable
+                onPress={() => firstNameRef.current?.focus()}
+                style={[
+                  styles.inputWrapper,
+                  focusedField === 'firstName' && styles.inputWrapperFocused,
+                ]}
+              >
+                <Ionicons name="person-outline" size={19} color="#8C5A20" style={styles.inputIcon} />
+                <TextInput
+                  ref={firstNameRef}
+                  style={styles.textInput}
+                  placeholder="e.g. Rahul"
+                  placeholderTextColor="#53616C"
+                  value={firstName}
+                  onChangeText={(val) => {
+                    setFirstName(val);
+                    onUpdate({ firstName: val });
                   }}
-                  hitSlop={12}
-                  accessibilityRole="button"
-                  accessibilityLabel="Clear first name"
-                >
-                  <Ionicons name="close-circle" size={18} color="#C4B5A5" />
-                </Pressable>
-              )}
-            </Pressable>
+                  onFocus={() => {
+                    setFocusedField('firstName');
+                    formScrollRef.current?.focusTarget(firstNameBoxRef.current);
+                  }}
+                  onBlur={() => setFocusedField((prev) => (prev === 'firstName' ? null : prev))}
+                  autoCapitalize="words"
+                  autoCorrect={false}
+                  blurOnSubmit={false}
+                  returnKeyType="next"
+                  onSubmitEditing={() => lastNameRef.current?.focus()}
+                  editable={true}
+                  accessibilityLabel="First name, required"
+                />
+                {firstName.length > 0 && (
+                  <Pressable
+                    onPress={() => {
+                      setFirstName('');
+                      onUpdate({ firstName: '' });
+                    }}
+                    hitSlop={12}
+                    accessibilityRole="button"
+                    accessibilityLabel="Clear first name"
+                  >
+                    <Ionicons name="close-circle" size={18} color="#C4B5A5" />
+                  </Pressable>
+                )}
+              </Pressable>
+            </View>
           </View>
 
           {/* Last Name Input */}
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Last name (Optional)</Text>
-            <Pressable
-              onPress={() => lastNameRef.current?.focus()}
-              style={[
-                styles.inputWrapper,
-                focusedField === 'lastName' && styles.inputWrapperFocused,
-              ]}
-            >
-              <Ionicons name="person-outline" size={19} color="#8C5A20" style={styles.inputIcon} />
-              <TextInput
-                ref={lastNameRef}
-                style={styles.textInput}
-                placeholder="e.g. Sharma"
-                placeholderTextColor="#53616C"
-                value={lastName}
-                onChangeText={(val) => {
-                  setLastName(val);
-                  onUpdate({ lastName: val });
-                }}
-                onFocus={() => setFocusedField('lastName')}
-                onBlur={() => setFocusedField(null)}
-                autoCapitalize="words"
-                autoCorrect={false}
-                returnKeyType="done"
-                editable={true}
-                accessibilityLabel="Last name, optional"
-              />
-              {lastName.length > 0 && (
-                <Pressable
-                  onPress={() => {
-                    setLastName('');
-                    onUpdate({ lastName: '' });
+            <Text style={[styles.label, { marginBottom: 7 }]}>Last name (Optional)</Text>
+            <View ref={lastNameBoxRef} collapsable={false}>
+              <Pressable
+                onPress={() => lastNameRef.current?.focus()}
+                style={[
+                  styles.inputWrapper,
+                  focusedField === 'lastName' && styles.inputWrapperFocused,
+                ]}
+              >
+                <Ionicons name="person-outline" size={19} color="#8C5A20" style={styles.inputIcon} />
+                <TextInput
+                  ref={lastNameRef}
+                  style={styles.textInput}
+                  placeholder="e.g. Sharma"
+                  placeholderTextColor="#53616C"
+                  value={lastName}
+                  onChangeText={(val) => {
+                    setLastName(val);
+                    onUpdate({ lastName: val });
                   }}
-                  hitSlop={12}
-                  accessibilityRole="button"
-                  accessibilityLabel="Clear last name"
-                >
-                  <Ionicons name="close-circle" size={18} color="#C4B5A5" />
-                </Pressable>
-              )}
-            </Pressable>
+                  onFocus={() => {
+                    setFocusedField('lastName');
+                    formScrollRef.current?.focusTarget(lastNameBoxRef.current);
+                  }}
+                  onBlur={() => setFocusedField((prev) => (prev === 'lastName' ? null : prev))}
+                  autoCapitalize="words"
+                  autoCorrect={false}
+                  blurOnSubmit={false}
+                  returnKeyType="next"
+                  onSubmitEditing={() => dobInputRef.current?.focus()}
+                  editable={true}
+                  accessibilityLabel="Last name, optional"
+                />
+                {lastName.length > 0 && (
+                  <Pressable
+                    onPress={() => {
+                      setLastName('');
+                      onUpdate({ lastName: '' });
+                    }}
+                    hitSlop={12}
+                    accessibilityRole="button"
+                    accessibilityLabel="Clear last name"
+                  >
+                    <Ionicons name="close-circle" size={18} color="#C4B5A5" />
+                  </Pressable>
+                )}
+              </Pressable>
+            </View>
           </View>
 
           {/* Date of Birth Input with Separate Text Entry and Date Picker Button */}
@@ -403,7 +455,13 @@ export function StepPersonalInfo({ draft, onUpdate, onNext, onClose }: StepPerso
             </View>
 
             <View
-              style={[styles.inputWrapper, focusedField === 'dob' && styles.inputWrapperFocused]}
+              ref={dobBoxRef}
+              collapsable={false}
+              style={[
+                styles.inputWrapper,
+                focusedField === 'dob' && styles.inputWrapperFocused,
+                dob.length === 10 && !isAgeValid && styles.inputWrapperError,
+              ]}
             >
               <Ionicons
                 name="calendar-outline"
@@ -419,11 +477,27 @@ export function StepPersonalInfo({ draft, onUpdate, onNext, onClose }: StepPerso
                 value={dob}
                 onChangeText={handleDobTextChange}
                 keyboardType="number-pad"
+                returnKeyType="done"
+                onSubmitEditing={() => Keyboard.dismiss()}
                 maxLength={10}
-                onFocus={() => setFocusedField('dob')}
-                onBlur={() => setFocusedField(null)}
+                onFocus={() => {
+                  setFocusedField('dob');
+                  formScrollRef.current?.focusTarget(dobBoxRef.current);
+                }}
+                onBlur={() => setFocusedField((prev) => (prev === 'dob' ? null : prev))}
                 accessibilityLabel="Date of birth in DD/MM/YYYY format, required"
               />
+              {dob.length > 0 && (
+                <Pressable
+                  onPress={() => handleDobTextChange('')}
+                  hitSlop={10}
+                  style={{ marginRight: 8 }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Clear date of birth"
+                >
+                  <Ionicons name="close-circle" size={18} color="#C4B5A5" />
+                </Pressable>
+              )}
               <Pressable
                 onPress={handleOpenDatePicker}
                 style={styles.datePickerTriggerBtn}
@@ -448,8 +522,8 @@ export function StepPersonalInfo({ draft, onUpdate, onNext, onClose }: StepPerso
           </View>
 
           {/* Gender Selector Chips */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Gender *</Text>
+          <View style={[styles.inputGroup, { marginBottom: 0 }]}>
+            <Text style={[styles.label, { marginBottom: 7 }]}>Gender *</Text>
             <View style={styles.genderRow}>
               {(
                 [
@@ -463,6 +537,7 @@ export function StepPersonalInfo({ draft, onUpdate, onNext, onClose }: StepPerso
                   <Pressable
                     key={item.key}
                     onPress={() => {
+                      Keyboard.dismiss();
                       setGender(item.key);
                       onUpdate({ gender: item.key });
                     }}
@@ -527,7 +602,7 @@ export function StepPersonalInfo({ draft, onUpdate, onNext, onClose }: StepPerso
             </Text>
           )}
         </View>
-      </ScrollView>
+      </OnboardingFormScroll>
 
       {/* ============================================================== */}
       {/* Photo Picker Action Sheet Modal                                */}
@@ -629,6 +704,8 @@ export function StepPersonalInfo({ draft, onUpdate, onNext, onClose }: StepPerso
                   onPress={() => setShowDatePicker(false)}
                   hitSlop={10}
                   style={styles.modalCloseIconBtn}
+                  accessibilityRole="button"
+                  accessibilityLabel="Close date picker"
                 >
                   <Ionicons name="close" size={20} color="#53616C" />
                 </Pressable>
@@ -643,7 +720,10 @@ export function StepPersonalInfo({ draft, onUpdate, onNext, onClose }: StepPerso
                 </Text>
                 <View style={styles.datePreviewAgeTag}>
                   <Text style={styles.datePreviewAgeText}>
-                    Age: {validateDob(`${String(Math.min(pickerDay, daysInMonth)).padStart(2, '0')}/${String(pickerMonth).padStart(2, '0')}/${pickerYear}`).age ?? '—'}
+                    Age:{' '}
+                    {validateDob(
+                      `${String(Math.min(pickerDay, daysInMonth)).padStart(2, '0')}/${String(pickerMonth).padStart(2, '0')}/${pickerYear}`,
+                    ).age ?? '—'}
                   </Text>
                 </View>
               </View>
@@ -653,7 +733,11 @@ export function StepPersonalInfo({ draft, onUpdate, onNext, onClose }: StepPerso
                 {/* Column 1: Day */}
                 <View style={styles.pickerColumn}>
                   <Text style={styles.columnHeader}>DAY</Text>
-                  <ScrollView style={styles.columnScroll} showsVerticalScrollIndicator={false}>
+                  <ScrollView
+                    ref={dayScrollRef}
+                    style={styles.columnScroll}
+                    showsVerticalScrollIndicator={true}
+                  >
                     {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((d) => {
                       const isSelected = pickerDay === d;
                       return (
@@ -679,7 +763,11 @@ export function StepPersonalInfo({ draft, onUpdate, onNext, onClose }: StepPerso
                 {/* Column 2: Month */}
                 <View style={styles.pickerColumn}>
                   <Text style={styles.columnHeader}>MONTH</Text>
-                  <ScrollView style={styles.columnScroll} showsVerticalScrollIndicator={false}>
+                  <ScrollView
+                    ref={monthScrollRef}
+                    style={styles.columnScroll}
+                    showsVerticalScrollIndicator={true}
+                  >
                     {MONTHS.map((m) => {
                       const isSelected = pickerMonth === m.val;
                       return (
@@ -705,7 +793,11 @@ export function StepPersonalInfo({ draft, onUpdate, onNext, onClose }: StepPerso
                 {/* Column 3: Year */}
                 <View style={styles.pickerColumn}>
                   <Text style={styles.columnHeader}>YEAR</Text>
-                  <ScrollView style={styles.columnScroll} showsVerticalScrollIndicator={false}>
+                  <ScrollView
+                    ref={yearScrollRef}
+                    style={styles.columnScroll}
+                    showsVerticalScrollIndicator={true}
+                  >
                     {YEARS.map((y) => {
                       const isSelected = pickerYear === y;
                       return (
@@ -733,6 +825,8 @@ export function StepPersonalInfo({ draft, onUpdate, onNext, onClose }: StepPerso
               <Pressable
                 onPress={handleConfirmDate}
                 style={({ pressed }) => [styles.confirmDateBtn, pressed && styles.btnPressed]}
+                accessibilityRole="button"
+                accessibilityLabel="Apply Date of Birth"
               >
                 <Text style={styles.confirmDateBtnText}>Apply Date of Birth</Text>
                 <Ionicons name="checkmark" size={18} color="#FFFFFF" style={{ marginLeft: 6 }} />
@@ -741,7 +835,7 @@ export function StepPersonalInfo({ draft, onUpdate, onNext, onClose }: StepPerso
           </View>
         </Modal>
       )}
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 
@@ -750,10 +844,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  scrollContent: {
-    flexGrow: 1,
-    paddingHorizontal: 20,
-  },
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -761,9 +851,9 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   closeBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
@@ -950,6 +1040,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 4,
     elevation: 1,
+  },
+  inputWrapperError: {
+    borderColor: '#DC2626',
   },
   inputIcon: {
     marginRight: 10,
@@ -1152,9 +1245,9 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   modalCloseIconBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: colors.lightBlue,
     alignItems: 'center',
     justifyContent: 'center',
