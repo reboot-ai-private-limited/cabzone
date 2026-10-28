@@ -5,8 +5,12 @@ WORKDIR /app
 FROM base AS deps
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json .npmrc ./
 COPY apps/api/package.json                apps/api/
+COPY apps/web/package.json                apps/web/
+COPY apps/driver-mobile/package.json      apps/driver-mobile/
+COPY apps/rider-mobile/package.json       apps/rider-mobile/
 COPY packages/config/package.json         packages/config/
 COPY packages/contracts/package.json      packages/contracts/
+COPY packages/design-system/package.json  packages/design-system/
 COPY packages/geo/package.json            packages/geo/
 RUN pnpm install --frozen-lockfile --ignore-scripts=false
 

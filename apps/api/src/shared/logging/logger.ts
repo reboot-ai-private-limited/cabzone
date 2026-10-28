@@ -1,24 +1,42 @@
 import pino from 'pino';
-import { env, isProduction } from '@/config/env.js';
+import { env, isDevelopment } from '@/config/env.js';
 import { getRequestId } from '@/shared/http/request-context.js';
 
-const REDACTED_PATHS = [
+export const REDACTED_PATHS = [
   'otp',
   'start_otp',
   '*.otp',
   '*.start_otp',
   'phone',
+  'phoneE164',
   'masked_phone',
   '*.phone',
+  '*.phoneE164',
   '*.masked_phone',
   'token',
+  'pushToken',
   'password',
   'refresh_token',
+  'apiKey',
+  'apiSecret',
+  'authKey',
+  'authToken',
+  'secret',
+  'sig',
   '*.token',
+  '*.pushToken',
   '*.password',
   '*.refresh_token',
+  '*.apiKey',
+  '*.apiSecret',
+  '*.authKey',
+  '*.authToken',
+  '*.secret',
+  '*.sig',
   'req.headers.authorization',
   'headers.authorization',
+  'req.headers.cookie',
+  'headers.cookie',
 ];
 
 export const logger = pino({
@@ -35,9 +53,8 @@ export const logger = pino({
     level: (label) => ({ level: label }),
   },
   timestamp: pino.stdTimeFunctions.isoTime,
-  ...(isProduction
-    ? {}
-    : {
+  ...(isDevelopment
+    ? {
         transport: {
           target: 'pino-pretty',
           options: {
@@ -47,5 +64,6 @@ export const logger = pino({
             messageFormat: '{if requestId}[{requestId}] {end}{msg}',
           },
         },
-      }),
+      }
+    : {}),
 });
