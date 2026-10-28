@@ -11,7 +11,7 @@ module.exports = ({ config }) => {
   const googleServicesFile =
     process.env.DRIVER_GOOGLE_SERVICES_JSON ||
     process.env.GOOGLE_SERVICES_JSON ||
-    (fs.existsSync(path.resolve(__dirname, 'google-services.json'))
+    (fs.existsSync(path.resolve(path.dirname(require.resolve('./app.json')), 'google-services.json'))
       ? './google-services.json'
       : undefined);
 
