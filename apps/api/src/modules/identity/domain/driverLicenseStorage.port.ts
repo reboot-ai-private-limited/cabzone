@@ -5,4 +5,5 @@ export type DocumentFileExtension = 'pdf' | 'jpg' | 'png';
 export interface DriverLicenseStoragePort {
   upload(dataUrl: string, extension: DocumentFileExtension): Promise<string>;
   read?(storageKey: string): Promise<Buffer>;
+  delete?(storageKey: string): Promise<void>;
 }
