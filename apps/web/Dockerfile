@@ -8,15 +8,19 @@ COPY apps/api/package.json                apps/api/
 COPY apps/web/package.json                apps/web/
 COPY packages/config/package.json         packages/config/
 COPY packages/contracts/package.json      packages/contracts/
+COPY packages/geo/package.json            packages/geo/
+COPY packages/design-system/package.json  packages/design-system/
 RUN pnpm install --frozen-lockfile --ignore-scripts=false
 
 FROM deps AS build
 COPY packages/contracts packages/contracts
 COPY packages/config    packages/config
+COPY packages/geo       packages/geo
+COPY packages/design-system packages/design-system
 COPY apps/web           apps/web
 
 ENV NEXT_TELEMETRY_DISABLED=1
-RUN pnpm --filter @Cabzonee/web build
+RUN pnpm --filter @cabzone/web build
 
 FROM node:22-alpine AS runtime
 WORKDIR /app
