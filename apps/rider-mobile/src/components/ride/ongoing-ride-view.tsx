@@ -414,6 +414,11 @@ export function OngoingRideView({
             <View style={styles.flex}>
               <Text style={styles.rowTitle}>UPI payment</Text>
               <Text style={styles.caption}>Pay in Cabzone after the trip</Text>
+              {(ride.arrearsPaise ?? 0) > 0 ? (
+                <Text style={styles.caption}>
+                  {`+ ${formatRupeesFromPaise(ride.arrearsPaise ?? 0)} previous cancellation fee (${formatRupeesFromPaise(fare + (ride.arrearsPaise ?? 0))} total)`}
+                </Text>
+              ) : null}
             </View>
             <Text
               style={styles.fare}
