@@ -1,12 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { WalletOperationDto } from '@cabzone/contracts';
 import { Button, Dialog, Input } from '@cabzone/design-system';
 import { formatPaise } from '@/lib/format';
 import { usePendingCashouts, useResolveCashout } from '../hooks/useFinance';
 
-export function CashoutQueue() {
+export function CashoutQueue({ canMutate = false }: { canMutate?: boolean }) {
   const query = usePendingCashouts();
   const mutation = useResolveCashout();
   const [decision, setDecision] = useState<{
@@ -14,7 +14,10 @@ export function CashoutQueue() {
     outcome: 'PAID' | 'REJECTED';
   } | null>(null);
   const [detail, setDetail] = useState('');
+  const submittingRef = useRef(false);
+
   const choose = (request: WalletOperationDto, outcome: 'PAID' | 'REJECTED') => {
+    if (!canMutate) return;
     mutation.reset();
     setDetail('');
     setDecision({ request, outcome });
@@ -67,26 +70,32 @@ export function CashoutQueue() {
                 Driver {entry.driverId} · {new Date(entry.createdAt).toLocaleString('en-IN')}
               </p>
             </div>
-            <div className="flex items-center gap-2">
-              <Button variant="secondary" size="sm" onClick={() => choose(entry, 'REJECTED')}>
-                Reject & return funds
-              </Button>
-              <Button size="sm" onClick={() => choose(entry, 'PAID')}>
-                Record test transfer
-              </Button>
-            </div>
+            {canMutate ? (
+              <div className="flex items-center gap-2">
+                <Button variant="secondary" size="sm" onClick={() => choose(entry, 'REJECTED')}>
+                  Reject &amp; return funds
+                </Button>
+                <Button size="sm" onClick={() => choose(entry, 'PAID')}>
+                  Record test transfer
+                </Button>
+              </div>
+            ) : (
+              <span className="self-center text-xs text-text-subtle">
+                Finance Admin access required to resolve
+              </span>
+            )}
           </div>
         ))
       )}
       <Dialog
-        open={decision !== null}
+        open={decision !== null && canMutate}
         title={
           decision?.outcome === 'PAID'
             ? 'Record completed test transfer'
             : 'Reject cashout & return funds'
         }
         onOpenChange={(open) => {
-          if (!open && !mutation.isPending) setDecision(null);
+          if (!open && !mutation.isPending && !submittingRef.current) setDecision(null);
         }}
         className="max-w-md"
       >
@@ -94,10 +103,17 @@ export function CashoutQueue() {
           className="space-y-4"
           onSubmit={(event) => {
             event.preventDefault();
-            if (!decision || mutation.isPending || detail.trim().length < 5) return;
+            if (!canMutate || !decision || mutation.isPending || submittingRef.current) return;
+            if (detail.trim().length < 5) return;
+            submittingRef.current = true;
             mutation.mutate(
               { id: decision.request.id, outcome: decision.outcome, detail: detail.trim() },
-              { onSuccess: () => setDecision(null) },
+              {
+                onSuccess: () => setDecision(null),
+                onSettled: () => {
+                  submittingRef.current = false;
+                },
+              },
             );
           }}
         >

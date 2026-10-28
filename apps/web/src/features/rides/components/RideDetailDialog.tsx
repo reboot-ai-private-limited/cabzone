@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   type AdminRole,
@@ -20,7 +20,6 @@ import {
 import { getStoredAdminRole } from '@/features/auth/lib/authApi';
 import {
   type AdminRideDto,
-  CANCELLABLE_RIDE_STATUSES,
   type PaymentDisputeQueueItemDto,
   type RideEventDto,
   ridesApi,
@@ -28,6 +27,13 @@ import {
 import { formatPaise } from '@/lib/format';
 import { keys } from '@/lib/query/keys';
 import { useRideEvents } from '../hooks/useRides';
+import {
+  canAdminForceCancelRide,
+  canAdminResolveDispute,
+  canAdminWaiveCancellationFee,
+  deriveDisputePaymentStates,
+  extractChargedCancellationFeePaise,
+} from '../lib/adminRidePermissions';
 import { RideStatusBadge } from './RideStatusBadge';
 
 const fmt = (iso: string | null): string =>
@@ -71,6 +77,9 @@ function summarizeMetadata(e: RideEventDto): string | null {
   if (typeof m.reversedOnlineEarningsPaise === 'number' && m.reversedOnlineEarningsPaise > 0) {
     parts.push(`Reversed online earnings: ${formatPaise(m.reversedOnlineEarningsPaise)}`);
   }
+  if (typeof m.waivedPaise === 'number' && m.waivedPaise > 0) {
+    parts.push(`Waived fee: ${formatPaise(m.waivedPaise)}`);
+  }
   return parts.length > 0 ? parts.join(' · ') : null;
 }
 
@@ -93,8 +102,11 @@ export function RideDetailDialog({
   const [outcome, setOutcome] = useState<'RIDER_WINS' | 'DRIVER_WINS'>('RIDER_WINS');
   const [disputeReason, setDisputeReason] = useState('');
   const [refundReference, setRefundReference] = useState('');
+  const [waiveReason, setWaiveReason] = useState('');
+  const [waiveSuccessMessage, setWaiveSuccessMessage] = useState<string | null>(null);
   const [cancelReason, setCancelReason] = useState<CancellationReason>('ADMIN_OVERRIDE');
   const [actionError, setActionError] = useState<string | null>(null);
+  const actionInFlightRef = useRef(false);
 
   useEffect(() => {
     setResolvedRole(adminRoleProp ?? getStoredAdminRole());
@@ -104,8 +116,11 @@ export function RideDetailDialog({
     setActionError(null);
     setDisputeReason('');
     setRefundReference('');
+    setWaiveReason('');
+    setWaiveSuccessMessage(null);
     setOutcome('RIDER_WINS');
     setCancelReason('ADMIN_OVERRIDE');
+    actionInFlightRef.current = false;
   }, [ride?.id]);
 
   const evidence = dispute?.evidence;
@@ -142,6 +157,9 @@ export function RideDetailDialog({
     onError: (err) => {
       setActionError(err instanceof Error ? err.message : 'Could not resolve dispute.');
     },
+    onSettled: () => {
+      actionInFlightRef.current = false;
+    },
   });
 
   const cancelMutation = useMutation({
@@ -157,20 +175,39 @@ export function RideDetailDialog({
     onError: (err) => {
       setActionError(err instanceof Error ? err.message : 'Could not cancel ride.');
     },
+    onSettled: () => {
+      actionInFlightRef.current = false;
+    },
   });
 
-  const canResolveDispute =
-    ride?.status === 'PAYMENT_DISPUTED' &&
-    (resolvedRole === null || resolvedRole === 'SUPER_ADMIN' || resolvedRole === 'SUPPORT_ADMIN');
+  const waiveMutation = useMutation({
+    mutationFn: async () => {
+      if (!ride) throw new Error('No ride selected');
+      return ridesApi.waiveCancellationFee(ride.id, waiveReason.trim());
+    },
+    onSuccess: (res) => {
+      setActionError(null);
+      setWaiveReason('');
+      setWaiveSuccessMessage(`Waived ${formatPaise(res.waivedPaise)} cancellation fee.`);
+      void queryClient.invalidateQueries({ queryKey: keys.rides.all() });
+      void queryClient.invalidateQueries({ queryKey: keys.wallets.all() });
+      if (ride) void queryClient.invalidateQueries({ queryKey: keys.rides.events(ride.id) });
+      onRideUpdated?.(res.ride);
+    },
+    onError: (err) => {
+      setActionError(err instanceof Error ? err.message : 'Could not waive cancellation fee.');
+    },
+    onSettled: () => {
+      actionInFlightRef.current = false;
+    },
+  });
 
-  const canForceCancel =
-    ride !== null &&
-    CANCELLABLE_RIDE_STATUSES.includes(ride.status) &&
-    (resolvedRole === null ||
-      resolvedRole === 'SUPER_ADMIN' ||
-      resolvedRole === 'CITY_ADMIN' ||
-      resolvedRole === 'SUPPORT_ADMIN');
+  const canResolveDispute = canAdminResolveDispute(resolvedRole, ride?.status);
+  const canForceCancel = canAdminForceCancelRide(resolvedRole, ride?.status);
+  const canWaiveFee = canAdminWaiveCancellationFee(resolvedRole, ride?.status);
 
+  const cancellationFeeMeta = extractChargedCancellationFeePaise(eventList);
+  const disputePaymentStates = deriveDisputePaymentStates(evidence, dispute?.resolution);
   const settlement = ride?.driverSettlement;
 
   return (
@@ -212,6 +249,16 @@ export function RideDetailDialog({
             <FieldRow label="Agreed fare">
               {ride.agreedFarePaise === null ? '—' : formatPaise(ride.agreedFarePaise)}
             </FieldRow>
+            {(ride.arrearsPaise ?? 0) > 0 && (
+              <FieldRow label="Attached arrears">
+                <span className="font-mono text-xs text-warning">
+                  {formatPaise(ride.arrearsPaise ?? 0)}
+                  {ride.totalPayablePaise !== undefined
+                    ? ` (Total payable ${formatPaise(ride.totalPayablePaise)})`
+                    : ''}
+                </span>
+              </FieldRow>
+            )}
             {(ride.paymentCollection || evidence?.paymentCollection) && (
               <FieldRow label="Payment collection">
                 <span className="font-mono text-xs">
@@ -245,13 +292,28 @@ export function RideDetailDialog({
               aria-label="Dispute Evidence"
               className="rounded-lg border border-border bg-surface-muted/50 p-3.5 flex flex-col gap-2 text-xs"
             >
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center gap-1.5">
                   <h3 className="font-semibold uppercase tracking-wider text-text">
                     Dispute &amp; Receipt Evidence
                   </h3>
                   {dispute.evidence.isDuplicateUpiAfterCash && (
                     <Badge tone="warning">DUPLICATE UPI AFTER CASH</Badge>
+                  )}
+                  {disputePaymentStates.includes('PROVIDER_CONFIRMED') && (
+                    <Badge tone="info">PROVIDER CONFIRMED</Badge>
+                  )}
+                  {disputePaymentStates.includes('CASH_REPORTED') && (
+                    <Badge tone="neutral">CASH REPORTED</Badge>
+                  )}
+                  {disputePaymentStates.includes('PAYMENT_PENDING') && (
+                    <Badge tone="warning">PAYMENT PENDING</Badge>
+                  )}
+                  {disputePaymentStates.includes('REFUND_REVIEW_REQUIRED') && (
+                    <Badge tone="warning">REFUND REVIEW REQUIRED</Badge>
+                  )}
+                  {disputePaymentStates.includes('REFUND_RECORDED') && (
+                    <Badge tone="info">REFUND RECORDED</Badge>
                   )}
                 </div>
                 {dispute.resolution ? (
@@ -329,6 +391,12 @@ export function RideDetailDialog({
             </p>
           )}
 
+          {waiveSuccessMessage && (
+            <p role="status" className="text-xs font-medium text-success">
+              {waiveSuccessMessage}
+            </p>
+          )}
+
           {canResolveDispute && (
             <section
               aria-label="Resolve Payment Dispute"
@@ -371,14 +439,74 @@ export function RideDetailDialog({
                   size="sm"
                   loading={resolveMutation.isPending}
                   disabled={
+                    resolveMutation.isPending ||
                     disputeReason.trim().length < 10 ||
                     (needsRefundReference && refundReference.trim().length < 4)
                   }
-                  onClick={() => resolveMutation.mutate()}
+                  onClick={() => {
+                    if (actionInFlightRef.current || resolveMutation.isPending) return;
+                    actionInFlightRef.current = true;
+                    resolveMutation.mutate();
+                  }}
                 >
                   Submit Ruling
                 </Button>
               </div>
+            </section>
+          )}
+
+          {canWaiveFee && (
+            <section
+              aria-label="Cancellation Fee Waiver"
+              className="rounded-lg border border-border bg-surface p-3.5 flex flex-col gap-3"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-text">
+                  Cancellation Fee Waiver
+                </h3>
+                {cancellationFeeMeta.alreadyWaived ? (
+                  <Badge tone="success">
+                    WAIVED
+                    {cancellationFeeMeta.waivedPaise > 0
+                      ? ` (${formatPaise(cancellationFeeMeta.waivedPaise)})`
+                      : ''}
+                  </Badge>
+                ) : cancellationFeeMeta.chargedPaise > 0 ? (
+                  <Badge tone="warning">
+                    CHARGED {formatPaise(cancellationFeeMeta.chargedPaise)}
+                  </Badge>
+                ) : null}
+              </div>
+              {cancellationFeeMeta.alreadyWaived ? (
+                <p className="text-xs text-text-subtle">
+                  The cancellation fee for this ride has already been waived and reconciled in the
+                  rider wallet ledger.
+                </p>
+              ) : (
+                <>
+                  <Input
+                    type="text"
+                    value={waiveReason}
+                    onChange={(e) => setWaiveReason(e.target.value)}
+                    placeholder="Reason for waiving cancellation fee (minimum 5 characters)..."
+                  />
+                  <div className="flex justify-end">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      loading={waiveMutation.isPending}
+                      disabled={waiveMutation.isPending || waiveReason.trim().length < 5}
+                      onClick={() => {
+                        if (actionInFlightRef.current || waiveMutation.isPending) return;
+                        actionInFlightRef.current = true;
+                        waiveMutation.mutate();
+                      }}
+                    >
+                      Waive Cancellation Fee
+                    </Button>
+                  </div>
+                </>
+              )}
             </section>
           )}
 
@@ -402,7 +530,12 @@ export function RideDetailDialog({
                   size="sm"
                   variant="danger"
                   loading={cancelMutation.isPending}
-                  onClick={() => cancelMutation.mutate()}
+                  disabled={cancelMutation.isPending}
+                  onClick={() => {
+                    if (actionInFlightRef.current || cancelMutation.isPending) return;
+                    actionInFlightRef.current = true;
+                    cancelMutation.mutate();
+                  }}
                 >
                   Force Cancel Ride
                 </Button>

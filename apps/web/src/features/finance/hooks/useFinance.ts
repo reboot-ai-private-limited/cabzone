@@ -81,7 +81,8 @@ export function useWalletDetail(id: string | null) {
 
 export function useAdjustWallet(onDone?: () => void) {
   return useApiMutation<AdjustWalletBody, unknown>({
-    call: (token, body, idempotencyKey) => walletsApi.adjust({ ...body, idempotencyKey }, token),
+    call: (token, body, idempotencyKey) =>
+      walletsApi.adjust({ idempotencyKey, ...body }, token),
     invalidates: [keys.wallets.all()],
     ...(onDone === undefined ? {} : { onSuccess: onDone }),
   });

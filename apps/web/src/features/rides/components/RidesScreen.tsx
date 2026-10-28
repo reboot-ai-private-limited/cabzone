@@ -26,6 +26,7 @@ import {
 } from '@/lib/api/endpoints/rides';
 import { formatPaise } from '@/lib/format';
 import { usePaymentDisputes, useRides } from '../hooks/useRides';
+import { canAdminViewDisputes } from '../lib/adminRidePermissions';
 import { RideDetailDialog } from './RideDetailDialog';
 import { RideDispatchMap } from './RideDispatchMap';
 import { RideStatusBadge } from './RideStatusBadge';
@@ -75,7 +76,7 @@ export function RidesScreen() {
     setAdminRole(getStoredAdminRole());
   }, []);
 
-  const canViewDisputes = adminRole !== 'CITY_ADMIN';
+  const canViewDisputes = canAdminViewDisputes(adminRole);
   const statuses = toStatuses(filter);
   const rides = useRides({ ...(statuses === undefined ? {} : { statuses }), limit });
   const disputes = usePaymentDisputes(
@@ -170,12 +171,15 @@ export function RidesScreen() {
       header: 'Receipt / Provider Ref',
       render: (item) => (
         <div className="flex flex-col text-xs">
-          <div className="flex items-center gap-1.5">
+          <div className="flex flex-wrap items-center gap-1.5">
             <span className="font-medium text-text">
               {item.evidence.paymentCollection ?? 'CASH'}
             </span>
             {item.evidence.isDuplicateUpiAfterCash && (
               <Badge tone="warning">DUP UPI + CASH</Badge>
+            )}
+            {item.evidence.requiresManualProviderRefund && !item.resolution && (
+              <Badge tone="warning">REFUND REVIEW</Badge>
             )}
           </div>
           <span className="font-mono text-text-subtle">
@@ -408,6 +412,7 @@ export function RidesScreen() {
                 value={disputeSearch}
                 onChange={(e) => setDisputeSearch(e.target.value)}
                 placeholder="Search ride, phone, pay_ / order_ / rfnd_..."
+                aria-label="Search payment disputes"
                 className="pl-9 text-sm"
               />
             </div>
