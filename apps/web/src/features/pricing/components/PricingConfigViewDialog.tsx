@@ -47,6 +47,13 @@ export function PricingConfigViewDialog({
           ],
           ['Negotiation window', `${config.negotiationWindowSeconds}s`],
           ['Commission', `${config.commissionPercent}%`],
+          ['Cancellation fee', formatPaise(config.cancellationFeePaise)],
+          [
+            'Cancellation split',
+            `Driver ${formatPaise(config.driverCompensationPaise)} · Platform ${formatPaise(config.platformCancellationFeePaise)}`,
+          ],
+          ['Rider cancellation grace', `${config.riderCancellationGraceSeconds}s`],
+          ['Driver no-show wait', `${config.driverNoShowWaitSeconds}s`],
           ['Effective from', new Date(config.effectiveFrom).toLocaleDateString()],
         ];
 
@@ -84,7 +91,9 @@ export function PricingConfigViewDialog({
           <div className="flex items-center justify-between py-2.5 text-sm">
             <dt className="text-text-subtle">Status</dt>
             <dd>
-              <Badge tone={config.status === 'ACTIVE' ? 'success' : 'neutral'}>{config.status}</Badge>
+              <Badge tone={config.status === 'ACTIVE' ? 'success' : 'neutral'}>
+                {config.status}
+              </Badge>
             </dd>
           </div>
           {rows.map(([label, value]) => (

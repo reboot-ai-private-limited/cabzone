@@ -1,20 +1,22 @@
 'use client';
 
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import type { PricingConfigDto, VehicleCategory, ZoneDto } from '@cabzone/contracts';
 import { VEHICLE_CATEGORIES } from '@cabzone/contracts';
-import { Button } from '@cabzone/design-system';
-import { Dialog } from '@cabzone/design-system';
-import { Input } from '@cabzone/design-system';
-import { Select } from '@cabzone/design-system';
+import { Button, Dialog, Input, Select } from '@cabzone/design-system';
 import { useZones } from '@/features/zones/hooks/useZones.js';
 import { formatPaise } from '@/lib/format.js';
 import { useCreatePricingConfig, useUpdatePricingConfig } from '../hooks/usePricing.js';
+import {
+  parseRupeesToPaise,
+  resolveCancellationPolicyDefaults,
+  validateAndBuildCancellationPolicy,
+} from '../lib/cancellationPolicyForm';
 
 export interface PricingConfigDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** When set, the dialog edits this (DRAFT) config instead of creating a new one. */
+  /** When set, the dialog edits this config instead of creating a new one. */
   editingConfig?: PricingConfigDto | null;
 }
 
@@ -53,7 +55,12 @@ const INDIAN_STATES = [
 ];
 
 function defaultsFor(config: PricingConfigDto | null | undefined) {
-  const level = (config?.level ?? (config?.stateCode ? 'STATE' : config?.cityZoneId ? 'CITY' : 'GLOBAL')) as 'GLOBAL' | 'STATE' | 'CITY';
+  const level = (config?.level ??
+    (config?.stateCode ? 'STATE' : config?.cityZoneId ? 'CITY' : 'GLOBAL')) as
+    | 'GLOBAL'
+    | 'STATE'
+    | 'CITY';
+  const cancellation = resolveCancellationPolicyDefaults(config);
   return {
     pricingLevel: level,
     cityZoneId: config?.cityZoneId ?? '',
@@ -70,11 +77,16 @@ function defaultsFor(config: PricingConfigDto | null | undefined) {
     negotiationCeilingPercent: config?.negotiationCeilingPercent ?? 150,
     negotiationWindowSeconds: config?.negotiationWindowSeconds ?? 90,
     commissionPercent: config?.commissionPercent ?? 8,
+    ...cancellation,
     status: (config?.status === 'DRAFT' ? 'DRAFT' : 'ACTIVE') as 'DRAFT' | 'ACTIVE',
   };
 }
 
-export function PricingConfigDialog({ open, onOpenChange, editingConfig }: PricingConfigDialogProps) {
+export function PricingConfigDialog({
+  open,
+  onOpenChange,
+  editingConfig,
+}: PricingConfigDialogProps) {
   const isEditing = editingConfig != null;
 
   const cityZoneSelectId = useId();
@@ -93,6 +105,10 @@ export function PricingConfigDialog({ open, onOpenChange, editingConfig }: Prici
   const floorInputId = useId();
   const ceilingInputId = useId();
   const windowInputId = useId();
+  const cancellationFeeInputId = useId();
+  const driverCompInputId = useId();
+  const riderGraceInputId = useId();
+  const driverNoShowInputId = useId();
 
   const { data: zonesData } = useZones();
   const cityZones: ZoneDto[] = (zonesData?.zones ?? []).filter((z: ZoneDto) => z.type === 'CITY');
@@ -112,8 +128,13 @@ export function PricingConfigDialog({ open, onOpenChange, editingConfig }: Prici
   const [negotiationCeilingPercent, setNegotiationCeilingPercent] = useState<number>(150);
   const [negotiationWindowSeconds, setNegotiationWindowSeconds] = useState<number>(90);
   const [commissionPercent, setCommissionPercent] = useState<number>(8);
+  const [cancellationFeeRupees, setCancellationFeeRupees] = useState<string>('50');
+  const [driverCompensationRupees, setDriverCompensationRupees] = useState<string>('35');
+  const [riderCancellationGraceSeconds, setRiderCancellationGraceSeconds] = useState<string>('120');
+  const [driverNoShowWaitSeconds, setDriverNoShowWaitSeconds] = useState<string>('300');
   const [status, setStatus] = useState<'DRAFT' | 'ACTIVE'>('ACTIVE');
   const [validationError, setValidationError] = useState<string | null>(null);
+  const submittingRef = useRef(false);
 
   // Re-seed the form whenever the dialog opens, for both create and edit.
   useEffect(() => {
@@ -134,6 +155,10 @@ export function PricingConfigDialog({ open, onOpenChange, editingConfig }: Prici
     setNegotiationCeilingPercent(d.negotiationCeilingPercent);
     setNegotiationWindowSeconds(d.negotiationWindowSeconds);
     setCommissionPercent(d.commissionPercent);
+    setCancellationFeeRupees(d.cancellationFeeRupees);
+    setDriverCompensationRupees(d.driverCompensationRupees);
+    setRiderCancellationGraceSeconds(d.riderCancellationGraceSeconds);
+    setDriverNoShowWaitSeconds(d.driverNoShowWaitSeconds);
     setStatus(d.status);
     setValidationError(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -156,6 +181,13 @@ export function PricingConfigDialog({ open, onOpenChange, editingConfig }: Prici
   const outstationMinimumFarePaise = Math.round(outstationMinimumFareRupees * 100);
   const bufferSurchargePaise = Math.round(bufferSurchargeRupees * 100);
 
+  const previewCancelFeePaise = parseRupeesToPaise(cancellationFeeRupees);
+  const previewDriverCompPaise = parseRupeesToPaise(driverCompensationRupees);
+  const previewPlatformSharePaise =
+    previewCancelFeePaise !== null && previewDriverCompPaise !== null
+      ? previewCancelFeePaise - previewDriverCompPaise
+      : null;
+
   const calcFare = (distKm: number, withBuffer = false) => {
     const distM = distKm * 1000;
     const distFare = Math.round((distM / 1000) * ratePerKmPaise);
@@ -176,11 +208,15 @@ export function PricingConfigDialog({ open, onOpenChange, editingConfig }: Prici
   const sample15kmBuffer = calcFare(15, true);
   const sample50kmOutstation = calcOutstationFare(50);
 
-  const floor5km = Math.max(minimumFarePaise, Math.round((sample5km * negotiationFloorPercent) / 100));
+  const floor5km = Math.max(
+    minimumFarePaise,
+    Math.round((sample5km * negotiationFloorPercent) / 100),
+  );
   const ceiling5km = Math.round((sample5km * negotiationCeilingPercent) / 100);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (saving || submittingRef.current) return;
     setValidationError(null);
 
     if (minimumFarePaise < baseFarePaise) {
@@ -198,27 +234,66 @@ export function PricingConfigDialog({ open, onOpenChange, editingConfig }: Prici
       return;
     }
 
-    if (isEditing && editingConfig) {
-      updateMutation.mutate({
-        id: editingConfig.id,
-        body: {
-          stateCode: pricingLevel === 'STATE' ? stateCode : undefined,
-          baseFarePaise,
-          ratePerKmPaise,
-          minimumFarePaise,
-          outstationBaseFarePaise,
-          outstationRatePerKmPaise,
-          outstationMinimumFarePaise,
-          bufferSurchargePaise,
-          negotiationFloorPercent,
-          negotiationCeilingPercent,
-          negotiationWindowSeconds,
-          commissionPercent,
-          status,
-        },
-      });
+    const cancellationValidation = validateAndBuildCancellationPolicy({
+      cancellationFeeRupees,
+      driverCompensationRupees,
+      riderCancellationGraceSeconds,
+      driverNoShowWaitSeconds,
+    });
+    if (!cancellationValidation.ok) {
+      setValidationError(cancellationValidation.error);
       return;
     }
+
+    const cancellationFields = cancellationValidation.value;
+
+    if (isEditing && editingConfig) {
+      submittingRef.current = true;
+      updateMutation.mutate(
+        {
+          id: editingConfig.id,
+          body: {
+            stateCode: pricingLevel === 'STATE' ? stateCode : undefined,
+            baseFarePaise,
+            ratePerKmPaise,
+            minimumFarePaise,
+            outstationBaseFarePaise,
+            outstationRatePerKmPaise,
+            outstationMinimumFarePaise,
+            bufferSurchargePaise,
+            negotiationFloorPercent,
+            negotiationCeilingPercent,
+            negotiationWindowSeconds,
+            commissionPercent,
+            ...cancellationFields,
+            status,
+          },
+        },
+        {
+          onSettled: () => {
+            submittingRef.current = false;
+          },
+        },
+      );
+      return;
+    }
+
+    const sharedCreateBody = {
+      vehicleType,
+      baseFarePaise,
+      ratePerKmPaise,
+      minimumFarePaise,
+      outstationBaseFarePaise,
+      outstationRatePerKmPaise,
+      outstationMinimumFarePaise,
+      bufferSurchargePaise,
+      negotiationFloorPercent,
+      negotiationCeilingPercent,
+      negotiationWindowSeconds,
+      commissionPercent,
+      ...cancellationFields,
+      status,
+    };
 
     if (pricingLevel === 'CITY') {
       const selectedZone = cityZoneId || (cityZones[0]?.id ?? '');
@@ -227,67 +302,55 @@ export function PricingConfigDialog({ open, onOpenChange, editingConfig }: Prici
         return;
       }
 
-      createMutation.mutate({
-        level: 'CITY',
-        cityZoneId: selectedZone,
-        stateCode: null,
-        vehicleType,
-        baseFarePaise,
-        ratePerKmPaise,
-        minimumFarePaise,
-        outstationBaseFarePaise,
-        outstationRatePerKmPaise,
-        outstationMinimumFarePaise,
-        bufferSurchargePaise,
-        negotiationFloorPercent,
-        negotiationCeilingPercent,
-        negotiationWindowSeconds,
-        commissionPercent,
-        status,
-      });
+      submittingRef.current = true;
+      createMutation.mutate(
+        {
+          level: 'CITY',
+          cityZoneId: selectedZone,
+          stateCode: null,
+          ...sharedCreateBody,
+        },
+        {
+          onSettled: () => {
+            submittingRef.current = false;
+          },
+        },
+      );
     } else if (pricingLevel === 'STATE') {
       if (!stateCode) {
         setValidationError('Please select a State.');
         return;
       }
 
-      createMutation.mutate({
-        level: 'STATE',
-        cityZoneId: null,
-        stateCode,
-        vehicleType,
-        baseFarePaise,
-        ratePerKmPaise,
-        minimumFarePaise,
-        outstationBaseFarePaise,
-        outstationRatePerKmPaise,
-        outstationMinimumFarePaise,
-        bufferSurchargePaise,
-        negotiationFloorPercent,
-        negotiationCeilingPercent,
-        negotiationWindowSeconds,
-        commissionPercent,
-        status,
-      });
+      submittingRef.current = true;
+      createMutation.mutate(
+        {
+          level: 'STATE',
+          cityZoneId: null,
+          stateCode,
+          ...sharedCreateBody,
+        },
+        {
+          onSettled: () => {
+            submittingRef.current = false;
+          },
+        },
+      );
     } else {
-      createMutation.mutate({
-        level: 'GLOBAL',
-        cityZoneId: null,
-        stateCode: null,
-        vehicleType,
-        baseFarePaise,
-        ratePerKmPaise,
-        minimumFarePaise,
-        outstationBaseFarePaise,
-        outstationRatePerKmPaise,
-        outstationMinimumFarePaise,
-        bufferSurchargePaise,
-        negotiationFloorPercent,
-        negotiationCeilingPercent,
-        negotiationWindowSeconds,
-        commissionPercent,
-        status,
-      });
+      submittingRef.current = true;
+      createMutation.mutate(
+        {
+          level: 'GLOBAL',
+          cityZoneId: null,
+          stateCode: null,
+          ...sharedCreateBody,
+        },
+        {
+          onSettled: () => {
+            submittingRef.current = false;
+          },
+        },
+      );
     }
   };
 
@@ -323,8 +386,8 @@ export function PricingConfigDialog({ open, onOpenChange, editingConfig }: Prici
       }
       description={
         isEditing
-          ? 'Adjust fares, outstation parameters, buffer surcharge, negotiation clamps, and status for this rule.'
-          : 'Configure category base fares, distance increments, buffer surcharges, and negotiation clamps.'
+          ? 'Adjust fares, outstation parameters, cancellation policy, negotiation clamps, and status for this rule.'
+          : 'Configure category base fares, distance increments, cancellation policy, buffer surcharges, and negotiation clamps.'
       }
       className="max-w-3xl"
       footer={
@@ -332,12 +395,7 @@ export function PricingConfigDialog({ open, onOpenChange, editingConfig }: Prici
           <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button
-            type="submit"
-            form="pricing-config-form"
-            variant="primary"
-            loading={saving}
-          >
+          <Button type="submit" form="pricing-config-form" variant="primary" loading={saving}>
             {isEditing ? 'Save Changes' : 'Save Pricing Rule'}
           </Button>
         </>
@@ -345,7 +403,10 @@ export function PricingConfigDialog({ open, onOpenChange, editingConfig }: Prici
     >
       <form id="pricing-config-form" onSubmit={handleSubmit} className="flex flex-col gap-5 py-1">
         {validationError && (
-          <div className="p-3 text-xs rounded-md bg-danger/10 text-danger border border-danger/20">
+          <div
+            role="alert"
+            className="p-3 text-xs rounded-md bg-danger/10 text-danger border border-danger/20"
+          >
             {validationError}
           </div>
         )}
@@ -353,10 +414,11 @@ export function PricingConfigDialog({ open, onOpenChange, editingConfig }: Prici
         {/* Scope / Level Selector */}
         <div className="flex flex-col gap-2.5 p-3 rounded-lg bg-surface-muted border border-border">
           <span className="text-xs font-semibold text-text">Pricing Scope / Territory</span>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-3 gap-2" role="group" aria-label="Pricing Scope">
             <button
               type="button"
               disabled={isEditing}
+              aria-pressed={pricingLevel === 'GLOBAL'}
               onClick={() => setPricingLevel('GLOBAL')}
               className={`px-3 py-2 text-xs font-semibold rounded-md border text-center transition-colors ${
                 pricingLevel === 'GLOBAL'
@@ -369,6 +431,7 @@ export function PricingConfigDialog({ open, onOpenChange, editingConfig }: Prici
             <button
               type="button"
               disabled={isEditing}
+              aria-pressed={pricingLevel === 'STATE'}
               onClick={() => setPricingLevel('STATE')}
               className={`px-3 py-2 text-xs font-semibold rounded-md border text-center transition-colors ${
                 pricingLevel === 'STATE'
@@ -381,6 +444,7 @@ export function PricingConfigDialog({ open, onOpenChange, editingConfig }: Prici
             <button
               type="button"
               disabled={isEditing}
+              aria-pressed={pricingLevel === 'CITY'}
               onClick={() => setPricingLevel('CITY')}
               className={`px-3 py-2 text-xs font-semibold rounded-md border text-center transition-colors ${
                 pricingLevel === 'CITY'
@@ -394,20 +458,18 @@ export function PricingConfigDialog({ open, onOpenChange, editingConfig }: Prici
 
           {pricingLevel === 'GLOBAL' && (
             <p className="text-[11px] text-text-subtle">
-              Global Default: Fallback rate applicable across all of India when no specific State or City override exists.
+              Global Default: Fallback rate applicable across all of India when no specific State or
+              City override exists.
             </p>
           )}
 
           {pricingLevel === 'STATE' && (
             <div className="flex flex-col gap-1.5 mt-1">
               <span className="text-xs font-semibold text-text">Select State / Territory</span>
-              <Select
-                value={stateCode}
-                onValueChange={setStateCode}
-                options={INDIAN_STATES}
-              />
+              <Select value={stateCode} onValueChange={setStateCode} options={INDIAN_STATES} />
               <p className="text-[11px] text-text-subtle">
-                Applies to trips within or originating from this state when outside mapped city zones (e.g. WB, SK).
+                Applies to trips within or originating from this state when outside mapped city
+                zones (e.g. WB, SK).
               </p>
             </div>
           )}
@@ -503,7 +565,7 @@ export function PricingConfigDialog({ open, onOpenChange, editingConfig }: Prici
         </div>
 
         <div className="text-xs font-bold text-text-subtle uppercase tracking-wider pt-2 border-t border-border">
-          Outstation Rate Tier (Inter-City & Beyond Buffer)
+          Outstation Rate Tier (Inter-City &amp; Beyond Buffer)
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div className="flex flex-col gap-1 text-xs font-semibold text-text">
@@ -545,7 +607,7 @@ export function PricingConfigDialog({ open, onOpenChange, editingConfig }: Prici
         </div>
 
         <div className="text-xs font-bold text-text-subtle uppercase tracking-wider pt-2 border-t border-border">
-          Platform Parameters & Clamps
+          Platform Parameters &amp; Clamps
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div className="flex flex-col gap-1 text-xs font-semibold text-text">
@@ -599,6 +661,93 @@ export function PricingConfigDialog({ open, onOpenChange, editingConfig }: Prici
           </div>
         </div>
 
+        <div className="text-xs font-bold text-text-subtle uppercase tracking-wider pt-2 border-t border-border">
+          Cancellation, No-Show &amp; Arrears Policy (D-044)
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="flex flex-col gap-1 text-xs font-semibold text-text">
+            <label htmlFor={cancellationFeeInputId}>Cancellation Fee (₹)</label>
+            <Input
+              id={cancellationFeeInputId}
+              type="number"
+              min={0}
+              step="0.01"
+              value={cancellationFeeRupees}
+              onChange={(e) => setCancellationFeeRupees(e.target.value)}
+              required
+            />
+            <span className="text-[10px] font-normal text-text-subtle">
+              Charged after rider grace or driver no-show wait; blocks cash when unpaid arrears
+              reach this fee.
+            </span>
+          </div>
+          <div className="flex flex-col gap-1 text-xs font-semibold text-text">
+            <label htmlFor={driverCompInputId}>Driver Compensation Share (₹)</label>
+            <Input
+              id={driverCompInputId}
+              type="number"
+              min={0}
+              step="0.01"
+              value={driverCompensationRupees}
+              onChange={(e) => setDriverCompensationRupees(e.target.value)}
+              required
+            />
+            <span className="text-[10px] font-normal text-text-subtle">
+              Credited to assigned driver when fee is recovered.
+            </span>
+          </div>
+          <div className="flex flex-col justify-between rounded-md border border-border bg-surface-muted px-3 py-2 text-xs">
+            <span className="font-semibold text-text">Platform Cancellation Share</span>
+            <span
+              className={`font-mono text-sm font-semibold ${
+                previewPlatformSharePaise !== null && previewPlatformSharePaise < 0
+                  ? 'text-danger'
+                  : 'text-text'
+              }`}
+            >
+              {previewPlatformSharePaise === null ? '—' : formatPaise(previewPlatformSharePaise)}
+            </span>
+            <span className="text-[10px] text-text-subtle">
+              Auto-balanced: Total Fee − Driver Share
+            </span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="flex flex-col gap-1 text-xs font-semibold text-text">
+            <label htmlFor={riderGraceInputId}>Rider Cancellation Grace Window (seconds)</label>
+            <Input
+              id={riderGraceInputId}
+              type="number"
+              min={0}
+              max={3600}
+              step="1"
+              value={riderCancellationGraceSeconds}
+              onChange={(e) => setRiderCancellationGraceSeconds(e.target.value)}
+              required
+            />
+            <span className="text-[10px] font-normal text-text-subtle">
+              Free cancellation window after driver assignment (0–3600s).
+            </span>
+          </div>
+          <div className="flex flex-col gap-1 text-xs font-semibold text-text">
+            <label htmlFor={driverNoShowInputId}>Driver No-Show Wait Timer (seconds)</label>
+            <Input
+              id={driverNoShowInputId}
+              type="number"
+              min={0}
+              max={3600}
+              step="1"
+              value={driverNoShowWaitSeconds}
+              onChange={(e) => setDriverNoShowWaitSeconds(e.target.value)}
+              required
+            />
+            <span className="text-[10px] font-normal text-text-subtle">
+              Minimum pickup wait after arrival before driver no-show cancellation (0–3600s).
+            </span>
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
           <div className="flex flex-col gap-1 text-xs font-semibold text-text">
             <label htmlFor={windowInputId}>Negotiation Window (seconds)</label>
@@ -610,10 +759,14 @@ export function PricingConfigDialog({ open, onOpenChange, editingConfig }: Prici
               value={negotiationWindowSeconds}
               onChange={(e) => setNegotiationWindowSeconds(Number(e.target.value))}
             />
-            <span className="text-[10px] font-normal text-text-subtle">Quote validity duration</span>
+            <span className="text-[10px] font-normal text-text-subtle">
+              Quote validity duration
+            </span>
           </div>
           <div className="flex flex-col gap-1.5">
-            <span className="text-xs font-semibold text-text">{isEditing ? 'Status' : 'Initial State'}</span>
+            <span className="text-xs font-semibold text-text">
+              {isEditing ? 'Status' : 'Initial State'}
+            </span>
             <Select
               id={statusSelectId}
               value={status}
@@ -668,7 +821,9 @@ export function PricingConfigDialog({ open, onOpenChange, editingConfig }: Prici
               <span className="font-semibold text-text text-sm font-mono">
                 {formatPaise(sample50kmOutstation)}
               </span>
-              <span className="text-[11px] text-text-subtle">Rate: {formatPaise(outstationRatePerKmPaise)}/km</span>
+              <span className="text-[11px] text-text-subtle">
+                Rate: {formatPaise(outstationRatePerKmPaise)}/km
+              </span>
             </div>
           </div>
         </div>
