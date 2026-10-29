@@ -23,7 +23,9 @@ for (const app of ['rider-mobile', 'driver-mobile']) {
     });
     const point = { lat: 26.7, lng: 88.4, address: 'Pin (26.7000, 88.4000)' };
     const result = await resolve({ items: [{ pickup: point, drop: point }] });
-    assert.equal(result.items[0].pickup.address, 'Sevoke Road, Siliguri');
+    assert.equal(result.items[0].pickup.address, 'Pickup location');
+    await new Promise(setImmediate);
+    assert.equal((await resolve({ pickup: point })).pickup.address, 'Sevoke Road, Siliguri');
     assert.equal(calls, 1);
     assert.equal(point.address, 'Pin (26.7000, 88.4000)');
     assert.equal(
@@ -31,6 +33,39 @@ for (const app of ['rider-mobile', 'driver-mobile']) {
       'Airport Gate 2',
     );
     assert.equal(calls, 1);
+  });
+  test(`${app}: stalled geocoding never blocks ride data and at most four lookups run at once`, async () => {
+    const releases = [];
+    let calls = 0;
+    const resolve = createRouteNameResolver(() => {
+      calls++;
+      return new Promise((done) =>
+        releases.push(() => done({ formattedAddress: 'Resolved place' })),
+      );
+    });
+    const data = {
+      items: Array.from({ length: 20 }, (_, i) => ({
+        id: i,
+        pickup: { lat: i, lng: 2, address: null },
+      })),
+    };
+    const result = await Promise.race([
+      resolve(data),
+      new Promise((_, reject) =>
+        setImmediate(() => reject(new Error('Ride data waited for geocoding'))),
+      ),
+    ]);
+    assert.equal(result.items.length, 20);
+    assert.equal(result.items[0].pickup.address, 'Pickup location');
+    assert.equal(calls, 4);
+    releases[0]();
+    await new Promise(setImmediate);
+    assert.equal(calls, 5);
+    assert.equal(
+      (await resolve({ pickup: data.items[0].pickup })).pickup.address,
+      'Resolved place',
+    );
+    assert.equal(data.items[0].pickup.address, null);
   });
   test(`${app}: lookup failure never exposes coordinates or breaks ride loading`, async () => {
     const resolve = createRouteNameResolver(async () => {
