@@ -12,3 +12,5 @@ export * from './wallets.js';
 export * from './payments.js';
 export * from './routing.js';
 export * from './dispatch.js';
+export * from './tolls.js';
+export * from './extensions.js';

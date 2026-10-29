@@ -1,10 +1,11 @@
+import { tollDisclosure, type RideDto, type RideEventDto } from '@cabzone/contracts';
 import { locationLabel } from '@/services/location-names';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import type { RideDto, RideEventDto } from '@cabzone/contracts';
+
 import { useRide } from '@/context/ride-context';
 import { computeRideEarningsBreakdown } from '@/context/duty-context';
 import {
@@ -168,6 +169,9 @@ export default function RideHistoryDetailScreen() {
           </View>
         </View>
 
+        <Text style={{ fontSize: 12, color: colors.secondary, paddingVertical: 8 }}>
+          {tollDisclosure(ride.tollSnapshot, ride.extensionProposal?.status === 'ACCEPTED')}
+        </Text>
         {/* Fare Breakdown */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Financial Breakdown</Text>

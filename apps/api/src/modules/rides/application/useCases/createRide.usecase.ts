@@ -238,6 +238,7 @@ export class CreateRideUseCase {
     const rideId = newUuid();
 
     const ride: RideEntity = {
+      tollSnapshot: quote.tollSnapshot ?? null,
       id: rideId,
       bookerRiderId: input.riderId,
       idempotencyKey,
@@ -277,6 +278,16 @@ export class CreateRideUseCase {
         destinationStateCode: quote.destinationStateCode ?? null,
       },
       pricingSnapshot: {
+        extensionTariffs: {
+          originStateCode: quote.originStateCode ?? quote.stateBreakdown?.[0]?.stateCode ?? null,
+          outstationRatePerKmPaise: currentConfig.outstationRatePerKmPaise,
+          stateRates: Object.fromEntries(
+            (quote.stateBreakdown ?? []).map((s) => [
+              s.stateCode,
+              s.ratePerKmPaise ?? currentConfig.outstationRatePerKmPaise,
+            ]),
+          ),
+        },
         pricingConfigId: quote.pricingConfigId,
         pricingConfigVersion: quote.pricingConfigVersion,
         vehicleCategory: quote.vehicleCategory,

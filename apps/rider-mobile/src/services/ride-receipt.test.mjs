@@ -6,20 +6,33 @@ import vm from 'node:vm';
 const require = createRequire(import.meta.url);
 const ts = require('typescript');
 const exports = {};
+const tollExports = {};
+vm.runInNewContext(
+  ts.transpileModule(
+    readFileSync(new URL('../../../../packages/contracts/src/tolls.ts', import.meta.url), 'utf8'),
+    {
+      compilerOptions: { module: ts.ModuleKind.CommonJS },
+    },
+  ).outputText,
+  { exports: tollExports },
+);
 vm.runInNewContext(
   ts.transpileModule(readFileSync(new URL('./ride-receipt.ts', import.meta.url), 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS },
   }).outputText,
   {
     exports,
-    require: () => ({
-      formatAssignedDriverSummary: (ride) => ({
-        driverName: ride.assignedDriver?.name || 'Your driver',
-        vehicleLabel: 'White Maruti Dzire',
-        registrationNumber: 'WB74AB1234',
-        profilePhotoUrl: null,
-      }),
-    }),
+    require: (name) =>
+      name === '@cabzone/contracts'
+        ? tollExports
+        : {
+            formatAssignedDriverSummary: (ride) => ({
+              driverName: ride.assignedDriver?.name || 'Your driver',
+              vehicleLabel: 'White Maruti Dzire',
+              registrationNumber: 'WB74AB1234',
+              profilePhotoUrl: null,
+            }),
+          },
   },
 );
 const ride = () => ({
@@ -104,7 +117,6 @@ test('empty route names and cancelled rides have clear fallbacks', () => {
   assert.equal(receipt.pickup, 'Pickup location');
   assert.equal(receipt.drop, 'Destination');
 });
-
 
 test('itemizes previous cancellation fee arrears separately from passenger fare on receipt', () => {
   const receipt = exports.rideReceipt({ ...ride(), arrearsPaise: 5000 }, []);

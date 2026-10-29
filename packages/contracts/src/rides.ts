@@ -1,3 +1,5 @@
+import type { RideExtensionProposalDto } from './extensions.js';
+import type { TollSnapshot } from './tolls.js';
 import type { StateDistanceBreakdown } from './pricing.js';
 import type { VehicleCategory } from './vehicles.js';
 
@@ -86,6 +88,11 @@ export interface StateSegmentDto {
  * Per Decisions D-034 and D-044.
  */
 export interface RidePricingSnapshot {
+  extensionTariffs?: {
+    originStateCode: string | null;
+    outstationRatePerKmPaise: number;
+    stateRates: Record<string, number>;
+  };
   pricingConfigId: string;
   pricingConfigVersion: number;
   vehicleCategory: VehicleCategory;
@@ -248,6 +255,8 @@ export interface DriverRideSettlementDto {
 }
 
 export interface RideDto {
+  extensionProposal?: RideExtensionProposalDto | null;
+  tollSnapshot?: TollSnapshot | null;
   paymentCollection?: 'DIRECT' | 'CASH' | 'RAZORPAY_TEST' | 'RAZORPAY_UPI';
   driverSettlement?: DriverRideSettlementDto;
   id: string;

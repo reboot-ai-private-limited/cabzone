@@ -1,3 +1,4 @@
+import type { TollSnapshot } from './tolls.js';
 import type { VehicleCategory } from './vehicles.js';
 
 export const DEFAULT_CANCELLATION_FEE_PAISE = 5000; // ₹50
@@ -71,6 +72,7 @@ export interface StateDistanceBreakdown {
 }
 
 export interface QuoteDto {
+  tollSnapshot?: TollSnapshot | null;
   quoteId: string;
   pickup: { lat: number; lng: number };
   drop: { lat: number; lng: number };

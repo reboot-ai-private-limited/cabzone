@@ -1,8 +1,5 @@
-import { createRouteNameResolver } from './location-names';
-import Constants from 'expo-constants';
-import { Platform } from 'react-native';
-import { getAccessToken, getOrCreateDeviceId, getRefreshToken, saveAuthTokens } from './storage';
 import type {
+  TollSnapshot,
   CancellationReason,
   DriverDocumentDto,
   DriverDto,
@@ -27,6 +24,10 @@ import type {
   WalletOperationDto,
   WalletTransactionDto,
 } from '@cabzone/contracts';
+import { createRouteNameResolver } from './location-names';
+import Constants from 'expo-constants';
+import { Platform } from 'react-native';
+import { getAccessToken, getOrCreateDeviceId, getRefreshToken, saveAuthTokens } from './storage';
 
 export type { DriverProfileDetailDto };
 
@@ -382,6 +383,7 @@ export interface UpdateLocationPayload {
 }
 
 export interface RideOfferDto {
+  tollSnapshot?: TollSnapshot | null;
   rideId: string;
   vehicleCategory: VehicleCategory;
   pickup: {
@@ -480,6 +482,18 @@ export const dispatchApi = {
 };
 
 export const ridesApi = {
+  async respondExtension(
+    token: string,
+    rideId: string,
+    extensionId: string,
+    decision: 'ACCEPT' | 'REJECT',
+  ): Promise<RideDto> {
+    return request(
+      `/api/v1/rides/${rideId}/extensions/${extensionId}/respond`,
+      { method: 'POST', body: JSON.stringify({ decision }) },
+      token,
+    );
+  },
   async switchToCash(
     token: string,
     rideId: string,

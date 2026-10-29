@@ -1,4 +1,6 @@
 import type {
+  RideExtensionProposalDto,
+  TollSnapshot,
   CancellationReason,
   RidePricingSnapshot,
   RideStatus,
@@ -39,6 +41,8 @@ export interface ZoneSnapshot {
 }
 
 export interface RideEntity {
+  extensionProposal?: RideExtensionProposalDto | null;
+  tollSnapshot?: TollSnapshot | null;
   id: string;
   bookerRiderId: string;
   idempotencyKey?: string | null;

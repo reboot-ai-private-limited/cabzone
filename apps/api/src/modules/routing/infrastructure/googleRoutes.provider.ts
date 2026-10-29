@@ -1,3 +1,4 @@
+import type { TollInfoDto } from '@cabzone/contracts';
 import { AppError } from '@/shared/errors/AppError.js';
 import { logger } from '@/shared/logging/logger.js';
 import type { RouteProviderPort, RouteRequest, RouteResult } from '../domain/index.js';
@@ -9,8 +10,13 @@ export interface GoogleRoutesProviderOptions {
   fetchFn?: typeof fetch;
 }
 
+interface GoogleTollInfo {
+  estimatedPrice?: Array<{ currencyCode?: string; units?: string; nanos?: number }>;
+}
+
 interface ComputeRoutesResponse {
   routes?: Array<{
+    travelAdvisory?: { tollInfo?: GoogleTollInfo };
     distanceMeters?: number;
     duration?: string;
     polyline?: {
@@ -63,13 +69,14 @@ export class GoogleRoutesProvider implements RouteProviderPort {
       travelMode: 'DRIVE',
       routingPreference: this.trafficAware ? 'TRAFFIC_AWARE' : 'TRAFFIC_UNAWARE',
       units: 'METRIC',
+      extraComputations: ['TOLLS'],
     };
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       'X-Goog-Api-Key': this.apiKey,
       'X-Goog-FieldMask':
-        'routes.distanceMeters,routes.duration,routes.polyline.encodedPolyline',
+        'routes.distanceMeters,routes.duration,routes.polyline.encodedPolyline,routes.travelAdvisory.tollInfo',
     };
 
     let attempt = 0;
@@ -164,6 +171,7 @@ export class GoogleRoutesProvider implements RouteProviderPort {
         }
 
         return {
+          tollInfo: parseTollInfo(firstRoute.travelAdvisory?.tollInfo),
           provider: 'GOOGLE_ROUTES',
           distanceM: Math.round(distanceM),
           durationS: durationSeconds,
@@ -199,4 +207,20 @@ export class GoogleRoutesProvider implements RouteProviderPort {
       cause: lastError,
     });
   }
+}
+
+function parseTollInfo(info: GoogleTollInfo | undefined): TollInfoDto {
+  if (!info) return { exists: false, estimatedAmountPaise: 0, currency: 'INR' };
+  const prices = info.estimatedPrice;
+  let amount: number | null = null;
+  if (prices?.length === 1 && prices[0]?.currencyCode === 'INR') {
+    const price = prices[0];
+    const units = price.units ?? '0';
+    const nanos = price.nanos ?? 0;
+    if (/^\d+$/.test(units) && Number.isInteger(nanos) && nanos >= 0 && nanos < 1e9) {
+      const paise = Number(units) * 100 + Math.round(nanos / 1e7);
+      if (Number.isSafeInteger(paise)) amount = paise;
+    }
+  }
+  return { exists: true, estimatedAmountPaise: amount, currency: 'INR' };
 }

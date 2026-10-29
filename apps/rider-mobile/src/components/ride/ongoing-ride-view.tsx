@@ -1,4 +1,6 @@
 import { locationLabel } from '@/services/location-names';
+import { tollDisclosure } from '@cabzone/contracts';
+import { RideExtensionPanel } from './ride-extension-panel';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Animated,
@@ -428,6 +430,10 @@ export function OngoingRideView({
               {formatRupeesFromPaise(fare)}
             </Text>
           </View>
+          <Text style={styles.caption}>
+            {tollDisclosure(ride.tollSnapshot, ride.extensionProposal?.status === 'ACCEPTED')}
+          </Text>
+          <RideExtensionPanel ride={ride} onRefresh={onRefresh} />
 
           {expanded ? (
             <>

@@ -1,4 +1,6 @@
+import { type TollSnapshot, tollDisclosure } from '@cabzone/contracts';
 import { locationLabel } from '@/services/location-names';
+
 import React, { useEffect, useState } from 'react';
 import { Animated, Dimensions, Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors, motion } from '@/design-system';
@@ -9,6 +11,7 @@ import type { RideOfferDto } from '@/services/api';
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 export interface CabzonRideOfferData {
+  tollSnapshot?: TollSnapshot | null;
   rideId: string;
   farePaise: number;
   pickupAddress: string;
@@ -24,6 +27,7 @@ export interface CabzonRideOfferData {
 export function mapRideOfferDtoToCardData(offer: RideOfferDto): CabzonRideOfferData {
   const distanceKm = Number((offer.distanceToPickupM / 1000).toFixed(1));
   return {
+    tollSnapshot: offer.tollSnapshot ?? null,
     rideId: offer.rideId,
     farePaise: offer.proposedFarePaise,
     pickupAddress: locationLabel(offer.pickup.address, 'Pickup location'),
@@ -184,6 +188,9 @@ export function CabzonRideOffer({
         </View>
       </View>
 
+      <Text style={{ fontSize: 12, color: colors.secondary, paddingHorizontal: 20 }}>
+        {tollDisclosure(offer.tollSnapshot)}
+      </Text>
       {counteredFarePaise != null && counterFare == null ? (
         <View style={styles.counterSentPill}>
           <Text style={styles.counterSentText}>

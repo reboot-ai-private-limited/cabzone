@@ -1,10 +1,7 @@
 import { MemoryRideEventRepository } from '../src/modules/rides/index.js';
 import { unitOfWork } from './helpers/unitOfWork.js';
 import { describe, expect, it } from 'vitest';
-import {
-  MemoryWalletRepository,
-  type WalletEntity,
-} from '../src/modules/ledger/index.js';
+import { MemoryWalletRepository, type WalletEntity } from '../src/modules/ledger/index.js';
 import {
   calculateBaseFareEstimate,
   CreatePricingConfigUseCase,
@@ -109,7 +106,7 @@ describe('Quote Lifecycle & First-to-Accept Ride Engine', () => {
     updatedAt: new Date(),
   };
 
-  function setupEngine() {
+  function setupEngine(tollInfo?: import('@cabzone/contracts').TollInfoDto) {
     const zoneRepo = new MemoryZoneRepository();
     zoneRepo.save(siliguriCityZone);
 
@@ -120,6 +117,19 @@ describe('Quote Lifecycle & First-to-Accept Ride Engine', () => {
     pricingConfigRepo.save(cabPricingConfig);
 
     const quoteUseCase = new CreateQuoteUseCase({
+      ...(tollInfo
+        ? {
+            routingUseCase: {
+              execute: async () => ({
+                provider: 'TEST',
+                distanceM: 5000,
+                durationS: 600,
+                polyline: null,
+                tollInfo,
+              }),
+            },
+          }
+        : {}),
       serviceClassificationUseCase,
       pricingConfigRepo,
       tokenSecret: TEST_SECRET,
@@ -132,20 +142,26 @@ describe('Quote Lifecycle & First-to-Accept Ride Engine', () => {
     walletRepo.save(driver2Wallet);
     walletRepo.save(zeroBalanceWallet);
 
-    const createRideUseCase = new CreateRideUseCase({ unitOfWork, rideEventRepo: new MemoryRideEventRepository(),
+    const createRideUseCase = new CreateRideUseCase({
+      unitOfWork,
+      rideEventRepo: new MemoryRideEventRepository(),
       rideRepo,
       pricingConfigRepo,
       tokenSecret: TEST_SECRET,
     });
 
-    const acceptRideUseCase = new AcceptRideUseCase({ unitOfWork, rideEventRepo: new MemoryRideEventRepository(),
+    const acceptRideUseCase = new AcceptRideUseCase({
+      unitOfWork,
+      rideEventRepo: new MemoryRideEventRepository(),
       requireDriverEligibility: async () => 'test-vehicle',
       rideRepo,
       walletRepo,
       otpTtlMinutes: 20,
     });
 
-    const startRideUseCase = new StartRideUseCase({ unitOfWork, rideEventRepo: new MemoryRideEventRepository(),
+    const startRideUseCase = new StartRideUseCase({
+      unitOfWork,
+      rideEventRepo: new MemoryRideEventRepository(),
       rideRepo,
     });
 
@@ -184,6 +200,34 @@ describe('Quote Lifecycle & First-to-Accept Ride Engine', () => {
     expect(payload.vehicleCategory).toBe('CAB');
   });
 
+  it('freezes toll estimates in signed quotes and rides without changing fare or negotiation', async () => {
+    const h = setupEngine({ exists: true, estimatedAmountPaise: 19999, currency: 'INR' });
+    const input = {
+      pickup: { lat: 26.72, lng: 88.43 },
+      drop: { lat: 26.74, lng: 88.45 },
+      vehicleCategory: 'CAB' as const,
+    };
+    const quote = await h.quoteUseCase.execute(input);
+    const other = setupEngine({ exists: false, estimatedAmountPaise: 0, currency: 'INR' });
+    const noToll = await other.quoteUseCase.execute(input);
+    expect(quote.suggestedFarePaise).toBe(noToll.suggestedFarePaise);
+    expect(quote.negotiation).toEqual(noToll.negotiation);
+    const ride = await h.createRideUseCase.execute({
+      ...input,
+      riderId: 'rider-toll',
+      passengerName: 'Test',
+      passengerPhoneE164: '+919876543210',
+      proposedFarePaise: quote.suggestedFarePaise,
+      quoteToken: quote.quoteToken,
+    });
+    expect(ride.tollSnapshot).toEqual(quote.tollSnapshot);
+    const [payload, signature] = quote.quoteToken.split('.');
+    const decoded = JSON.parse(Buffer.from(payload!, 'base64url').toString());
+    decoded.tollSnapshot.estimatedAmountPaise = 0;
+    const tampered = `${Buffer.from(JSON.stringify(decoded)).toString('base64url')}.${signature}`;
+    expect(() => CreateQuoteUseCase.verifyQuoteToken(tampered, TEST_SECRET)).toThrow();
+  });
+
   it('rejects expired quotes (5-minute TTL)', async () => {
     const { quoteUseCase } = setupEngine();
 
@@ -219,7 +263,7 @@ describe('Quote Lifecycle & First-to-Accept Ride Engine', () => {
         passengerName: 'Jane Rider',
         passengerPhoneE164: '+919876543210',
         pickup: { lat: 26.72, lng: 88.42 },
-        drop: { lat: 26.90, lng: 88.60 }, // Modified destination!
+        drop: { lat: 26.9, lng: 88.6 }, // Modified destination!
         vehicleCategory: 'CAB',
       }),
     ).rejects.toThrow('QUOTE_MISMATCH');
@@ -269,18 +313,21 @@ describe('Quote Lifecycle & First-to-Accept Ride Engine', () => {
 
   it('uses an admin-saved active price through quote and ride creation', async () => {
     const { pricingConfigRepo, quoteUseCase, createRideUseCase } = setupEngine();
-    const saved = await new CreatePricingConfigUseCase(pricingConfigRepo, unitOfWork).execute({
-      level: 'CITY',
-      cityZoneId: siliguriCityZone.id,
-      vehicleType: 'CAB',
-      baseFarePaise: 7000,
-      ratePerKmPaise: 2000,
-      minimumFarePaise: 8000,
-      outstationBaseFarePaise: 9000,
-      outstationRatePerKmPaise: 2400,
-      outstationMinimumFarePaise: 15000,
-      status: 'ACTIVE',
-    }, 'admin-1');
+    const saved = await new CreatePricingConfigUseCase(pricingConfigRepo, unitOfWork).execute(
+      {
+        level: 'CITY',
+        cityZoneId: siliguriCityZone.id,
+        vehicleType: 'CAB',
+        baseFarePaise: 7000,
+        ratePerKmPaise: 2000,
+        minimumFarePaise: 8000,
+        outstationBaseFarePaise: 9000,
+        outstationRatePerKmPaise: 2400,
+        outstationMinimumFarePaise: 15000,
+        status: 'ACTIVE',
+      },
+      'admin-1',
+    );
     const pickup = { lat: 26.72, lng: 88.42 };
     const drop = { lat: 26.75, lng: 88.45 };
     const quote = await quoteUseCase.execute({ pickup, drop, vehicleCategory: 'CAB' });
@@ -666,7 +713,9 @@ describe('Quote Lifecycle & First-to-Accept Ride Engine', () => {
     it('rejects quote creation with NO_ACTIVE_ZONE only when zero active city zones exist system-wide', async () => {
       const emptyZoneRepo = new MemoryZoneRepository();
       const resolveZonesUseCase = new ResolveZonesUseCase({ zoneRepo: emptyZoneRepo });
-      const serviceClassificationUseCase = new ServiceClassificationUseCase({ resolveZonesUseCase });
+      const serviceClassificationUseCase = new ServiceClassificationUseCase({
+        resolveZonesUseCase,
+      });
       const pricingConfigRepo = new MemoryPricingConfigRepository();
 
       const quoteUseCase = new CreateQuoteUseCase({

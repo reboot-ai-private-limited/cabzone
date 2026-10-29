@@ -1,8 +1,5 @@
-import { createRouteNameResolver } from './location-names';
-import Constants from 'expo-constants';
-import { Platform } from 'react-native';
-import { getAccessToken, getOrCreateDeviceId, getRefreshToken, saveAuthTokens } from './storage';
 import type {
+  ProposeRideExtensionRequestDto,
   CancellationReason,
   CreateQuoteResponseDto,
   QuoteRequestDto,
@@ -21,6 +18,10 @@ import type {
   VerifyOtpResponseDto,
   ZoneDto,
 } from '@cabzone/contracts';
+import { createRouteNameResolver } from './location-names';
+import Constants from 'expo-constants';
+import { Platform } from 'react-native';
+import { getAccessToken, getOrCreateDeviceId, getRefreshToken, saveAuthTokens } from './storage';
 
 export type RiderRideViewDto = RideDto & {
   pickupOtp?: string;
@@ -336,6 +337,17 @@ export interface CreateRiderRidePayload {
 }
 
 export const riderRidesApi = {
+  async proposeExtension(
+    token: string,
+    rideId: string,
+    input: ProposeRideExtensionRequestDto,
+  ): Promise<RiderRideViewDto> {
+    return request(
+      `/api/v1/rides/${rideId}/extensions`,
+      { method: 'POST', body: JSON.stringify(input) },
+      token,
+    );
+  },
   async switchToCash(
     token: string,
     rideId: string,

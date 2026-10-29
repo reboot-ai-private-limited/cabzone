@@ -1,3 +1,4 @@
+import { tollDisclosure, type QuoteDto, type VehicleCategory } from '@cabzone/contracts';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -17,7 +18,7 @@ import BookingMap from './booking-map';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
-import type { QuoteDto, VehicleCategory } from '@cabzone/contracts';
+
 import { colors, radii, spacing, typography } from '@/design-system';
 import { useAuth } from '@/context/auth-context';
 import { useRide } from '@/context/ride-context';
@@ -685,6 +686,11 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
               </Pressable>
             </View>
 
+            {activeQuote ? (
+              <Text style={{ fontSize: 12, color: colors.secondary }}>
+                {tollDisclosure(activeQuote.tollSnapshot)}
+              </Text>
+            ) : null}
             {(activeQuote.arrearsPaise ?? 0) > 0 ? (
               <View style={styles.bufferNotice}>
                 <Ionicons name="information-circle-outline" size={15} color={colors.brandBrown} />

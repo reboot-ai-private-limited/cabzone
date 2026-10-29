@@ -1,6 +1,9 @@
 import type { RideEntity } from './ride.entity.js';
 
 export type RideLifecycleEvent =
+  | 'ride.extension.requested'
+  | 'ride.extension.rejected'
+  | 'ride.extended'
   | 'ride.driver.assigned'
   | 'ride.driver.en_route'
   | 'ride.driver.arrived'

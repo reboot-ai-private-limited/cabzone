@@ -1,3 +1,9 @@
+import {
+  tollDisclosure,
+  calculateNegotiationBounds,
+  type CancellationReason,
+  type RideEventDto,
+} from '@cabzone/contracts';
 import { locationLabel } from '@/services/location-names';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -18,11 +24,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import {
-  calculateNegotiationBounds,
-  type CancellationReason,
-  type RideEventDto,
-} from '@cabzone/contracts';
+
 import { useAuth } from '@/context/auth-context';
 import { useRide } from '@/context/ride-context';
 import type { RiderRideViewDto } from '@/services/api';
@@ -627,6 +629,9 @@ export default function ActiveRideScreen() {
               </View>
             ) : null}
 
+            <Text style={{ fontSize: 12, color: colors.secondary, paddingVertical: 8 }}>
+              {tollDisclosure(ride.tollSnapshot, ride.extensionProposal?.status === 'ACCEPTED')}
+            </Text>
             {/* PAYMENT PENDING INSTRUCTION CARD (D-040) */}
             {ride.status === 'PAYMENT_PENDING' || ride.status === 'TRIP_COMPLETED' ? (
               <UpiPaymentPanel
@@ -891,11 +896,7 @@ export default function ActiveRideScreen() {
               accessibilityLiveRegion="polite"
             >
               <Ionicons
-                name={
-                  cancelPreview.feePaise > 0
-                    ? 'warning-outline'
-                    : 'checkmark-circle-outline'
-                }
+                name={cancelPreview.feePaise > 0 ? 'warning-outline' : 'checkmark-circle-outline'}
                 size={20}
                 color={cancelPreview.feePaise > 0 ? colors.brandBrown : colors.success}
               />
@@ -908,9 +909,7 @@ export default function ActiveRideScreen() {
                 <Text style={styles.waitingCountersSub}>{cancelPreview.summaryText}</Text>
               </View>
             </View>
-            {isSearching ? (
-              null
-            ) : null}
+            {isSearching ? null : null}
             {RIDER_CANCEL_REASONS.map((r) => (
               <Pressable
                 key={r.code}
