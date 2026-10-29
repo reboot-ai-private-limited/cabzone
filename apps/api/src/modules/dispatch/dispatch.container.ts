@@ -38,7 +38,7 @@ import {
 } from './interface/adminDispatch.controller.js';
 import { buildDispatchRouter, buildPushTokenRouter } from './interface/dispatch.routes.js';
 import { buildAdminDispatchRouter } from './interface/adminDispatch.routes.js';
-import { registerDispatchSwaggerPaths } from './interface/dispatch.swagger.js';
+import { registerDispatchSwaggerPaths, registerPushTokenSwaggerPaths } from './interface/dispatch.swagger.js';
 
 export interface DispatchContainerDeps {
   presence: DriverPresencePort;
@@ -74,6 +74,7 @@ export interface DispatchContainer {
 
 export function buildDispatchContainer(deps: DispatchContainerDeps): DispatchContainer {
   registerDispatchSwaggerPaths();
+  registerPushTokenSwaggerPaths();
   const config: DispatchConfig = { ...DEFAULT_DISPATCH_CONFIG, ...deps.config };
   const eligibility = new DriverOfferEligibility(deps.walletRepo, deps.rideRepo);
   const findCandidates = new FindCandidateDriversUseCase(deps.presence, eligibility, config);

@@ -63,6 +63,14 @@ function collectExpressEndpoints(app: Express): Set<string> {
 }
 
 describe('Swagger & OpenAPI Documentation', () => {
+  it('mounts shared rider/driver push token routes and documents them before serving OpenAPI', async () => {
+    const app = createApp();
+    const spec = await request(app).get('/api/docs/json').expect(200);
+    expect(spec.body.paths['/v1/push-token']?.post).toBeDefined();
+    expect(spec.body.paths['/v1/push-token']?.delete).toBeDefined();
+    await request(app).post('/api/v1/push-token').send({}).expect(401);
+    await request(app).delete('/api/v1/push-token').send({}).expect(401);
+  });
   it('serves OpenAPI 3.0 specification JSON at /api/docs/json', async () => {
     const app = createApp();
     const res = await request(app).get('/api/docs/json');
