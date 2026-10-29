@@ -1,3 +1,4 @@
+import { locationLabel } from '@/services/location-names';
 import React, { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -65,15 +66,13 @@ export default function ActivityScreen() {
       lat: ride.pickup.lat,
       lng: ride.pickup.lng,
       address:
-        ride.pickup.address ||
-        `Pin (${ride.pickup.lat.toFixed(3)}, ${ride.pickup.lng.toFixed(3)})`,
+        locationLabel(ride.pickup.address, 'Pickup location'),
     };
     const dropLoc = {
       lat: ride.drop.lat,
       lng: ride.drop.lng,
       address:
-        ride.drop.address ||
-        `Pin (${ride.drop.lat.toFixed(3)}, ${ride.drop.lng.toFixed(3)})`,
+        locationLabel(ride.drop.address, 'Destination'),
     };
 
     setBookingDraft({
@@ -253,13 +252,11 @@ export default function ActivityScreen() {
                     <View style={styles.historyRouteBlock}>
                       <Text style={styles.historyAddress} numberOfLines={1}>
                         🟢{' '}
-                        {ride.pickup.address ||
-                          `${ride.pickup.lat.toFixed(3)}, ${ride.pickup.lng.toFixed(3)}`}
+                        {locationLabel(ride.pickup.address, 'Pickup location')}
                       </Text>
                       <Text style={styles.historyAddress} numberOfLines={1}>
                         🟤{' '}
-                        {ride.drop.address ||
-                          `${ride.drop.lat.toFixed(3)}, ${ride.drop.lng.toFixed(3)}`}
+                        {locationLabel(ride.drop.address, 'Destination')}
                       </Text>
                     </View>
                   </Pressable>

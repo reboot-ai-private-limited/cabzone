@@ -1,3 +1,6 @@
+import { locationLabel } from '@/services/location-names';
+import { tollDisclosure } from '@cabzone/contracts';
+import { RideExtensionPanel } from './ride-extension-panel';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Animated,
@@ -65,8 +68,8 @@ export function OngoingRideView({
       : Math.min(420, height * 0.55);
   const expandedHeight = Math.max(collapsedHeight + 1, height - 72);
   const fare = ride.agreedFarePaise ?? ride.proposedFarePaise ?? ride.suggestedFarePaise;
-  const pickup = { ...ride.pickup, address: ride.pickup.address || 'Pickup location' };
-  const drop = { ...ride.drop, address: ride.drop.address || 'Destination' };
+  const pickup = { ...ride.pickup, address: locationLabel(ride.pickup.address, 'Pickup location') };
+  const drop = { ...ride.drop, address: locationLabel(ride.drop.address, 'Destination') };
   const driverInfo = useMemo(() => formatAssignedDriverSummary(ride), [ride]);
   const routeCoordinates = useMemo(() => {
     try {
@@ -427,6 +430,10 @@ export function OngoingRideView({
               {formatRupeesFromPaise(fare)}
             </Text>
           </View>
+          <Text style={styles.caption}>
+            {tollDisclosure(ride.tollSnapshot, ride.extensionProposal?.status === 'ACCEPTED')}
+          </Text>
+          <RideExtensionPanel ride={ride} onRefresh={onRefresh} />
 
           {expanded ? (
             <>

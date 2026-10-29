@@ -85,6 +85,31 @@ const schema = z.object({
     .regex(/^\d{6}$/, 'DEV_FIXED_OTP must be exactly 6 digits')
     .optional(),
 
+  /** Transactional SMS gateway configuration (Step 16 / C03) */
+  SMS_PROVIDER: z.enum(['console', 'msg91', 'twilio', 'webhook']).default('console'),
+  SMS_SENDER_ID: z.string().min(1).optional(),
+  SMS_DLT_TEMPLATE_ID: z.string().min(1).optional(),
+  SMS_MSG91_AUTH_KEY: z.string().min(1).optional(),
+  SMS_TWILIO_ACCOUNT_SID: z.string().min(1).optional(),
+  SMS_TWILIO_AUTH_TOKEN: z.string().min(1).optional(),
+  SMS_TWILIO_FROM: z.string().min(1).optional(),
+  SMS_WEBHOOK_URL: z.string().url().optional(),
+  SMS_WEBHOOK_AUTH_TOKEN: z.string().min(1).optional(),
+  SMS_TIMEOUT_MS: z.coerce.number().int().min(1000).max(30000).default(8000),
+  SMS_MAX_RETRIES: z.coerce.number().int().min(0).max(5).default(2),
+
+  /** Expo push access token for authenticated push delivery (Step 8 / C05) */
+  EXPO_ACCESS_TOKEN: z.string().min(1).optional(),
+
+  /** Operational alerting and realtime readiness (Step 16 / C07) */
+  ALERT_WEBHOOK_URL: z.string().url().optional(),
+  ALERT_OWNER: z.string().min(1).default('platform-ops'),
+  API_LATENCY_ALERT_MS: z.coerce.number().int().min(250).max(60000).default(2500),
+  ALLOW_LOCAL_REALTIME_FALLBACK: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true'),
+
   /** Routing module configuration */
   ROUTING_PROVIDER: z
     .enum(['google', 'haversine'])
@@ -141,6 +166,54 @@ export const isProdLike = isProduction || isStaging;
 
 export const allowDevShortcuts = isDevelopment || (isStaging && env.STAGING_UNSAFE);
 
+export function validateLoadedEnv(data: Env): Env {
+  // Dual-lock: DEV_FIXED_OTP must NEVER run in live production
+  if (data.NODE_ENV === 'production' && data.DEV_FIXED_OTP !== undefined) {
+    throw new Error(
+      'Invalid environment:\n  DEV_FIXED_OTP: must not be set when NODE_ENV=production. ' +
+        'Fixed OTP is strictly forbidden in live production.',
+    );
+  }
+
+  const requiresRealSms =
+    data.NODE_ENV === 'production' ||
+    ((data.NODE_ENV === 'stage' || data.NODE_ENV === 'staging') && !data.STAGING_UNSAFE);
+  if (requiresRealSms && data.SMS_PROVIDER === 'console') {
+    throw new Error(
+      'Invalid environment:\n  SMS_PROVIDER: must be msg91, twilio, or webhook when live authentication is active.',
+    );
+  }
+  if (data.SMS_PROVIDER === 'msg91') {
+    if (!data.SMS_MSG91_AUTH_KEY || !data.SMS_SENDER_ID || !data.SMS_DLT_TEMPLATE_ID) {
+      throw new Error(
+        'Invalid environment:\n  SMS_MSG91_AUTH_KEY, SMS_SENDER_ID, and SMS_DLT_TEMPLATE_ID are required when SMS_PROVIDER="msg91".',
+      );
+    }
+  } else if (data.SMS_PROVIDER === 'twilio') {
+    if (!data.SMS_TWILIO_ACCOUNT_SID || !data.SMS_TWILIO_AUTH_TOKEN || !data.SMS_TWILIO_FROM) {
+      throw new Error(
+        'Invalid environment:\n  SMS_TWILIO_ACCOUNT_SID, SMS_TWILIO_AUTH_TOKEN, and SMS_TWILIO_FROM are required when SMS_PROVIDER="twilio".',
+      );
+    }
+  } else if (data.SMS_PROVIDER === 'webhook' && !data.SMS_WEBHOOK_URL) {
+    throw new Error(
+      'Invalid environment:\n  SMS_WEBHOOK_URL is required when SMS_PROVIDER="webhook".',
+    );
+  }
+
+  // Google Routes API key validation when provider is google
+  if (data.NODE_ENV === 'production' && data.ROUTING_PROVIDER === 'haversine') {
+    throw new Error('Invalid environment: production requires a road-routing provider.');
+  }
+  if (data.ROUTING_PROVIDER === 'google' && !data.GOOGLE_ROUTES_API_KEY) {
+    throw new Error(
+      'Invalid environment:\n  GOOGLE_ROUTES_API_KEY: is required when ROUTING_PROVIDER="google".',
+    );
+  }
+
+  return data;
+}
+
 export function loadEnv(): Env {
   if (!parsed.success) {
     const issues = parsed.error.issues.map((i) => `  ${i.path.join('.')}: ${i.message}`).join('\n');
@@ -148,24 +221,10 @@ export function loadEnv(): Env {
     process.exit(1);
   }
 
-  // Dual-lock: DEV_FIXED_OTP must NEVER run in live production
-  if (parsed.data.NODE_ENV === 'production' && parsed.data.DEV_FIXED_OTP !== undefined) {
-    console.error(
-      'Invalid environment:\n  DEV_FIXED_OTP: must not be set when NODE_ENV=production. ' +
-        'Fixed OTP is strictly forbidden in live production.',
-    );
-    process.exit(1);
-  }
-
-  // Google Routes API key validation when provider is google
-  if (parsed.data.NODE_ENV === 'production' && parsed.data.ROUTING_PROVIDER === 'haversine') {
-    console.error('Invalid environment: production requires a road-routing provider.');
-    process.exit(1);
-  }
-  if (parsed.data.ROUTING_PROVIDER === 'google' && !parsed.data.GOOGLE_ROUTES_API_KEY) {
-    console.error(
-      'Invalid environment:\n  GOOGLE_ROUTES_API_KEY: is required when ROUTING_PROVIDER="google".',
-    );
+  try {
+    validateLoadedEnv(parsed.data);
+  } catch (err) {
+    console.error(err instanceof Error ? err.message : String(err));
     process.exit(1);
   }
 

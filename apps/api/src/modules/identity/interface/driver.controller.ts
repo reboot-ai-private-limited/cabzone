@@ -241,7 +241,10 @@ export function makeStreamAdminDocumentContentController(
 
     res.setHeader('Content-Type', content.mimeType);
     res.setHeader('Content-Disposition', `inline; filename="${content.filename}"`);
-    res.setHeader('Cache-Control', 'private, no-store, max-age=0');
+    res.setHeader('Cache-Control', 'private, no-store, no-cache, max-age=0, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader(
       'Content-Security-Policy',

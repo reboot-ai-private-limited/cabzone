@@ -1,3 +1,11 @@
+import {
+  tollDisclosure,
+  type CancellationReason,
+  type RideDto,
+  type RideStatus,
+} from '@cabzone/contracts';
+import { RideExtensionPanel } from '@/components/driver/ride-extension-panel';
+import { locationLabel } from '@/services/location-names';
 import React, { useCallback, useEffect, useState } from 'react';
 import { RidePaymentQr } from '@/components/driver/ride-payment-qr';
 import { RideRatingCard } from '@/components/driver/ride-rating-card';
@@ -16,7 +24,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import type { CancellationReason, RideDto, RideStatus } from '@cabzone/contracts';
+
 import { useRide } from '@/context/ride-context';
 import { computeRideEarningsBreakdown } from '@/context/duty-context';
 import { colors, typography } from '@/design-system';
@@ -362,7 +370,11 @@ export default function ActiveRideScreen() {
           </View>
         ) : null}
 
+        <Text style={{ fontSize: 12, color: colors.secondary, paddingVertical: 8 }}>
+          {tollDisclosure(ride.tollSnapshot, ride.extensionProposal?.status === 'ACCEPTED')}
+        </Text>
         {/* Stage Hero Card */}
+        <RideExtensionPanel ride={ride} onRefresh={loadRide} />
         <View style={styles.heroCard}>
           {/* 5-Step Lifecycle Progress Bar */}
           {ride.status !== 'CANCELLED' && ride.status !== 'PAYMENT_DISPUTED' ? (
@@ -495,8 +507,7 @@ export default function ActiveRideScreen() {
             <View style={{ flex: 1 }}>
               <Text style={styles.pointLabel}>PICKUP</Text>
               <Text style={styles.pointAddress}>
-                {ride.pickup.address ||
-                  `${ride.pickup.lat.toFixed(4)}, ${ride.pickup.lng.toFixed(4)}`}
+                {locationLabel(ride.pickup.address, 'Pickup location')}
               </Text>
             </View>
           </View>
@@ -508,7 +519,7 @@ export default function ActiveRideScreen() {
             <View style={{ flex: 1 }}>
               <Text style={styles.pointLabel}>DESTINATION</Text>
               <Text style={styles.pointAddress}>
-                {ride.drop.address || `${ride.drop.lat.toFixed(4)}, ${ride.drop.lng.toFixed(4)}`}
+                {locationLabel(ride.drop.address, 'Destination')}
               </Text>
             </View>
           </View>
@@ -653,10 +664,7 @@ export default function ActiveRideScreen() {
         ) : null}
 
         {ride.status === 'SETTLED' ? (
-          <RideRatingCard
-            rideId={ride.id}
-            passengerName={ride.passenger?.name || 'Passenger'}
-          />
+          <RideRatingCard rideId={ride.id} passengerName={ride.passenger?.name || 'Passenger'} />
         ) : null}
 
         {ride.status === 'SETTLED' ||

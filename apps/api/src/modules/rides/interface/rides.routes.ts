@@ -1,6 +1,8 @@
 import { Router, type RequestHandler } from 'express';
 
 export interface RidesRouterDeps {
+  proposeExtension?: RequestHandler;
+  respondExtension?: RequestHandler;
   authenticate: RequestHandler;
   requireRider: RequestHandler;
   requireDriver: RequestHandler;
@@ -74,6 +76,10 @@ export function buildRidesRouter(deps: RidesRouterDeps): Router {
   router.get('/:id/events', deps.requireCanRead, deps.getRideEvents);
   router.get('/:id/rating', deps.requireCanRead, deps.getRideRating);
   router.post('/:id/rating', deps.requireCanCancel, deps.submitRideRating);
+  if (deps.proposeExtension)
+    router.post('/:id/extensions', deps.requireRider, deps.proposeExtension);
+  if (deps.respondExtension)
+    router.post('/:id/extensions/:extensionId/respond', deps.requireDriver, deps.respondExtension);
   router.post('/:id/cancel', deps.requireCanCancel, deps.cancelRide);
   router.post('/:id/cancellation-fee/waive', deps.requireWaiverAdmin, deps.waiveCancellationFee);
 

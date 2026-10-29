@@ -1,17 +1,25 @@
-// Stub for expo-notifications in Expo Go SDK 53+ when EXPO_USE_PUSH !== '1'
+/**
+ * No-op stub for expo-notifications in Expo Go (SDK 53+ removed remote push support).
+ * Metro resolves to this file only in local Expo Go mode (never in --push, EAS_BUILD, or production).
+ */
+const noop = () => {};
+const noopAsync = async () => null;
+const noopSub = { remove: noop };
+
 module.exports = {
-  setNotificationHandler: () => {},
-  getPermissionsAsync: async () => ({ status: 'undetermined', granted: false }),
+  setNotificationHandler: noop,
+  getPermissionsAsync: async () => ({ status: 'denied', granted: false }),
   requestPermissionsAsync: async () => ({ status: 'denied', granted: false }),
-  getExpoPushTokenAsync: async () => ({ data: '' }),
-  setNotificationChannelAsync: async () => null,
-  addNotificationReceivedListener: () => ({ remove: () => {} }),
-  addNotificationResponseReceivedListener: () => ({ remove: () => {} }),
-  addPushTokenListener: () => ({ remove: () => {} }),
-  getLastNotificationResponseAsync: async () => null,
-  AndroidImportance: {
-    MAX: 5,
-    HIGH: 4,
-    DEFAULT: 3,
+  getExpoPushTokenAsync: async () => {
+    throw new Error('Remote push requires a Cabzone development or release build');
   },
+  setNotificationChannelAsync: noopAsync,
+  scheduleNotificationAsync: noopAsync,
+  addNotificationReceivedListener: () => noopSub,
+  addNotificationResponseReceivedListener: () => noopSub,
+  addPushTokenListener: () => noopSub,
+  getLastNotificationResponse: () => null,
+  getLastNotificationResponseAsync: noopAsync,
+  clearLastNotificationResponse: noop,
+  AndroidImportance: { MAX: 5, HIGH: 4, DEFAULT: 3, LOW: 2, MIN: 1 },
 };

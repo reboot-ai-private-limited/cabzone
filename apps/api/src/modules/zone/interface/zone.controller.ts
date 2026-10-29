@@ -99,7 +99,7 @@ export function makeActivateZoneController(useCase: ActivateZoneUseCase): Reques
 export function makeDeactivateZoneController(useCase: DeactivateZoneUseCase): RequestHandler {
   return asyncHandler(async (req: Request, res: Response) => {
     const { id } = zoneIdParamSchema.parse(req.params);
-    const { reason } = deactivateZoneSchema.parse(req.body);
+    const { reason } = deactivateZoneSchema.parse(req.body ?? {});
     const actorId = req.auth?.userId ?? 'system';
     const result = await useCase.execute(id, actorId, reason);
     sendSuccess(req, res, result, 'Zone deactivated successfully', 200);

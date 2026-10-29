@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { Buffer } from 'node:buffer';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -6,6 +7,27 @@ import vm from 'node:vm';
 
 const require = createRequire(import.meta.url);
 const ts = require('typescript');
+const tollExports = {};
+vm.runInNewContext(
+  ts.transpileModule(
+    readFileSync(
+      new URL('../../../../../packages/contracts/src/tolls.ts', import.meta.url),
+      'utf8',
+    ),
+    {
+      compilerOptions: { module: ts.ModuleKind.CommonJS },
+    },
+  ).outputText,
+  { exports: tollExports },
+);
+
+const locationCode = ts.transpileModule(
+  readFileSync(new URL('../../services/location-names.ts', import.meta.url), 'utf8'),
+  { compilerOptions: { module: ts.ModuleKind.ESNext } },
+).outputText;
+const locationNames = await import(
+  `data:text/javascript;base64,${Buffer.from(locationCode).toString('base64')}`
+);
 const code = ts.transpileModule(
   readFileSync(new URL('./ongoing-ride-view.tsx', import.meta.url), 'utf8'),
   {
@@ -47,6 +69,7 @@ function screen(clock = Date.now()) {
     },
     exports: module.exports,
     require: (name) => {
+      if (name === './location-names' || name === '@/services/location-names') return locationNames;
       if (name === 'react') return React;
       if (name === 'react-native')
         return {
@@ -75,7 +98,8 @@ function screen(clock = Date.now()) {
           ],
         };
       if (name === '@cabzone/contracts')
-        return { VEHICLE_CATEGORY_REGISTRY: { CAB: { displayName: 'Cab' } } };
+        return { ...tollExports, VEHICLE_CATEGORY_REGISTRY: { CAB: { displayName: 'Cab' } } };
+      if (name === './ride-extension-panel') return { RideExtensionPanel: 'RideExtensionPanel' };
       if (name.includes('rider-helpers'))
         return {
           formatRupeesFromPaise: (value) => `₹${value / 100}`,
@@ -308,7 +332,6 @@ test('map controls reveal the route and recenter without editing the booking', (
   assert.equal(map.props.readOnly, true);
   assert.equal(map.props.cameraVersion, 1);
 });
-
 
 test('ongoing ride sheet surfaces previous cancellation fee arrears alongside agreed fare', () => {
   const s = screen();

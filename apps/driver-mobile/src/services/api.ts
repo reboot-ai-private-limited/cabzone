@@ -1,7 +1,5 @@
-import Constants from 'expo-constants';
-import { Platform } from 'react-native';
-import { getAccessToken, getOrCreateDeviceId, getRefreshToken, saveAuthTokens } from './storage';
 import type {
+  TollSnapshot,
   CancellationReason,
   DriverDocumentDto,
   DriverDto,
@@ -26,6 +24,10 @@ import type {
   WalletOperationDto,
   WalletTransactionDto,
 } from '@cabzone/contracts';
+import { createRouteNameResolver } from './location-names';
+import Constants from 'expo-constants';
+import { Platform } from 'react-native';
+import { getAccessToken, getOrCreateDeviceId, getRefreshToken, saveAuthTokens } from './storage';
 
 export type { DriverProfileDetailDto };
 
@@ -150,6 +152,23 @@ async function recoverAccessToken(failedToken: string): Promise<string> {
   return refreshInFlight;
 }
 
+const resolveRouteNames = createRouteNameResolver(async (lat, lng) => {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 4000);
+  try {
+    const response = await fetch(
+      `${API_BASE_URL}/api/v1/routing/reverse-geocode?lat=${lat}&lng=${lng}`,
+      { signal: controller.signal },
+    );
+    if (!response.ok) throw new Error('Location lookup unavailable');
+    const result = await response.json();
+    if (!result.success || !result.data) throw new Error('Location lookup unavailable');
+    return result.data;
+  } finally {
+    clearTimeout(timeout);
+  }
+});
+
 async function request<T>(
   path: string,
   options: RequestInit = {},
@@ -199,7 +218,9 @@ async function request<T>(
     });
   }
 
-  return json.data;
+  return /\/rides(?:\/|$|\?)|\/driver\/offers/.test(path)
+    ? resolveRouteNames(json.data)
+    : json.data;
 }
 
 export const authApi = {
@@ -362,6 +383,7 @@ export interface UpdateLocationPayload {
 }
 
 export interface RideOfferDto {
+  tollSnapshot?: TollSnapshot | null;
   rideId: string;
   vehicleCategory: VehicleCategory;
   pickup: {
@@ -460,6 +482,18 @@ export const dispatchApi = {
 };
 
 export const ridesApi = {
+  async respondExtension(
+    token: string,
+    rideId: string,
+    extensionId: string,
+    decision: 'ACCEPT' | 'REJECT',
+  ): Promise<RideDto> {
+    return request(
+      `/api/v1/rides/${rideId}/extensions/${extensionId}/respond`,
+      { method: 'POST', body: JSON.stringify({ decision }) },
+      token,
+    );
+  },
   async switchToCash(
     token: string,
     rideId: string,

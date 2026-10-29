@@ -1,7 +1,5 @@
-import Constants from 'expo-constants';
-import { Platform } from 'react-native';
-import { getAccessToken, getOrCreateDeviceId, getRefreshToken, saveAuthTokens } from './storage';
 import type {
+  ProposeRideExtensionRequestDto,
   CancellationReason,
   CreateQuoteResponseDto,
   QuoteRequestDto,
@@ -20,6 +18,10 @@ import type {
   VerifyOtpResponseDto,
   ZoneDto,
 } from '@cabzone/contracts';
+import { createRouteNameResolver } from './location-names';
+import Constants from 'expo-constants';
+import { Platform } from 'react-native';
+import { getAccessToken, getOrCreateDeviceId, getRefreshToken, saveAuthTokens } from './storage';
 
 export type RiderRideViewDto = RideDto & {
   pickupOtp?: string;
@@ -160,6 +162,23 @@ async function recoverAccessToken(failedToken: string): Promise<string> {
   return refreshInFlight;
 }
 
+const resolveRouteNames = createRouteNameResolver(async (lat, lng) => {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 4000);
+  try {
+    const response = await fetch(
+      `${API_BASE_URL}/api/v1/routing/reverse-geocode?lat=${lat}&lng=${lng}`,
+      { signal: controller.signal },
+    );
+    if (!response.ok) throw new Error('Location lookup unavailable');
+    const result = await response.json();
+    if (!result.success || !result.data) throw new Error('Location lookup unavailable');
+    return result.data;
+  } finally {
+    clearTimeout(timeout);
+  }
+});
+
 async function request<T>(
   path: string,
   options: RequestInit = {},
@@ -209,7 +228,9 @@ async function request<T>(
     });
   }
 
-  return json.data;
+  return /\/rides(?:\/|$|\?)|\/driver\/offers/.test(path)
+    ? resolveRouteNames(json.data)
+    : json.data;
 }
 
 export const authApi = {
@@ -316,6 +337,17 @@ export interface CreateRiderRidePayload {
 }
 
 export const riderRidesApi = {
+  async proposeExtension(
+    token: string,
+    rideId: string,
+    input: ProposeRideExtensionRequestDto,
+  ): Promise<RiderRideViewDto> {
+    return request(
+      `/api/v1/rides/${rideId}/extensions`,
+      { method: 'POST', body: JSON.stringify(input) },
+      token,
+    );
+  },
   async switchToCash(
     token: string,
     rideId: string,
@@ -493,6 +525,28 @@ export const riderRidesApi = {
         method: 'POST',
         body: JSON.stringify({ reason }),
       },
+      token,
+    );
+  },
+};
+
+export const pushApi = {
+  async registerPushToken(
+    token: string,
+    pushToken: string,
+    installationId: string,
+  ): Promise<{ ok: boolean }> {
+    return request<{ ok: boolean }>(
+      '/api/v1/push-token',
+      { method: 'POST', body: JSON.stringify({ token: pushToken, installationId }) },
+      token,
+    );
+  },
+
+  async unregisterPushToken(token: string, installationId: string): Promise<{ ok: boolean }> {
+    return request<{ ok: boolean }>(
+      '/api/v1/push-token',
+      { method: 'DELETE', body: JSON.stringify({ installationId }) },
       token,
     );
   },

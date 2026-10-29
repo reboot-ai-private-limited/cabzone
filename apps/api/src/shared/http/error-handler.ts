@@ -2,7 +2,12 @@ import type { NextFunction, Request, Response } from 'express';
 import { ZodError } from 'zod';
 import { AppError } from '@/shared/errors/AppError.js';
 import { logger } from '@/shared/logging/logger.js';
+import { emitOperationalAlert } from '@/shared/monitoring/alerting.js';
 import { buildErrorBody } from './response.util.js';
+
+function stripQuery(url: string): string {
+  return url.split('?')[0] ?? url;
+}
 
 function causeChain(err: unknown, depth = 0): string | undefined {
   if (!(err instanceof Error) || err.cause === undefined || depth > 4) return undefined;
@@ -18,6 +23,8 @@ export function errorHandler(
   res: Response,
   _next: NextFunction,
 ): void {
+  const safePath = stripQuery(req.originalUrl);
+
   if (
     err !== null &&
     typeof err === 'object' &&
@@ -39,12 +46,22 @@ export function errorHandler(
       {
         code: err.code,
         status: err.statusCode,
-        url: req.originalUrl,
+        url: safePath,
         details: err.details,
         ...(err.isExpected ? {} : { stack: err.stack, cause: causeChain(err) }),
       },
       'request failed',
     );
+
+    if (err.statusCode >= 500) {
+      void emitOperationalAlert({
+        category: 'API_5XX',
+        severity: 'critical',
+        dedupeKey: `API_5XX:${req.method}:${safePath}:${err.statusCode}`,
+        summary: `API ${err.statusCode} on ${req.method} ${safePath}`,
+        metadata: { method: req.method, path: safePath, statusCode: err.statusCode, code: err.code },
+      });
+    }
 
     res.status(err.statusCode).json(
       buildErrorBody(req, {
@@ -73,9 +90,16 @@ export function errorHandler(
 
   const stack = err instanceof Error ? err.stack : undefined;
   logger.error(
-    { url: req.originalUrl, err: String(err), stack, cause: causeChain(err) },
+    { url: safePath, err: String(err), stack, cause: causeChain(err) },
     'unhandled error',
   );
+  void emitOperationalAlert({
+    category: 'API_5XX',
+    severity: 'critical',
+    dedupeKey: `API_5XX:${req.method}:${safePath}:500`,
+    summary: `Unhandled API 500 on ${req.method} ${safePath}`,
+    metadata: { method: req.method, path: safePath, statusCode: 500 },
+  });
 
   res.status(500).json(
     buildErrorBody(req, {
@@ -88,11 +112,12 @@ export function errorHandler(
 }
 
 export function notFoundHandler(req: Request, res: Response): void {
+  const safePath = stripQuery(req.originalUrl);
   res.status(404).json(
     buildErrorBody(req, {
       statusCode: 404,
       code: 'NOT_FOUND',
-      message: `No route matches ${req.method} ${req.originalUrl}`,
+      message: `No route matches ${req.method} ${safePath}`,
     }),
   );
 }

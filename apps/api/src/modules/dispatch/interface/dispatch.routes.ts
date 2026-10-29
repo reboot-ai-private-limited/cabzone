@@ -1,14 +1,26 @@
 import { Router, type RequestHandler } from 'express';
+import { registerPushTokenSwaggerPaths } from './dispatch.swagger.js';
 
-export interface DispatchRouterDeps {
+export interface PushTokenRouterDeps {
   authenticate: RequestHandler;
+  registerPushToken: RequestHandler;
+  unregisterPushToken: RequestHandler;
+}
+
+export interface DispatchRouterDeps extends PushTokenRouterDeps {
   requireDriver: RequestHandler;
   setStatus: RequestHandler;
   getStatus: RequestHandler;
   updateLocation: RequestHandler;
   listOffers: RequestHandler;
-  registerPushToken: RequestHandler;
-  unregisterPushToken: RequestHandler;
+}
+
+export function buildPushTokenRouter(deps: PushTokenRouterDeps): Router {
+  registerPushTokenSwaggerPaths();
+  const router = Router();
+  router.post('/push-token', deps.authenticate, deps.registerPushToken);
+  router.delete('/push-token', deps.authenticate, deps.unregisterPushToken);
+  return router;
 }
 
 export function buildDispatchRouter(deps: DispatchRouterDeps): Router {

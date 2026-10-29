@@ -1,5 +1,7 @@
 # Cabzonee Engineering Handbook
 
+[29 October backend completion evidence and remaining gates](backend-completion-2026-10-29.md)
+
 This directory contains engineering standards for building **Cabzonee** from approved product requirements and architecture decisions.
 
 ## Documents

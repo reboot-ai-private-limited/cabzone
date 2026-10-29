@@ -26,6 +26,37 @@ describe('Routing Module', () => {
   });
 
   describe('GoogleRoutesProvider', () => {
+    it.each([
+      [{ estimatedPrice: [{ currencyCode: 'INR', units: '120', nanos: 500000000 }] }, true, 12050],
+      [{}, true, null],
+      [undefined, false, 0],
+      [{ estimatedPrice: [{ currencyCode: 'USD', units: '2' }] }, true, null],
+    ])(
+      'preserves toll existence and unknown costs separately from fare',
+      async (tollInfo, exists, amount) => {
+        const fakeFetch = vi.fn().mockResolvedValue({
+          status: 200,
+          json: async () => ({
+            routes: [
+              {
+                distanceMeters: 15000,
+                duration: '1000s',
+                travelAdvisory: { tollInfo },
+              },
+            ],
+          }),
+        });
+        const provider = new GoogleRoutesProvider({
+          apiKey: 'test',
+          fetchFn: fakeFetch as unknown as typeof fetch,
+        });
+        const result = await provider.calculateRoute(req);
+        expect(result.tollInfo).toEqual({ exists, estimatedAmountPaise: amount, currency: 'INR' });
+        const init = fakeFetch.mock.calls[0]![1];
+        expect(JSON.parse(init.body).extraComputations).toContain('TOLLS');
+        expect(init.headers['X-Goog-FieldMask']).toContain('routes.travelAdvisory.tollInfo');
+      },
+    );
     it('throws if constructed with empty API key', () => {
       expect(() => new GoogleRoutesProvider({ apiKey: '' })).toThrow();
     });
@@ -61,7 +92,7 @@ describe('Routing Module', () => {
       expect(url).toContain('routes.googleapis.com');
       expect(init.headers['X-Goog-Api-Key']).toBe('test-key');
       expect(init.headers['X-Goog-FieldMask']).toBe(
-        'routes.distanceMeters,routes.duration,routes.polyline.encodedPolyline',
+        'routes.distanceMeters,routes.duration,routes.polyline.encodedPolyline,routes.travelAdvisory.tollInfo',
       );
       const body = JSON.parse(init.body);
       expect(body.travelMode).toBe('DRIVE');
@@ -261,7 +292,10 @@ describe('Routing Module', () => {
           /Haversine route provider is strictly forbidden in production/,
         );
       } finally {
-        Object.defineProperty(envModule, 'isProduction', { value: originalIsProduction, configurable: true });
+        Object.defineProperty(envModule, 'isProduction', {
+          value: originalIsProduction,
+          configurable: true,
+        });
       }
     });
   });

@@ -1,8 +1,9 @@
 import React, { useMemo, type ReactNode } from 'react';
+import { tollDisclosure, type RideDto, type RideEventDto } from '@cabzone/contracts';
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { decodePolyline } from '@cabzone/geo';
-import type { RideDto, RideEventDto } from '@cabzone/contracts';
+
 import BookingMap from '@/components/booking/booking-map';
 import { colors, spacing, typography } from '@/design-system';
 import { rideReceipt } from '@/services/ride-receipt';
@@ -146,6 +147,9 @@ export function ReceiptSummary({
       </View>
       <View style={styles.section}>
         <Text style={styles.title}>{receipt.paid ? 'Payment' : 'Fare'}</Text>
+        <Text style={styles.body}>
+          {tollDisclosure(ride.tollSnapshot, ride.extensionProposal?.status === 'ACCEPTED')}
+        </Text>
         {receipt.arrearsPaise > 0 ? (
           <>
             <View style={styles.moneyRow}>
@@ -159,9 +163,7 @@ export function ReceiptSummary({
               <Text style={styles.value}>{receipt.arrearsAmount}</Text>
             </View>
             <View style={styles.moneyRow}>
-              <Text style={styles.body}>
-                {receipt.paid ? 'Total recorded' : 'Total payable'}
-              </Text>
+              <Text style={styles.body}>{receipt.paid ? 'Total recorded' : 'Total payable'}</Text>
               <Text style={styles.total}>{receipt.totalAmount}</Text>
             </View>
           </>

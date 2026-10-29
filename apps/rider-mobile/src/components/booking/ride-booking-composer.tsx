@@ -1,3 +1,4 @@
+import { tollDisclosure, type QuoteDto, type VehicleCategory } from '@cabzone/contracts';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -17,7 +18,7 @@ import BookingMap from './booking-map';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
-import type { QuoteDto, VehicleCategory } from '@cabzone/contracts';
+
 import { colors, radii, spacing, typography } from '@/design-system';
 import { useAuth } from '@/context/auth-context';
 import { useRide } from '@/context/ride-context';
@@ -143,9 +144,14 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
         vehicleCategory: selectedCategory,
       });
       setQuotes([response]);
-      const fare = preferredFareRef.current === null
-        ? response.suggestedFarePaise
-        : clampProposedFarePaise(preferredFareRef.current, response.negotiation.floorPaise, response.negotiation.ceilingPaise);
+      const fare =
+        preferredFareRef.current === null
+          ? response.suggestedFarePaise
+          : clampProposedFarePaise(
+              preferredFareRef.current,
+              response.negotiation.floorPaise,
+              response.negotiation.ceilingPaise,
+            );
       preferredFareRef.current = null;
       setProposedFarePaise(fare);
       setCustomFareInput(String(Math.round(fare / 100)));
@@ -217,7 +223,7 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
       });
       const lat = Number(pos.coords.latitude.toFixed(5));
       const lng = Number(pos.coords.longitude.toFixed(5));
-      let address = `GPS (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
+      let address = 'Current location';
       try {
         const resolved = await geoAndPricingApi.reverseGeocode(token, lat, lng);
         if (resolved.formattedAddress) {
@@ -226,7 +232,7 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
           address = `${resolved.city}${resolved.state ? `, ${resolved.state}` : ''}`;
         }
       } catch {
-        // fallback to coordinates label
+        // Keep a readable label when address lookup is unavailable.
       }
       if (target === 'DROP') {
         setBookingStarted(true);
@@ -274,12 +280,15 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
       return;
     }
     setIsResolvingPin(true);
-    let address = `Pin (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
+    let address = 'Selected location';
     try {
       const resolved = await geoAndPricingApi.reverseGeocode(token, lat, lng);
-      address = resolved.formattedAddress || [resolved.city, resolved.state].filter(Boolean).join(', ') || address;
+      address =
+        resolved.formattedAddress ||
+        [resolved.city, resolved.state].filter(Boolean).join(', ') ||
+        address;
     } catch {
-      // Keep coordinates if lookup is unavailable.
+      // Keep the selected-location label when lookup is unavailable.
     } finally {
       setIsResolvingPin(false);
     }
@@ -412,7 +421,7 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
       ? {
           lat: Number(customLat),
           lng: Number(customLng),
-          address: `Pin (${Number(customLat).toFixed(4)}, ${Number(customLng).toFixed(4)})`,
+          address: 'Selected location',
         }
       : null;
 
@@ -677,6 +686,11 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
               </Pressable>
             </View>
 
+            {activeQuote ? (
+              <Text style={{ fontSize: 12, color: colors.secondary }}>
+                {tollDisclosure(activeQuote.tollSnapshot)}
+              </Text>
+            ) : null}
             {(activeQuote.arrearsPaise ?? 0) > 0 ? (
               <View style={styles.bufferNotice}>
                 <Ionicons name="information-circle-outline" size={15} color={colors.brandBrown} />
@@ -818,7 +832,9 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
                     disabled={!pinCandidate || isResolvingPin}
                     onPress={() => void handleApplyCustomCoords()}
                   >
-                    {isResolvingPin ? <ActivityIndicator color={colors.deepBrown} /> : (
+                    {isResolvingPin ? (
+                      <ActivityIndicator color={colors.deepBrown} />
+                    ) : (
                       <>
                         <Text style={styles.placePrimaryText}>
                           Set {pickerTarget === 'DROP' ? 'destination' : 'pickup'}
@@ -1118,9 +1134,7 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
             <Text style={styles.visualNodeName} numberOfLines={1}>
               {pickup.address.split(',')[0]}
             </Text>
-            <Text style={styles.visualNodeCoord}>
-              {pickup.lat.toFixed(3)}, {pickup.lng.toFixed(3)}
-            </Text>
+            <Text style={styles.visualNodeCoord}>{pickup.address}</Text>
           </View>
 
           <View style={styles.visualRouteConnector}>
@@ -1136,9 +1150,7 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
             <Text style={styles.visualNodeName} numberOfLines={1}>
               {drop.address.split(',')[0]}
             </Text>
-            <Text style={styles.visualNodeCoord}>
-              {drop.lat.toFixed(3)}, {drop.lng.toFixed(3)}
-            </Text>
+            <Text style={styles.visualNodeCoord}>{drop.address}</Text>
           </View>
         </View>
 

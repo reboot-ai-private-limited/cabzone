@@ -5,6 +5,7 @@ import { disconnectRedis, getRedis } from '@/shared/queue/redis.js';
 import { connectMongo, disconnectMongo } from '@/shared/db/mongo.js';
 import { logger } from '@/shared/logging/logger.js';
 import { buildContainers } from './container.js';
+import { emitOperationalAlert } from '@/shared/monitoring/alerting.js';
 
 async function main(): Promise<void> {
   loadEnv();
@@ -24,6 +25,12 @@ async function main(): Promise<void> {
 
   notificationsWorker.on('failed', (job, err) => {
     logger.error({ id: job?.id, name: job?.name, err: err.message }, 'notification job failed');
+    void emitOperationalAlert({
+      category: 'QUEUE_HEALTH', severity: 'critical',
+      dedupeKey: `QUEUE_HEALTH:notifications:${job?.name ?? 'unknown'}`,
+      summary: 'Notification worker job failed.',
+      metadata: { jobId: job?.id, jobName: job?.name },
+    });
   });
 
   logger.info({ queues: Object.values(QUEUE_NAMES) }, 'worker started');

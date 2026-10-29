@@ -2,11 +2,7 @@ import { calculateNegotiationBounds } from '@cabzone/contracts';
 import { AppError } from '../../../../shared/errors/AppError.js';
 import type { RideEntity, RideRepositoryPort } from '../../../rides/rides.public.js';
 import { haversineDistanceM, type DriverPresencePort } from '../../domain/presence.port.js';
-import type {
-  DispatchConfig,
-  DispatchLookups,
-  RideOfferDto,
-} from '../dispatch.types.js';
+import type { DispatchConfig, DispatchLookups, RideOfferDto } from '../dispatch.types.js';
 import type { DriverOfferEligibility } from './driverOfferEligibility.js';
 
 export function toRideOffer(ride: RideEntity, distanceToPickupM: number): RideOfferDto {
@@ -16,6 +12,7 @@ export function toRideOffer(ride: RideEntity, distanceToPickupM: number): RideOf
     pickup: ride.pickup,
     drop: ride.drop,
     proposedFarePaise: ride.proposedFarePaise ?? ride.suggestedFarePaise,
+    tollSnapshot: ride.tollSnapshot ?? null,
     distanceToPickupM: Math.round(distanceToPickupM),
     expiresAt: (ride.offeringExpiresAt ?? new Date()).toISOString(),
     negotiation: calculateNegotiationBounds({
@@ -98,4 +95,3 @@ export class ListDriverOffersUseCase {
       .map(({ ride, distance }) => toRideOffer(ride, distance));
   }
 }
-

@@ -9,6 +9,7 @@ import type { GetWalletUseCase } from '../application/useCases/getWallet.usecase
 import type { ListTransactionsUseCase } from '../application/useCases/listTransactions.usecase.js';
 import type { ListWalletsUseCase } from '../application/useCases/listWallets.usecase.js';
 import type { ReconcileWalletLedgerUseCase } from '../application/useCases/reconcileWalletLedger.usecase.js';
+import { reportWalletReconciliationDiscrepancies } from '../../../shared/monitoring/alerting.js';
 import type { WalletRepositoryPort } from '../domain/index.js';
 import {
   adminAdjustWalletSchema,
@@ -141,6 +142,11 @@ export function makeAdminReconcileWalletLedgerController(
   return asyncHandler(async (req: Request, res: Response) => {
     const body = reconcileWalletLedgerSchema.parse(req.body ?? {});
     const report = await useCase.execute(body);
+    await reportWalletReconciliationDiscrepancies({
+      checkedWallets: report.checkedWallets,
+      issueCount: report.issues.length,
+      issueCodes: report.issues.map((issue) => issue.code),
+    });
     sendSuccess(req, res, report, 'Wallet ledger reconciliation completed');
   });
 }

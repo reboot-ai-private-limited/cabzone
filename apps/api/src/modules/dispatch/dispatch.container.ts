@@ -36,9 +36,9 @@ import {
   makeListFleetController,
   makeSimulateFleetController,
 } from './interface/adminDispatch.controller.js';
-import { buildDispatchRouter } from './interface/dispatch.routes.js';
+import { buildDispatchRouter, buildPushTokenRouter } from './interface/dispatch.routes.js';
 import { buildAdminDispatchRouter } from './interface/adminDispatch.routes.js';
-import { registerDispatchSwaggerPaths } from './interface/dispatch.swagger.js';
+import { registerDispatchSwaggerPaths, registerPushTokenSwaggerPaths } from './interface/dispatch.swagger.js';
 
 export interface DispatchContainerDeps {
   presence: DriverPresencePort;
@@ -61,6 +61,7 @@ export interface DispatchContainer {
   listDriverOffersUseCase: ListDriverOffersUseCase;
   listFleetDriversUseCase: ListFleetDriversUseCase;
   simulateFleetUseCase: SimulateFleetUseCase;
+  buildPushTokenRouter: (auth: { authenticate: RequestHandler }) => Router;
   buildDispatchRouter: (auth: {
     authenticate: RequestHandler;
     requireRole: (...roles: AuthRole[]) => RequestHandler;
@@ -73,6 +74,7 @@ export interface DispatchContainer {
 
 export function buildDispatchContainer(deps: DispatchContainerDeps): DispatchContainer {
   registerDispatchSwaggerPaths();
+  registerPushTokenSwaggerPaths();
   const config: DispatchConfig = { ...DEFAULT_DISPATCH_CONFIG, ...deps.config };
   const eligibility = new DriverOfferEligibility(deps.walletRepo, deps.rideRepo);
   const findCandidates = new FindCandidateDriversUseCase(deps.presence, eligibility, config);
@@ -114,6 +116,12 @@ export function buildDispatchContainer(deps: DispatchContainerDeps): DispatchCon
     listDriverOffersUseCase,
     listFleetDriversUseCase,
     simulateFleetUseCase,
+    buildPushTokenRouter: (auth) =>
+      buildPushTokenRouter({
+        authenticate: auth.authenticate,
+        registerPushToken: makeRegisterPushTokenController(push),
+        unregisterPushToken: makeUnregisterPushTokenController(push),
+      }),
     buildDispatchRouter: (auth) =>
       buildDispatchRouter({
         authenticate: auth.authenticate,

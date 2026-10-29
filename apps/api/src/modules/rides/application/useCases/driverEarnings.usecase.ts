@@ -255,9 +255,7 @@ export class DriverEarningsUseCase {
           commissionRefundedPaise: 0,
           netCommissionPaise: 0,
           netEarningsPaise: 0,
-          ...(onlineReversedPaise > 0
-            ? { onlineEarningsReversedPaise: onlineReversedPaise }
-            : {}),
+          ...(onlineReversedPaise > 0 ? { onlineEarningsReversedPaise: onlineReversedPaise } : {}),
           settledVia: 'ONLINE_UPI',
         },
       };
@@ -279,9 +277,7 @@ export class DriverEarningsUseCase {
       if (onlineTx) {
         commissionChargedPaise = Math.max(0, farePaise - onlineTx.amountPaise);
         reconciled =
-          onlineTx.amountPaise === expectedPayable &&
-          !commissionDebit &&
-          onlineReversedPaise === 0;
+          onlineTx.amountPaise === expectedPayable && !commissionDebit && onlineReversedPaise === 0;
       } else {
         commissionChargedPaise = eventCommission;
         reconciled = expectedPayable === 0 && onlineReversedPaise === 0;
@@ -356,9 +352,7 @@ export class DriverEarningsUseCase {
     const settledIds = periodRides
       .filter((r) => r.status === 'SETTLED' || r.status === 'PAYMENT_CONFIRMED')
       .map((r) => r.id);
-    const cancelledIds = periodRides
-      .filter((r) => r.status === 'CANCELLED')
-      .map((r) => r.id);
+    const cancelledIds = periodRides.filter((r) => r.status === 'CANCELLED').map((r) => r.id);
     const lookupIds = [...settledIds, ...cancelledIds];
 
     const [txMap, eventMap] =
@@ -507,17 +501,14 @@ export class DriverEarningsUseCase {
           const orderEvent = evs.find((e) => e.eventType === 'UPI_ORDER_CREATED');
           const qrEvent = evs.find((e) => e.eventType === 'UPI_QR_CREATED');
           const orderId =
-            typeof orderEvent?.metadata?.orderId === 'string'
-              ? orderEvent.metadata.orderId
-              : null;
-          const qrId =
-            typeof qrEvent?.metadata?.qrId === 'string' ? qrEvent.metadata.qrId : null;
+            typeof orderEvent?.metadata?.orderId === 'string' ? orderEvent.metadata.orderId : null;
+          const qrId = typeof qrEvent?.metadata?.qrId === 'string' ? qrEvent.metadata.qrId : null;
 
           if ((!qrId || !activeGateway.live) && (!orderId || activeGateway.live)) {
             continue;
           }
           checkedPendingOnlineRides += 1;
-          const farePaise = rideFarePaise(pendingRide);
+          const farePaise = rideFarePaise(pendingRide) + Math.max(0, pendingRide.arrearsPaise ?? 0);
           const capturedId =
             qrId && activeGateway.live
               ? await activeGateway.findQrPayment(qrId, farePaise)
@@ -722,7 +713,7 @@ export class DriverEarningsUseCase {
           const providerCheck = await this.verifyProviderForOnlineRide(
             activeGateway,
             events,
-            farePaise,
+            farePaise + Math.max(0, ride.arrearsPaise ?? 0),
             expectedPaymentId,
           );
           if (!providerCheck.ok) {

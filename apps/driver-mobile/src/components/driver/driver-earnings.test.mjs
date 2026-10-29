@@ -1,10 +1,14 @@
 import test from 'node:test';
+import { Buffer } from 'node:buffer';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import vm from 'node:vm';
 
 const ts = createRequire(import.meta.url)('typescript');
+
+const locationCode = ts.transpileModule(readFileSync(new URL('../../services/location-names.ts', import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.ESNext } }).outputText;
+const locationNames = await import(`data:text/javascript;base64,${Buffer.from(locationCode).toString('base64')}`);
 
 const compile = (relPath) =>
   ts.transpileModule(readFileSync(new URL(relPath, import.meta.url), 'utf8'), {
@@ -148,6 +152,7 @@ function createHarness(relPath, mocks) {
     Object,
     Promise,
     require: (name) => {
+      if (name === './location-names' || name === '@/services/location-names') return locationNames;
       if (name === 'react') return React;
       if (name === 'react-native') {
         return {
@@ -197,6 +202,7 @@ test('computeRideEarningsBreakdown prefers server-owned driverSettlement over cl
     Math,
     Set,
     require: (name) => {
+      if (name === './location-names' || name === '@/services/location-names') return locationNames;
       if (name === 'react') {
         return {
           createContext: () => ({}),

@@ -2,6 +2,9 @@
 
 Directory of daily engineering logs:
 
+- [October 29, 2026 - Backend integration, refund verification, extensions/tolls, response performance, container/restore evidence and remaining inputs](docs/engineering/backend-completion-2026-10-29.md)
+
+- [October 28, 2026 - Three-agent staging execution: money/dispute audit repairs, location names, driver onboarding keyboard UX, arrears/ratings UI, and platform/security hardening](daily-work/28thoct.md)
 - [October 24, 2026 - Expo SDK 58 upgrade, mobile auth exit animations, driver wallet money movement, and Web Admin driver management & original KYC docs](daily-work/24thoct.md)
 - [October 23, 2026 - Mobile auth, navigation, live ride flow, UPI test checkout, driver payment QR, and receipts](daily-work/23rdoct.md)
 - [October 22, 2026 - Customer mobile app and fare-raise negotiation](daily-work/22ndoct.md)

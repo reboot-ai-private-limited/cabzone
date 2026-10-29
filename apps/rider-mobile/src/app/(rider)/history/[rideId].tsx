@@ -1,3 +1,4 @@
+import { locationLabel } from '@/services/location-names';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -84,12 +85,12 @@ export default function RideReceiptDetailScreen() {
     const pickupLoc = {
       lat: ride.pickup.lat,
       lng: ride.pickup.lng,
-      address: ride.pickup.address || 'Pickup location',
+      address: locationLabel(ride.pickup.address, 'Pickup location'),
     };
     const dropLoc = {
       lat: ride.drop.lat,
       lng: ride.drop.lng,
-      address: ride.drop.address || 'Destination',
+      address: locationLabel(ride.drop.address, 'Destination'),
     };
 
     setBookingDraft({

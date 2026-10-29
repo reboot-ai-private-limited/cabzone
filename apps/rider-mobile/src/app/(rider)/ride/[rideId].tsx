@@ -1,3 +1,10 @@
+import {
+  tollDisclosure,
+  calculateNegotiationBounds,
+  type CancellationReason,
+  type RideEventDto,
+} from '@cabzone/contracts';
+import { locationLabel } from '@/services/location-names';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AccessibilityInfo,
@@ -17,11 +24,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import {
-  calculateNegotiationBounds,
-  type CancellationReason,
-  type RideEventDto,
-} from '@cabzone/contracts';
+
 import { useAuth } from '@/context/auth-context';
 import { useRide } from '@/context/ride-context';
 import type { RiderRideViewDto } from '@/services/api';
@@ -267,7 +270,7 @@ export default function ActiveRideScreen() {
     if (!ride) return;
     try {
       await Share.share({
-        message: `Cabzone Live Trip (${ride.id.slice(0, 8)})\nStatus: ${getRideStatusMeta(ride.status).label}\nFrom: ${ride.pickup.address || `${ride.pickup.lat}, ${ride.pickup.lng}`}\nTo: ${ride.drop.address || `${ride.drop.lat}, ${ride.drop.lng}`}\nFare: ${formatRupeesFromPaise(ride.agreedFarePaise ?? ride.proposedFarePaise ?? ride.suggestedFarePaise)}`,
+        message: `Cabzone Live Trip (${ride.id.slice(0, 8)})\nStatus: ${getRideStatusMeta(ride.status).label}\nFrom: ${locationLabel(ride.pickup.address, 'Pickup location')}\nTo: ${locationLabel(ride.drop.address, 'Destination')}\nFare: ${formatRupeesFromPaise(ride.agreedFarePaise ?? ride.proposedFarePaise ?? ride.suggestedFarePaise)}`,
       });
     } catch {
       // ignore share dismissal
@@ -291,9 +294,9 @@ export default function ActiveRideScreen() {
       ),
       pickup: {
         ...ride.pickup,
-        address: ride.pickup.address ?? `${ride.pickup.lat}, ${ride.pickup.lng}`,
+        address: locationLabel(ride.pickup.address, 'Pickup location'),
       },
-      drop: { ...ride.drop, address: ride.drop.address ?? `${ride.drop.lat}, ${ride.drop.lng}` },
+      drop: { ...ride.drop, address: locationLabel(ride.drop.address, 'Destination') },
     });
     router.replace(mode === 'IN_CITY' ? '/(rider)/(tabs)/home' : '/(rider)/(tabs)/intercity');
   };
@@ -505,8 +508,11 @@ export default function ActiveRideScreen() {
                 accessibilityLabel="Map showing pickup and destination"
               >
                 <BookingMap
-                  pickup={{ ...ride.pickup, address: ride.pickup.address ?? 'Pickup' }}
-                  drop={{ ...ride.drop, address: ride.drop.address ?? 'Destination' }}
+                  pickup={{
+                    ...ride.pickup,
+                    address: locationLabel(ride.pickup.address, 'Pickup location'),
+                  }}
+                  drop={{ ...ride.drop, address: locationLabel(ride.drop.address, 'Destination') }}
                   bottomInset={0}
                   onEditPickup={() => {}}
                 />
@@ -598,10 +604,7 @@ export default function ActiveRideScreen() {
                         : ''}
                     </Text>
                     {driverLiveLocation ? (
-                      <Text style={styles.liveGpsText}>
-                        📍 Live GPS: {driverLiveLocation.lat.toFixed(4)},{' '}
-                        {driverLiveLocation.lng.toFixed(4)}
-                      </Text>
+                      <Text style={styles.liveGpsText}>Driver location is live</Text>
                     ) : null}
                   </View>
                   {formatAssignedDriverSummary(ride).phoneE164 ? (
@@ -626,6 +629,9 @@ export default function ActiveRideScreen() {
               </View>
             ) : null}
 
+            <Text style={{ fontSize: 12, color: colors.secondary, paddingVertical: 8 }}>
+              {tollDisclosure(ride.tollSnapshot, ride.extensionProposal?.status === 'ACCEPTED')}
+            </Text>
             {/* PAYMENT PENDING INSTRUCTION CARD (D-040) */}
             {ride.status === 'PAYMENT_PENDING' || ride.status === 'TRIP_COMPLETED' ? (
               <UpiPaymentPanel
@@ -707,8 +713,7 @@ export default function ActiveRideScreen() {
                 <View style={{ flex: 1 }}>
                   <Text style={styles.stopLabel}>PICKUP</Text>
                   <Text style={styles.stopAddress}>
-                    {ride.pickup.address ||
-                      `${ride.pickup.lat.toFixed(4)}, ${ride.pickup.lng.toFixed(4)}`}
+                    {locationLabel(ride.pickup.address, 'Pickup location')}
                   </Text>
                 </View>
               </View>
@@ -718,8 +723,7 @@ export default function ActiveRideScreen() {
                 <View style={{ flex: 1 }}>
                   <Text style={styles.stopLabel}>DROP-OFF</Text>
                   <Text style={styles.stopAddress}>
-                    {ride.drop.address ||
-                      `${ride.drop.lat.toFixed(4)}, ${ride.drop.lng.toFixed(4)}`}
+                    {locationLabel(ride.drop.address, 'Destination')}
                   </Text>
                 </View>
               </View>
@@ -892,11 +896,7 @@ export default function ActiveRideScreen() {
               accessibilityLiveRegion="polite"
             >
               <Ionicons
-                name={
-                  cancelPreview.feePaise > 0
-                    ? 'warning-outline'
-                    : 'checkmark-circle-outline'
-                }
+                name={cancelPreview.feePaise > 0 ? 'warning-outline' : 'checkmark-circle-outline'}
                 size={20}
                 color={cancelPreview.feePaise > 0 ? colors.brandBrown : colors.success}
               />
@@ -909,9 +909,7 @@ export default function ActiveRideScreen() {
                 <Text style={styles.waitingCountersSub}>{cancelPreview.summaryText}</Text>
               </View>
             </View>
-            {isSearching ? (
-              null
-            ) : null}
+            {isSearching ? null : null}
             {RIDER_CANCEL_REASONS.map((r) => (
               <Pressable
                 key={r.code}

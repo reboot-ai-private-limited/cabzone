@@ -61,8 +61,14 @@ import { MemoryRideReviewRepository } from './infrastructure/persistence/memoryR
 import { env, isProduction } from '../../config/env.js';
 import { RidePaymentQrAdapter } from './infrastructure/ridePaymentQr.adapter.js';
 import { makeRidePaymentQrControllers } from './interface/ridePaymentQr.controller.js';
+import {
+  RideExtensionsUseCase,
+  type RideExtensionsDeps,
+} from './application/useCases/rideExtensions.usecase.js';
+import { makeExtensionControllers } from './interface/rideExtensions.controller.js';
 
 export interface RidesContainerDeps extends RideHttpContext {
+  extensions?: Pick<RideExtensionsDeps, 'routing' | 'getDriverLocation' | 'classify'>;
   unitOfWork: UnitOfWorkPort;
   rideRepo: RideRepositoryPort;
   rideEventRepo: RideEventRepositoryPort;
@@ -170,6 +176,9 @@ export function buildRidesContainer(deps: RidesContainerDeps): RidesContainer {
     rideRepo,
   });
   const completeRideUseCase = new CompleteRideUseCase({
+    refundVerifier: gateway.fetchRefund
+      ? { fetchRefund: (id) => gateway.fetchRefund!(id) }
+      : undefined,
     prepareCashConfirmation: (rideId, driverId) =>
       upiPayment.prepareCashConfirmation(rideId, driverId),
     rideRepo,
@@ -226,6 +235,17 @@ export function buildRidesContainer(deps: RidesContainerDeps): RidesContainer {
     qr: new RidePaymentQrAdapter(deps.tokenSecret),
     actors,
   });
+  const extensionControllers = makeExtensionControllers(
+    deps.extensions
+      ? new RideExtensionsUseCase({
+          ...deps.extensions,
+          rideRepo,
+          rideEventRepo,
+          unitOfWork: deps.unitOfWork,
+        })
+      : null,
+    actors,
+  );
 
   return {
     rideRepo,
@@ -259,6 +279,8 @@ export function buildRidesContainer(deps: RidesContainerDeps): RidesContainer {
           'SUPPORT_ADMIN',
         ),
         createRide: makeCreateRideController(createRideUseCase, actors),
+        proposeExtension: extensionControllers.propose,
+        respondExtension: extensionControllers.respond,
         listRides: makeListRidesController(rideRepo, actors),
         driverEarnings: makeDriverEarningsSummaryController(driverEarningsUseCase, actors),
         driverHistory: makeDriverHistoryController(rideRepo, driverEarningsUseCase, actors),

@@ -103,6 +103,16 @@ function buildTestHarness() {
   let orderSeq = 0;
 
   const gateway = {
+    fetchRefund: vi.fn(async (id: string) => {
+      const refunds: Record<string, { paymentId: string; amountPaise: number }> = {
+        rfnd_arrears: { paymentId: 'pay_arrears_refund', amountPaise: 23000 },
+        rfnd_manual_9001: { paymentId: 'pay_online_555', amountPaise: 20000 },
+        rfnd_dup_77: { paymentId: 'pay_dup_late_77', amountPaise: 10000 },
+      };
+      const evidence = refunds[id];
+      if (!evidence) throw new Error('Refund not found');
+      return { id, ...evidence, currency: 'INR', status: 'processed' };
+    }),
     live: false,
     keyId: 'rzp_test_step6_harness',
     createOrder: vi.fn(async (amountPaise: number, ref: string) => {
@@ -144,6 +154,7 @@ function buildTestHarness() {
   });
 
   const completeRide = new CompleteRideUseCase({
+    refundVerifier: gateway,
     prepareCashConfirmation: (rideId, driverId) =>
       upiPayment.prepareCashConfirmation(rideId, driverId),
     rideRepo,
@@ -282,6 +293,134 @@ function buildTestHarness() {
 }
 
 describe('Step 6 — Historical money & payment operations reconciliation', () => {
+  it('rejects disconnected ledger cycles and permits separate commission and arrears refunds', async () => {
+    const h = buildTestHarness();
+    const now = new Date();
+    await h.walletRepo.save({
+      id: 'audit-wallet',
+      driverId: 'driver-1',
+      balancePaise: 100,
+      status: 'ACTIVE',
+      version: 1,
+      createdAt: now,
+      updatedAt: now,
+    });
+    for (const [id, before, after] of [
+      ['a', 0, 100],
+      ['b', 500, 600],
+      ['c', 600, 500],
+    ] as const) {
+      await h.walletRepo.recordTransaction({
+        id,
+        walletId: 'audit-wallet',
+        driverId: 'driver-1',
+        type: after > before ? 'CREDIT' : 'DEBIT',
+        amountPaise: Math.abs(after - before),
+        referenceType: 'ADMIN_ADJUSTMENT',
+        referenceId: id,
+        idempotencyKey: id,
+        balanceBeforePaise: before,
+        balanceAfterPaise: after,
+        createdBy: null,
+        createdAt: now,
+      });
+    }
+    expect(
+      (await h.reconcileLedger.execute()).issues.some((i) => i.code === 'BROKEN_TX_CHAIN'),
+    ).toBe(true);
+    const valid = buildTestHarness();
+    await valid.walletRepo.save({
+      id: 'valid-wallet',
+      driverId: 'driver-1',
+      balancePaise: 400,
+      status: 'ACTIVE',
+      version: 1,
+      createdAt: now,
+      updatedAt: now,
+    });
+    for (const [key, before, after] of [
+      ['dispute_refund_ride1', 0, 100],
+      ['dispute_arrears_refund_ride1', 100, 400],
+    ] as const) {
+      await valid.walletRepo.recordTransaction({
+        id: key,
+        walletId: 'valid-wallet',
+        driverId: 'driver-1',
+        type: 'CREDIT',
+        amountPaise: after - before,
+        referenceType: 'DISPUTE_REFUND',
+        referenceId: 'ride1',
+        idempotencyKey: key,
+        balanceBeforePaise: before,
+        balanceAfterPaise: after,
+        createdBy: null,
+        createdAt: now,
+      });
+    }
+    expect((await valid.reconcileLedger.execute()).issues).toEqual([]);
+  });
+
+  it('recovers a captured fare plus arrears and audits the full provider amount', async () => {
+    const h = buildTestHarness();
+    const now = new Date();
+    await h.walletRepo.save({
+      id: 'driver-wallet',
+      driverId: 'driver-1',
+      balancePaise: 5000,
+      earningsBalancePaise: 0,
+      status: 'ACTIVE',
+      version: 1,
+      createdAt: now,
+      updatedAt: now,
+    });
+    const rideId = newUuid();
+    await h.rideRepo.save(
+      makeRide({
+        id: rideId,
+        agreedFarePaise: 20000,
+        arrearsPaise: 3000,
+        status: 'PAYMENT_PENDING',
+      }),
+    );
+    const checkout = await h.upiPayment.create(rideId, 'rider-1');
+    h.capturedOrders.set(checkout.orderId, {
+      paymentId: 'pay_recovery_arrears',
+      amountPaise: 23000,
+    });
+    const recovery = await h.driverEarnings.reconcile({
+      mode: 'RECONCILE_PENDING_ONLINE',
+      rideIds: [rideId],
+    });
+    expect(recovery.reconciledPendingRideIds).toContain(rideId);
+    expect((await h.walletRepo.findByDriverId('driver-1'))?.earningsBalancePaise).toBe(18400);
+    const audit = await h.driverEarnings.reconcile({ mode: 'AUDIT', rideIds: [rideId] });
+    expect(audit.issues).toEqual([]);
+  });
+
+  it('finds a dispute beyond the first 500 records', async () => {
+    const h = buildTestHarness();
+    const ids = Array.from({ length: 505 }, () => newUuid());
+    for (const [index, id] of ids.entries()) {
+      await h.rideRepo.save(
+        makeRide({
+          id,
+          status: 'PAYMENT_DISPUTED',
+          passenger: {
+            name: index === 0 ? 'OlderUniquePassenger' : 'Passenger',
+            phoneE164: '+919876543210',
+            riderId: 'rider-1',
+          },
+          updatedAt: new Date(Date.UTC(2026, 0, 1, 0, index)),
+        }),
+      );
+    }
+    const result = await request(h.app)
+      .get('/api/v1/rides/payment/disputes?status=OPEN&search=OlderUniquePassenger')
+      .set('x-test-auth', 'sup-1:SUPPORT_ADMIN')
+      .expect(200);
+    expect(JSON.stringify(result.body)).toContain(ids[0]);
+  });
+
   it('verifies provider capture before backfilling historical online rides and recovers captured pending online rides once', async () => {
     const h = buildTestHarness();
     const now = new Date('2026-10-26T10:00:00.000Z');
@@ -424,6 +563,69 @@ describe('Step 6 — Historical money & payment operations reconciliation', () =
     const ledgerAudit = await h.reconcileLedger.execute({ mode: 'AUDIT' });
     expect(ledgerAudit.issues).toEqual([]);
     expect(ledgerAudit.cleanWallets).toBe(1);
+  });
+
+  it('reinstates refunded online arrears once without charging them to driver earnings', async () => {
+    const h = buildTestHarness();
+    const now = new Date();
+    await h.walletRepo.save({
+      id: 'driver-wallet',
+      driverId: 'driver-1',
+      balancePaise: 5000,
+      earningsBalancePaise: 0,
+      status: 'ACTIVE',
+      version: 1,
+      createdAt: now,
+      updatedAt: now,
+    });
+    await h.walletRepo.save({
+      id: 'rider-wallet',
+      ownerType: 'RIDER',
+      driverId: '',
+      riderId: 'rider-1',
+      balancePaise: -3000,
+      owedPaise: 3000,
+      status: 'ACTIVE',
+      version: 1,
+      createdAt: now,
+      updatedAt: now,
+    });
+    const rideId = newUuid();
+    await h.rideRepo.save(
+      makeRide({
+        id: rideId,
+        agreedFarePaise: 20000,
+        arrearsPaise: 3000,
+        status: 'PAYMENT_PENDING',
+      }),
+    );
+    const checkout = await h.upiPayment.create(rideId, 'rider-1');
+    h.capturedOrders.set(checkout.orderId, { paymentId: 'pay_arrears_refund', amountPaise: 23000 });
+    await h.upiPayment.reconcile(rideId, 'rider-1');
+    expect((await h.walletRepo.findByRiderId('rider-1'))?.balancePaise).toBe(0);
+    await h.completeRide.disputePayment({
+      rideId,
+      riderId: 'rider-1',
+      reason: 'Full refund requested',
+    });
+    const resolution = {
+      rideId,
+      adminId: 'support-1',
+      outcome: 'RIDER_WINS' as const,
+      reason: 'Full payment refunded including arrears',
+      refundReference: 'rfnd_arrears',
+    };
+    await h.completeRide.resolveDispute(resolution);
+    await h.completeRide.resolveDispute(resolution);
+    const riderWallet = await h.walletRepo.findByRiderId('rider-1');
+    expect(riderWallet?.balancePaise).toBe(-3000);
+    expect(riderWallet?.owedPaise).toBe(3000);
+    expect((await h.walletRepo.findByDriverId('driver-1'))?.earningsBalancePaise).toBe(0);
+    expect((await h.walletRepo.findByDriverId('driver-1'))?.balancePaise).toBe(5000);
+    const reinstated = await h.walletRepo.findTransactionByIdempotencyKey(
+      `dispute_arrears_reinstate_${rideId}`,
+    );
+    expect(reinstated?.amountPaise).toBe(3000);
   });
 
   it('enforces manual refundReference on online UPI disputes, reverses online earnings once (including post-cashout clawback), and supports searchable closed disputes', async () => {

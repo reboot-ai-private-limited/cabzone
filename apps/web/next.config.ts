@@ -1,12 +1,31 @@
 import type { NextConfig } from 'next';
 import { fileURLToPath } from 'node:url';
 
+const apiUpstreamOrigin = process.env.API_UPSTREAM_ORIGIN?.trim().replace(/\/$/, '');
+
 const config: NextConfig = {
   distDir: process.env.NODE_ENV === 'development' ? '.next-dev' : '.next',
   output: 'standalone',
   outputFileTracingRoot: fileURLToPath(new URL('../../', import.meta.url)),
   transpilePackages: ['@cabzone/contracts'],
   reactStrictMode: true,
+  images: {
+    dangerouslyAllowSVG: false,
+    contentDispositionType: 'attachment',
+    contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
+  },
+  ...(apiUpstreamOrigin
+    ? {
+        async rewrites() {
+          return [
+            {
+              source: '/api/:path*',
+              destination: `${apiUpstreamOrigin}/api/:path*`,
+            },
+          ];
+        },
+      }
+    : {}),
   webpack(webpackConfig) {
     webpackConfig.resolve.extensionAlias = {
       '.js': ['.ts', '.tsx', '.js'],

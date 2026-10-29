@@ -628,6 +628,7 @@ The state-boundary GeoJSON system and the `StatePricing` per-state rate table ar
 **Status:** Decided
 
 **Decision:**
+
 1. **Outstation Rate Tier on `PricingConfigEntity`**:
    Add three new fields to `PricingConfigEntity` (`outstationBaseFarePaise`, `outstationRatePerKmPaise`, `outstationMinimumFarePaise`). Fares for trips classified as `OUTSTATION` or `INTERSTATE` are calculated using this dedicated outstation rate tier rather than the city rate tier.
 2. **Buffer Surcharge Independence**:
@@ -706,6 +707,7 @@ The active release target is **Internal Beta / Controlled Test Staging**, govern
 **Status:** Decided
 
 **Decision:**
+
 1. **Single Active Booking per Booker**: A rider (`bookerRiderId`) may hold **at most one booking-blocking ride** at any time.
 2. **Canonical 9 Booking-Blocking Statuses**:
    ```text
@@ -739,6 +741,7 @@ The active release target is **Internal Beta / Controlled Test Staging**, govern
 **Status:** Decided (Completes D-032; resolves OQ-028)
 
 **Decision:**
+
 1. **Configuration-Driven Policy on `PricingConfig`**:
    Move cancellation fee and timer parameters out of hardcoded domain constants onto `PricingConfig` (following the D-039 city → state → global hierarchy per `vehicleCategory`) and freeze them inside `RidePricingSnapshot` at ride creation, with defaults matching current behavior:
    - `cancellationFeePaise`: `5000` (₹50)
@@ -772,6 +775,7 @@ The active release target is **Internal Beta / Controlled Test Staging**, govern
 **Status:** Decided (Resolves OQ-022)
 
 **Decision:**
+
 1. **Excluded from Negotiated Fare & Commission**:
    `suggestedFarePaise`, negotiation bounds (`[floorPaise, ceilingPaise]`), `agreedFarePaise`, and platform commission (`commissionPercent`) cover **strictly the ride fare** (`base + distance + buffer`). Tolls and state entry permits are never baked into `ratePerKmPaise` or `agreedFarePaise`, and **zero platform commission** is charged on tolls or permits.
 2. **Separate Non-Commissioned Estimate Snapshot**:
@@ -797,13 +801,14 @@ The active release target is **Internal Beta / Controlled Test Staging**, govern
 **Status:** Decided (Resolves OQ-018 and OQ-019)
 
 **Decision:**
+
 1. **Eligibility & One-Review Invariant**:
    Ratings are permitted strictly on rides in `SETTLED` status within a **7-day (168-hour)** window from `settledAt`. Each ride supports at most two immutable review records — one by `bookerRiderId` rating the assigned `driverId`, and one by `driverId` rating `bookerRiderId` — enforced by a unique `(rideId, reviewerRole)` index (`1`–`5` integer stars plus optional preset feedback tags).
 2. **Double-Blind Reveal Rule**:
    A submitted review remains `HIDDEN` from the counterparty and excluded from public aggregate counters until **either**:
    - Both the rider and driver have submitted their reviews for that ride, **or**
    - The 7-day (`168h`) review window from `settledAt` expires (via scheduled reveal sweep or read-time/submission trigger).
-   Upon reveal, `ratingAverage` and `ratingCount` on the target profile are atomically recomputed/incremented once (`revealedAt` recorded).
+     Upon reveal, `ratingAverage` and `ratingCount` on the target profile are atomically recomputed/incremented once (`revealedAt` recorded).
 3. **Anti-Fabrication & Minimum Sample Threshold (`>= 5`)**:
    - Unrated accounts (`ratingCount === 0`) store `0` / `null` rather than a fabricated `5.0` default.
    - Public-facing rider and driver UIs display `"New"` until `ratingCount >= 5` revealed ratings exist.
@@ -834,3 +839,11 @@ The PRD does not decide:
 - Exact token implementation.
 - Exact wallet provider.
 - Exact routing provider; Google/Mapbox are examples.
+
+## D-047 - Extension distance baseline and frozen tariff guard
+
+**Date:** 2026-10-29. **Status:** Approved by the release owner in conversation. Clarifies D-029.
+
+Compare current driver location to the agreed destination with the same current location to the proposed destination. If 8 km remain and the new route is 13 km, charge only 5 km. Use frozen ride tariffs and reject a new state with no frozen tariff. Do not charge base/minimum fare or buffer a second time. Original pricing/cancellation snapshots remain immutable; driver confirmation is required before destination/fare changes.
+
+Implementation and verification: [29 October backend checkpoint](engineering/backend-completion-2026-10-29.md).

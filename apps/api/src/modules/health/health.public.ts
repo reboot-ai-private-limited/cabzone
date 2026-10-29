@@ -7,3 +7,4 @@ export interface HealthReportContract {
 export type HealthPublicContract = HealthReportContract;
 
 export type { DependencyHealth, HealthReport } from './domain/health.entity.js';
+export { assertRealtimeReadyForEnv } from '@/shared/realtime/readiness.js';

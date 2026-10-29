@@ -53,6 +53,7 @@ import {
 } from './application/useCases/index.js';
 import {
   ConsoleSmsGatewayAdapter,
+  createSmsGatewayFromEnv,
   JoseTokenAdapter,
   MemoryOtpStoreAdapter,
   MongoAdminUserRepository,
@@ -176,16 +177,16 @@ export function buildIdentityContainer(deps?: IdentityContainerDeps): IdentityCo
   if (
     isProdLike &&
     !allowDevShortcuts &&
-    (!deps?.smsGateway ||
-      deps.smsGateway instanceof ConsoleSmsGatewayAdapter ||
-      deps.otpStore instanceof MemoryOtpStoreAdapter)
+    ((deps?.smsGateway ? deps.smsGateway instanceof ConsoleSmsGatewayAdapter : env.SMS_PROVIDER === 'console') ||
+      deps?.smsGateway instanceof ConsoleSmsGatewayAdapter ||
+      deps?.otpStore instanceof MemoryOtpStoreAdapter)
   ) {
     throw new Error('Live authentication requires a real SMS gateway and shared OTP storage.');
   }
   const otpStore =
     deps?.otpStore ??
     (isProdLike && !allowDevShortcuts ? new MongoOtpStoreAdapter() : new MemoryOtpStoreAdapter());
-  const smsGateway = deps?.smsGateway ?? new ConsoleSmsGatewayAdapter();
+  const smsGateway = deps?.smsGateway ?? createSmsGatewayFromEnv();
 
   const licenseStorage =
     deps?.licenseStorage ??

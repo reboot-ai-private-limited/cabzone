@@ -14,9 +14,14 @@ import type {
 import {
   authApi,
   isApiError,
+  pushApi,
   riderProfileApi,
   subscribeAccessToken,
 } from '@/services/api';
+import {
+  listenForPushTokenChanges,
+  registerForPushAsync,
+} from '@/services/push-notifications';
 import {
   clearAuthTokens,
   getAccessToken,
@@ -143,6 +148,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  // Register this installation for push so ride updates reach the rider while backgrounded.
+  useEffect(() => {
+    if (isBootstrapping || !token) return;
+    let cancelled = false;
+    let subscription: { remove: () => void } | null = null;
+    void getOrCreateDeviceId().then(async (installationId) => {
+      if (cancelled) return;
+      subscription = listenForPushTokenChanges((pushToken) => {
+        void pushApi.registerPushToken(token, pushToken, installationId).catch((error: unknown) => {
+          console.warn('Rider push token update failed:', error);
+        });
+      });
+      const pushToken = await registerForPushAsync();
+      if (!pushToken || cancelled) return;
+      await pushApi.registerPushToken(token, pushToken, installationId).catch((error: unknown) => {
+        console.warn('Rider push registration failed:', error);
+      });
+    });
+    return () => {
+      cancelled = true;
+      subscription?.remove();
+    };
+  }, [isBootstrapping, token]);
+
   const requestOtp = useCallback(async (phoneE164: string) => {
     await authApi.requestOtp(phoneE164);
     setPendingPhoneE164(phoneE164);
@@ -189,12 +218,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const addTemplate = useCallback(
-    async (input: Omit<SavedRouteTemplate, 'id' | 'createdAt'>) => {
+    async (template: Omit<SavedRouteTemplate, 'id' | 'createdAt'>) => {
       const userId = user?.id ?? profile?.userId;
       if (!userId) return;
       const newTemplate: SavedRouteTemplate = {
-        ...input,
-        id: `tpl-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        ...template,
+        id: `tpl_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
         createdAt: new Date().toISOString(),
       };
       const next = [newTemplate, ...templates];
@@ -232,17 +261,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = useCallback(async () => {
     const activeToken = token;
-    await clearAuthTokens();
-    setToken(null);
-    setUser(null);
-    setProfile(null);
-    setTemplates([]);
-    if (activeToken) {
-      try {
-        await authApi.logout(activeToken);
-      } catch {
-        // best-effort server logout
+    try {
+      if (activeToken) {
+        const installationId = await getOrCreateDeviceId();
+        await pushApi.unregisterPushToken(activeToken, installationId).catch(() => {});
+        await authApi.logout(activeToken).catch(() => {});
       }
+    } finally {
+      await clearAuthTokens();
+      setToken(null);
+      setUser(null);
+      setProfile(null);
+      setTemplates([]);
     }
   }, [token]);
 

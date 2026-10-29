@@ -1,5 +1,6 @@
-import mongoose, { type Document, Schema } from 'mongoose';
 import {
+  type RideExtensionProposalDto,
+  type TollSnapshot,
   ACTIVE_RIDE_STATUSES,
   CANCELLATION_REASONS,
   RIDE_STATUSES,
@@ -9,9 +10,13 @@ import {
   type RideStatus,
   type VehicleCategory,
 } from '@cabzone/contracts';
+import mongoose, { type Document, Schema } from 'mongoose';
+
 import type { LocationPoint, RouteSnapshot, ZoneSnapshot } from '../../domain/ride.entity.js';
 
 export interface RideDocument extends Document<string> {
+  extension_proposal?: RideExtensionProposalDto | null;
+  toll_snapshot?: TollSnapshot | null;
   _id: string;
   booker_rider_id: string;
   idempotency_key?: string | null;
@@ -75,6 +80,8 @@ const passengerSchema = new Schema(
 const rideSchema = new Schema<RideDocument>(
   {
     _id: { type: String, required: true },
+    toll_snapshot: { type: Schema.Types.Mixed, default: null },
+    extension_proposal: { type: Schema.Types.Mixed, default: null },
     booker_rider_id: { type: String, required: true, index: true },
     idempotency_key: { type: String, default: null },
     passenger: { type: passengerSchema, required: true },

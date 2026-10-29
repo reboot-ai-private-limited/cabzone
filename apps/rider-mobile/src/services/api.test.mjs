@@ -1,4 +1,6 @@
+import './location-names.test.mjs';
 import test from 'node:test';
+import { Buffer } from 'node:buffer';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -6,6 +8,9 @@ import vm from 'node:vm';
 
 const require = createRequire(import.meta.url);
 const ts = require('typescript');
+
+const locationCode = ts.transpileModule(readFileSync(new URL('./location-names.ts', import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.ESNext } }).outputText;
+const locationNames = await import(`data:text/javascript;base64,${Buffer.from(locationCode).toString('base64')}`);
 const code = ts.transpileModule(
   readFileSync(new URL('./api.ts', import.meta.url), 'utf8'),
   { compilerOptions: { module: ts.ModuleKind.CommonJS, esModuleInterop: true } },
@@ -38,6 +43,7 @@ function apiSession() {
       return runtime.respond(call);
     },
     require: (name) => {
+      if (name === './location-names' || name === '@/services/location-names') return locationNames;
       if (name === 'expo-constants') return { default: { expoConfig: {} }, __esModule: true };
       if (name === 'react-native') return { Platform: { OS: 'web' } };
       if (name === './storage') return {
@@ -183,4 +189,32 @@ test('createRide forwards Idempotency-Key header and surfaces 409 ACTIVE_RIDE_EX
   const call = s.calls.at(-1);
   assert.equal(call.headers['Idempotency-Key'], 'idem_booking_01');
   assert.equal('idempotencyKey' in JSON.parse(call.body), false);
+});
+
+
+test('pushApi registers and unregisters installation tokens on /api/v1/push-token', async () => {
+  const s = apiSession();
+  s.runtime.respond = async () => response({ ok: true });
+
+  const reg = await s.pushApi.registerPushToken(
+    'access-valid',
+    'ExponentPushToken[rider-token-1]',
+    'install-device-001',
+  );
+  assert.deepEqual(reg, { ok: true });
+  assert.equal(s.calls.at(-1).method, 'POST');
+  assert.ok(s.calls.at(-1).url.endsWith('/api/v1/push-token'));
+  assert.equal(s.calls.at(-1).authorization, 'Bearer access-valid');
+  assert.deepEqual(JSON.parse(s.calls.at(-1).body), {
+    token: 'ExponentPushToken[rider-token-1]',
+    installationId: 'install-device-001',
+  });
+
+  const unreg = await s.pushApi.unregisterPushToken('access-valid', 'install-device-001');
+  assert.deepEqual(unreg, { ok: true });
+  assert.equal(s.calls.at(-1).method, 'DELETE');
+  assert.ok(s.calls.at(-1).url.endsWith('/api/v1/push-token'));
+  assert.deepEqual(JSON.parse(s.calls.at(-1).body), {
+    installationId: 'install-device-001',
+  });
 });

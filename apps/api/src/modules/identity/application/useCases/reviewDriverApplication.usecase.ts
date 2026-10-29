@@ -56,7 +56,10 @@ export class ReviewDriverApplicationUseCase {
         documentId: null,
         metadata:
           dto.status === 'REJECTED'
-            ? { rejectionType: dto.rejectionType ?? null, rejectionReason: dto.rejectionReason ?? null }
+            ? {
+                rejectionType: dto.rejectionType ?? null,
+                rejectionReason: dto.rejectionReason ?? null,
+              }
             : null,
         createdAt: new Date(),
       });
@@ -90,14 +93,32 @@ export class ReviewDriverApplicationUseCase {
     const now = new Date();
 
     if (dto.status === 'APPROVED') {
+      const vehicle = driver.currentVehicleId
+        ? await this.deps.vehicleRepo.findById(driver.currentVehicleId)
+        : null;
+      if (!vehicle || vehicle.driverId !== driver.id) {
+        throw AppError.badRequest(
+          'DRIVER_VEHICLE_REQUIRED: A vehicle owned by this driver is required.',
+        );
+      }
+
       const docs = await this.deps.documentRepo.findByApplicationId(application.id);
       const missing = DOCUMENT_TYPES.filter(
-        (type) => !docs.some((doc) => doc.type === type && !doc.storageKey.startsWith('mock/')),
+        (type) =>
+          !docs.some(
+            (doc) =>
+              doc.type === type &&
+              !doc.storageKey.startsWith('mock/') &&
+              (!isVehicleScopedDocumentType(type) ||
+                doc.vehicleId == null ||
+                doc.vehicleId === vehicle.id),
+          ),
       );
-      if (missing.length > 0)
+      if (missing.length > 0) {
         throw AppError.badRequest(
-          `DOCUMENTS_REQUIRED: Cannot approve without ${missing.join(', ')}.`,
+          `DOCUMENTS_REQUIRED: Cannot approve without ${missing.join(', ')} for the active vehicle.`,
         );
+      }
       if (docs.some((doc) => doc.type !== 'GOVERNMENT_ID' && doc.expiresAt === null)) {
         throw AppError.badRequest(
           'DOCUMENT_EXPIRY_REQUIRED: DL, RC, insurance and permit require expiry dates.',
@@ -106,13 +127,7 @@ export class ReviewDriverApplicationUseCase {
       if (docs.some((doc) => doc.expiresAt !== null && doc.expiresAt <= now)) {
         throw AppError.badRequest('DOCUMENT_EXPIRED: Replace expired documents before approval.');
       }
-      const vehicle = driver.currentVehicleId
-        ? await this.deps.vehicleRepo.findById(driver.currentVehicleId)
-        : null;
-      if (!vehicle || vehicle.driverId !== driver.id)
-        throw AppError.badRequest(
-          'DRIVER_VEHICLE_REQUIRED: A vehicle owned by this driver is required.',
-        );
+
       const updatedApp: DriverApplicationEntity = {
         ...application,
         status: 'APPROVED',
@@ -173,7 +188,8 @@ export class ReviewDriverApplicationUseCase {
           ...driver,
           kycStatus: 'FAILED',
           status: 'REJECTED',
-          operationalStatus: driver.operationalStatus === 'ONLINE' ? 'OFFLINE' : driver.operationalStatus,
+          operationalStatus:
+            driver.operationalStatus === 'ONLINE' ? 'OFFLINE' : driver.operationalStatus,
         });
         return savedApp;
       }
@@ -202,7 +218,9 @@ export class ReviewDriverApplicationUseCase {
         allDriverDocs.some(
           (doc) =>
             doc.verificationStatus === 'EXPIRED' ||
-            (doc.verificationStatus === 'VERIFIED' && doc.expiresAt !== null && doc.expiresAt <= now),
+            (doc.verificationStatus === 'VERIFIED' &&
+              doc.expiresAt !== null &&
+              doc.expiresAt <= now),
         );
 
       const nextKycStatus = stillCompliantOnPriorDocs

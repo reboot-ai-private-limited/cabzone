@@ -304,6 +304,28 @@ export function buildContainers(overrides?: Partial<AppContainers>): AppContaine
   const rides =
     overrides?.rides ??
     buildRidesContainer({
+      extensions: {
+        routing: routing.getRouteUseCase,
+        getDriverLocation: async (driverId) => {
+          const location = await dispatch.presence.get(driverId);
+          return location
+            ? { lat: location.lat, lng: location.lng, updatedAt: location.locationUpdatedAt }
+            : null;
+        },
+        classify: async (pickup, drop, vehicleCategory) => {
+          const result = await zone.serviceClassificationUseCase.execute({
+            pickup,
+            drop,
+            vehicleCategory,
+          });
+          return {
+            classification: result.type,
+            cityZoneId: result.cityZoneId,
+            destinationStateCode: result.destinationStateCode ?? null,
+            routeScope: result.routeScope ?? null,
+          };
+        },
+      },
       unitOfWork,
       rideRepo,
       rideEventRepo: new MongoRideEventRepository(),

@@ -1,4 +1,9 @@
 import { z } from 'zod';
+import {
+  extensionRequestSchema,
+  extensionResponseSchema,
+  extensionParamsSchema,
+} from './rideExtensions.controller.js';
 import { DRIVER_EARNINGS_PERIODS } from '@cabzone/contracts';
 import {
   registry,
@@ -38,6 +43,44 @@ export const driverSettlementSchema = z.object({
 });
 
 export const rideViewSchema = z.object({
+  extensionProposal: z
+    .object({
+      id: z.string().uuid(),
+      requestId: z.string(),
+      originalDrop: z.object({ lat: z.number(), lng: z.number(), address: z.string().nullable() }),
+      newDrop: z.object({ lat: z.number(), lng: z.number(), address: z.string().nullable() }),
+      additionalDistanceM: z.number().int().positive(),
+      additionalFarePaise: z.number().int().nonnegative(),
+      status: z.enum(['REQUESTED', 'ACCEPTED', 'REJECTED']),
+      requestedAt: z.string().datetime(),
+      expiresAt: z.string().datetime(),
+      respondedAt: z.string().datetime().nullable(),
+      baselineRideVersion: z.number().int(),
+      route: z.object({
+        provider: z.string(),
+        distanceM: z.number().int(),
+        durationSeconds: z.number().int(),
+        polyline: z.string(),
+      }),
+      zone: z.object({
+        classification: z.enum(['IN_CITY', 'OUTSTATION', 'INTERSTATE']),
+        cityZoneId: z.string().nullable(),
+        destinationStateCode: z.string().nullable(),
+        routeScope: z.enum(['INTRA_STATE', 'INTERSTATE']).nullable(),
+      }),
+    })
+    .nullish(),
+  tollSnapshot: z
+    .object({
+      exists: z.boolean().nullable(),
+      estimatedAmountPaise: z.number().int().nonnegative().nullable(),
+      currency: z.literal('INR'),
+      provider: z.string(),
+      isEstimate: z.literal(true),
+      commercialVehicleCaveat: z.literal(true),
+      permitsMayApply: z.boolean(),
+    })
+    .nullish(),
   paymentCollection: z.enum(['DIRECT', 'CASH', 'RAZORPAY_TEST', 'RAZORPAY_UPI']).optional(),
   id: z.string().uuid(),
   status: z.string(),
@@ -174,6 +217,57 @@ let registered = false;
 export function registerRidesSwaggerPaths(): void {
   if (registered) return;
   registered = true;
+  for (const action of ['propose', 'respond'] as const) {
+    registry.registerPath({
+      method: 'post',
+      path:
+        action === 'propose'
+          ? '/v1/rides/{id}/extensions'
+          : '/v1/rides/{id}/extensions/{extensionId}/respond',
+      tags: ['Rides'],
+      security: bearerAuth,
+      summary:
+        action === 'propose'
+          ? 'Rider proposes an expiring destination extension at frozen tariffs'
+          : 'Assigned driver accepts or rejects an extension once',
+      request: {
+        params: action === 'propose' ? rideIdParamSchema : extensionParamsSchema,
+        body: {
+          content: {
+            'application/json': {
+              schema: action === 'propose' ? extensionRequestSchema : extensionResponseSchema,
+            },
+          },
+        },
+      },
+      responses: {
+        200: {
+          description: 'Authoritative ride with extension proposal',
+          content: { 'application/json': { schema: successResponse(rideViewSchema) } },
+        },
+        400: {
+          description: 'Invalid destination or request',
+          content: { 'application/json': { schema: errorResponse } },
+        },
+        401: {
+          description: 'Authentication required',
+          content: { 'application/json': { schema: errorResponse } },
+        },
+        403: {
+          description: 'Participant role required',
+          content: { 'application/json': { schema: errorResponse } },
+        },
+        404: {
+          description: 'Ride unavailable to this participant',
+          content: { 'application/json': { schema: errorResponse } },
+        },
+        409: {
+          description: 'Trip/proposal changed, expired, missing GPS or frozen tariff',
+          content: { 'application/json': { schema: errorResponse } },
+        },
+      },
+    });
+  }
 
   const rideReviewSchema = z.object({
     id: z.string().uuid(),

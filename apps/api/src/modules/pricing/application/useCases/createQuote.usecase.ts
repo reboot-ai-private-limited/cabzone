@@ -1,18 +1,18 @@
-import { createHmac, timingSafeEqual } from 'node:crypto';
-import { z } from 'zod';
-import type {
-  GeoPoint,
-  QuoteDto,
-  ServiceClassificationType,
-  StateDistanceBreakdown,
-  VehicleCategory,
-} from '@cabzone/contracts';
 import {
+  type TollSnapshot,
+  type GeoPoint,
+  type QuoteDto,
+  type ServiceClassificationType,
+  type StateDistanceBreakdown,
+  type VehicleCategory,
   calculateNegotiationBounds,
   DEFAULT_CANCELLATION_FEE_PAISE,
   SERVICE_CLASSIFICATION_TYPES,
   VEHICLE_CATEGORIES,
 } from '@cabzone/contracts';
+import { createHmac, timingSafeEqual } from 'node:crypto';
+import { z } from 'zod';
+
 import { AppError } from '../../../../shared/errors/AppError.js';
 import { newUuid } from '../../../../shared/ids.js';
 import {
@@ -44,6 +44,7 @@ export interface CreateQuoteInput {
 }
 
 export interface QuoteTokenPayload {
+  tollSnapshot?: TollSnapshot | null | undefined;
   quoteId: string;
   pickup: GeoPoint;
   drop: GeoPoint;
@@ -76,9 +77,19 @@ const pointSchema = z.object({
   lng: z.number().finite().min(-180).max(180),
 });
 const integerSchema = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
+export const tollSnapshotSchema = z.object({
+  exists: z.boolean().nullable(),
+  estimatedAmountPaise: integerSchema.nullable(),
+  currency: z.literal('INR'),
+  provider: z.string().min(1),
+  isEstimate: z.literal(true),
+  commercialVehicleCaveat: z.literal(true),
+  permitsMayApply: z.boolean(),
+});
 const quotePayloadSchema = z
   .object({
     quoteId: z.string().uuid(),
+    tollSnapshot: tollSnapshotSchema.nullish(),
     pickup: pointSchema,
     drop: pointSchema,
     vehicleCategory: z.enum(VEHICLE_CATEGORIES),
@@ -284,6 +295,13 @@ export class CreateQuoteUseCase {
     const expiresAtMs = expiresAt.getTime();
 
     const payload: QuoteTokenPayload = {
+      tollSnapshot: {
+        ...(routeResult.tollInfo ?? { exists: null, estimatedAmountPaise: null, currency: 'INR' }),
+        provider: routeResult.provider,
+        isEstimate: true,
+        commercialVehicleCaveat: true,
+        permitsMayApply: crossesStateBoundary,
+      },
       quoteId,
       pickup: { lat: input.pickup.lat, lng: input.pickup.lng },
       drop: { lat: input.drop.lat, lng: input.drop.lng },
@@ -315,6 +333,7 @@ export class CreateQuoteUseCase {
 
     return {
       quoteId,
+      tollSnapshot: payload.tollSnapshot ?? null,
       pickup: input.pickup,
       drop: input.drop,
       distanceM: routeResult.distanceM,

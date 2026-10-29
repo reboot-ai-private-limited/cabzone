@@ -1,4 +1,4 @@
-import type { VehicleCategory } from '@cabzone/contracts';
+import type { TollSnapshot, VehicleCategory } from '@cabzone/contracts';
 
 /** What dispatch needs to know about a driver account. Supplied by the composition root (identity). */
 export interface DriverDispatchProfile {
@@ -40,6 +40,7 @@ export const DEFAULT_DISPATCH_CONFIG: DispatchConfig = {
 };
 
 export interface RideOfferDto {
+  tollSnapshot?: TollSnapshot | null;
   rideId: string;
   vehicleCategory: VehicleCategory;
   pickup: { lat: number; lng: number; address: string | null };

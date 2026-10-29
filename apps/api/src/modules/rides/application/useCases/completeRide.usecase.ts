@@ -3,6 +3,7 @@ import { AppError } from '../../../../shared/errors/AppError.js';
 import { newUuid } from '../../../../shared/ids.js';
 import type { UnitOfWorkPort } from '../../../../shared/db/unitOfWork.port.js';
 import { saveRideTransition } from '../rideTransition.js';
+import type { RefundVerifierPort, ProviderRefund } from '../../domain/refundVerifier.port.js';
 import {
   calculateNewBalance,
   getRiderUnpaidArrearsPaise,
@@ -23,6 +24,7 @@ export interface CompleteRideInput {
 }
 
 export interface CompleteRideDeps {
+  refundVerifier?: RefundVerifierPort | undefined;
   prepareCashConfirmation?: (rideId: string, driverId: string) => Promise<void>;
   unitOfWork: UnitOfWorkPort;
   rideRepo: RideRepositoryPort;
@@ -236,6 +238,40 @@ export class CompleteRideUseCase {
       if (ride.status !== 'PAYMENT_DISPUTED')
         throw AppError.conflict('DISPUTE_STATE_CHANGED: Refresh this ride before resolving it.');
 
+      let verifiedRefund: ProviderRefund | null = null;
+      if (requiresManualProviderRefund) {
+        const confirmation = confirmedEvents.find((event) => event.metadata?.method === 'UPI');
+        const paymentId = isDuplicateUpiAfterCash
+          ? latestDispute?.metadata?.paymentId
+          : confirmation?.metadata?.paymentId;
+        const amountPaise = isDuplicateUpiAfterCash
+          ? (latestDispute?.metadata?.totalPayablePaise ?? latestDispute?.metadata?.amountPaise)
+          : (ride.agreedFarePaise ?? ride.proposedFarePaise ?? ride.suggestedFarePaise) +
+            Math.max(0, ride.arrearsPaise ?? 0);
+        if (
+          !this.deps.refundVerifier ||
+          typeof paymentId !== 'string' ||
+          !Number.isSafeInteger(amountPaise) ||
+          (amountPaise as number) <= 0
+        ) {
+          throw AppError.conflict(
+            'REFUND_VERIFICATION_REQUIRED: Provider payment and refund evidence are required.',
+          );
+        }
+        verifiedRefund = await this.deps.refundVerifier.fetchRefund(refundReference!);
+        if (
+          verifiedRefund.id !== refundReference ||
+          verifiedRefund.paymentId !== paymentId ||
+          verifiedRefund.amountPaise !== amountPaise ||
+          verifiedRefund.currency !== 'INR' ||
+          verifiedRefund.status !== 'processed'
+        ) {
+          throw AppError.conflict(
+            'REFUND_EVIDENCE_MISMATCH: A processed full refund for this payment is required.',
+          );
+        }
+      }
+
       const now = new Date();
       const saved = await saveRideTransition(
         this.deps.rideRepo,
@@ -315,6 +351,45 @@ export class CompleteRideUseCase {
               updatedAt: now,
             });
             reversedOnlineEarningsPaise = totalToReverse;
+          }
+          const paidArrears = await this.deps.walletRepo.findTransactionByIdempotencyKey(
+            `rider_arrears_paid_${ride.id}`,
+          );
+          if (paidArrears && paidArrears.amountPaise > 0) {
+            const riderWallet = await this.deps.walletRepo.findById(paidArrears.walletId);
+            if (!riderWallet || riderWallet.riderId !== ride.bookerRiderId) {
+              throw AppError.conflict('WALLET_NOT_FOUND: Rider arrears wallet is unavailable.');
+            }
+            refundedCollectedArrearsPaise = paidArrears.amountPaise;
+            const balanceAfter = calculateNewBalance(
+              riderWallet.balancePaise,
+              refundedCollectedArrearsPaise,
+              'DEBIT',
+            );
+            await this.deps.walletRepo.recordTransaction({
+              id: newUuid(),
+              walletId: riderWallet.id,
+              ownerType: 'RIDER',
+              driverId: null,
+              riderId: ride.bookerRiderId,
+              type: 'DEBIT',
+              amountPaise: refundedCollectedArrearsPaise,
+              referenceType: 'CANCELLATION_FEE_ARREARS',
+              referenceId: ride.id,
+              idempotencyKey: `dispute_arrears_reinstate_${ride.id}`,
+              balanceBeforePaise: riderWallet.balancePaise,
+              balanceAfterPaise: balanceAfter,
+              createdBy: input.adminId,
+              note: `${input.reason} (refund ${refundReference})`,
+              createdAt: now,
+            });
+            await this.deps.walletRepo.save({
+              ...riderWallet,
+              balancePaise: balanceAfter,
+              owedPaise: Math.max(0, -balanceAfter),
+              version: riderWallet.version + 1,
+              updatedAt: now,
+            });
           }
         } else if (!isDuplicateUpiAfterCash) {
           const charged = await this.deps.walletRepo.findTransactionByIdempotencyKey(
@@ -452,6 +527,7 @@ export class CompleteRideUseCase {
           reversedOnlineEarningsPaise,
           refundedCollectedArrearsPaise,
           ...(refundReference ? { refundReference } : {}),
+          ...(verifiedRefund ? { verifiedRefund, refundVerifiedAt: now.toISOString() } : {}),
           ...(isDuplicateUpiAfterCash ? { duplicateUpiAfterCash: true } : {}),
         },
         createdAt: now,
