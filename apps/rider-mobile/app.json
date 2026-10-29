@@ -59,6 +59,17 @@
     "experiments": {
       "typedRoutes": false,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {
+        "asyncRoutes": {
+          "web": true
+        }
+      },
+      "eas": {
+        "projectId": "4c2c4046-7cb4-40c8-b66d-5d0e0612dcb6"
+      }
+    },
+    "owner": "zxpr27s-team"
   }
 }

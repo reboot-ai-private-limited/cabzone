@@ -529,3 +529,25 @@ export const riderRidesApi = {
     );
   },
 };
+
+export const pushApi = {
+  async registerPushToken(
+    token: string,
+    pushToken: string,
+    installationId: string,
+  ): Promise<{ ok: boolean }> {
+    return request<{ ok: boolean }>(
+      '/api/v1/push-token',
+      { method: 'POST', body: JSON.stringify({ token: pushToken, installationId }) },
+      token,
+    );
+  },
+
+  async unregisterPushToken(token: string, installationId: string): Promise<{ ok: boolean }> {
+    return request<{ ok: boolean }>(
+      '/api/v1/push-token',
+      { method: 'DELETE', body: JSON.stringify({ installationId }) },
+      token,
+    );
+  },
+};

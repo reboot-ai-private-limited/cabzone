@@ -190,3 +190,31 @@ test('createRide forwards Idempotency-Key header and surfaces 409 ACTIVE_RIDE_EX
   assert.equal(call.headers['Idempotency-Key'], 'idem_booking_01');
   assert.equal('idempotencyKey' in JSON.parse(call.body), false);
 });
+
+
+test('pushApi registers and unregisters installation tokens on /api/v1/push-token', async () => {
+  const s = apiSession();
+  s.runtime.respond = async () => response({ ok: true });
+
+  const reg = await s.pushApi.registerPushToken(
+    'access-valid',
+    'ExponentPushToken[rider-token-1]',
+    'install-device-001',
+  );
+  assert.deepEqual(reg, { ok: true });
+  assert.equal(s.calls.at(-1).method, 'POST');
+  assert.ok(s.calls.at(-1).url.endsWith('/api/v1/push-token'));
+  assert.equal(s.calls.at(-1).authorization, 'Bearer access-valid');
+  assert.deepEqual(JSON.parse(s.calls.at(-1).body), {
+    token: 'ExponentPushToken[rider-token-1]',
+    installationId: 'install-device-001',
+  });
+
+  const unreg = await s.pushApi.unregisterPushToken('access-valid', 'install-device-001');
+  assert.deepEqual(unreg, { ok: true });
+  assert.equal(s.calls.at(-1).method, 'DELETE');
+  assert.ok(s.calls.at(-1).url.endsWith('/api/v1/push-token'));
+  assert.deepEqual(JSON.parse(s.calls.at(-1).body), {
+    installationId: 'install-device-001',
+  });
+});
