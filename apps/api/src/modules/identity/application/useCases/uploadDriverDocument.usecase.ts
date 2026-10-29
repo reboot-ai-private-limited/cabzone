@@ -1,7 +1,7 @@
 import type { DocumentType } from '@cabzone/contracts';
 import { newUuid } from '../../../../shared/ids.js';
 import { AppError } from '../../../../shared/errors/AppError.js';
-import { parseDriverLicenseFile } from '../driverLicenseFile.js';
+import { isPrivateKycStorageKey, parseDriverLicenseFile } from '../driverLicenseFile.js';
 import type { DriverLicenseStoragePort } from '../../domain/driverLicenseStorage.port.js';
 import {
   isVehicleScopedDocumentType,
@@ -32,6 +32,23 @@ export interface UploadDriverDocumentDto {
 export class UploadDriverDocumentUseCase {
   constructor(private readonly deps: UploadDriverDocumentDeps) {}
 
+  private async persistUploadedAsset(
+    uploadedStorageKey: string,
+    dto: Omit<UploadDriverDocumentDto, 'storageKey'>,
+  ): Promise<DriverDocumentEntity> {
+    try {
+      return await this.execute({
+        ...dto,
+        storageKey: uploadedStorageKey,
+      });
+    } catch (err) {
+      if (isPrivateKycStorageKey(uploadedStorageKey) && this.deps.licenseStorage?.delete) {
+        await this.deps.licenseStorage.delete(uploadedStorageKey).catch(() => {});
+      }
+      throw err;
+    }
+  }
+
   async executeLicenseFile(dto: {
     userId: string;
     fileDataUrl?: string | undefined;
@@ -44,7 +61,9 @@ export class UploadDriverDocumentUseCase {
     if (!application || !['DRAFT', 'REAPPLIED'].includes(application.status)) {
       throw AppError.badRequest('Start a draft application before uploading your licence.');
     }
-    if (dto.expiresAt <= new Date()) throw AppError.badRequest('Licence expiry must be in the future.');
+    if (dto.expiresAt <= new Date()) {
+      throw AppError.badRequest('Licence expiry must be in the future.');
+    }
     if (!dto.fileDataUrl) {
       const documents = await this.deps.documentRepo.findByApplicationId(application.id);
       const existing = documents.find((document) => document.type === 'DRIVING_LICENSE');
@@ -68,10 +87,9 @@ export class UploadDriverDocumentUseCase {
     if (!this.deps.licenseStorage) throw AppError.internal();
 
     const storageKey = await this.deps.licenseStorage.upload(dto.fileDataUrl, file.extension);
-    return this.execute({
+    return this.persistUploadedAsset(storageKey, {
       userId: dto.userId,
       type: 'DRIVING_LICENSE',
-      storageKey,
       documentHash: file.sha256,
       documentNumberMasked: `****${dto.dlNumber.slice(-4)}`,
       expiresAt: dto.expiresAt,
@@ -91,21 +109,25 @@ export class UploadDriverDocumentUseCase {
     if (!application || !['DRAFT', 'REAPPLIED'].includes(application.status)) {
       throw AppError.badRequest('Start a draft application before uploading vehicle documents.');
     }
-    if (dto.expiresAt <= new Date()) throw AppError.badRequest('Document expiry must be in the future.');
+    if (dto.expiresAt <= new Date()) {
+      throw AppError.badRequest('Document expiry must be in the future.');
+    }
     if (!this.deps.licenseStorage) throw AppError.internal();
 
     const storageKey = await this.deps.licenseStorage.upload(dto.fileDataUrl, file.extension);
-    return this.execute({
+    return this.persistUploadedAsset(storageKey, {
       userId: dto.userId,
       type: dto.type,
       vehicleId: driver.currentVehicleId ?? null,
-      storageKey,
       documentHash: file.sha256,
       expiresAt: dto.expiresAt,
     });
   }
 
-  async executeIdentityFile(dto: { userId: string; fileDataUrl: string }): Promise<DriverDocumentEntity> {
+  async executeIdentityFile(dto: {
+    userId: string;
+    fileDataUrl: string;
+  }): Promise<DriverDocumentEntity> {
     const file = parseDriverLicenseFile(dto.fileDataUrl, 'Government ID');
     const driver = await this.deps.driverRepo.findByUserId(dto.userId);
     if (!driver) throw AppError.notFound('Driver profile not found.');
@@ -116,10 +138,9 @@ export class UploadDriverDocumentUseCase {
     if (!this.deps.licenseStorage) throw AppError.internal();
 
     const storageKey = await this.deps.licenseStorage.upload(dto.fileDataUrl, file.extension);
-    return this.execute({
+    return this.persistUploadedAsset(storageKey, {
       userId: dto.userId,
       type: 'GOVERNMENT_ID',
-      storageKey,
       documentHash: file.sha256,
     });
   }
@@ -132,7 +153,9 @@ export class UploadDriverDocumentUseCase {
 
     const application = await this.deps.applicationRepo.findByDriverId(driver.id);
     if (!application) {
-      throw AppError.badRequest('No active application found. Please initiate an application first.');
+      throw AppError.badRequest(
+        'No active application found. Please initiate an application first.',
+      );
     }
 
     if (!['DRAFT', 'REAPPLIED'].includes(application.status)) {
@@ -151,6 +174,7 @@ export class UploadDriverDocumentUseCase {
       : null;
 
     if (existing) {
+      const previousStorageKey = existing.storageKey;
       const updated: DriverDocumentEntity = {
         ...existing,
         vehicleId: resolvedVehicleId,
@@ -164,7 +188,24 @@ export class UploadDriverDocumentUseCase {
         lastExpiryReminderDays: null,
         updatedAt: now,
       };
-      return this.deps.documentRepo.update(updated);
+      const saved = await this.deps.documentRepo.update(updated);
+
+      if (
+        previousStorageKey &&
+        previousStorageKey !== dto.storageKey &&
+        isPrivateKycStorageKey(previousStorageKey) &&
+        this.deps.licenseStorage?.delete
+      ) {
+        const allDriverDocs = await this.deps.documentRepo.findByDriverId(driver.id);
+        const stillReferenced = allDriverDocs.some(
+          (doc) => doc.id !== saved.id && doc.storageKey === previousStorageKey,
+        );
+        if (!stillReferenced) {
+          await this.deps.licenseStorage.delete(previousStorageKey).catch(() => {});
+        }
+      }
+
+      return saved;
     }
 
     const newDoc: DriverDocumentEntity = {

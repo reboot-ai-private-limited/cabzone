@@ -36,6 +36,18 @@ export class RegisterDriverVehicleUseCase {
       throw AppError.notFound('Driver profile not found.');
     }
 
+    const activeApp = this.deps.applicationRepo
+      ? await this.deps.applicationRepo.findByDriverId(driver.id)
+      : null;
+    if (
+      activeApp &&
+      ['SUBMITTED', 'UNDER_REVIEW_AUTO', 'UNDER_REVIEW_ADMIN'].includes(activeApp.status)
+    ) {
+      throw AppError.badRequest(
+        'VEHICLE_LOCKED_UNDER_REVIEW: Cannot register or change vehicle while an application is under review.',
+      );
+    }
+
     const normalizedReg = dto.registrationNumber.trim().toUpperCase();
     const existingVehicle = await this.deps.vehicleRepo.findByRegistrationNumber(normalizedReg);
     if (existingVehicle && existingVehicle.driverId !== driver.id) {
@@ -75,29 +87,28 @@ export class RegisterDriverVehicleUseCase {
       vehicle = await this.deps.vehicleRepo.create(newVehicle);
     }
 
-    if (driver.currentVehicleId !== vehicle.id) {
+    if (driver.currentVehicleId !== vehicle.id || driver.operationalStatus === 'ONLINE') {
       await this.deps.driverRepo.update({
         ...driver,
         currentVehicleId: vehicle.id,
+        operationalStatus:
+          driver.operationalStatus === 'ONLINE' ? 'OFFLINE' : driver.operationalStatus,
       });
     }
 
-    if (this.deps.applicationRepo && this.deps.documentRepo) {
-      const activeApp = await this.deps.applicationRepo.findByDriverId(driver.id);
-      if (activeApp && ['DRAFT', 'REAPPLIED'].includes(activeApp.status)) {
-        const docs = await this.deps.documentRepo.findByApplicationId(activeApp.id);
-        for (const doc of docs) {
-          if (
-            isVehicleScopedDocumentType(doc.type) &&
-            doc.verificationStatus === 'PENDING' &&
-            doc.vehicleId == null
-          ) {
-            await this.deps.documentRepo.update({
-              ...doc,
-              vehicleId: vehicle.id,
-              updatedAt: now,
-            });
-          }
+    if (activeApp && this.deps.documentRepo && ['DRAFT', 'REAPPLIED'].includes(activeApp.status)) {
+      const docs = await this.deps.documentRepo.findByApplicationId(activeApp.id);
+      for (const doc of docs) {
+        if (
+          isVehicleScopedDocumentType(doc.type) &&
+          doc.verificationStatus === 'PENDING' &&
+          doc.vehicleId == null
+        ) {
+          await this.deps.documentRepo.update({
+            ...doc,
+            vehicleId: vehicle.id,
+            updatedAt: now,
+          });
         }
       }
     }

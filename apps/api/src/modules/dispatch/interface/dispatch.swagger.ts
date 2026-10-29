@@ -32,6 +32,43 @@ const fleetDriverSchema = z.object({
 });
 
 let registered = false;
+let sharedPushRegistered = false;
+
+export function registerPushTokenSwaggerPaths(): void {
+  if (sharedPushRegistered) return;
+  sharedPushRegistered = true;
+
+  registry.registerPath({
+    method: 'post',
+    path: '/v1/push-token',
+    tags: ['Push Notifications'],
+    summary: 'Register Expo push token for rider or driver background ride alerts',
+    security: bearerAuth,
+    request: { body: { content: { 'application/json': { schema: pushTokenSchema } } } },
+    responses: {
+      200: {
+        description: 'Push token registered',
+        content: { 'application/json': { schema: successResponse(z.object({ ok: z.boolean() })) } },
+      },
+      400: { description: 'Invalid Expo push token', content: { 'application/json': { schema: errorResponse } } },
+    },
+  });
+
+  registry.registerPath({
+    method: 'delete',
+    path: '/v1/push-token',
+    tags: ['Push Notifications'],
+    summary: 'Unregister Expo push token for authenticated installation',
+    security: bearerAuth,
+    request: { body: { content: { 'application/json': { schema: removePushTokenSchema } } } },
+    responses: {
+      200: {
+        description: 'Push token removed',
+        content: { 'application/json': { schema: successResponse(z.object({ ok: z.boolean() })) } },
+      },
+    },
+  });
+}
 
 export function registerDispatchSwaggerPaths(): void {
   if (registered) return;

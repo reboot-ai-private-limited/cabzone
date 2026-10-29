@@ -49,7 +49,6 @@ export class CloudinaryDriverLicenseAdapter implements DriverLicenseStoragePort 
   }
 
   async upload(dataUrl: string, extension: DocumentFileExtension): Promise<string> {
-    // shortcut: replaced or failed-persistence assets need an orphan cleanup job.
     const publicId = `driver-kyc/${newUuid()}.${extension}`;
     const body = new FormData();
     body.set('file', dataUrl);
@@ -88,6 +87,41 @@ export class CloudinaryDriverLicenseAdapter implements DriverLicenseStoragePort 
         code: 'INTERNAL',
         message: 'Could not save your document. Please try again.',
       });
+    }
+  }
+
+  async delete(storageKey: string): Promise<void> {
+    if (!isPrivateKycStorageKey(storageKey)) {
+      return;
+    }
+    const timestamp = String(Math.floor(Date.now() / 1000));
+    const signaturePayload = `invalidate=true&public_id=${storageKey}&timestamp=${timestamp}&type=authenticated${this.config.apiSecret}`;
+    const signature = createHash('sha1').update(signaturePayload).digest('hex');
+
+    const form = new URLSearchParams({
+      public_id: storageKey,
+      type: 'authenticated',
+      invalidate: 'true',
+      timestamp,
+      api_key: this.config.apiKey,
+      signature,
+    });
+
+    const response = await fetch(
+      `https://api.cloudinary.com/v1_1/${encodeURIComponent(this.config.cloudName)}/raw/destroy`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          Accept: 'application/json',
+        },
+        body: form.toString(),
+        signal: AbortSignal.timeout(15_000),
+      },
+    );
+
+    if (!response.ok) {
+      throw new Error(`Private document storage delete failed with status ${response.status}`);
     }
   }
 }
