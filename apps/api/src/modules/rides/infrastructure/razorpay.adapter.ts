@@ -4,6 +4,7 @@ import QRCode from 'qrcode';
 import type { RideUpiIntentDto } from '@cabzone/contracts';
 import { AppError } from '../../../shared/errors/AppError.js';
 import type { RidePaymentGateway } from '../domain/ridePayment.port.js';
+import type { RefundVerifierPort, ProviderRefund } from '../domain/refundVerifier.port.js';
 
 const paymentSchema = z.object({
   id: z.string().regex(/^pay_[a-zA-Z0-9]+$/),
@@ -15,7 +16,7 @@ const paymentSchema = z.object({
   amount_refunded: z.number().int().nonnegative().default(0),
 });
 
-export class RazorpayGateway implements RidePaymentGateway {
+export class RazorpayGateway implements RidePaymentGateway, RefundVerifierPort {
   constructor(
     readonly keyId: string,
     private readonly secret: string,
@@ -25,6 +26,28 @@ export class RazorpayGateway implements RidePaymentGateway {
 
   get live() {
     return this.mode === 'live';
+  }
+
+  async fetchRefund(refundId: string): Promise<ProviderRefund> {
+    if (!/^rfnd_[a-zA-Z0-9]+$/.test(refundId)) {
+      throw AppError.badRequest('A Razorpay refund ID is required.');
+    }
+    const refund = z
+      .object({
+        id: z.string(),
+        payment_id: z.string(),
+        amount: z.number().int().positive().safe(),
+        currency: z.string(),
+        status: z.string(),
+      })
+      .parse(await this.api(`refunds/${encodeURIComponent(refundId)}`));
+    return {
+      id: refund.id,
+      paymentId: refund.payment_id,
+      amountPaise: refund.amount,
+      currency: refund.currency,
+      status: refund.status,
+    };
   }
 
   private async api(path: string, body?: object): Promise<unknown> {
@@ -52,7 +75,11 @@ export class RazorpayGateway implements RidePaymentGateway {
     return response.json();
   }
 
-  async createOrder(amountPaise: number, rideId: string, purpose = 'ride_fare_test'): Promise<string> {
+  async createOrder(
+    amountPaise: number,
+    rideId: string,
+    purpose = 'ride_fare_test',
+  ): Promise<string> {
     if (this.live) throw AppError.badRequest('Use the ride UPI session to pay.');
     const result = z.object({ id: z.string().regex(/^order_[a-zA-Z0-9]+$/) }).parse(
       await this.api('orders', {

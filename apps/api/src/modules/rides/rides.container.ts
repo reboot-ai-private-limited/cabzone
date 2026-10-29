@@ -170,6 +170,9 @@ export function buildRidesContainer(deps: RidesContainerDeps): RidesContainer {
     rideRepo,
   });
   const completeRideUseCase = new CompleteRideUseCase({
+    refundVerifier: gateway.fetchRefund
+      ? { fetchRefund: (id) => gateway.fetchRefund!(id) }
+      : undefined,
     prepareCashConfirmation: (rideId, driverId) =>
       upiPayment.prepareCashConfirmation(rideId, driverId),
     rideRepo,

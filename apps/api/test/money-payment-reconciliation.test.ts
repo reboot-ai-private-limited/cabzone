@@ -103,6 +103,16 @@ function buildTestHarness() {
   let orderSeq = 0;
 
   const gateway = {
+    fetchRefund: vi.fn(async (id: string) => {
+      const refunds: Record<string, { paymentId: string; amountPaise: number }> = {
+        rfnd_arrears: { paymentId: 'pay_arrears_refund', amountPaise: 23000 },
+        rfnd_manual_9001: { paymentId: 'pay_online_555', amountPaise: 20000 },
+        rfnd_dup_77: { paymentId: 'pay_dup_late_77', amountPaise: 10000 },
+      };
+      const evidence = refunds[id];
+      if (!evidence) throw new Error('Refund not found');
+      return { id, ...evidence, currency: 'INR', status: 'processed' };
+    }),
     live: false,
     keyId: 'rzp_test_step6_harness',
     createOrder: vi.fn(async (amountPaise: number, ref: string) => {
@@ -144,6 +154,7 @@ function buildTestHarness() {
   });
 
   const completeRide = new CompleteRideUseCase({
+    refundVerifier: gateway,
     prepareCashConfirmation: (rideId, driverId) =>
       upiPayment.prepareCashConfirmation(rideId, driverId),
     rideRepo,

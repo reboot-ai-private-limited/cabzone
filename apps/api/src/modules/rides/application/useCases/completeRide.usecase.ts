@@ -3,6 +3,7 @@ import { AppError } from '../../../../shared/errors/AppError.js';
 import { newUuid } from '../../../../shared/ids.js';
 import type { UnitOfWorkPort } from '../../../../shared/db/unitOfWork.port.js';
 import { saveRideTransition } from '../rideTransition.js';
+import type { RefundVerifierPort, ProviderRefund } from '../../domain/refundVerifier.port.js';
 import {
   calculateNewBalance,
   getRiderUnpaidArrearsPaise,
@@ -23,6 +24,7 @@ export interface CompleteRideInput {
 }
 
 export interface CompleteRideDeps {
+  refundVerifier?: RefundVerifierPort | undefined;
   prepareCashConfirmation?: (rideId: string, driverId: string) => Promise<void>;
   unitOfWork: UnitOfWorkPort;
   rideRepo: RideRepositoryPort;
@@ -235,6 +237,40 @@ export class CompleteRideUseCase {
 
       if (ride.status !== 'PAYMENT_DISPUTED')
         throw AppError.conflict('DISPUTE_STATE_CHANGED: Refresh this ride before resolving it.');
+
+      let verifiedRefund: ProviderRefund | null = null;
+      if (requiresManualProviderRefund) {
+        const confirmation = confirmedEvents.find((event) => event.metadata?.method === 'UPI');
+        const paymentId = isDuplicateUpiAfterCash
+          ? latestDispute?.metadata?.paymentId
+          : confirmation?.metadata?.paymentId;
+        const amountPaise = isDuplicateUpiAfterCash
+          ? (latestDispute?.metadata?.totalPayablePaise ?? latestDispute?.metadata?.amountPaise)
+          : (ride.agreedFarePaise ?? ride.proposedFarePaise ?? ride.suggestedFarePaise) +
+            Math.max(0, ride.arrearsPaise ?? 0);
+        if (
+          !this.deps.refundVerifier ||
+          typeof paymentId !== 'string' ||
+          !Number.isSafeInteger(amountPaise) ||
+          (amountPaise as number) <= 0
+        ) {
+          throw AppError.conflict(
+            'REFUND_VERIFICATION_REQUIRED: Provider payment and refund evidence are required.',
+          );
+        }
+        verifiedRefund = await this.deps.refundVerifier.fetchRefund(refundReference!);
+        if (
+          verifiedRefund.id !== refundReference ||
+          verifiedRefund.paymentId !== paymentId ||
+          verifiedRefund.amountPaise !== amountPaise ||
+          verifiedRefund.currency !== 'INR' ||
+          verifiedRefund.status !== 'processed'
+        ) {
+          throw AppError.conflict(
+            'REFUND_EVIDENCE_MISMATCH: A processed full refund for this payment is required.',
+          );
+        }
+      }
 
       const now = new Date();
       const saved = await saveRideTransition(
@@ -491,6 +527,7 @@ export class CompleteRideUseCase {
           reversedOnlineEarningsPaise,
           refundedCollectedArrearsPaise,
           ...(refundReference ? { refundReference } : {}),
+          ...(verifiedRefund ? { verifiedRefund, refundVerifiedAt: now.toISOString() } : {}),
           ...(isDuplicateUpiAfterCash ? { duplicateUpiAfterCash: true } : {}),
         },
         createdAt: now,
