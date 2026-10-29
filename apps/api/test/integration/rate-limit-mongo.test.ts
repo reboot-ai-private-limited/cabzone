@@ -1,6 +1,5 @@
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { setTimeout } from 'node:timers/promises';
 import mongoose from 'mongoose';
 import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -52,10 +51,13 @@ describe('Mongo rate limits across API instances', () => {
   });
 
   it('starts a fresh counter after the window expires', async () => {
-    expect(await first.consume('expiry', 1, 20)).toBe(0);
-    expect(await second.consume('expiry', 1, 20)).toBeGreaterThan(0);
-    await setTimeout(50);
-    expect(await second.consume('expiry', 1, 20)).toBe(0);
+    let now = new Date();
+    const store = new MongoRateLimitStore(() => now);
+    const other = new MongoRateLimitStore(() => now);
+    expect(await store.consume('expiry', 1, 20)).toBe(0);
+    expect(await other.consume('expiry', 1, 20)).toBeGreaterThan(0);
+    now = new Date(now.getTime() + 20);
+    expect(await other.consume('expiry', 1, 20)).toBe(0);
   });
 
   it('keeps independent keys in separate windows', async () => {
