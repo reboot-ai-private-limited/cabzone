@@ -24,6 +24,8 @@ import {
 } from '@/services/rider-helpers';
 import { useAuth } from './auth-context';
 
+const RIDER_HISTORY_PAGE_SIZE = 40;
+
 export interface BookingDraft {
   mode: 'IN_CITY' | 'OUTSTATION';
   preferredFarePaise?: number;
@@ -45,13 +47,16 @@ interface RideContextValue {
   activeRideEvents: RideEventDto[];
   pendingCounters: PendingDriverCounter[];
   rideHistory: RiderRideViewDto[];
+  hasMoreRides: boolean;
   isLoadingRides: boolean;
+  isLoadingMoreRides: boolean;
   isRealtimeConnected: boolean;
   syncError: string | null;
   driverLiveLocation: { lat: number; lng: number; updatedAt: string } | null;
   bookingDraft: BookingDraft | null;
   setBookingDraft: (draft: BookingDraft | null) => void;
   refreshRides: () => Promise<RiderRideViewDto | null>;
+  loadOlderRides: () => Promise<void>;
   refreshRideById: (rideId: string) => Promise<{
     ride: RiderRideViewDto;
     events: RideEventDto[];
@@ -83,6 +88,8 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
     updatedAt: string;
   } | null>(null);
   const [bookingDraft, setBookingDraft] = useState<BookingDraft | null>(null);
+  const [hasMoreRides, setHasMoreRides] = useState(false);
+  const [isLoadingMoreRides, setIsLoadingMoreRides] = useState(false);
 
   const activeRideIdRef = useRef<string | null>(null);
   useEffect(() => {
@@ -127,14 +134,22 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
       setActiveRide(null);
       setActiveRideEvents([]);
       setRideHistory([]);
+      setHasMoreRides(false);
       setSyncError(null);
       return null;
     }
     setIsLoadingRides(true);
     try {
-      const rides = await riderRidesApi.listRides(token, { limit: 40 });
+      const rides = await riderRidesApi.listRides(token, { limit: RIDER_HISTORY_PAGE_SIZE });
       setSyncError(null);
-      const sorted = [...rides].sort(
+      setHasMoreRides(rides.length >= RIDER_HISTORY_PAGE_SIZE);
+      const seen = new Set<string>();
+      const deduped = rides.filter((r) => {
+        if (seen.has(r.id)) return false;
+        seen.add(r.id);
+        return true;
+      });
+      const sorted = [...deduped].sort(
         (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
       );
       setRideHistory(sorted);
@@ -158,12 +173,43 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
     }
   }, [handleSyncError, refreshRideById, token]);
 
+  const loadOlderRides = useCallback(async (): Promise<void> => {
+    if (!token || isLoadingMoreRides || !hasMoreRides) return;
+    setIsLoadingMoreRides(true);
+    try {
+      const older = await riderRidesApi.listRides(token, {
+        limit: RIDER_HISTORY_PAGE_SIZE,
+        offset: rideHistory.length,
+      });
+      setSyncError(null);
+      setHasMoreRides(older.length >= RIDER_HISTORY_PAGE_SIZE);
+      setRideHistory((prev) => {
+        const seen = new Set(prev.map((r) => r.id));
+        const merged = [...prev];
+        for (const item of older) {
+          if (!seen.has(item.id)) {
+            seen.add(item.id);
+            merged.push(item);
+          }
+        }
+        return merged.sort(
+          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+        );
+      });
+    } catch (error: unknown) {
+      handleSyncError(error);
+    } finally {
+      setIsLoadingMoreRides(false);
+    }
+  }, [handleSyncError, hasMoreRides, isLoadingMoreRides, rideHistory.length, token]);
+
   useEffect(() => {
     const timer = setTimeout(() => {
       if (!token) {
         setActiveRide(null);
         setActiveRideEvents([]);
         setRideHistory([]);
+        setHasMoreRides(false);
         setIsRealtimeConnected(false);
         setDriverLiveLocation(null);
         return;
@@ -384,13 +430,16 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
       activeRideEvents,
       pendingCounters,
       rideHistory,
+      hasMoreRides,
       isLoadingRides,
+      isLoadingMoreRides,
       isRealtimeConnected,
       syncError,
       driverLiveLocation,
       bookingDraft,
       setBookingDraft,
       refreshRides,
+      loadOlderRides,
       refreshRideById,
       createRide,
       respondToCounter,
@@ -403,12 +452,15 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
       activeRideEvents,
       pendingCounters,
       rideHistory,
+      hasMoreRides,
       isLoadingRides,
+      isLoadingMoreRides,
       isRealtimeConnected,
       syncError,
       driverLiveLocation,
       bookingDraft,
       refreshRides,
+      loadOlderRides,
       refreshRideById,
       createRide,
       respondToCounter,

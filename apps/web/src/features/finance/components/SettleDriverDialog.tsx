@@ -1,11 +1,17 @@
 'use client';
 
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { CheckCircle2 } from 'lucide-react';
 import type { WalletSummaryDto } from '@cabzone/contracts';
 import { Button, Dialog, Input } from '@cabzone/design-system';
 import { formatPaise } from '@/lib/format';
 import { useAdjustWallet } from '../hooks/useFinance';
+
+function nextIdempotencyKey(): string | undefined {
+  return typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : undefined;
+}
 
 export interface SettleDriverDialogProps {
   wallet: WalletSummaryDto | null;
@@ -26,6 +32,8 @@ export function SettleDriverDialog({
   const [rupees, setRupees] = useState('');
   const [note, setNote] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const submittingRef = useRef(false);
+  const attemptKeyRef = useRef<string | undefined>(undefined);
 
   // Initialize pre-filled amount when dialog opens or wallet changes
   useEffect(() => {
@@ -39,10 +47,16 @@ export function SettleDriverDialog({
       }
       setNote('');
       setError(null);
+      attemptKeyRef.current = undefined;
     }
   }, [wallet, open]);
 
+  useEffect(() => {
+    attemptKeyRef.current = undefined;
+  }, [method, rupees, note]);
+
   const adjustMutation = useAdjustWallet(() => {
+    attemptKeyRef.current = undefined;
     setRupees('');
     setNote('');
     setError(null);
@@ -59,17 +73,23 @@ export function SettleDriverDialog({
 
   const parsedPaise = Math.round(Number(rupees) * 100);
   const isValidAmount = Number.isFinite(parsedPaise) && parsedPaise > 0;
-  const canSubmit = isValidAmount && !adjustMutation.isPending;
+  const isValidNote = note.trim().length >= 5;
+  const canSubmit = isValidAmount && isValidNote && !adjustMutation.isPending;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!canSubmit) return;
+    if (!canSubmit || submittingRef.current) return;
+    submittingRef.current = true;
     setError(null);
+
+    if (!attemptKeyRef.current) {
+      attemptKeyRef.current = nextIdempotencyKey();
+    }
 
     // If driver owes company, settling arrears means CREDITING driver's wallet to bring balance up to 0 (or positive).
     // If company owes driver, payout means DEBITING driver's wallet as paid out to driver.
     const type = isOwing ? 'CREDIT' : isPayable ? 'DEBIT' : 'CREDIT';
-    const reasonText = `Settlement (${method}): ${note.trim() || (isOwing ? 'Arrears cleared' : 'Payout to driver')}`;
+    const reasonText = `Settlement (${method}): ${note.trim()}`;
 
     adjustMutation.mutate(
       {
@@ -78,10 +98,14 @@ export function SettleDriverDialog({
         type,
         amountPaise: parsedPaise,
         reason: reasonText,
+        idempotencyKey: attemptKeyRef.current,
       },
       {
         onError: (err) => {
           setError(err instanceof Error ? err.message : 'Failed to process settlement.');
+        },
+        onSettled: () => {
+          submittingRef.current = false;
         },
       },
     );
@@ -91,7 +115,7 @@ export function SettleDriverDialog({
     <Dialog
       open={open}
       onOpenChange={(val) => {
-        if (!adjustMutation.isPending) {
+        if (!adjustMutation.isPending && !submittingRef.current) {
           setError(null);
           onOpenChange(val);
         }
@@ -103,9 +127,7 @@ export function SettleDriverDialog({
         {/* Driver Profile Header */}
         <div className="flex items-center justify-between p-3.5 bg-surface-sunken border border-border rounded-lg text-xs">
           <div className="flex flex-col gap-0.5">
-            <span className="font-semibold text-text text-sm">
-              {wallet.name || 'Driver'}
-            </span>
+            <span className="font-semibold text-text text-sm">{wallet.name || 'Driver'}</span>
             <span className="font-mono text-text-subtle">{wallet.phoneE164}</span>
             {wallet.vehicleNumber && (
               <span className="text-[11px] text-text-subtle font-mono mt-0.5">
@@ -122,7 +144,9 @@ export function SettleDriverDialog({
             ) : isPayable ? (
               <div className="flex flex-col items-end">
                 <span className="text-[11px] text-emerald-600 font-medium">Payable to driver</span>
-                <span className="font-bold text-emerald-600 text-base">{formatPaise(payableAmount)}</span>
+                <span className="font-bold text-emerald-600 text-base">
+                  {formatPaise(payableAmount)}
+                </span>
               </div>
             ) : (
               <div className="flex flex-col items-end">
@@ -137,12 +161,14 @@ export function SettleDriverDialog({
         <div className="p-3 rounded-lg border text-xs bg-slate-50 border-slate-200 text-slate-700">
           {isOwing ? (
             <p>
-              Driver has pending arrears of <span className="font-semibold text-red-600">{formatPaise(owedAmount)}</span>.
+              Driver has pending arrears of{' '}
+              <span className="font-semibold text-red-600">{formatPaise(owedAmount)}</span>.
               Recording this settlement credits their balance and clears negative limits.
             </p>
           ) : isPayable ? (
             <p>
-              Company owes driver <span className="font-semibold text-emerald-600">{formatPaise(payableAmount)}</span>.
+              Company owes driver{' '}
+              <span className="font-semibold text-emerald-600">{formatPaise(payableAmount)}</span>.
               Recording this settlement logs a payout debit to the driver.
             </p>
           ) : (
@@ -153,9 +179,10 @@ export function SettleDriverDialog({
         {/* Method Selection */}
         <div className="flex flex-col gap-1.5">
           <span className="text-xs font-semibold text-text">Settlement Mode</span>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-3 gap-2" role="group" aria-label="Settlement Mode">
             <button
               type="button"
+              aria-pressed={method === 'UPI'}
               onClick={() => setMethod('UPI')}
               className={`py-2 px-3 text-xs font-medium rounded-lg border text-center transition-all cursor-pointer ${
                 method === 'UPI'
@@ -167,6 +194,7 @@ export function SettleDriverDialog({
             </button>
             <button
               type="button"
+              aria-pressed={method === 'CASH'}
               onClick={() => setMethod('CASH')}
               className={`py-2 px-3 text-xs font-medium rounded-lg border text-center transition-all cursor-pointer ${
                 method === 'CASH'
@@ -178,6 +206,7 @@ export function SettleDriverDialog({
             </button>
             <button
               type="button"
+              aria-pressed={method === 'WAIVER'}
               onClick={() => setMethod('WAIVER')}
               className={`py-2 px-3 text-xs font-medium rounded-lg border text-center transition-all cursor-pointer ${
                 method === 'WAIVER'
@@ -216,7 +245,7 @@ export function SettleDriverDialog({
         {/* Reference / Note */}
         <div className="flex flex-col gap-1.5">
           <label htmlFor={noteId} className="text-xs font-semibold text-text">
-            Reference / UTR / Note (Optional)
+            Reference / UTR / Audit Note
           </label>
           <Input
             id={noteId}
@@ -224,13 +253,22 @@ export function SettleDriverDialog({
             value={note}
             onChange={(e) => setNote(e.target.value)}
             placeholder="e.g. UPI Ref #493019823 or Office Cash Receipt"
+            minLength={5}
+            maxLength={240}
+            required
             className="text-sm h-10 w-full"
           />
+          <span className="text-[11px] text-text-subtle">
+            Minimum 5 characters required for settlement audit trail.
+          </span>
         </div>
 
         {/* Error Feedback */}
         {error && (
-          <div className="p-3 bg-danger/10 border border-danger/30 rounded-lg text-xs text-danger">
+          <div
+            role="alert"
+            className="p-3 bg-danger/10 border border-danger/30 rounded-lg text-xs text-danger"
+          >
             {error}
           </div>
         )}

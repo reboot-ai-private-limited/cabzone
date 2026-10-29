@@ -24,6 +24,8 @@ export interface AdminRideDto {
   suggestedFarePaise: number;
   proposedFarePaise: number | null;
   agreedFarePaise: number | null;
+  arrearsPaise?: number;
+  totalPayablePaise?: number;
   paymentCollection?: 'DIRECT' | 'CASH' | 'RAZORPAY_TEST' | 'RAZORPAY_UPI';
   driverSettlement?: DriverRideSettlementDto;
   status: RideStatus;
@@ -57,6 +59,13 @@ export interface CompleteRideResultDto {
   farePaise: number;
   commissionPaise: number;
   walletBalancePaise: number;
+}
+
+export interface WaiveCancellationFeeResultDto {
+  ride: AdminRideDto;
+  waivedPaise: number;
+  riderWalletBalancePaise: number;
+  riderArrearsPaise: number;
 }
 
 export interface RideEventDto {
@@ -371,6 +380,13 @@ export const ridesApi = {
       token,
     });
   },
+
+  waiveCancellationFee: (rideId: string, reason: string, token?: string) =>
+    request<WaiveCancellationFeeResultDto>(`/v1/rides/${rideId}/cancellation-fee/waive`, {
+      method: 'POST',
+      body: { reason: reason.trim() },
+      token,
+    }),
 
   cancel: (rideId: string, reason: CancellationReason | string, token?: string) =>
     request<{ ride: AdminRideDto }>(`/v1/rides/${rideId}/cancel`, {

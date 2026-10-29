@@ -32,6 +32,7 @@ import {
   SearchInput,
   SegmentedControl,
   Select,
+  Skeleton,
   StatTile,
 } from '@cabzone/design-system';
 import type { AdminRole, AdminStatus, AdminUserSummaryDto } from '@cabzone/contracts';
@@ -46,7 +47,13 @@ import { RolePermissionsMatrixModal } from './RolePermissionsMatrixModal';
 
 const PAGE_SIZE = 15;
 
-type SegmentView = 'ALL' | 'SUPER_ADMIN' | 'CITY_ADMIN' | 'SUPPORT_ADMIN' | 'FINANCE_ADMIN' | 'SUSPENDED';
+type SegmentView =
+  | 'ALL'
+  | 'SUPER_ADMIN'
+  | 'CITY_ADMIN'
+  | 'SUPPORT_ADMIN'
+  | 'FINANCE_ADMIN'
+  | 'SUSPENDED';
 
 const ROLE_FILTER_OPTIONS = [
   { value: 'ALL', label: 'All Roles' },
@@ -112,105 +119,6 @@ function CopyPhoneButton({ phone }: { phone: string }) {
   );
 }
 
-const FILLER_ADMINS: AdminUserSummaryDto[] = [
-  {
-    id: '01920000-0000-7000-8000-000000000001',
-    userId: '018f0a00-0000-7000-8000-000000000001',
-    phoneE164: '+919811122233',
-    name: 'Vikramaditya Sharma',
-    email: 'vikram.hq@cabzone.in',
-    role: 'SUPER_ADMIN',
-    cityZoneIds: [],
-    status: 'ACTIVE',
-    createdAt: '2025-01-10T08:00:00.000Z',
-    updatedAt: '2026-03-20T12:00:00.000Z',
-  },
-  {
-    id: '01920000-0000-7000-8000-000000000002',
-    userId: '018f0a00-0000-7000-8000-000000000002',
-    phoneE164: '+919830011223',
-    name: 'Ananya Sengupta',
-    email: 'ananya.kolkata@cabzone.in',
-    role: 'CITY_ADMIN',
-    cityZoneIds: ['zone-kolkata-central', 'zone-howrah-station'],
-    status: 'ACTIVE',
-    createdAt: '2025-02-15T09:30:00.000Z',
-    updatedAt: '2026-03-18T10:15:00.000Z',
-  },
-  {
-    id: '01920000-0000-7000-8000-000000000003',
-    userId: '018f0a00-0000-7000-8000-000000000003',
-    phoneE164: '+919934055667',
-    name: 'Rajeshwar Verma',
-    email: 'rajeshwar.patna@cabzone.in',
-    role: 'CITY_ADMIN',
-    cityZoneIds: ['zone-patna-airport', 'zone-danapur-hub'],
-    status: 'ACTIVE',
-    createdAt: '2025-03-01T11:00:00.000Z',
-    updatedAt: '2026-03-25T14:40:00.000Z',
-  },
-  {
-    id: '01920000-0000-7000-8000-000000000004',
-    userId: '018f0a00-0000-7000-8000-000000000004',
-    phoneE164: '+919820099887',
-    name: 'Preeti Kulkarni',
-    email: 'preeti.finance@cabzone.in',
-    role: 'FINANCE_ADMIN',
-    cityZoneIds: [],
-    status: 'ACTIVE',
-    createdAt: '2025-03-15T10:00:00.000Z',
-    updatedAt: '2026-04-01T09:00:00.000Z',
-  },
-  {
-    id: '01920000-0000-7000-8000-000000000005',
-    userId: '018f0a00-0000-7000-8000-000000000005',
-    phoneE164: '+919450033445',
-    name: 'Amit Tripathi',
-    email: 'amit.varanasi@cabzone.in',
-    role: 'CITY_ADMIN',
-    cityZoneIds: ['zone-varanasi-ghats', 'zone-cantonment'],
-    status: 'ACTIVE',
-    createdAt: '2025-04-20T14:20:00.000Z',
-    updatedAt: '2026-03-22T16:10:00.000Z',
-  },
-  {
-    id: '01920000-0000-7000-8000-000000000006',
-    userId: '018f0a00-0000-7000-8000-000000000006',
-    phoneE164: '+919701144556',
-    name: 'Sneha Reddy',
-    email: 'sneha.support@cabzone.in',
-    role: 'SUPPORT_ADMIN',
-    cityZoneIds: [],
-    status: 'ACTIVE',
-    createdAt: '2025-06-05T09:15:00.000Z',
-    updatedAt: '2026-03-29T11:30:00.000Z',
-  },
-  {
-    id: '01920000-0000-7000-8000-000000000007',
-    userId: '018f0a00-0000-7000-8000-000000000007',
-    phoneE164: '+919845077889',
-    name: 'Harish Gowda',
-    email: 'harish.blr@cabzone.in',
-    role: 'CITY_ADMIN',
-    cityZoneIds: ['zone-whitefield', 'zone-electronic-city'],
-    status: 'ACTIVE',
-    createdAt: '2025-07-12T15:00:00.000Z',
-    updatedAt: '2026-03-15T18:00:00.000Z',
-  },
-  {
-    id: '01920000-0000-7000-8000-000000000008',
-    userId: '018f0a00-0000-7000-8000-000000000008',
-    phoneE164: '+919899066778',
-    name: 'Manoj Pandey',
-    email: 'manoj.pandey@cabzone.in',
-    role: 'SUPPORT_ADMIN',
-    cityZoneIds: [],
-    status: 'SUSPENDED',
-    createdAt: '2025-05-18T10:45:00.000Z',
-    updatedAt: '2026-02-14T08:30:00.000Z',
-  },
-];
-
 export function AdminsScreen() {
   const [segmentView, setSegmentView] = useState<SegmentView>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
@@ -231,7 +139,7 @@ export function AdminsScreen() {
   const [statusTargetAdmin, setStatusTargetAdmin] = useState<AdminUserSummaryDto | null>(null);
   const [isStatusDialogOpen, setIsStatusDialogOpen] = useState(false);
 
-  // Query for KPI counts
+  // Query for KPI counts (strictly server-owned; never injects sample accounts)
   const allQuery = useAdminsList({ limit: 100 });
 
   // Map segment to backend role/status
@@ -261,21 +169,22 @@ export function AdminsScreen() {
     offset: (page - 1) * PAGE_SIZE,
   });
 
-  const isUsingFiller = useMemo(() => {
-    if (query.isError) return true;
-    if (!query.isLoading && (query.data?.total ?? 0) === 0 && !searchQuery.trim() && segmentView === 'ALL') {
-      return true;
-    }
-    return false;
-  }, [query.isError, query.isLoading, query.data, searchQuery, segmentView]);
+  const allAdminsPool = useMemo(() => allQuery.data?.admins ?? [], [allQuery.data?.admins]);
 
-  const allAdminsPool = useMemo(() => {
-    if (isUsingFiller) return FILLER_ADMINS;
-    return allQuery.data?.admins ?? [];
-  }, [isUsingFiller, allQuery.data]);
-
-  // Aggregate KPI metrics
+  // Aggregate KPI metrics from live server records
   const kpis = useMemo(() => {
+    if (allQuery.isError || !allQuery.data) {
+      return {
+        total: null as number | null,
+        superAdmins: null as number | null,
+        cityAdmins: null as number | null,
+        supportStaff: null as number | null,
+        financeStaff: null as number | null,
+        activeStaff: null as number | null,
+        suspendedStaff: null as number | null,
+      };
+    }
+
     let superAdmins = 0;
     let cityAdmins = 0;
     let supportStaff = 0;
@@ -293,7 +202,7 @@ export function AdminsScreen() {
     }
 
     return {
-      total: allAdminsPool.length,
+      total: allQuery.data.total,
       superAdmins,
       cityAdmins,
       supportStaff,
@@ -301,53 +210,10 @@ export function AdminsScreen() {
       activeStaff,
       suspendedStaff,
     };
-  }, [allAdminsPool]);
+  }, [allAdminsPool, allQuery.data, allQuery.isError]);
 
-  // Local filtered list for filler preview mode
-  const filteredFillerAdmins = useMemo(() => {
-    if (!isUsingFiller) return [];
-    let items = [...FILLER_ADMINS];
-
-    // Segment filter
-    if (segmentView === 'SUPER_ADMIN') items = items.filter((a) => a.role === 'SUPER_ADMIN');
-    if (segmentView === 'CITY_ADMIN') items = items.filter((a) => a.role === 'CITY_ADMIN');
-    if (segmentView === 'SUPPORT_ADMIN') items = items.filter((a) => a.role === 'SUPPORT_ADMIN');
-    if (segmentView === 'FINANCE_ADMIN') items = items.filter((a) => a.role === 'FINANCE_ADMIN');
-    if (segmentView === 'SUSPENDED') items = items.filter((a) => a.status === 'SUSPENDED');
-
-    // Role dropdown filter
-    if (roleFilter !== 'ALL') {
-      items = items.filter((a) => a.role === roleFilter);
-    }
-
-    // Status dropdown filter
-    if (statusFilter !== 'ALL') {
-      items = items.filter((a) => a.status === statusFilter);
-    }
-
-    // Search query filter
-    if (searchQuery.trim()) {
-      const q = searchQuery.trim().toLowerCase();
-      items = items.filter(
-        (a) =>
-          (a.name?.toLowerCase().includes(q) ?? false) ||
-          (a.email?.toLowerCase().includes(q) ?? false) ||
-          a.phoneE164.includes(q),
-      );
-    }
-
-    return items;
-  }, [isUsingFiller, segmentView, roleFilter, statusFilter, searchQuery]);
-
-  const displayedAdmins = useMemo(() => {
-    if (isUsingFiller) {
-      const start = (page - 1) * PAGE_SIZE;
-      return filteredFillerAdmins.slice(start, start + PAGE_SIZE);
-    }
-    return query.data?.admins ?? [];
-  }, [isUsingFiller, filteredFillerAdmins, query.data, page]);
-
-  const totalCount = isUsingFiller ? filteredFillerAdmins.length : (query.data?.total ?? 0);
+  const displayedAdmins = useMemo(() => query.data?.admins ?? [], [query.data?.admins]);
+  const totalCount = query.data?.total ?? 0;
   const totalPages = Math.ceil(totalCount / PAGE_SIZE) || 1;
 
   const handleOpenDetail = (admin: AdminUserSummaryDto) => {
@@ -537,8 +403,6 @@ export function AdminsScreen() {
         title="Admin Users & Roles"
         actions={
           <div className="flex items-center gap-2">
-           
-
             <Button
               variant="primary"
               icon={<UserPlus className="size-4" />}
@@ -552,8 +416,8 @@ export function AdminsScreen() {
               icon={<RefreshCw className={`size-4 ${query.isFetching ? 'animate-spin' : ''}`} />}
               loading={query.isFetching}
               onClick={() => {
-                query.refetch();
-                allQuery.refetch();
+                void query.refetch();
+                void allQuery.refetch();
               }}
             >
               Refresh
@@ -566,38 +430,38 @@ export function AdminsScreen() {
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         <StatTile
           label="Total Admins"
-          value={kpis.total}
+          value={kpis.total ?? '—'}
           icon={<Users className="size-4 text-interactive" />}
           tone="default"
-          loading={query.isLoading && !isUsingFiller}
+          loading={allQuery.isPending}
         />
         <StatTile
           label="Super Admins"
-          value={kpis.superAdmins}
+          value={kpis.superAdmins ?? '—'}
           icon={<ShieldAlert className="size-4 text-purple-600" />}
           tone="default"
-          loading={query.isLoading && !isUsingFiller}
+          loading={allQuery.isPending}
         />
         <StatTile
           label="City Admins"
-          value={kpis.cityAdmins}
+          value={kpis.cityAdmins ?? '—'}
           icon={<Building2 className="size-4 text-blue-600" />}
           tone="default"
-          loading={query.isLoading && !isUsingFiller}
+          loading={allQuery.isPending}
         />
         <StatTile
           label="Support Staff"
-          value={kpis.supportStaff}
+          value={kpis.supportStaff ?? '—'}
           icon={<Headphones className="size-4 text-emerald-600" />}
           tone="success"
-          loading={query.isLoading && !isUsingFiller}
+          loading={allQuery.isPending}
         />
         <StatTile
           label="Active Accounts"
-          value={kpis.activeStaff}
+          value={kpis.activeStaff ?? '—'}
           icon={<CheckCircle2 className="size-4 text-success" />}
           tone="success"
-          loading={query.isLoading && !isUsingFiller}
+          loading={allQuery.isPending}
         />
       </div>
 
@@ -611,14 +475,28 @@ export function AdminsScreen() {
             setPage(1);
           }}
           segments={[
-            { value: 'ALL', label: `All (${kpis.total})` },
-            { value: 'SUPER_ADMIN', label: `Super Admin (${kpis.superAdmins})` },
-            { value: 'CITY_ADMIN', label: `City Admin (${kpis.cityAdmins})` },
-            { value: 'SUPPORT_ADMIN', label: `Support (${kpis.supportStaff})` },
-            { value: 'FINANCE_ADMIN', label: `Finance (${kpis.financeStaff})` },
+            { value: 'ALL', label: kpis.total !== null ? `All (${kpis.total})` : 'All' },
+            {
+              value: 'SUPER_ADMIN',
+              label:
+                kpis.superAdmins !== null ? `Super Admin (${kpis.superAdmins})` : 'Super Admin',
+            },
+            {
+              value: 'CITY_ADMIN',
+              label: kpis.cityAdmins !== null ? `City Admin (${kpis.cityAdmins})` : 'City Admin',
+            },
+            {
+              value: 'SUPPORT_ADMIN',
+              label: kpis.supportStaff !== null ? `Support (${kpis.supportStaff})` : 'Support',
+            },
+            {
+              value: 'FINANCE_ADMIN',
+              label: kpis.financeStaff !== null ? `Finance (${kpis.financeStaff})` : 'Finance',
+            },
             {
               value: 'SUSPENDED',
-              label: `Suspended (${kpis.suspendedStaff})`,
+              label:
+                kpis.suspendedStaff !== null ? `Suspended (${kpis.suspendedStaff})` : 'Suspended',
             },
           ]}
         />
@@ -671,18 +549,16 @@ export function AdminsScreen() {
       </FilterBar>
 
       {/* Data Table */}
-      {query.isLoading && !isUsingFiller ? (
-        <DataTable<AdminUserSummaryDto>
-          columns={columns}
-          rows={[]}
-          rowKey={(a) => a.id}
-          density="comfortable"
-        />
-      ) : query.isError && !isUsingFiller ? (
+      {query.isPending ? (
+        <div className="flex flex-col gap-3">
+          <Skeleton className="h-12 w-full rounded-md" />
+          <Skeleton className="h-64 w-full rounded-md" />
+        </div>
+      ) : query.isError ? (
         <ErrorState
           title="Failed to load administrative staff"
           message={(query.error as Error)?.message || 'An unexpected network error occurred.'}
-          onRetry={() => query.refetch()}
+          onRetry={() => void query.refetch()}
         />
       ) : displayedAdmins.length === 0 ? (
         <EmptyState
@@ -734,8 +610,8 @@ export function AdminsScreen() {
         open={isCreateOpen}
         onOpenChange={setIsCreateOpen}
         onSuccess={() => {
-          query.refetch();
-          allQuery.refetch();
+          void query.refetch();
+          void allQuery.refetch();
         }}
       />
 
@@ -745,8 +621,8 @@ export function AdminsScreen() {
         open={isDetailOpen}
         onOpenChange={setIsDetailOpen}
         onRefresh={() => {
-          query.refetch();
-          allQuery.refetch();
+          void query.refetch();
+          void allQuery.refetch();
         }}
       />
 
@@ -755,8 +631,8 @@ export function AdminsScreen() {
         open={isEditDialogOpen}
         onOpenChange={setIsEditDialogOpen}
         onSuccess={() => {
-          query.refetch();
-          allQuery.refetch();
+          void query.refetch();
+          void allQuery.refetch();
         }}
       />
 
@@ -765,8 +641,8 @@ export function AdminsScreen() {
         open={isStatusDialogOpen}
         onOpenChange={setIsStatusDialogOpen}
         onSuccess={() => {
-          query.refetch();
-          allQuery.refetch();
+          void query.refetch();
+          void allQuery.refetch();
         }}
       />
     </div>

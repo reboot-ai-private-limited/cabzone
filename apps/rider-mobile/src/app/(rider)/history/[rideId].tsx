@@ -1,5 +1,5 @@
 import { locationLabel } from '@/services/location-names';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -23,6 +23,7 @@ export default function RideReceiptDetailScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [disputeText, setDisputeText] = useState('');
   const [isSubmittingDispute, setIsSubmittingDispute] = useState(false);
+  const submittingDisputeRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const [showReceipt, setShowReceipt] = useState(false);
   const receipt = useMemo(() => (ride ? rideReceipt(ride, events) : null), [ride, events]);
@@ -57,6 +58,8 @@ export default function RideReceiptDetailScreen() {
       setError('Please enter at least 10 characters explaining the payment issue.');
       return;
     }
+    if (submittingDisputeRef.current) return;
+    submittingDisputeRef.current = true;
     setIsSubmittingDispute(true);
     setError(null);
     try {
@@ -66,6 +69,7 @@ export default function RideReceiptDetailScreen() {
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Could not file payment dispute.');
     } finally {
+      submittingDisputeRef.current = false;
       setIsSubmittingDispute(false);
     }
   };

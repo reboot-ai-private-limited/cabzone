@@ -41,7 +41,7 @@ test('UPI handoff preserves provider reference, payee, and exact fare', () => {
   }
 });
 
-function screen() {
+function screen(extraProps = {}) {
   const state = [],
     effects = [],
     calls = [],
@@ -122,6 +122,7 @@ function screen() {
         onPaid: async () => {
           calls.push('paid');
         },
+        ...extraProps,
       });
     },
     effects() {
@@ -229,4 +230,30 @@ test('reopening the payment panel restores cash selection without opening UPI', 
   await flush();
   assert.equal(pay(s.render()), null);
   assert.deepEqual(s.calls, []);
+});
+
+test('itemizes fare + previous cancellation fee and hides cash option when cashAllowed is false', () => {
+  const s = screen({
+    amountPaise: 21500,
+    farePaise: 16500,
+    arrearsPaise: 5000,
+    cashAllowed: false,
+    cashBlockedReason:
+      'Cash is unavailable while ₹50 in previous cancellation fees is due. Pay by UPI to clear arrears.',
+  });
+  const tree = s.render();
+  assert.equal(
+    find(tree, (node) => node.props.accessibilityLabel === 'Change payment'),
+    null,
+  );
+  assert.ok(
+    find(tree, (node) => node.children?.includes('Previous cancellation fee')),
+  );
+  assert.ok(
+    find(tree, (node) =>
+      node.children?.some(
+        (child) => typeof child === 'string' && child.includes('Cash is unavailable while ₹50'),
+      ),
+    ),
+  );
 });

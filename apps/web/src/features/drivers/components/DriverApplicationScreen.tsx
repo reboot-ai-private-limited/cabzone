@@ -454,7 +454,7 @@ export function DriverApplicationScreen({ applicationId }: DriverApplicationScre
                     {formatPublicRatingLabel(d.driver?.ratingAverage, d.driver?.ratingCount)}
                   </span>
                   <span className="text-text-subtle">
-                    ({d.driver?.ratingCount ?? 0} rides)
+                    ({d.driver?.ratingCount ?? 0} {(d.driver?.ratingCount ?? 0) === 1 ? 'review' : 'reviews'})
                   </span>
                 </div>
               </FieldRow>

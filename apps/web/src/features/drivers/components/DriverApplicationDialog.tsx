@@ -145,7 +145,7 @@ export function DriverApplicationDialog({
                       {d.driver.ratingCount >= MIN_PUBLIC_RATING_COUNT && d.driver.ratingAverage !== null
                         ? `★ ${formatPublicRatingLabel(d.driver.ratingAverage, d.driver.ratingCount)}`
                         : 'New'}
-                      <span className="text-text-subtle ml-1">({d.driver.ratingCount} trips)</span>
+                      <span className="text-text-subtle ml-1">({d.driver.ratingCount} {d.driver.ratingCount === 1 ? 'review' : 'reviews'})</span>
                     </span>
                   </FieldRow>
                 )}

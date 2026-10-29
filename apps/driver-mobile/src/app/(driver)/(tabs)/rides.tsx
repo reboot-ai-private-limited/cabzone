@@ -104,6 +104,7 @@ export default function DriverRidesTab() {
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [counterDrafts, setCounterDrafts] = useState<Record<string, number>>({});
+  const [ratingWindowNowMs, setRatingWindowNowMs] = useState<number>(() => Date.now());
 
   const historySeqRef = useRef(0);
 
@@ -145,6 +146,7 @@ export default function DriverRidesTab() {
         });
         if (historySeqRef.current !== seq) return;
         setHistoryItems(page.items);
+        setRatingWindowNowMs(Date.now());
         setHistoryTotal(page.total);
         setHasMore(page.hasMore);
       } catch (err: unknown) {
@@ -185,6 +187,7 @@ export default function DriverRidesTab() {
       .then((page) => {
         if (historySeqRef.current !== seq) return;
         setHistoryItems(page.items);
+        setRatingWindowNowMs(Date.now());
         setHistoryTotal(page.total);
         setHasMore(page.hasMore);
         setHistoryError(null);
@@ -341,8 +344,8 @@ export default function DriverRidesTab() {
                 style={[styles.filterPill, active && styles.filterPillActive]}
                 accessibilityRole="button"
                 accessibilityLabel={tab.label}
-                onPress={() => handleSelectFilter(tab.key)}
-              >
+                accessibilityState={{ selected: active }}
+                onPress={() => handleSelectFilter(tab.key)}>
                 <Text style={[styles.filterPillText, active && styles.filterPillTextActive]}>
                   {tab.label}
                 </Text>
@@ -669,6 +672,14 @@ export default function DriverRidesTab() {
                       </Text>
                     </View>
                     <View style={styles.badgeGroup}>
+                      {ride.status === 'SETTLED' &&
+                      ratingWindowNowMs -
+                        Date.parse(ride.settledAt || ride.completedAt || ride.createdAt) <=
+                        7 * 24 * 60 * 60 * 1000 ? (
+                        <View style={styles.negotiatedPill}>
+                          <Text style={styles.negotiatedPillText}>Rate Rider</Text>
+                        </View>
+                      ) : null}
                       {wasNegotiated ? (
                         <View style={styles.negotiatedPill}>
                           <Text style={styles.negotiatedPillText}>Negotiated</Text>
@@ -770,6 +781,8 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   refreshBtn: {
+    minWidth: 44,
+    minHeight: 44,
     width: 40,
     height: 40,
     borderRadius: 20,
@@ -819,6 +832,8 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   filterPill: {
+    minHeight: 44,
+    justifyContent: 'center',
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 18,

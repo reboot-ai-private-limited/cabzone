@@ -1,7 +1,10 @@
 import {
-  isActiveRideStatus,
+  DEFAULT_CANCELLATION_FEE_PAISE,
+  DEFAULT_RIDER_CANCELLATION_GRACE_SECONDS,
+  RIDE_RATING_WINDOW_MS,
   VEHICLE_CATEGORY_REGISTRY,
   formatPublicRatingLabel,
+  isActiveRideStatus,
   type RideDto,
   type RideEventDto,
   type RideStatus,
@@ -224,6 +227,133 @@ export function normalizeIndianPhoneE164(rawInput: string): string | null {
   return null;
 }
 
+export interface RiderCancellationPreview {
+  feePaise: number;
+  policyFeePaise: number;
+  graceSeconds: number;
+  graceRemainingSeconds: number;
+  isFree: boolean;
+  summaryText: string;
+}
+
+export function resolveRiderCancellationPreview(
+  ride: Pick<RideDto, 'status' | 'driverId' | 'acceptedAt' | 'updatedAt' | 'pricingSnapshot'>,
+  nowMs: number = Date.now(),
+): RiderCancellationPreview {
+  const policyFeePaise =
+    typeof ride.pricingSnapshot?.cancellationFeePaise === 'number' &&
+    Number.isFinite(ride.pricingSnapshot.cancellationFeePaise)
+      ? Math.max(0, ride.pricingSnapshot.cancellationFeePaise)
+      : DEFAULT_CANCELLATION_FEE_PAISE;
+  const graceSeconds =
+    typeof ride.pricingSnapshot?.riderCancellationGraceSeconds === 'number' &&
+    Number.isFinite(ride.pricingSnapshot.riderCancellationGraceSeconds)
+      ? Math.max(0, ride.pricingSnapshot.riderCancellationGraceSeconds)
+      : DEFAULT_RIDER_CANCELLATION_GRACE_SECONDS;
+
+  if (ride.status === 'REQUESTED' || ride.status === 'OFFERING' || !ride.driverId) {
+    return {
+      feePaise: 0,
+      policyFeePaise,
+      graceSeconds,
+      graceRemainingSeconds: graceSeconds,
+      isFree: true,
+      summaryText: 'Free to cancel while searching for a driver.',
+    };
+  }
+
+  if (ride.status === 'DRIVER_ARRIVED') {
+    const isFree = policyFeePaise === 0;
+    return {
+      feePaise: policyFeePaise,
+      policyFeePaise,
+      graceSeconds,
+      graceRemainingSeconds: 0,
+      isFree,
+      summaryText: isFree
+        ? 'No cancellation fee applies to this ride.'
+        : `A ${formatRupeesFromPaise(policyFeePaise)} cancellation fee applies because your driver has arrived at pickup. Any unpaid fee is added to your next ride.`,
+    };
+  }
+
+  if (ride.status === 'DRIVER_ASSIGNED' || ride.status === 'DRIVER_EN_ROUTE') {
+    const anchorIso = ride.acceptedAt ?? ride.updatedAt;
+    const anchorMs = Date.parse(anchorIso);
+    const elapsedMs = Number.isFinite(anchorMs) ? Math.max(0, nowMs - anchorMs) : 0;
+    const graceMs = graceSeconds * 1000;
+    const graceRemainingSeconds = Math.max(0, Math.ceil((graceMs - elapsedMs) / 1000));
+    const withinGrace = elapsedMs <= graceMs;
+
+    if (withinGrace || policyFeePaise === 0) {
+      return {
+        feePaise: 0,
+        policyFeePaise,
+        graceSeconds,
+        graceRemainingSeconds,
+        isFree: true,
+        summaryText:
+          policyFeePaise > 0 && graceRemainingSeconds > 0
+            ? `Free cancellation for the next ${graceRemainingSeconds}s (${formatRupeesFromPaise(policyFeePaise)} fee applies after the ${graceSeconds}s grace window).`
+            : 'Free cancellation applies right now.',
+      };
+    }
+
+    return {
+      feePaise: policyFeePaise,
+      policyFeePaise,
+      graceSeconds,
+      graceRemainingSeconds: 0,
+      isFree: false,
+      summaryText: `A ${formatRupeesFromPaise(policyFeePaise)} cancellation fee applies after the ${graceSeconds}s grace window. Any unpaid fee is added to your next ride.`,
+    };
+  }
+
+  return {
+    feePaise: 0,
+    policyFeePaise,
+    graceSeconds,
+    graceRemainingSeconds: 0,
+    isFree: true,
+    summaryText: 'Cancellation availability depends on live trip state.',
+  };
+}
+
+export interface RideCashAvailability {
+  cashAllowed: boolean;
+  arrearsPaise: number;
+  cashBlockThresholdPaise: number;
+  reason: string | null;
+}
+
+export function resolveRideCashAvailability(
+  ride: Pick<RideDto, 'arrearsPaise' | 'pricingSnapshot'>,
+): RideCashAvailability {
+  const arrearsPaise = Math.max(0, ride.arrearsPaise ?? 0);
+  const rawThreshold = ride.pricingSnapshot?.cancellationFeePaise ?? DEFAULT_CANCELLATION_FEE_PAISE;
+  const cashBlockThresholdPaise = rawThreshold > 0 ? rawThreshold : DEFAULT_CANCELLATION_FEE_PAISE;
+  const cashAllowed = arrearsPaise < cashBlockThresholdPaise;
+
+  return {
+    cashAllowed,
+    arrearsPaise,
+    cashBlockThresholdPaise,
+    reason: cashAllowed
+      ? null
+      : `Cash is unavailable while ${formatRupeesFromPaise(arrearsPaise)} in previous cancellation fees is due. Pay by UPI to clear arrears.`,
+  };
+}
+
+export function isRideWithinRatingWindow(
+  settledAtIso: string | null | undefined,
+  nowMs: number = Date.now(),
+): boolean {
+  if (!settledAtIso) return false;
+  const settledMs = Date.parse(settledAtIso);
+  if (!Number.isFinite(settledMs)) return false;
+  const elapsed = nowMs - settledMs;
+  return elapsed >= 0 && elapsed <= RIDE_RATING_WINDOW_MS;
+}
+
 /**
  * Extracts unanswered driver counter-offers from ride events.
  * Mirrors backend NegotiateFareUseCase.pendingCounters with resilient metadata checks.
@@ -318,7 +448,7 @@ export function getRideStatusMeta(status: RideStatus): {
     case 'PAYMENT_PENDING':
       return {
         label: 'Payment Pending',
-        subtitle: 'Pay the Agreed Fare directly via Cash or Driver Personal UPI.',
+        subtitle: 'Pay the Agreed Fare directly via Cash or UPI.',
         tone: 'amber',
       };
     case 'PAYMENT_CONFIRMED':

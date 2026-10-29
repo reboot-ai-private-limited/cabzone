@@ -1,11 +1,17 @@
 'use client';
 
-import { useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { ArrowDownLeft, ArrowUpRight, CheckCircle2 } from 'lucide-react';
 import type { WalletSummaryDto } from '@cabzone/contracts';
 import { Button, Dialog, Input } from '@cabzone/design-system';
 import { formatPaise } from '@/lib/format';
 import { useAdjustWallet } from '../hooks/useFinance';
+
+function nextIdempotencyKey(): string | undefined {
+  return typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : undefined;
+}
 
 export interface AdjustBalanceDialogProps {
   wallet: WalletSummaryDto | null;
@@ -26,8 +32,15 @@ export function AdjustBalanceDialog({
   const [rupees, setRupees] = useState('');
   const [reason, setReason] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const submittingRef = useRef(false);
+  const attemptKeyRef = useRef<string | undefined>(undefined);
+
+  useEffect(() => {
+    attemptKeyRef.current = undefined;
+  }, [wallet?.id, wallet?.ownerId, type, rupees, reason, open]);
 
   const adjustMutation = useAdjustWallet(() => {
+    attemptKeyRef.current = undefined;
     setRupees('');
     setReason('');
     setError(null);
@@ -48,20 +61,29 @@ export function AdjustBalanceDialog({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!canSubmit) return;
+    if (!canSubmit || submittingRef.current) return;
+    submittingRef.current = true;
     setError(null);
 
+    if (!attemptKeyRef.current) {
+      attemptKeyRef.current = nextIdempotencyKey();
+    }
+
     const payload = {
-      driverId: wallet.ownerId,
+      ...(isCustomer ? { riderId: wallet.ownerId } : { driverId: wallet.ownerId }),
       walletId: wallet.id.startsWith('virtual-') ? undefined : wallet.id,
       type,
       amountPaise,
       reason: reason.trim(),
+      idempotencyKey: attemptKeyRef.current,
     };
 
     adjustMutation.mutate(payload, {
       onError: (err) => {
         setError(err instanceof Error ? err.message : 'Failed to adjust balance.');
+      },
+      onSettled: () => {
+        submittingRef.current = false;
       },
     });
   };
@@ -75,12 +97,12 @@ export function AdjustBalanceDialog({
     <Dialog
       open={open}
       onOpenChange={(val) => {
-        if (!adjustMutation.isPending) {
+        if (!adjustMutation.isPending && !submittingRef.current) {
           setError(null);
           onOpenChange(val);
         }
       }}
-      title="Adjust Driver Balance"
+      title={isCustomer ? 'Adjust Rider Balance' : 'Adjust Driver Balance'}
       className="max-w-md"
     >
       <form onSubmit={handleSubmit} className="flex flex-col gap-5 py-1">
@@ -104,8 +126,8 @@ export function AdjustBalanceDialog({
                 wallet.balancePaise > 0
                   ? 'text-success'
                   : wallet.balancePaise < 0
-                  ? 'text-danger'
-                  : 'text-text'
+                    ? 'text-danger'
+                    : 'text-text'
               }`}
             >
               {formatPaise(wallet.balancePaise)}
@@ -121,9 +143,10 @@ export function AdjustBalanceDialog({
         {/* Action Type */}
         <div className="flex flex-col gap-1.5">
           <span className="text-xs font-semibold text-text">Adjustment Action</span>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-2 gap-2" role="group" aria-label="Adjustment Action">
             <button
               type="button"
+              aria-pressed={type === 'CREDIT'}
               onClick={() => setType('CREDIT')}
               className={`flex items-center justify-center gap-2 p-2.5 rounded-lg border text-xs font-medium transition-all ${
                 type === 'CREDIT'
@@ -136,6 +159,7 @@ export function AdjustBalanceDialog({
             </button>
             <button
               type="button"
+              aria-pressed={type === 'DEBIT'}
               onClick={() => setType('DEBIT')}
               className={`flex items-center justify-center gap-2 p-2.5 rounded-lg border text-xs font-medium transition-all ${
                 type === 'DEBIT'
@@ -227,14 +251,21 @@ export function AdjustBalanceDialog({
 
         {/* Overdraw Warning */}
         {isDebitOverdraw && (
-          <p role="alert" className="text-xs text-danger font-medium bg-danger/10 p-2.5 rounded border border-danger/20">
-            Cannot debit ₹{rupees}: would exceed current balance of {formatPaise(wallet.balancePaise)}.
+          <p
+            role="alert"
+            className="text-xs text-danger font-medium bg-danger/10 p-2.5 rounded border border-danger/20"
+          >
+            Cannot debit ₹{rupees}: would exceed current balance of{' '}
+            {formatPaise(wallet.balancePaise)}.
           </p>
         )}
 
         {/* Server Error */}
         {error && (
-          <p role="alert" className="text-xs text-danger font-medium bg-danger/10 p-2.5 rounded border border-danger/20">
+          <p
+            role="alert"
+            className="text-xs text-danger font-medium bg-danger/10 p-2.5 rounded border border-danger/20"
+          >
             {error}
           </p>
         )}

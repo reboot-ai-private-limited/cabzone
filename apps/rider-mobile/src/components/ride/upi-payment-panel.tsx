@@ -23,10 +23,18 @@ import { upiPaymentUrl } from './upi-intent';
 export function UpiPaymentPanel({
   rideId,
   amountPaise,
+  farePaise,
+  arrearsPaise = 0,
+  cashAllowed = true,
+  cashBlockedReason = null,
   onPaid,
 }: {
   rideId: string;
   amountPaise: number;
+  farePaise?: number;
+  arrearsPaise?: number;
+  cashAllowed?: boolean;
+  cashBlockedReason?: string | null;
   onPaid: () => Promise<void>;
 }) {
   const { token } = useAuth();
@@ -78,6 +86,14 @@ export function UpiPaymentPanel({
     proof?: { orderId: string; paymentId: string; signature: string },
   ) => {
     if (!token || inFlight.current) return;
+    if (action === 'cash' && !cashAllowed) {
+      setMessage(
+        cashBlockedReason ||
+          'Cash payment is unavailable while previous cancellation fees are due. Please pay by UPI.',
+      );
+      setChooseCash(false);
+      return;
+    }
     inFlight.current = true;
     setBusy(true);
     setMessage(null);
@@ -105,7 +121,9 @@ export function UpiPaymentPanel({
         if (session.kind === 'checkout') {
           setTestMode(true);
           setMessage(
-            'Test mode: real UPI apps cannot be opened. Use simulated checkout or switch to cash.',
+            cashAllowed
+              ? 'Test mode: real UPI apps cannot be opened. Use simulated checkout or switch to cash.'
+              : 'Test mode: real UPI apps cannot be opened. Complete payment in simulated UPI checkout.',
           );
           setCheckout(session.checkout);
         } else {
@@ -137,18 +155,44 @@ export function UpiPaymentPanel({
     }
   };
 
+  const resolvedFarePaise =
+    typeof farePaise === 'number' && Number.isFinite(farePaise)
+      ? farePaise
+      : Math.max(0, amountPaise - Math.max(0, arrearsPaise));
+
   return (
     <View style={styles.panel}>
       <Text style={styles.title}>Your trip is complete</Text>
       <Text style={styles.fare}>{formatRupeesFromPaise(amountPaise)}</Text>
+      {arrearsPaise > 0 ? (
+        <View style={styles.breakdownBox} accessibilityRole="summary">
+          <View style={styles.breakdownRow}>
+            <Text style={styles.caption}>Agreed trip fare</Text>
+            <Text style={styles.breakdownVal}>{formatRupeesFromPaise(resolvedFarePaise)}</Text>
+          </View>
+          <View style={styles.breakdownRow}>
+            <Text style={styles.caption}>Previous cancellation fee</Text>
+            <Text style={styles.breakdownVal}>{formatRupeesFromPaise(arrearsPaise)}</Text>
+          </View>
+          <View style={[styles.breakdownRow, styles.breakdownTotalRow]}>
+            <Text style={styles.primaryText}>Total payable</Text>
+            <Text style={styles.primaryText}>{formatRupeesFromPaise(amountPaise)}</Text>
+          </View>
+        </View>
+      ) : null}
       <Text style={styles.body}>
         {cash
           ? 'Pay your driver in cash. Waiting for the driver to confirm receipt.'
-          : 'Pay securely by UPI, or change payment to cash.'}
+          : cashAllowed
+            ? 'Pay securely by UPI, or change payment to cash.'
+            : cashBlockedReason ||
+              'Cash is unavailable while previous cancellation fees are due. Pay securely by UPI.'}
       </Text>
       {testMode && !cash ? (
         <Text style={styles.caption}>
-          Test mode · UPI app payments need live credentials. You can use test checkout or pay cash.
+          {cashAllowed
+            ? 'Test mode · UPI app payments need live credentials. You can use test checkout or pay cash.'
+            : 'Test mode · UPI app payments need live credentials. Complete payment using test checkout.'}
         </Text>
       ) : null}
       {!cash ? (
@@ -171,7 +215,7 @@ export function UpiPaymentPanel({
           )}
         </Pressable>
       ) : null}
-      {!cash ? (
+      {!cash && cashAllowed ? (
         <Pressable
           style={styles.secondary}
           disabled={busy || !token}
@@ -187,6 +231,7 @@ export function UpiPaymentPanel({
         onPress={() => void run('status')}
         disabled={busy || !token}
         accessibilityRole="button"
+        accessibilityLabel="Check payment status"
       >
         <Text style={styles.primaryText}>Check payment status</Text>
       </Pressable>
@@ -300,6 +345,26 @@ const styles = StyleSheet.create({
   fare: { ...typography.hero, color: colors.deepBrown },
   body: { ...typography.body, color: colors.deepBrown },
   caption: { ...typography.caption, color: colors.secondary },
+  breakdownBox: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.md,
+    backgroundColor: colors.surface,
+    padding: spacing.md,
+    gap: spacing.xs,
+  },
+  breakdownRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  breakdownTotalRow: {
+    borderTopWidth: 1,
+    borderTopColor: colors.borderSubtle,
+    paddingTop: spacing.xs,
+    marginTop: 2,
+  },
+  breakdownVal: { ...typography.bodyBold, color: colors.deepBrown },
   primary: {
     minHeight: 56,
     padding: spacing.lg,

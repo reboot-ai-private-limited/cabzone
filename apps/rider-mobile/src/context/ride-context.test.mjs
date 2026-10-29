@@ -34,6 +34,14 @@ function provider() {
   const module = { exports: {} };
   vm.runInNewContext(code, {
     exports: module.exports,
+    Set,
+    Date,
+    Number,
+    Error,
+    Promise,
+    JSON,
+    Math,
+    String,
     require: (name) => {
       if (name === 'react') return React;
       if (name === 'react-native') return {};
@@ -121,4 +129,33 @@ test('createRide hydrates activeRide when server returns 409 ACTIVE_RIDE_EXISTS,
   s.api.disputePayment = async () => ({ ...existing, status: 'PAYMENT_DISPUTED' });
   await s.render().disputePayment('ride-active-99', 'Overcharged cash fare');
   assert.equal(s.render().activeRide, null);
+});
+
+test('loadOlderRides appends older pages with offset and deduplicates overlapping ride IDs', async () => {
+  const s = provider();
+  const firstPage = Array.from({ length: 40 }, (_, i) => ({
+    id: `ride-${40 - i}`,
+    status: 'SETTLED',
+    createdAt: new Date(Date.UTC(2026, 9, 25, 12, 40 - i)).toISOString(),
+  }));
+  const calls = [];
+  s.api.listRides = async (_token, opts) => {
+    calls.push(opts);
+    if (!opts?.offset) return firstPage;
+    return [
+      firstPage[firstPage.length - 1], // overlap on boundary
+      { id: 'ride-0', status: 'CANCELLED', createdAt: '2026-10-25T11:00:00.000Z' },
+    ];
+  };
+
+  await s.render().refreshRides();
+  assert.equal(s.render().hasMoreRides, true);
+  assert.equal(s.render().rideHistory.length, 40);
+
+  await s.render().loadOlderRides();
+  assert.equal(calls[1]?.limit, 40);
+  assert.equal(calls[1]?.offset, 40);
+  assert.equal(s.render().rideHistory.length, 41);
+  assert.equal(s.render().rideHistory[40].id, 'ride-0');
+  assert.equal(s.render().hasMoreRides, false);
 });

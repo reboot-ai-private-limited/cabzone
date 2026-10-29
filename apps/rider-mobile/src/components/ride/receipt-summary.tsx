@@ -16,6 +16,8 @@ const milestoneLabels: Record<string, string> = {
   TRIP_COMPLETED: 'Trip completed',
   PAYMENT_CONFIRMED: 'Payment confirmed',
   CANCELLED: 'Ride cancelled',
+  CANCELLATION_FEE_APPLIED: 'Cancellation fee added to next trip',
+  CANCELLATION_FEE_WAIVED: 'Cancellation fee waived by support',
   PAYMENT_DISPUTED: 'Payment under review',
   PAYMENT_DISPUTE_RESOLVED: 'Payment issue resolved',
 };
@@ -144,10 +146,31 @@ export function ReceiptSummary({
       </View>
       <View style={styles.section}>
         <Text style={styles.title}>{receipt.paid ? 'Payment' : 'Fare'}</Text>
-        <View style={styles.moneyRow}>
-          <Text style={styles.body}>{receipt.paid ? 'Recorded fare' : 'Agreed fare'}</Text>
-          <Text style={styles.total}>{receipt.amount}</Text>
-        </View>
+        {receipt.arrearsPaise > 0 ? (
+          <>
+            <View style={styles.moneyRow}>
+              <Text style={styles.body}>
+                {receipt.paid ? 'Recorded trip fare' : 'Agreed trip fare'}
+              </Text>
+              <Text style={styles.value}>{receipt.amount}</Text>
+            </View>
+            <View style={styles.moneyRow}>
+              <Text style={styles.body}>Previous cancellation fee</Text>
+              <Text style={styles.value}>{receipt.arrearsAmount}</Text>
+            </View>
+            <View style={styles.moneyRow}>
+              <Text style={styles.body}>
+                {receipt.paid ? 'Total recorded' : 'Total payable'}
+              </Text>
+              <Text style={styles.total}>{receipt.totalAmount}</Text>
+            </View>
+          </>
+        ) : (
+          <View style={styles.moneyRow}>
+            <Text style={styles.body}>{receipt.paid ? 'Recorded fare' : 'Agreed fare'}</Text>
+            <Text style={styles.total}>{receipt.amount}</Text>
+          </View>
+        )}
         <View style={styles.moneyRow}>
           <Text style={styles.caption}>{receipt.payment}</Text>
           <Text style={styles.paymentStatus}>{receipt.status}</Text>

@@ -67,7 +67,7 @@ export function RiderDetailModal({
     ? {
         ...initialRider,
         cancelledRides: Math.max(0, initialRider.totalRides - initialRider.completedRides),
-        totalSpentPaise: initialRider.completedRides * 48000,
+        totalSpentPaise: null as number | null,
       }
     : null;
 
@@ -333,7 +333,7 @@ export function RiderDetailModal({
                   <div className="flex flex-col">
                     <span className="text-xs text-text-subtle">Lifetime Platform Spend</span>
                     <span className="text-sm font-bold font-mono text-text">
-                      {formatPaise(rider.totalSpentPaise)}
+                      {detailQuery.isPending && rider.totalSpentPaise === null ? <Skeleton className="h-5 w-20" /> : rider.totalSpentPaise === null ? '—' : formatPaise(rider.totalSpentPaise)}
                     </span>
                   </div>
                   <div className="flex flex-col text-right">

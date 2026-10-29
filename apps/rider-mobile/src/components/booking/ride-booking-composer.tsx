@@ -93,6 +93,7 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [templateSavedToast, setTemplateSavedToast] = useState<string | null>(null);
   const pendingBookingAttemptRef = useRef<{ fingerprint: string; key: string } | null>(null);
+  const submittingRideRef = useRef(false);
 
   const openPlacePicker = (target: 'PICKUP' | 'DROP') => {
     setPickerTarget(target);
@@ -315,7 +316,7 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
   };
 
   const handleBookRide = async () => {
-    if (!activeQuote || activeRide || isSubmittingRide) return;
+    if (!activeQuote || activeRide || isSubmittingRide || submittingRideRef.current) return;
     setSubmitError(null);
 
     let passengerName = profile?.name?.trim() || 'Cabzone Rider';
@@ -359,6 +360,7 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
     }
     const idempotencyKey = pendingBookingAttemptRef.current.key;
 
+    submittingRideRef.current = true;
     setIsSubmittingRide(true);
     try {
       const created = await createRide({
@@ -396,6 +398,7 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
         err instanceof Error ? err.message : 'Could not create ride. Please try again.',
       );
     } finally {
+      submittingRideRef.current = false;
       setIsSubmittingRide(false);
     }
   };
@@ -629,11 +632,21 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
                 ]}
                 onPress={() => handleAdjustFare(-1000)}
                 disabled={proposedFarePaise <= activeQuote.negotiation.floorPaise}
+                accessibilityRole="button"
+                accessibilityLabel="Decrease fare offer by 10 rupees"
+                accessibilityState={{
+                  disabled: proposedFarePaise <= activeQuote.negotiation.floorPaise,
+                }}
               >
                 <Text style={styles.stepperBtnText}>− ₹10</Text>
               </Pressable>
 
-              <Pressable style={styles.fareDisplayCenter} onPress={() => setIsEditingFare(true)}>
+              <Pressable
+                style={styles.fareDisplayCenter}
+                onPress={() => setIsEditingFare(true)}
+                accessibilityRole="button"
+                accessibilityLabel={`Proposed fare ${formatRupeesFromPaise(proposedFarePaise)}, tap to edit`}
+              >
                 {isEditingFare ? (
                   <TextInput
                     style={styles.fareNumericInput}
@@ -662,6 +675,11 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
                 ]}
                 onPress={() => handleAdjustFare(1000)}
                 disabled={proposedFarePaise >= activeQuote.negotiation.ceilingPaise}
+                accessibilityRole="button"
+                accessibilityLabel="Increase fare offer by 10 rupees"
+                accessibilityState={{
+                  disabled: proposedFarePaise >= activeQuote.negotiation.ceilingPaise,
+                }}
               >
                 <Text style={styles.stepperBtnText}>+ ₹10</Text>
               </Pressable>
@@ -671,9 +689,10 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
               <View style={styles.bufferNotice}>
                 <Ionicons name="information-circle-outline" size={15} color={colors.brandBrown} />
                 <Text style={styles.bufferNoticeText}>
-                  + {formatRupeesFromPaise(activeQuote.arrearsPaise ?? 0)} previous cancellation fee
-                  due on this ride
-                  {activeQuote.cashAllowed === false ? ' (UPI required)' : ''}
+                  {`Ride offer ${formatRupeesFromPaise(proposedFarePaise)} + ${formatRupeesFromPaise(activeQuote.arrearsPaise ?? 0)} previous cancellation fee = ${formatRupeesFromPaise(proposedFarePaise + (activeQuote.arrearsPaise ?? 0))} estimated total.`}
+                  {activeQuote.cashAllowed === false
+                    ? ' Cash payment is unavailable until cancellation arrears are cleared — pay via UPI after trip.'
+                    : ''}
                 </Text>
               </View>
             ) : null}
@@ -696,6 +715,13 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
         </View>
       ) : null}
 
+      {activeQuote ? (
+        <Text style={styles.fareCardSub}>
+          Free cancellation while searching or within grace period after assignment; standard fee
+          applies later or after driver arrival.
+        </Text>
+      ) : null}
+
       {/* Primary Book Ride CTA */}
       <Pressable
         style={[
@@ -705,6 +731,16 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
         ]}
         onPress={() => void handleBookRide()}
         disabled={!activeQuote || !!activeRide || isLoadingQuote || isSubmittingRide}
+        accessibilityRole="button"
+        accessibilityLabel={
+          activeQuote
+            ? `Find ${selectedCategory === 'CAB' ? 'Cab' : 'Ride'} for ${formatRupeesFromPaise(proposedFarePaise)}`
+            : 'Find Ride'
+        }
+        accessibilityState={{
+          disabled: !activeQuote || !!activeRide || isLoadingQuote || isSubmittingRide,
+          busy: isSubmittingRide,
+        }}
       >
         {isSubmittingRide ? (
           <ActivityIndicator color={colors.deepBrown} />

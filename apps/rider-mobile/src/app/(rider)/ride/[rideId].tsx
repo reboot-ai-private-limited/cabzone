@@ -32,6 +32,8 @@ import {
   formatRupeesFromPaise,
   getRideStatusMeta,
   isRideActive,
+  resolveRideCashAvailability,
+  resolveRiderCancellationPreview,
 } from '@/services/rider-helpers';
 import { colors, radii, spacing, typography } from '@/design-system';
 import BookingMap from '@/components/booking/booking-map';
@@ -102,6 +104,18 @@ export default function ActiveRideScreen() {
   const [showDisputeModal, setShowDisputeModal] = useState(false);
   const [disputeReason, setDisputeReason] = useState('');
   const [isSubmittingDispute, setIsSubmittingDispute] = useState(false);
+  const [cancelClockNow, setCancelClockNow] = useState(() => Date.now());
+  const raisingFareRef = useRef(false);
+  const respondingCounterRef = useRef(false);
+  const cancellingRef = useRef(false);
+  const submittingDisputeRef = useRef(false);
+
+  useEffect(() => {
+    if (!showCancelModal) return;
+    setTimeout(() => setCancelClockNow(Date.now()), 0);
+    const timer = setInterval(() => setCancelClockNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [showCancelModal]);
 
   const loadRide = useCallback(async () => {
     if (!rideId) return;
@@ -192,7 +206,8 @@ export default function ActiveRideScreen() {
   };
 
   const handleRaiseFare = async (nextFarePaise: number) => {
-    if (!ride || isRaisingFare) return;
+    if (!ride || isRaisingFare || raisingFareRef.current) return;
+    raisingFareRef.current = true;
     setIsRaisingFare(true);
     setActionError(null);
     try {
@@ -203,12 +218,15 @@ export default function ActiveRideScreen() {
       setActionError(err instanceof Error ? err.message : 'Unable to raise fare.');
       await loadRide();
     } finally {
+      raisingFareRef.current = false;
       setIsRaisingFare(false);
     }
   };
 
   const handleCounterAction = async (driverId: string, action: 'ACCEPTED' | 'REJECTED') => {
     if (!ride) return;
+    if (!ride || respondingCounterRef.current) return;
+    respondingCounterRef.current = true;
     setRespondingDriverId(driverId);
     setActionError(null);
     try {
@@ -217,12 +235,14 @@ export default function ActiveRideScreen() {
     } catch (err: unknown) {
       setActionError(err instanceof Error ? err.message : 'Could not respond to counter-offer.');
     } finally {
+      respondingCounterRef.current = false;
       setRespondingDriverId(null);
     }
   };
 
   const handleConfirmCancel = async () => {
-    if (!ride || !selectedCancelReason) return;
+    if (!ride || !selectedCancelReason || cancellingRef.current) return;
+    cancellingRef.current = true;
     setIsCancelling(true);
     setActionError(null);
     try {
@@ -232,6 +252,7 @@ export default function ActiveRideScreen() {
     } catch (err: unknown) {
       setActionError(err instanceof Error ? err.message : 'Unable to cancel ride.');
     } finally {
+      cancellingRef.current = false;
       setIsCancelling(false);
     }
   };
@@ -239,6 +260,7 @@ export default function ActiveRideScreen() {
   const openCancelSheet = () => {
     setActionError(null);
     setSelectedCancelReason(null);
+    setCancelClockNow(Date.now());
     setShowCancelModal(true);
   };
 
@@ -284,6 +306,8 @@ export default function ActiveRideScreen() {
       setActionError('Please describe the payment issue in at least 10 characters.');
       return;
     }
+    if (submittingDisputeRef.current) return;
+    submittingDisputeRef.current = true;
     setIsSubmittingDispute(true);
     setActionError(null);
     try {
@@ -294,6 +318,7 @@ export default function ActiveRideScreen() {
     } catch (err: unknown) {
       setActionError(err instanceof Error ? err.message : 'Failed to submit payment dispute.');
     } finally {
+      submittingDisputeRef.current = false;
       setIsSubmittingDispute(false);
     }
   };
@@ -345,6 +370,8 @@ export default function ActiveRideScreen() {
     ride.agreedFarePaise ?? ride.proposedFarePaise ?? ride.suggestedFarePaise;
   const arrearsPaise = ride.arrearsPaise ?? 0;
   const totalPayablePaise = currentFarePaise + arrearsPaise;
+  const cashAvailability = resolveRideCashAvailability(ride);
+  const cancelPreview = resolveRiderCancellationPreview(ride, cancelClockNow);
   const canCancel =
     ride.status === 'REQUESTED' ||
     ride.status === 'OFFERING' ||
@@ -416,7 +443,13 @@ export default function ActiveRideScreen() {
             <View style={styles.statusHeroCard}>
               <View style={styles.statusHeaderRow}>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.statusTitle}>{statusMeta.label}</Text>
+                  <Text
+                    style={styles.statusTitle}
+                    accessibilityRole="header"
+                    accessibilityLiveRegion="polite"
+                  >
+                    {statusMeta.label}
+                  </Text>
                   <Text style={styles.statusSubtitle}>
                     {isSearching && remainingSeconds === 0
                       ? 'Checking the final responses…'
@@ -596,7 +629,15 @@ export default function ActiveRideScreen() {
 
             {/* PAYMENT PENDING INSTRUCTION CARD (D-040) */}
             {ride.status === 'PAYMENT_PENDING' || ride.status === 'TRIP_COMPLETED' ? (
-              <UpiPaymentPanel rideId={ride.id} amountPaise={totalPayablePaise} onPaid={loadRide} />
+              <UpiPaymentPanel
+                rideId={ride.id}
+                amountPaise={totalPayablePaise}
+                farePaise={currentFarePaise}
+                arrearsPaise={arrearsPaise}
+                cashAllowed={cashAvailability.cashAllowed}
+                cashBlockedReason={cashAvailability.reason}
+                onPaid={loadRide}
+              />
             ) : null}
 
             {/* SETTLED RECEIPT & DISPUTE OPTION (D-041) */}
@@ -744,7 +785,11 @@ export default function ActiveRideScreen() {
                   {formatRupeesFromPaise(ceilingPaise)}
                 </Text>
               ) : null}
-              <Text style={styles.paymentReminder}>Pay by UPI in Cabzone after your trip.</Text>
+              <Text style={styles.paymentReminder}>
+                {cashAvailability.cashAllowed
+                  ? 'Pay by UPI in Cabzone or cash to your driver after your trip.'
+                  : 'UPI payment required in Cabzone after your trip while cancellation arrears are due.'}
+              </Text>
               <Text style={styles.rideRefText}>Ride #{ride.id.slice(0, 8).toUpperCase()}</Text>
             </View>
 
@@ -832,9 +877,39 @@ export default function ActiveRideScreen() {
       >
         <View style={styles.modalBackdrop}>
           <View style={[styles.modalSheet, { paddingBottom: spacing.lg + insets.bottom }]}>
-            <Text style={styles.modalTitle}>Why are you cancelling?</Text>
+            <Text style={styles.modalTitle} accessibilityRole="header">
+              Why are you cancelling?
+            </Text>
+            <View
+              style={[
+                styles.waitingCountersBox,
+                cancelPreview.feePaise > 0 && {
+                  backgroundColor: colors.warningBg,
+                  borderColor: colors.brandBrown,
+                },
+              ]}
+              accessibilityLiveRegion="polite"
+            >
+              <Ionicons
+                name={
+                  cancelPreview.feePaise > 0
+                    ? 'warning-outline'
+                    : 'checkmark-circle-outline'
+                }
+                size={20}
+                color={cancelPreview.feePaise > 0 ? colors.brandBrown : colors.success}
+              />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.waitingCountersTitle}>
+                  {cancelPreview.isFree
+                    ? 'Free cancellation'
+                    : `${formatRupeesFromPaise(cancelPreview.feePaise)} cancellation fee`}
+                </Text>
+                <Text style={styles.waitingCountersSub}>{cancelPreview.summaryText}</Text>
+              </View>
+            </View>
             {isSearching ? (
-              <Text style={styles.modalSubText}>Free to cancel while searching.</Text>
+              null
             ) : null}
             {RIDER_CANCEL_REASONS.map((r) => (
               <Pressable
@@ -844,6 +919,9 @@ export default function ActiveRideScreen() {
                   selectedCancelReason === r.code && styles.reasonRowActive,
                 ]}
                 onPress={() => setSelectedCancelReason(r.code)}
+                accessibilityRole="radio"
+                accessibilityLabel={r.label}
+                accessibilityState={{ selected: selectedCancelReason === r.code }}
               >
                 <Ionicons
                   name={selectedCancelReason === r.code ? 'radio-button-on' : 'radio-button-off'}

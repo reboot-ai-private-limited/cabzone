@@ -7,6 +7,10 @@ import { Ionicons } from '@expo/vector-icons';
 import type { RideDto, RideEventDto } from '@cabzone/contracts';
 import { useRide } from '@/context/ride-context';
 import { computeRideEarningsBreakdown } from '@/context/duty-context';
+import {
+  extractDriverCancellationCompensationPaise,
+  resolveDriverArrearsWalletEffect,
+} from '@/services/driver-ride-policy';
 import { RideRatingCard } from '@/components/driver/ride-rating-card';
 import { colors, typography } from '@/design-system';
 
@@ -50,7 +54,12 @@ export default function RideHistoryDetailScreen() {
       <SafeAreaView style={styles.centered}>
         <Ionicons name="receipt-outline" size={44} color={colors.deepBrown} />
         <Text style={styles.emptyTitle}>Ride Record Not Found</Text>
-        <Pressable style={styles.backButton} onPress={() => router.back()}>
+        <Pressable
+          style={styles.backButton}
+          onPress={() => router.back()}
+          accessibilityRole="button"
+          accessibilityLabel="Go Back"
+        >
           <Text style={styles.backButtonText}>Go Back</Text>
         </Pressable>
       </SafeAreaView>
@@ -59,11 +68,25 @@ export default function RideHistoryDetailScreen() {
 
   const settlement = ride.driverSettlement;
   const breakdown = computeRideEarningsBreakdown(ride);
+  const arrearsPaise = Math.max(0, ride.arrearsPaise ?? 0);
   const isSettled = settlement
     ? settlement.settledVia !== 'UNSETTLED'
     : ride.status === 'SETTLED' || ride.status === 'PAYMENT_CONFIRMED';
   const isPendingPayment = ride.status === 'TRIP_COMPLETED' || ride.status === 'PAYMENT_PENDING';
   const isDisputed = ride.status === 'PAYMENT_DISPUTED';
+  const driverCancelCompPaise =
+    ride.status === 'CANCELLED' ? extractDriverCancellationCompensationPaise(events) : 0;
+  const walletEffect = resolveDriverArrearsWalletEffect({
+    grossFarePaise: breakdown.grossPaise,
+    commissionPaise: settlement?.commissionChargedPaise ?? breakdown.commissionPaise,
+    netEarningsPaise: breakdown.netPaise,
+    arrearsPaise,
+    method: isSettled
+      ? settlement?.settledVia === 'ONLINE_UPI'
+        ? 'ONLINE_UPI'
+        : 'CASH'
+      : 'PENDING',
+  });
   const distanceKm = Number(((ride.routeSnapshot?.distanceM ?? 0) / 1000).toFixed(1));
   const durationMin = Math.max(1, Math.round((ride.routeSnapshot?.durationSeconds ?? 0) / 60));
 
@@ -88,16 +111,22 @@ export default function RideHistoryDetailScreen() {
         <View style={styles.summaryCard}>
           <Text style={styles.statusLabel}>{ride.status.replace(/_/g, ' ')}</Text>
           <Text style={styles.netAmount}>
-            {isSettled ? `₹${(breakdown.netPaise / 100).toFixed(2)}` : '₹0.00'}
+            {isSettled
+              ? `₹${(breakdown.netPaise / 100).toFixed(2)}`
+              : driverCancelCompPaise > 0
+                ? `+₹${(driverCancelCompPaise / 100).toFixed(2)}`
+                : '₹0.00'}
           </Text>
           <Text style={styles.netCaption}>
             {isSettled
               ? `Settled Net Earnings (${settlement?.settledVia === 'ONLINE_UPI' ? 'Online UPI' : 'Cash / Direct'})`
-              : isPendingPayment
-                ? 'Awaiting Payment Confirmation'
-                : isDisputed
-                  ? 'Under Payment Dispute Review'
-                  : 'Not Settled'}
+              : driverCancelCompPaise > 0
+                ? 'Driver Cancellation Compensation Credited'
+                : isPendingPayment
+                  ? 'Awaiting Payment Confirmation'
+                  : isDisputed
+                    ? 'Under Payment Dispute Review'
+                    : 'Not Settled'}
           </Text>
 
           <View style={styles.metaStrip}>
@@ -150,6 +179,20 @@ export default function RideHistoryDetailScreen() {
             <Text style={styles.rowLabel}>Agreed Passenger Fare (Gross)</Text>
             <Text style={styles.rowVal}>₹{(breakdown.grossPaise / 100).toFixed(2)}</Text>
           </View>
+          {arrearsPaise > 0 ? (
+            <>
+              <View style={styles.row}>
+                <Text style={styles.rowLabel}>Rider Prior Cancellation Fee (No Commission)</Text>
+                <Text style={styles.rowVal}>₹{(arrearsPaise / 100).toFixed(2)}</Text>
+              </View>
+              <View style={styles.row}>
+                <Text style={styles.rowLabel}>Total Collected from Rider</Text>
+                <Text style={styles.rowVal}>
+                  ₹{(walletEffect.totalCollectFromRiderPaise / 100).toFixed(2)}
+                </Text>
+              </View>
+            </>
+          ) : null}
           <View style={styles.row}>
             <Text style={styles.rowLabel}>
               Platform Commission ({ride.pricingSnapshot?.commissionPercent ?? 8}%)
@@ -169,12 +212,23 @@ export default function RideHistoryDetailScreen() {
               </Text>
             </View>
           ) : null}
+          {driverCancelCompPaise > 0 ? (
+            <View style={styles.row}>
+              <Text style={styles.rowLabel}>Driver Cancellation Compensation</Text>
+              <Text style={[styles.rowVal, { color: colors.success }]}>
+                +₹{(driverCancelCompPaise / 100).toFixed(2)}
+              </Text>
+            </View>
+          ) : null}
           <View style={[styles.row, styles.rowTotal]}>
             <Text style={styles.rowTotalLabel}>Settled Net Driver Earnings</Text>
             <Text style={styles.rowTotalVal}>
-              ₹{((isSettled ? breakdown.netPaise : 0) / 100).toFixed(2)}
+              ₹{((isSettled ? breakdown.netPaise : driverCancelCompPaise) / 100).toFixed(2)}
             </Text>
           </View>
+          {(isSettled || isPendingPayment || arrearsPaise > 0) && ride.status !== 'CANCELLED' ? (
+            <Text style={styles.walletEffectNote}>{walletEffect.summaryNote}</Text>
+          ) : null}
         </View>
 
         {ride.status === 'SETTLED' ? (
@@ -204,7 +258,12 @@ export default function RideHistoryDetailScreen() {
         </View>
 
         {/* Support Shortcut */}
-        <Pressable style={styles.helpButton} onPress={() => router.push('/(driver)/account/help')}>
+        <Pressable
+          style={styles.helpButton}
+          onPress={() => router.push('/(driver)/account/help')}
+          accessibilityRole="button"
+          accessibilityLabel="Need help with this trip"
+        >
           <Ionicons name="help-buoy-outline" size={18} color={colors.deepBrown} />
           <Text style={styles.helpButtonText}>Need help with this trip?</Text>
         </Pressable>
@@ -237,6 +296,8 @@ const styles = StyleSheet.create({
     color: colors.deepBrown,
   },
   backButton: {
+    minHeight: 44,
+    justifyContent: 'center',
     backgroundColor: colors.amber,
     paddingHorizontal: 18,
     paddingVertical: 10,
@@ -257,6 +318,7 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   topBackBtn: {
+    minHeight: 44,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
@@ -370,6 +432,8 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.xs,
     color: colors.secondary,
     fontWeight: '600',
+    flex: 1,
+    paddingRight: 8,
   },
   rowVal: {
     fontSize: typography.sizes.xs,
@@ -397,6 +461,12 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: colors.success,
   },
+  walletEffectNote: {
+    fontSize: 11,
+    color: colors.secondary,
+    fontWeight: '600',
+    lineHeight: 16,
+  },
   eventRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -418,6 +488,7 @@ const styles = StyleSheet.create({
     color: colors.secondary,
   },
   helpButton: {
+    minHeight: 48,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
