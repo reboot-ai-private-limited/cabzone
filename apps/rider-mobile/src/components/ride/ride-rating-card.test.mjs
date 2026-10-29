@@ -19,8 +19,10 @@ const code = ts.transpileModule(
 
 function createHarness(apiOverrides = {}) {
   const states = [];
+  const refs = [];
   const submissions = [];
   let cursor = 0;
+  let refCursor = 0;
 
   const React = {
     Fragment: 'Fragment',
@@ -38,6 +40,11 @@ function createHarness(apiOverrides = {}) {
           states[index] = typeof next === 'function' ? next(states[index]) : next;
         },
       ];
+    },
+    useRef: (initial) => {
+      const index = refCursor++;
+      if (!(index in refs)) refs[index] = { current: initial };
+      return refs[index];
     },
     useEffect: () => {},
     useCallback: (fn) => fn,
@@ -116,6 +123,7 @@ function createHarness(apiOverrides = {}) {
 
   const render = (props) => {
     cursor = 0;
+    refCursor = 0;
     return module.exports.RideRatingCard(props);
   };
 
@@ -169,6 +177,8 @@ test('RideRatingCard lets rider choose stars, preset tags, and submit double-bli
   tree = h.render({ rideId: 'ride-101', driverName: 'Subrata Ghosh', initialStatus });
   const submitBtn = collectNodes(tree, (n) => n.props?.accessibilityLabel === 'Submit rating')[0];
   assert.equal(submitBtn.props.disabled, false);
+  // Rapid synchronous double-tap must only submit once
+  submitBtn.props.onPress();
   submitBtn.props.onPress();
   await new Promise((resolve) => setImmediate(resolve));
 
@@ -183,7 +193,7 @@ test('RideRatingCard lets rider choose stars, preset tags, and submit double-bli
   assert.match(collectText(tree), /Private/);
 });
 
-test('RideRatingCard shows published mutual ratings and expired window state accurately', () => {
+test('RideRatingCard shows published mutual ratings, blocks unrevealed counterparty reviews, and handles expired window', () => {
   const revealedHarness = createHarness();
   const revealedTree = revealedHarness.render({
     rideId: 'ride-102',
@@ -223,6 +233,34 @@ test('RideRatingCard shows published mutual ratings and expired window state acc
   assert.match(text, /Published/);
   assert.match(text, /Rating from Rajesh Barman/);
   assert.match(text, /Polite rider/);
+
+  const unrevealedCounterpartyHarness = createHarness();
+  const unrevealedTree = unrevealedCounterpartyHarness.render({
+    rideId: 'ride-102b',
+    driverName: 'Rajesh Barman',
+    initialStatus: {
+      rideId: 'ride-102b',
+      rideSettledAt: '2026-10-26T10:00:00.000Z',
+      windowExpiresAt: '2026-11-02T10:00:00.000Z',
+      isWindowExpired: false,
+      canSubmit: true,
+      myReview: null,
+      counterpartyReview: {
+        id: 'rev-d-hidden',
+        rideId: 'ride-102b',
+        reviewerRole: 'DRIVER',
+        stars: 2,
+        tags: [],
+        comment: 'Secret unrevealed note',
+        status: 'HIDDEN',
+        submittedAt: '2026-10-26T10:06:00.000Z',
+        revealedAt: null,
+      },
+    },
+  });
+  const unrevealedText = collectText(unrevealedTree);
+  assert.doesNotMatch(unrevealedText, /Secret unrevealed note/);
+  assert.doesNotMatch(unrevealedText, /Rating from Rajesh Barman/);
 
   const expiredHarness = createHarness();
   const expiredTree = expiredHarness.render({

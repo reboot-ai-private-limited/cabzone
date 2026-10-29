@@ -21,6 +21,7 @@ export interface WalletRepositoryPort {
   findByDriverId(driverId: string): Promise<WalletEntity | null>;
   findByRiderId(riderId: string): Promise<WalletEntity | null>;
   findById(id: string): Promise<WalletEntity | null>;
+  findAllWallets?(driverId?: string): Promise<WalletEntity[]>;
   save(wallet: WalletEntity): Promise<WalletEntity>;
   recordTransaction(transaction: WalletTransactionEntity): Promise<WalletTransactionEntity>;
   findTransactionsByWalletId(walletId: string, limit?: number): Promise<WalletTransactionEntity[]>;

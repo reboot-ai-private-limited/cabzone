@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -37,6 +37,7 @@ export function RideRatingCard({
   const [status, setStatus] = useState<RideRatingStatusDto | null>(initialStatus);
   const [loading, setLoading] = useState(!initialStatus && Boolean(token));
   const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const [stars, setStars] = useState<number>(0);
   const [selectedTags, setSelectedTags] = useState<RiderToDriverRatingTag[]>([]);
@@ -90,7 +91,8 @@ export function RideRatingCard({
   };
 
   const handleSubmit = async () => {
-    if (!token || stars < 1 || stars > 5 || submitting) return;
+    if (!token || stars < 1 || stars > 5 || submitting || submittingRef.current) return;
+    submittingRef.current = true;
     setSubmitting(true);
     setError(null);
     try {
@@ -105,6 +107,7 @@ export function RideRatingCard({
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Could not submit your rating.');
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   };
@@ -142,7 +145,8 @@ export function RideRatingCard({
   }
 
   const myReview = status.myReview;
-  const counterpartyReview = status.counterpartyReview;
+  const counterpartyReview =
+    status.counterpartyReview?.status === 'REVEALED' ? status.counterpartyReview : null;
 
   return (
     <View style={styles.card}>
@@ -411,7 +415,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   tagChip: {
-    minHeight: 40,
+    minHeight: 44,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     borderRadius: radii.pill,

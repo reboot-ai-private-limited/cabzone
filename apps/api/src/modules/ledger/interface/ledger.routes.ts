@@ -10,6 +10,7 @@ export interface AdminWalletRouterDeps {
   listWallets: RequestHandler;
   getStats: RequestHandler;
   listTransactions: RequestHandler;
+  reconcileLedger?: RequestHandler | undefined;
 }
 
 export function buildAdminWalletRouter(deps: AdminWalletRouterDeps): Router {
@@ -22,6 +23,9 @@ export function buildAdminWalletRouter(deps: AdminWalletRouterDeps): Router {
   router.get('/transactions', deps.listTransactions);
   router.get('/', deps.listWallets);
   router.post('/adjustments', deps.adjustWallet);
+  if (deps.reconcileLedger) {
+    router.post('/reconcile', deps.reconcileLedger);
+  }
   router.get('/:driverId', deps.getWallet);
   return router;
 }

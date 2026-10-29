@@ -11,7 +11,10 @@ const contractsRidesCode = ts.transpileModule(
   { compilerOptions: { module: ts.ModuleKind.CommonJS } },
 ).outputText;
 const contractsRidesModule = { exports: {} };
-vm.runInNewContext(contractsRidesCode, { exports: contractsRidesModule.exports, require: () => ({}) });
+vm.runInNewContext(contractsRidesCode, {
+  exports: contractsRidesModule.exports,
+  require: () => ({}),
+});
 
 const source = readFileSync(new URL('./rider-helpers.ts', import.meta.url), 'utf8');
 const code = ts.transpileModule(source, {
@@ -24,6 +27,8 @@ vm.runInNewContext(code, {
     if (name === '@cabzone/contracts') {
       return {
         ...contractsRidesModule.exports,
+        DEFAULT_CANCELLATION_FEE_PAISE: 5000,
+        DEFAULT_RIDER_CANCELLATION_GRACE_SECONDS: 120,
         VEHICLE_CATEGORY_REGISTRY: {
           CAB: { displayName: 'Cab (4 Seats)' },
           E_RICKSHAW: { displayName: 'E-Rickshaw (Toto)' },
@@ -49,9 +54,12 @@ const {
   createBookingIdempotencyKey,
   extractActiveRideConflictId,
   isRideActive,
+  isRideWithinRatingWindow,
   normalizeIndianPhoneE164,
   extractPendingDriverCounters,
   formatAssignedDriverSummary,
+  resolveRideCashAvailability,
+  resolveRiderCancellationPreview,
 } = module.exports;
 
 test('clampProposedFarePaise respects floor and ceiling bounds', () => {
@@ -216,4 +224,62 @@ test('extractActiveRideConflictId and createBookingIdempotencyKey follow API con
 
   const key = createBookingIdempotencyKey();
   assert.match(key, /^[a-zA-Z0-9:_-]{8,128}$/);
+});
+
+test('resolveRiderCancellationPreview reflects grace window and arrival fee from pricingSnapshot', () => {
+  const acceptedAt = '2026-10-28T10:00:00.000Z';
+  const baseRide = {
+    driverId: 'driver-1',
+    acceptedAt,
+    updatedAt: acceptedAt,
+    pricingSnapshot: {
+      cancellationFeePaise: 4000,
+      riderCancellationGraceSeconds: 90,
+    },
+  };
+
+  const withinGrace = resolveRiderCancellationPreview(
+    { ...baseRide, status: 'DRIVER_EN_ROUTE' },
+    Date.parse('2026-10-28T10:01:00.000Z'),
+  );
+  assert.equal(withinGrace.isFree, true);
+  assert.equal(withinGrace.feePaise, 0);
+  assert.equal(withinGrace.graceRemainingSeconds, 30);
+
+  const pastGrace = resolveRiderCancellationPreview(
+    { ...baseRide, status: 'DRIVER_EN_ROUTE' },
+    Date.parse('2026-10-28T10:02:00.000Z'),
+  );
+  assert.equal(pastGrace.isFree, false);
+  assert.equal(pastGrace.feePaise, 4000);
+  assert.match(pastGrace.summaryText, /₹40/);
+
+  const arrived = resolveRiderCancellationPreview(
+    { ...baseRide, status: 'DRIVER_ARRIVED' },
+    Date.parse('2026-10-28T10:00:30.000Z'),
+  );
+  assert.equal(arrived.isFree, false);
+  assert.equal(arrived.feePaise, 4000);
+});
+
+test('resolveRideCashAvailability blocks cash when arrears reach effective cancellationFeePaise', () => {
+  const allowed = resolveRideCashAvailability({
+    arrearsPaise: 2000,
+    pricingSnapshot: { cancellationFeePaise: 5000 },
+  });
+  assert.equal(allowed.cashAllowed, true);
+  assert.equal(allowed.reason, null);
+
+  const blocked = resolveRideCashAvailability({
+    arrearsPaise: 5000,
+    pricingSnapshot: { cancellationFeePaise: 5000 },
+  });
+  assert.equal(blocked.cashAllowed, false);
+  assert.match(blocked.reason, /Cash is unavailable while ₹50/);
+});
+
+test('isRideWithinRatingWindow enforces the 7-day post-settlement window', () => {
+  const settledAt = '2026-10-20T10:00:00.000Z';
+  assert.equal(isRideWithinRatingWindow(settledAt, Date.parse('2026-10-25T10:00:00.000Z')), true);
+  assert.equal(isRideWithinRatingWindow(settledAt, Date.parse('2026-10-28T10:00:00.000Z')), false);
 });

@@ -105,6 +105,7 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
   const eligibleTokenRef = useRef<string | null>(null);
   const lastUserIdRef = useRef<string | null>(null);
   const seenOfferIdsRef = useRef<Set<string>>(new Set());
+  const mutatingRideRef = useRef<boolean>(false);
 
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
@@ -150,6 +151,7 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
       eligibleTokenRef.current = null;
       setActiveRide(null);
       setIsCheckingActiveRide(false);
+      mutatingRideRef.current = false;
       setIsMutatingRide(false);
       setRideError(null);
     }
@@ -541,7 +543,8 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
 
   const acceptOffer = useCallback(
     async (rideId: string): Promise<RideDto | null> => {
-      if (!token || isMutatingRide) return null;
+      if (!token || isMutatingRide || mutatingRideRef.current) return null;
+      mutatingRideRef.current = true;
       setIsMutatingRide(true);
       setRideError(null);
       try {
@@ -559,7 +562,8 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
         }
         return null;
       } finally {
-        setIsMutatingRide(false);
+        mutatingRideRef.current = false;
+      setIsMutatingRide(false);
       }
     },
     [token, isMutatingRide, ignoreOffer, refreshSummary],
@@ -567,7 +571,8 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
 
   const counterOffer = useCallback(
     async (rideId: string, farePaise: number): Promise<boolean> => {
-      if (!token || isMutatingRide) return false;
+      if (!token || isMutatingRide || mutatingRideRef.current) return false;
+      mutatingRideRef.current = true;
       setIsMutatingRide(true);
       setRideError(null);
       try {
@@ -583,7 +588,8 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
         setRideError(err instanceof Error ? err.message : 'Unable to send counter-offer');
         return false;
       } finally {
-        setIsMutatingRide(false);
+        mutatingRideRef.current = false;
+      setIsMutatingRide(false);
       }
     },
     [token, isMutatingRide],
@@ -591,7 +597,8 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
 
   const markEnRoute = useCallback(
     async (rideId: string): Promise<RideDto | null> => {
-      if (!token || isMutatingRide) return null;
+      if (!token || isMutatingRide || mutatingRideRef.current) return null;
+      mutatingRideRef.current = true;
       setIsMutatingRide(true);
       setRideError(null);
       try {
@@ -602,7 +609,8 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
         setRideError(err instanceof Error ? err.message : 'Failed to update status to En Route');
         return null;
       } finally {
-        setIsMutatingRide(false);
+        mutatingRideRef.current = false;
+      setIsMutatingRide(false);
       }
     },
     [token, isMutatingRide],
@@ -610,7 +618,8 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
 
   const markArrived = useCallback(
     async (rideId: string): Promise<RideDto | null> => {
-      if (!token || isMutatingRide) return null;
+      if (!token || isMutatingRide || mutatingRideRef.current) return null;
+      mutatingRideRef.current = true;
       setIsMutatingRide(true);
       setRideError(null);
       try {
@@ -621,7 +630,8 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
         setRideError(err instanceof Error ? err.message : 'Failed to mark arrival at pickup');
         return null;
       } finally {
-        setIsMutatingRide(false);
+        mutatingRideRef.current = false;
+      setIsMutatingRide(false);
       }
     },
     [token, isMutatingRide],
@@ -629,12 +639,13 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
 
   const startTripWithOtp = useCallback(
     async (rideId: string, otp: string): Promise<RideDto | null> => {
-      if (!token || isMutatingRide) return null;
+      if (!token || isMutatingRide || mutatingRideRef.current) return null;
       const cleaned = otp.replace(/\D/g, '');
       if (cleaned.length !== 4) {
         setRideError('Please enter the 4-digit pickup OTP from the passenger.');
         return null;
       }
+      mutatingRideRef.current = true;
       setIsMutatingRide(true);
       setRideError(null);
       try {
@@ -647,7 +658,8 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
         );
         return null;
       } finally {
-        setIsMutatingRide(false);
+        mutatingRideRef.current = false;
+      setIsMutatingRide(false);
       }
     },
     [token, isMutatingRide],
@@ -655,7 +667,8 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
 
   const completeTrip = useCallback(
     async (rideId: string): Promise<CompleteRideResultDto | null> => {
-      if (!token || isMutatingRide) return null;
+      if (!token || isMutatingRide || mutatingRideRef.current) return null;
+      mutatingRideRef.current = true;
       setIsMutatingRide(true);
       setRideError(null);
       try {
@@ -667,7 +680,8 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
         setRideError(err instanceof Error ? err.message : 'Failed to complete trip');
         return null;
       } finally {
-        setIsMutatingRide(false);
+        mutatingRideRef.current = false;
+      setIsMutatingRide(false);
       }
     },
     [token, isMutatingRide, refreshSummary],
@@ -675,7 +689,8 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
 
   const confirmDirectPayment = useCallback(
     async (rideId: string): Promise<CompleteRideResultDto | null> => {
-      if (!token || isMutatingRide) return null;
+      if (!token || isMutatingRide || mutatingRideRef.current) return null;
+      mutatingRideRef.current = true;
       setIsMutatingRide(true);
       setRideError(null);
       try {
@@ -691,7 +706,8 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
         setRideError(err instanceof Error ? err.message : 'Failed to confirm payment receipt');
         return null;
       } finally {
-        setIsMutatingRide(false);
+        mutatingRideRef.current = false;
+      setIsMutatingRide(false);
       }
     },
     [token, isMutatingRide, refreshSummary],
@@ -699,7 +715,8 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
 
   const cancelTrip = useCallback(
     async (rideId: string, reason: CancellationReason): Promise<RideDto | null> => {
-      if (!token || isMutatingRide) return null;
+      if (!token || isMutatingRide || mutatingRideRef.current) return null;
+      mutatingRideRef.current = true;
       setIsMutatingRide(true);
       setRideError(null);
       try {
@@ -711,7 +728,8 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
         setRideError(err instanceof Error ? err.message : 'Failed to cancel ride');
         return null;
       } finally {
-        setIsMutatingRide(false);
+        mutatingRideRef.current = false;
+      setIsMutatingRide(false);
       }
     },
     [token, isMutatingRide, refreshSummary],

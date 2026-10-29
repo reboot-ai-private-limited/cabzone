@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { Keyboard } from 'react-native';
 import { useAuth } from '@/context/auth-context';
 import { driverApi } from '@/services/api';
 import {
@@ -56,6 +57,11 @@ export function KycWizard() {
 
   const [step, setStep] = useState<number>(1);
   const hydratedForUserRef = useRef<string | null>(null);
+
+  const goToStep = (nextStep: number) => {
+    Keyboard.dismiss();
+    setStep(nextStep);
+  };
 
   // Hydrate non-sensitive local draft for current user and reconcile with authoritative server state (F03)
   useEffect(() => {
@@ -168,7 +174,7 @@ export function KycWizard() {
       profilePhotoDataUrl: undefined,
     });
     await refreshProfile();
-    setStep(2);
+    goToStep(2);
   };
 
   const handleSubmitApplication = async () => {
@@ -225,7 +231,7 @@ export function KycWizard() {
 
     // 5. Clear local onboarding draft and immediately advance to confirmation screen (F03, F18)
     await clearKycDraft(user?.id);
-    setStep(8);
+    goToStep(8);
 
     // 6. Refresh authoritative profile in background without blocking confirmation
     void refreshProfile().catch(() => {});
@@ -246,8 +252,8 @@ export function KycWizard() {
         <StepOperatingCity
           draft={draft}
           onUpdate={updateDraft}
-          onNext={() => setStep(3)}
-          onBack={() => setStep(1)}
+          onNext={() => goToStep(3)}
+          onBack={() => goToStep(1)}
         />
       );
     case 3:
@@ -255,8 +261,8 @@ export function KycWizard() {
         <StepVehicleInfo
           draft={draft}
           onUpdate={updateDraft}
-          onNext={() => setStep(4)}
-          onBack={() => setStep(2)}
+          onNext={() => goToStep(4)}
+          onBack={() => goToStep(2)}
         />
       );
     case 4:
@@ -264,8 +270,8 @@ export function KycWizard() {
         <StepDrivingLicence
           draft={draft}
           onUpdate={updateDraft}
-          onNext={() => setStep(5)}
-          onBack={() => setStep(3)}
+          onNext={() => goToStep(5)}
+          onBack={() => goToStep(3)}
         />
       );
     case 5:
@@ -273,8 +279,8 @@ export function KycWizard() {
         <StepVehicleDocuments
           draft={draft}
           onUpdate={updateDraft}
-          onNext={() => setStep(6)}
-          onBack={() => setStep(4)}
+          onNext={() => goToStep(6)}
+          onBack={() => goToStep(4)}
         />
       );
     case 6:
@@ -282,17 +288,17 @@ export function KycWizard() {
         <StepProfilePhoto
           draft={draft}
           onUpdate={updateDraft}
-          onNext={() => setStep(7)}
-          onBack={() => setStep(5)}
+          onNext={() => goToStep(7)}
+          onBack={() => goToStep(5)}
         />
       );
     case 7:
       return (
         <StepReview
           draft={draft}
-          onEditStep={(s) => setStep(s)}
+          onEditStep={(s) => goToStep(s)}
           onSubmit={handleSubmitApplication}
-          onBack={() => setStep(6)}
+          onBack={() => goToStep(6)}
         />
       );
     case 8:

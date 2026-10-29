@@ -20,6 +20,11 @@ import type { CancellationReason, RideDto, RideStatus } from '@cabzone/contracts
 import { useRide } from '@/context/ride-context';
 import { computeRideEarningsBreakdown } from '@/context/duty-context';
 import { colors, typography } from '@/design-system';
+import {
+  resolveDriverArrearsWalletEffect,
+  resolveDriverCashAvailability,
+  resolveDriverNoShowStatus,
+} from '@/services/driver-ride-policy';
 
 const DRIVER_CANCEL_REASONS: { code: CancellationReason; label: string; desc: string }[] = [
   {
@@ -176,6 +181,16 @@ export default function ActiveRideScreen() {
     void loadRide();
   }, [activeRide, rideId, loadRide]);
 
+  const [arrivalClockNow, setArrivalClockNow] = useState<number>(() => Date.now());
+  useEffect(() => {
+    if (ride?.status !== 'DRIVER_ARRIVED' && !showCancelModal) return;
+    setTimeout(() => setArrivalClockNow(Date.now()), 0);
+    const timer = setInterval(() => {
+      setArrivalClockNow(Date.now());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [ride?.status, showCancelModal]);
+
   if (isLoadingRide && !ride) {
     return (
       <SafeAreaView style={styles.centeredScreen}>
@@ -218,6 +233,19 @@ export default function ActiveRideScreen() {
   const breakdown = computeRideEarningsBreakdown(ride);
   const arrearsPaise = ride.arrearsPaise ?? 0;
   const totalCollectablePaise = breakdown.grossPaise + arrearsPaise;
+  const cashAvailability = resolveDriverCashAvailability(ride);
+  const noShowStatus = resolveDriverNoShowStatus(ride, arrivalClockNow);
+  const walletEffect = resolveDriverArrearsWalletEffect({
+    grossFarePaise: breakdown.grossPaise,
+    commissionPaise: breakdown.commissionPaise,
+    netEarningsPaise: breakdown.netPaise,
+    arrearsPaise,
+    method: 'PENDING',
+  });
+  if (ride.status === 'PAYMENT_PENDING' && !cashAvailability.cashAllowed) {
+    meta.subtitle =
+      'Collect the full total via UPI QR. Cash collection is disabled while prior rider cancellation fees apply.';
+  }
   const distanceKm = Number(((ride.routeSnapshot?.distanceM ?? 0) / 1000).toFixed(1));
   const durationMin = Math.max(1, Math.round((ride.routeSnapshot?.durationSeconds ?? 0) / 60));
 
@@ -270,6 +298,7 @@ export default function ActiveRideScreen() {
   };
 
   const handleConfirmCancel = async () => {
+    if (selectedCancelReason === 'RIDER_NO_SHOW' && !noShowStatus.canMarkNoShow) return;
     const cancelled = await cancelTrip(ride.id, selectedCancelReason);
     if (cancelled) {
       setRide(cancelled);
@@ -380,7 +409,9 @@ export default function ActiveRideScreen() {
             </View>
           ) : null}
 
-          <Text style={styles.heroHeadline}>{meta.headline}</Text>
+          <Text style={styles.heroHeadline} accessibilityLiveRegion="polite">
+            {meta.headline}
+          </Text>
           <Text style={styles.heroSubtitle}>{meta.subtitle}</Text>
 
           {/* Passenger & Call Row */}
@@ -413,6 +444,11 @@ export default function ActiveRideScreen() {
             key={ride.id}
             rideId={ride.id}
             amountPaise={totalCollectablePaise}
+            farePaise={breakdown.grossPaise}
+            arrearsPaise={arrearsPaise}
+            commissionPaise={breakdown.commissionPaise}
+            cashAllowed={cashAvailability.cashAllowed}
+            cashBlockedReason={cashAvailability.reason}
             onPaid={loadRide}
             onCashReceived={async () => {
               const result = await confirmDirectPayment(ride.id);
@@ -429,6 +465,8 @@ export default function ActiveRideScreen() {
             <Text style={styles.cardTitle}>Route & Navigation</Text>
             <Pressable
               style={styles.mapsBtn}
+              accessibilityRole="button"
+              accessibilityLabel="Open navigation in external maps"
               onPress={() =>
                 openExternalMaps(
                   ride.status === 'TRIP_STARTED' ||
@@ -479,6 +517,9 @@ export default function ActiveRideScreen() {
         {/* Stage-Specific Interactive Controls */}
         {ride.status === 'DRIVER_ARRIVED' ? (
           <View style={styles.otpCard}>
+            <View style={styles.walletAfterNotice} accessibilityLiveRegion="polite">
+              <Text style={styles.walletAfterText}>{noShowStatus.statusText}</Text>
+            </View>
             <Text style={styles.otpTitle}>Enter 4-Digit Pickup OTP</Text>
             <Text style={styles.otpHint}>
               Ask {ride.passenger?.name || 'the passenger'} for the 4-digit code shown on their app.
@@ -545,6 +586,19 @@ export default function ActiveRideScreen() {
               </Text>
               <Text style={styles.breakdownValue}>₹{(arrearsPaise / 100).toFixed(2)}</Text>
             </View>
+          ) : null}
+          {arrearsPaise > 0 ? (
+            <>
+              <View style={[styles.breakdownRow, styles.breakdownTotalRow]}>
+                <Text style={styles.breakdownTotalLabel}>Total to Collect from Rider</Text>
+                <Text style={styles.breakdownValue}>
+                  ₹{(totalCollectablePaise / 100).toFixed(2)}
+                </Text>
+              </View>
+              <View style={styles.walletAfterNotice}>
+                <Text style={styles.walletAfterText}>{walletEffect.summaryNote}</Text>
+              </View>
+            </>
           ) : null}
           {settlementSummary ? (
             <View style={styles.walletAfterNotice}>
@@ -622,7 +676,15 @@ export default function ActiveRideScreen() {
           <Pressable
             style={styles.cancelTriggerBtn}
             disabled={isMutatingRide}
-            onPress={() => setShowCancelModal(true)}
+            accessibilityRole="button"
+            accessibilityLabel="Cancel ride"
+            onPress={() => {
+              setArrivalClockNow(Date.now());
+              setSelectedCancelReason(
+                noShowStatus.canMarkNoShow ? 'RIDER_NO_SHOW' : 'DRIVER_DELAYED',
+              );
+              setShowCancelModal(true);
+            }}
           >
             <Text style={styles.cancelTriggerText}>Cancel Ride</Text>
           </Pressable>
@@ -644,13 +706,24 @@ export default function ActiveRideScreen() {
               affect dispatch priority.
             </Text>
 
+            <View style={styles.walletAfterNotice} accessibilityLiveRegion="polite">
+              <Text style={styles.walletAfterText}>{noShowStatus.statusText}</Text>
+            </View>
             <View style={styles.reasonList}>
               {DRIVER_CANCEL_REASONS.map((item) => {
                 const selected = selectedCancelReason === item.code;
+                const disabled = item.code === 'RIDER_NO_SHOW' && !noShowStatus.canMarkNoShow;
                 return (
                   <Pressable
                     key={item.code}
-                    style={[styles.reasonItem, selected && styles.reasonItemSelected]}
+                    style={[
+                      styles.reasonItem,
+                      selected && styles.reasonItemSelected,
+                      disabled && styles.disabledBtn,
+                    ]}
+                    disabled={disabled}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected, disabled }}
                     onPress={() => setSelectedCancelReason(item.code)}
                   >
                     <View style={[styles.radioOuter, selected && styles.radioOuterSelected]}>
@@ -733,6 +806,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
   },
   backBtn: {
+    minHeight: 44,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
@@ -894,6 +968,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   callBtn: {
+    minHeight: 44,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
@@ -927,6 +1002,7 @@ const styles = StyleSheet.create({
     color: colors.deepBrown,
   },
   mapsBtn: {
+    minHeight: 44,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
@@ -1177,6 +1253,8 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   cancelTriggerBtn: {
+    minHeight: 48,
+    justifyContent: 'center',
     width: '100%',
     paddingVertical: 14,
     borderRadius: 14,

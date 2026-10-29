@@ -6,6 +6,7 @@ import { GetFinanceStatsUseCase } from './application/useCases/getFinanceStats.u
 import { GetWalletUseCase } from './application/useCases/getWallet.usecase.js';
 import { ListTransactionsUseCase } from './application/useCases/listTransactions.usecase.js';
 import { ListWalletsUseCase } from './application/useCases/listWallets.usecase.js';
+import { ReconcileWalletLedgerUseCase } from './application/useCases/reconcileWalletLedger.usecase.js';
 import type { UserLookupItem, WalletRepositoryPort } from './domain/index.js';
 import {
   makeAdminAdjustWalletController,
@@ -13,6 +14,7 @@ import {
   makeAdminGetWalletController,
   makeAdminListTransactionsController,
   makeAdminListWalletsController,
+  makeAdminReconcileWalletLedgerController,
   makeMyWalletController,
   makeMyWalletTransactionsController,
 } from './interface/ledger.controller.js';
@@ -55,18 +57,21 @@ export interface LedgerContainer {
   listWalletsUseCase: ListWalletsUseCase;
   listTransactionsUseCase: ListTransactionsUseCase;
   getFinanceStatsUseCase: GetFinanceStatsUseCase;
+  reconcileWalletLedgerUseCase: ReconcileWalletLedgerUseCase;
   buildAdminWalletRouter: (auth: LedgerAuth) => Router;
   buildDriverWalletRouter: (auth: LedgerAuth) => Router;
 }
 
 export function buildLedgerContainer(deps: LedgerContainerDeps): LedgerContainer {
   registerWalletMoneySwaggerPaths();
+  const operations = deps.walletOperations ?? new MongoWalletOperationRepository();
+  const walletMoneyEnabled = !isProdLike && env.RAZORPAY_MODE === 'test';
   const walletMoneyUseCase = new WalletMoneyUseCase({
     walletRepo: deps.walletRepo,
-    operations: deps.walletOperations ?? new MongoWalletOperationRepository(),
+    operations,
     gateway: deps.walletPaymentGateway,
     unitOfWork: deps.unitOfWork,
-    enabled: !isProdLike && env.RAZORPAY_MODE === 'test',
+    enabled: walletMoneyEnabled,
   });
   const money = walletMoneyControllers(
     walletMoneyUseCase,
@@ -78,6 +83,14 @@ export function buildLedgerContainer(deps: LedgerContainerDeps): LedgerContainer
   const listWalletsUseCase = new ListWalletsUseCase(deps.walletRepo, deps.lookups);
   const listTransactionsUseCase = new ListTransactionsUseCase(deps.walletRepo);
   const getFinanceStatsUseCase = new GetFinanceStatsUseCase(deps.walletRepo);
+  const activeGateway =
+    walletMoneyEnabled && deps.walletPaymentGateway?.keyId ? deps.walletPaymentGateway : undefined;
+  const reconcileWalletLedgerUseCase = new ReconcileWalletLedgerUseCase({
+    walletRepo: deps.walletRepo,
+    operations,
+    gateway: activeGateway,
+    walletMoneyUseCase,
+  });
 
   return {
     walletMoneyUseCase,
@@ -87,6 +100,7 @@ export function buildLedgerContainer(deps: LedgerContainerDeps): LedgerContainer
     listWalletsUseCase,
     listTransactionsUseCase,
     getFinanceStatsUseCase,
+    reconcileWalletLedgerUseCase,
     buildAdminWalletRouter: (auth) =>
       buildAdminWalletRouter({
         money,
@@ -97,6 +111,7 @@ export function buildLedgerContainer(deps: LedgerContainerDeps): LedgerContainer
         listWallets: makeAdminListWalletsController(listWalletsUseCase),
         getStats: makeAdminGetFinanceStatsController(getFinanceStatsUseCase),
         listTransactions: makeAdminListTransactionsController(listTransactionsUseCase),
+        reconcileLedger: makeAdminReconcileWalletLedgerController(reconcileWalletLedgerUseCase),
       }),
     buildDriverWalletRouter: (auth) =>
       buildDriverWalletRouter({

@@ -16,6 +16,7 @@ import {
   formatRupeesFromPaise,
   getRideStatusMeta,
   isRideActive,
+  isRideWithinRatingWindow,
 } from '@/services/rider-helpers';
 import { colors, radii, spacing, typography } from '@/design-system';
 
@@ -23,14 +24,28 @@ type FilterTab = 'ALL' | 'COMPLETED' | 'CANCELLED';
 
 export default function ActivityScreen() {
   const router = useRouter();
-  const { activeRide, rideHistory, isLoadingRides, syncError, refreshRides, setBookingDraft } = useRide();
+  const {
+    activeRide,
+    rideHistory,
+    hasMoreRides,
+    isLoadingRides,
+    isLoadingMoreRides,
+    syncError,
+    refreshRides,
+    loadOlderRides,
+    setBookingDraft,
+  } = useRide();
   const [filter, setFilter] = useState<FilterTab>('ALL');
 
   const pastRides = useMemo(() => {
     return rideHistory.filter((r) => {
       if (isRideActive(r.status)) return false;
       if (filter === 'COMPLETED') {
-        return r.status === 'SETTLED' || r.status === 'PAYMENT_CONFIRMED' || r.status === 'PAYMENT_DISPUTED';
+        return (
+          r.status === 'SETTLED' ||
+          r.status === 'PAYMENT_CONFIRMED' ||
+          r.status === 'PAYMENT_DISPUTED'
+        );
       }
       if (filter === 'CANCELLED') {
         return r.status === 'CANCELLED' || r.status === 'EXPIRED';
@@ -78,7 +93,12 @@ export default function ActivityScreen() {
             <Text style={styles.eyebrow}>RIDES & RECEIPTS</Text>
             <Text style={styles.title}>Your Activity</Text>
           </View>
-          <Pressable style={styles.refreshBtn} onPress={() => void refreshRides()}>
+          <Pressable
+            style={styles.refreshBtn}
+            onPress={() => void refreshRides()}
+            accessibilityRole="button"
+            accessibilityLabel="Refresh activity"
+          >
             {isLoadingRides ? (
               <ActivityIndicator size="small" color={colors.deepBrown} />
             ) : (
@@ -87,13 +107,19 @@ export default function ActivityScreen() {
           </Pressable>
         </View>
 
-        {syncError ? <Text style={styles.syncError} accessibilityRole="alert">{syncError}</Text> : null}
+        {syncError && rideHistory.length > 0 ? (
+          <Text style={styles.syncError} accessibilityRole="alert">
+            {syncError}
+          </Text>
+        ) : null}
 
         {/* Active Ride Card */}
         {activeRide ? (
           <Pressable
             style={styles.activeCard}
             onPress={() => router.push(`/(rider)/ride/${activeRide.id}`)}
+            accessibilityRole="button"
+            accessibilityLabel={`Open live trip: ${getRideStatusMeta(activeRide.status).label}`}
           >
             <View style={styles.activeTopRow}>
               <View style={styles.liveTag}>
@@ -101,9 +127,9 @@ export default function ActivityScreen() {
               </View>
               <Text style={styles.activeFare}>
                 {formatRupeesFromPaise(
-                  activeRide.agreedFarePaise ??
+                  (activeRide.agreedFarePaise ??
                     activeRide.proposedFarePaise ??
-                    activeRide.suggestedFarePaise,
+                    activeRide.suggestedFarePaise) + (activeRide.arrearsPaise ?? 0),
                 )}
               </Text>
             </View>
@@ -125,104 +151,183 @@ export default function ActivityScreen() {
         ) : null}
 
         {/* Filter Chips */}
-        <View style={styles.filterRow}>
-          {(['ALL', 'COMPLETED', 'CANCELLED'] as FilterTab[]).map((tab) => (
-            <Pressable
-              key={tab}
-              style={[styles.filterChip, filter === tab && styles.filterChipActive]}
-              onPress={() => setFilter(tab)}
-            >
-              <Text
-                style={[
-                  styles.filterChipText,
-                  filter === tab && styles.filterChipTextActive,
-                ]}
+        <View style={styles.filterRow} accessibilityRole="tablist">
+          {(['ALL', 'COMPLETED', 'CANCELLED'] as FilterTab[]).map((tab) => {
+            const label =
+              tab === 'ALL' ? 'All Trips' : tab === 'COMPLETED' ? 'Settled' : 'Cancelled';
+            return (
+              <Pressable
+                key={tab}
+                style={[styles.filterChip, filter === tab && styles.filterChipActive]}
+                onPress={() => setFilter(tab)}
+                accessibilityRole="tab"
+                accessibilityLabel={label}
+                accessibilityState={{ selected: filter === tab }}
               >
-                {tab === 'ALL' ? 'All Trips' : tab === 'COMPLETED' ? 'Settled' : 'Cancelled'}
-              </Text>
-            </Pressable>
-          ))}
+                <Text
+                  style={[
+                    styles.filterChipText,
+                    filter === tab && styles.filterChipTextActive,
+                  ]}
+                >
+                  {label}
+                </Text>
+              </Pressable>
+            );
+          })}
         </View>
 
-        {pastRides.length === 0 ? (
+        {isLoadingRides && rideHistory.length === 0 ? (
+          <View style={styles.emptyCard} accessibilityRole="progressbar">
+            <ActivityIndicator size="small" color={colors.deepBrown} />
+            <Text style={styles.emptyTitle}>Loading your trips…</Text>
+          </View>
+        ) : syncError && rideHistory.length === 0 ? (
+          <View style={styles.emptyCard} accessibilityRole="alert">
+            <Ionicons name="cloud-offline-outline" size={38} color={colors.error} />
+            <Text style={styles.emptyTitle}>Unable to load trip history</Text>
+            <Text style={styles.emptySubtitle}>{syncError}</Text>
+            <Pressable
+              style={styles.loadMoreBtn}
+              onPress={() => void refreshRides()}
+              accessibilityRole="button"
+              accessibilityLabel="Retry loading trip history"
+            >
+              <Text style={styles.loadMoreText}>Retry</Text>
+            </Pressable>
+          </View>
+        ) : pastRides.length === 0 ? (
           <View style={styles.emptyCard}>
             <Ionicons name="receipt-outline" size={38} color={colors.secondary} />
             <Text style={styles.emptyTitle}>No past rides yet</Text>
             <Text style={styles.emptySubtitle}>
-              Your completed trips, itemized receipts, and quick repeat/return route buttons will appear here.
+              Your completed trips, itemized receipts, and quick repeat/return route buttons will
+              appear here.
             </Text>
           </View>
         ) : (
-          pastRides.map((ride) => {
-            const meta = getRideStatusMeta(ride.status);
-            const fare =
-              ride.agreedFarePaise ?? ride.proposedFarePaise ?? ride.suggestedFarePaise;
-            const dateStr = new Date(ride.createdAt).toLocaleString('en-IN', {
-              day: 'numeric',
-              month: 'short',
-              hour: '2-digit',
-              minute: '2-digit',
-            });
+          <>
+            {pastRides.map((ride) => {
+              const meta = getRideStatusMeta(ride.status);
+              const fare =
+                (ride.agreedFarePaise ?? ride.proposedFarePaise ?? ride.suggestedFarePaise) +
+                (ride.arrearsPaise ?? 0);
+              const canPromptRating =
+                ride.status === 'SETTLED' &&
+                isRideWithinRatingWindow(ride.completedAt ?? ride.updatedAt);
+              const dateStr = new Date(ride.createdAt).toLocaleString('en-IN', {
+                day: 'numeric',
+                month: 'short',
+                hour: '2-digit',
+                minute: '2-digit',
+              });
 
-            return (
-              <View key={ride.id} style={styles.historyCard}>
-                <Pressable
-                  style={styles.historyCardMain}
-                  onPress={() => router.push(`/(rider)/history/${ride.id}`)}
-                >
-                  <View style={styles.historyHeaderRow}>
-                    <View style={styles.zoneTypeBadge}>
-                      <Text style={styles.zoneTypeBadgeText}>
-                        {ride.zoneSnapshot?.classification || 'IN_CITY'}
+              return (
+                <View key={ride.id} style={styles.historyCard}>
+                  <Pressable
+                    style={styles.historyCardMain}
+                    onPress={() => router.push(`/(rider)/history/${ride.id}`)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${meta.label}, ${formatRupeesFromPaise(fare)}, ${dateStr}`}
+                  >
+                    <View style={styles.historyHeaderRow}>
+                      <View style={styles.zoneTypeBadge}>
+                        <Text style={styles.zoneTypeBadgeText}>
+                          {ride.zoneSnapshot?.classification || 'IN_CITY'}
+                        </Text>
+                      </View>
+                      <Text style={styles.historyDate}>{dateStr}</Text>
+                    </View>
+
+                    <View style={styles.historyPriceAndStatusRow}>
+                      <Text style={styles.historyStatusLabel}>{meta.label}</Text>
+                      <Text style={styles.historyFareText}>{formatRupeesFromPaise(fare)}</Text>
+                    </View>
+                    {(ride.arrearsPaise ?? 0) > 0 ? (
+                      <Text style={styles.arrearsMiniNote}>
+                        Includes {formatRupeesFromPaise(ride.arrearsPaise ?? 0)} previous
+                        cancellation fee
+                      </Text>
+                    ) : null}
+
+                    <View style={styles.historyRouteBlock}>
+                      <Text style={styles.historyAddress} numberOfLines={1}>
+                        🟢{' '}
+                        {ride.pickup.address ||
+                          `${ride.pickup.lat.toFixed(3)}, ${ride.pickup.lng.toFixed(3)}`}
+                      </Text>
+                      <Text style={styles.historyAddress} numberOfLines={1}>
+                        🟤{' '}
+                        {ride.drop.address ||
+                          `${ride.drop.lat.toFixed(3)}, ${ride.drop.lng.toFixed(3)}`}
                       </Text>
                     </View>
-                    <Text style={styles.historyDate}>{dateStr}</Text>
-                  </View>
-
-                  <View style={styles.historyPriceAndStatusRow}>
-                    <Text style={styles.historyStatusLabel}>{meta.label}</Text>
-                    <Text style={styles.historyFareText}>{formatRupeesFromPaise(fare)}</Text>
-                  </View>
-
-                  <View style={styles.historyRouteBlock}>
-                    <Text style={styles.historyAddress} numberOfLines={1}>
-                      🟢 {ride.pickup.address || `${ride.pickup.lat.toFixed(3)}, ${ride.pickup.lng.toFixed(3)}`}
-                    </Text>
-                    <Text style={styles.historyAddress} numberOfLines={1}>
-                      🟤 {ride.drop.address || `${ride.drop.lat.toFixed(3)}, ${ride.drop.lng.toFixed(3)}`}
-                    </Text>
-                  </View>
-                </Pressable>
-
-                {/* Quick Actions: Receipt, Repeat Ride, Return Route */}
-                <View style={styles.historyActionsRow}>
-                  <Pressable
-                    style={styles.historyActionBtn}
-                    onPress={() => router.push(`/(rider)/history/${ride.id}`)}
-                  >
-                    <Ionicons name="document-text-outline" size={15} color={colors.deepBrown} />
-                    <Text style={styles.historyActionText}>Receipt</Text>
                   </Pressable>
 
-                  <Pressable
-                    style={styles.historyActionBtn}
-                    onPress={() => handleRepeatOrReturn(ride, false)}
-                  >
-                    <Ionicons name="repeat-outline" size={15} color={colors.deepBrown} />
-                    <Text style={styles.historyActionText}>Repeat</Text>
-                  </Pressable>
+                  {/* Quick Actions: Receipt (& Rate within 7d), Repeat Ride, Return Route */}
+                  <View style={styles.historyActionsRow}>
+                    <Pressable
+                      style={styles.historyActionBtn}
+                      onPress={() => router.push(`/(rider)/history/${ride.id}`)}
+                      accessibilityRole="button"
+                      accessibilityLabel={
+                        canPromptRating ? 'View receipt and rate trip' : 'View trip receipt'
+                      }
+                    >
+                      <Ionicons
+                        name={canPromptRating ? 'star-outline' : 'document-text-outline'}
+                        size={15}
+                        color={colors.deepBrown}
+                      />
+                      <Text style={styles.historyActionText}>
+                        {canPromptRating ? 'Receipt & Rate' : 'Receipt'}
+                      </Text>
+                    </Pressable>
 
-                  <Pressable
-                    style={[styles.historyActionBtn, styles.historyActionBtnAmber]}
-                    onPress={() => handleRepeatOrReturn(ride, true)}
-                  >
-                    <Ionicons name="swap-horizontal-outline" size={15} color={colors.deepBrown} />
-                    <Text style={styles.historyActionText}>Return Route</Text>
-                  </Pressable>
+                    <Pressable
+                      style={styles.historyActionBtn}
+                      onPress={() => handleRepeatOrReturn(ride, false)}
+                      accessibilityRole="button"
+                      accessibilityLabel="Repeat this ride"
+                    >
+                      <Ionicons name="repeat-outline" size={15} color={colors.deepBrown} />
+                      <Text style={styles.historyActionText}>Repeat</Text>
+                    </Pressable>
+
+                    <Pressable
+                      style={[styles.historyActionBtn, styles.historyActionBtnAmber]}
+                      onPress={() => handleRepeatOrReturn(ride, true)}
+                      accessibilityRole="button"
+                      accessibilityLabel="Book return route"
+                    >
+                      <Ionicons
+                        name="swap-horizontal-outline"
+                        size={15}
+                        color={colors.deepBrown}
+                      />
+                      <Text style={styles.historyActionText}>Return Route</Text>
+                    </Pressable>
+                  </View>
                 </View>
-              </View>
-            );
-          })
+              );
+            })}
+
+            {hasMoreRides ? (
+              <Pressable
+                style={styles.loadMoreBtn}
+                disabled={isLoadingMoreRides}
+                onPress={() => void loadOlderRides()}
+                accessibilityRole="button"
+                accessibilityLabel="Load older trips"
+              >
+                {isLoadingMoreRides ? (
+                  <ActivityIndicator size="small" color={colors.deepBrown} />
+                ) : (
+                  <Text style={styles.loadMoreText}>Load older trips</Text>
+                )}
+              </Pressable>
+            ) : null}
+          </>
         )}
       </ScrollView>
     </SafeAreaView>
@@ -254,9 +359,9 @@ const styles = StyleSheet.create({
     color: colors.deepBrown,
   },
   refreshBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: colors.cream,
     borderWidth: 1,
     borderColor: colors.border,
@@ -318,12 +423,15 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   filterChip: {
+    minHeight: 44,
     backgroundColor: colors.cream,
     borderWidth: 1,
     borderColor: colors.border,
     paddingHorizontal: spacing.md,
     paddingVertical: 8,
     borderRadius: radii.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   filterChipActive: {
     backgroundColor: colors.deepBrown,
@@ -355,6 +463,23 @@ const styles = StyleSheet.create({
     ...typography.caption,
     color: colors.secondary,
     textAlign: 'center',
+  },
+  loadMoreBtn: {
+    minHeight: 48,
+    backgroundColor: colors.cream,
+    borderWidth: 1.5,
+    borderColor: colors.deepBrown,
+    borderRadius: radii.md,
+    paddingVertical: 12,
+    paddingHorizontal: spacing.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: spacing.xs,
+  },
+  loadMoreText: {
+    ...typography.caption,
+    fontWeight: '700',
+    color: colors.deepBrown,
   },
   historyCard: {
     backgroundColor: colors.white,
@@ -402,6 +527,10 @@ const styles = StyleSheet.create({
     ...typography.h2,
     color: colors.deepBrown,
   },
+  arrearsMiniNote: {
+    ...typography.caption,
+    color: colors.brandBrown,
+  },
   historyRouteBlock: {
     gap: 4,
     backgroundColor: colors.surfaceMuted,
@@ -420,6 +549,7 @@ const styles = StyleSheet.create({
   },
   historyActionBtn: {
     flex: 1,
+    minHeight: 44,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',

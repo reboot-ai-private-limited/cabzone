@@ -308,3 +308,11 @@ test('map controls reveal the route and recenter without editing the booking', (
   assert.equal(map.props.readOnly, true);
   assert.equal(map.props.cameraVersion, 1);
 });
+
+
+test('ongoing ride sheet surfaces previous cancellation fee arrears alongside agreed fare', () => {
+  const s = screen();
+  s.props.ride.arrearsPaise = 5000;
+  const tree = s.render();
+  assert.ok(byText(tree, '+ ₹50 previous cancellation fee (₹133 total)'));
+});

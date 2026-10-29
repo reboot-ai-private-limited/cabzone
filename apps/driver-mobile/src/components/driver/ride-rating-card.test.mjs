@@ -19,8 +19,10 @@ const code = ts.transpileModule(
 
 function createHarness(apiOverrides = {}) {
   const states = [];
+  const refs = [];
   const submissions = [];
   let cursor = 0;
+  let refCursor = 0;
 
   const React = {
     Fragment: 'Fragment',
@@ -38,6 +40,11 @@ function createHarness(apiOverrides = {}) {
           states[index] = typeof next === 'function' ? next(states[index]) : next;
         },
       ];
+    },
+    useRef: (initial) => {
+      const index = refCursor++;
+      if (!(index in refs)) refs[index] = { current: initial };
+      return refs[index];
     },
     useEffect: () => {},
     useCallback: (fn) => fn,
@@ -119,6 +126,7 @@ function createHarness(apiOverrides = {}) {
 
   const render = (props) => {
     cursor = 0;
+    refCursor = 0;
     return module.exports.RideRatingCard(props);
   };
 
@@ -138,7 +146,7 @@ function collectText(node) {
   return (node.children || []).map(collectText).join(' ');
 }
 
-test('Driver RideRatingCard submits driver-to-rider stars & tags while preserving double-blind privacy', async () => {
+test('Driver RideRatingCard submits driver-to-rider stars & tags while preserving double-blind privacy and single-flight submit', async () => {
   const h = createHarness();
   const initialStatus = {
     rideId: 'ride-201',
@@ -169,6 +177,7 @@ test('Driver RideRatingCard submits driver-to-rider stars & tags while preservin
   tree = h.render({ rideId: 'ride-201', passengerName: 'Aditi Sen', initialStatus });
   const submitBtn = collectNodes(tree, (n) => n.props?.accessibilityLabel === 'Submit rating')[0];
   submitBtn.props.onPress();
+  submitBtn.props.onPress();
   await new Promise((resolve) => setImmediate(resolve));
 
   assert.equal(h.submissions.length, 1);
@@ -182,7 +191,7 @@ test('Driver RideRatingCard submits driver-to-rider stars & tags while preservin
   assert.match(collectText(tree), /Private/);
 });
 
-test('Driver RideRatingCard renders revealed rider review and closed window state', () => {
+test('Driver RideRatingCard renders revealed rider review, hides unrevealed rider review, and handles closed window', () => {
   const h = createHarness();
   const tree = h.render({
     rideId: 'ride-202',
@@ -212,4 +221,32 @@ test('Driver RideRatingCard renders revealed rider review and closed window stat
   assert.match(text, /Rating window closed/);
   assert.match(text, /Rating from Aditi Sen/);
   assert.match(text, /Safe driving/);
+
+  const unrevealedH = createHarness();
+  const unrevealedTree = unrevealedH.render({
+    rideId: 'ride-203',
+    passengerName: 'Aditi Sen',
+    initialStatus: {
+      rideId: 'ride-203',
+      rideSettledAt: '2026-10-26T10:00:00.000Z',
+      windowExpiresAt: '2026-11-02T10:00:00.000Z',
+      isWindowExpired: false,
+      canSubmit: true,
+      myReview: null,
+      counterpartyReview: {
+        id: 'rev-r-hidden',
+        rideId: 'ride-203',
+        reviewerRole: 'RIDER',
+        stars: 1,
+        tags: [],
+        comment: 'Hidden rider feedback',
+        status: 'HIDDEN',
+        submittedAt: '2026-10-26T10:05:00.000Z',
+        revealedAt: null,
+      },
+    },
+  });
+  const unrevealedText = collectText(unrevealedTree);
+  assert.doesNotMatch(unrevealedText, /Hidden rider feedback/);
+  assert.doesNotMatch(unrevealedText, /Rating from Aditi Sen/);
 });

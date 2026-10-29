@@ -380,3 +380,51 @@ test('does not run 3s offer polling while backgrounded and recovers on foregroun
     ['ride-foreground-resume'],
   );
 });
+
+
+test('blocks synchronous double-tap across driver ride mutations (acceptOffer & confirmDirectPayment)', async () => {
+  const h = harness('ONLINE');
+  let acceptCalls = 0;
+  let releaseAccept;
+  h.ridesApi.acceptRide = () => {
+    acceptCalls += 1;
+    return new Promise((resolve) => {
+      releaseAccept = () => resolve({ id: 'ride-1', status: 'DRIVER_ASSIGNED' });
+    });
+  };
+
+  const ctx = h.render();
+  const firstAccept = ctx.acceptOffer('ride-1');
+  const secondAccept = ctx.acceptOffer('ride-1');
+  assert.equal(await secondAccept, null);
+  assert.equal(acceptCalls, 1);
+
+  releaseAccept();
+  const accepted = await firstAccept;
+  assert.equal(accepted?.id, 'ride-1');
+
+  let confirmCalls = 0;
+  let releaseConfirm;
+  h.ridesApi.confirmPayment = () => {
+    confirmCalls += 1;
+    return new Promise((resolve) => {
+      releaseConfirm = () =>
+        resolve({
+          ride: { id: 'ride-1', status: 'SETTLED' },
+          farePaise: 15000,
+          commissionPaise: 1200,
+          walletBalancePaise: 8800,
+        });
+    });
+  };
+
+  const ctxAfterAccept = h.render();
+  const firstConfirm = ctxAfterAccept.confirmDirectPayment('ride-1');
+  const secondConfirm = ctxAfterAccept.confirmDirectPayment('ride-1');
+  assert.equal(await secondConfirm, null);
+  assert.equal(confirmCalls, 1);
+
+  releaseConfirm();
+  const settled = await firstConfirm;
+  assert.equal(settled?.ride.status, 'SETTLED');
+});

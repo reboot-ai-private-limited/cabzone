@@ -17,6 +17,7 @@ import {
   driverMyWalletQuerySchema,
   listTransactionsQuerySchema,
   listWalletsQuerySchema,
+  reconcileWalletLedgerSchema,
 } from './ledger.validation.js';
 
 const operation = z.object({
@@ -217,5 +218,15 @@ export function registerWalletMoneySwaggerPaths(): void {
       body: { content: { 'application/json': { schema: resolutionSchema } } },
     },
     responses: { 200: response(operation), 403: denied, 409: denied },
+  });
+  registry.registerPath({
+    method: 'post',
+    path: '/v1/admin/wallets/reconcile',
+    tags: ['Admin Finance'],
+    security: bearerAuth,
+    summary:
+      'Finance or super admin: audit wallet bucket chains, single-event postings, and recharge/cashout provider parity (or reconcile captured pending recharges)',
+    request: { body: { content: { 'application/json': { schema: reconcileWalletLedgerSchema } } } },
+    responses: { 200: response(z.any()), 400: denied, 403: denied },
   });
 }

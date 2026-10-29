@@ -2,10 +2,9 @@ import { colors, typography } from '@/design-system';
 import React, { useRef, useState } from 'react';
 import {
   Alert,
-  KeyboardAvoidingView,
+  Keyboard,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -23,6 +22,11 @@ import {
   toDisplayDate,
   validateFutureExpiryDate,
 } from '@/services/profile';
+import {
+  OnboardingFormScroll,
+  type OnboardingFormScrollHandle,
+} from './onboarding-form-scroll';
+import { getDrivingLicencePrompt } from './onboarding-ux-helpers';
 import type { OnboardingDraft } from './types';
 
 interface StepDrivingLicenceProps {
@@ -40,8 +44,11 @@ export function StepDrivingLicence({
 }: StepDrivingLicenceProps) {
   const insets = useSafeAreaInsets();
   const { token, driver, documents, refreshProfile } = useAuth();
+  const formScrollRef = useRef<OnboardingFormScrollHandle>(null);
   const dlInputRef = useRef<React.ComponentRef<typeof TextInput>>(null);
   const expiryInputRef = useRef<React.ComponentRef<typeof TextInput>>(null);
+  const dlBoxRef = useRef<React.ComponentRef<typeof View>>(null);
+  const expiryBoxRef = useRef<React.ComponentRef<typeof View>>(null);
 
   const [dlNumber, setDlNumber] = useState(draft.dlNumber || driver?.dlNumber || '');
   const [expiryDate, setExpiryDate] = useState(() =>
@@ -67,10 +74,23 @@ export function StepDrivingLicence({
   const hasCompleteExpiry = expiryDate.trim().length === 10;
   const expiryError = hasCompleteExpiry && !expiryCheck.valid ? expiryCheck.error : undefined;
 
+  const isSelectedPendingUpload = selectedFile !== null;
+  const isSavedOnServer = !isSelectedPendingUpload && savedNumberMatches;
+  const isExpiredOnServer =
+    !isSelectedPendingUpload && serverLicenceStatus.status === 'EXPIRED';
+
+  const hasFileOrSaved = isSelectedPendingUpload || isSavedOnServer;
   const isValid =
     dlNumber.trim().length >= 8 &&
     expiryCheck.valid &&
-    (selectedFile !== null || savedNumberMatches);
+    hasFileOrSaved;
+
+  const validationPrompt = getDrivingLicencePrompt({
+    hasFileOrSaved,
+    dlNumber,
+    expiryValid: expiryCheck.valid,
+    expiryError,
+  });
 
   const handleDlChange = (text: string) => {
     const cleaned = text.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 16);
@@ -87,10 +107,20 @@ export function StepDrivingLicence({
   };
 
   const handlePickFile = async () => {
+    Keyboard.dismiss();
     try {
       setSubmitError(null);
       const file = await pickDriverLicense('Driving licence');
-      if (file) setSelectedFile(file);
+      if (file) {
+        setSelectedFile(file);
+        setTimeout(() => {
+          if (dlNumber.trim().length < 8) {
+            dlInputRef.current?.focus();
+          } else if (!validateFutureExpiryDate(expiryDate).valid) {
+            expiryInputRef.current?.focus();
+          }
+        }, 180);
+      }
     } catch (err) {
       Alert.alert(
         'Licence file unavailable',
@@ -101,6 +131,7 @@ export function StepDrivingLicence({
 
   const handleContinue = async () => {
     if (!token || isSaving || !isValid || !expiryCheck.isoDate || !expiryCheck.isoTimestamp) return;
+    Keyboard.dismiss();
     setIsSaving(true);
     setSubmitError(null);
     try {
@@ -142,137 +173,127 @@ export function StepDrivingLicence({
     }
   };
 
-  const isSelectedPendingUpload = selectedFile !== null;
-  const isSavedOnServer = !isSelectedPendingUpload && savedNumberMatches;
-  const isExpiredOnServer =
-    !isSelectedPendingUpload && serverLicenceStatus.status === 'EXPIRED';
-
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      style={styles.container}>
-      <ScrollView
-        contentContainerStyle={[
-          styles.scrollContent,
-          {
-            paddingTop: Math.max(insets.top, 16),
-            paddingBottom: Math.max(insets.bottom, 24) + 20,
-          },
-        ]}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}>
-        {/* Top Header Bar */}
-        <View style={styles.topBar}>
-          <Pressable
-            onPress={onBack}
-            style={({ pressed }) => [styles.closeBtn, pressed && styles.btnPressed]}
-            hitSlop={12}
-            accessibilityRole="button"
-            accessibilityLabel="Go back">
-            <Ionicons name="chevron-back" size={20} color="#172B3A" />
-          </Pressable>
-
-          <View style={styles.stepBadge}>
-            <View style={styles.stepDot} />
-            <Text style={styles.stepBadgeText}>Step 4 of 6</Text>
-          </View>
-        </View>
-
-        {/* 6-Step Segmented Progress Bar */}
-        <View style={styles.progressContainer}>
-          {[1, 2, 3, 4, 5, 6].map((s) => (
-            <View
-              key={s}
-              style={[
-                styles.progressSegment,
-                s <= 4 ? styles.progressSegmentActive : styles.progressSegmentInactive,
-              ]}
-            />
-          ))}
-        </View>
-
-        {/* Headline & Subhead */}
-        <View style={styles.titleSection}>
-          <Text style={styles.heading}>Driving licence</Text>
-          <Text style={styles.subheading}>
-            Upload your valid commercial or transport category Indian driving licence.
-          </Text>
-        </View>
-
-        {submitError ? (
-          <View style={styles.errorBanner} accessibilityRole="alert">
-            <Ionicons name="alert-circle" size={18} color="#991B1B" />
-            <Text style={styles.errorBannerText}>{submitError}</Text>
-          </View>
-        ) : null}
-
-        {/* Upload Box Card */}
+    <OnboardingFormScroll
+      ref={formScrollRef}
+      topPadding={Math.max(insets.top, 16)}
+      baseBottomPadding={Math.max(insets.bottom, 24) + 24}>
+      {/* Top Header Bar */}
+      <View style={styles.topBar}>
         <Pressable
-          style={({ pressed }) => [
-            styles.uploadBox,
-            isSelectedPendingUpload && styles.uploadBoxPending,
-            isSavedOnServer && styles.uploadBoxDone,
-            isExpiredOnServer && styles.uploadBoxExpired,
-            pressed && styles.btnPressed,
-          ]}
-          onPress={() => void handlePickFile()}
-          disabled={isSaving}
+          onPress={() => {
+            Keyboard.dismiss();
+            onBack();
+          }}
+          style={({ pressed }) => [styles.closeBtn, pressed && styles.btnPressed]}
+          hitSlop={12}
           accessibilityRole="button"
-          accessibilityLabel={
-            isSelectedPendingUpload
-              ? `Selected driving licence ${selectedFile.name}, ready to upload`
-              : isSavedOnServer
-                ? 'Driving licence saved for review. Tap to replace document'
-                : 'Select driving licence PDF or JPEG'
-          }>
-          {isSelectedPendingUpload ? (
-            <View style={styles.uploadedState}>
-              <View style={styles.pendingCircle}>
-                <Ionicons name="document-attach" size={26} color="#92400E" />
-              </View>
-              <Text style={styles.pendingTitle} numberOfLines={1}>
-                {selectedFile.name}
-              </Text>
-              <Text style={styles.pendingSub}>
-                Ready to upload · Tap Continue to save for review
-              </Text>
-            </View>
-          ) : isSavedOnServer ? (
-            <View style={styles.uploadedState}>
-              <View style={styles.checkCircle}>
-                <Ionicons name="checkmark" size={26} color="#166534" />
-              </View>
-              <Text style={styles.uploadedTitle}>Saved for review</Text>
-              <Text style={styles.uploadedSub}>
-                {serverLicenceStatus.expiresAtDisplay
-                  ? `Expires ${serverLicenceStatus.expiresAtDisplay} · Tap to replace`
-                  : 'Tap to replace document'}
-              </Text>
-            </View>
-          ) : isExpiredOnServer ? (
-            <View style={styles.uploadedState}>
-              <View style={styles.expiredCircle}>
-                <Ionicons name="warning-outline" size={26} color="#991B1B" />
-              </View>
-              <Text style={styles.expiredTitle}>Licence expired</Text>
-              <Text style={styles.expiredSub}>
-                Upload a current driving licence and enter its new expiry date
-              </Text>
-            </View>
-          ) : (
-            <View style={styles.emptyState}>
-              <View style={styles.uploadPlusCircle}>
-                <Ionicons name="add" size={28} color="#53616C" />
-              </View>
-              <Text style={styles.uploadTitle}>Select driving licence</Text>
-              <Text style={styles.uploadSub}>PDF, JPG or JPEG · up to 500 KB</Text>
-            </View>
-          )}
+          accessibilityLabel="Go back">
+          <Ionicons name="arrow-back" size={20} color="#172B3A" />
         </Pressable>
 
-        {/* Licence Number Input */}
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Licence number *</Text>
+        <View style={styles.stepBadge}>
+          <View style={styles.stepDot} />
+          <Text style={styles.stepBadgeText}>Step 4 of 6</Text>
+        </View>
+      </View>
+
+      {/* 6-Step Segmented Progress Bar */}
+      <View style={styles.progressContainer}>
+        {[1, 2, 3, 4, 5, 6].map((s) => (
+          <View
+            key={s}
+            style={[
+              styles.progressSegment,
+              s <= 4 ? styles.progressSegmentActive : styles.progressSegmentInactive,
+            ]}
+          />
+        ))}
+      </View>
+
+      {/* Headline & Subhead */}
+      <View style={styles.titleSection}>
+        <Text style={styles.heading}>Driving licence</Text>
+        <Text style={styles.subheading}>
+          Upload your valid commercial or transport category Indian driving licence.
+        </Text>
+      </View>
+
+      {submitError ? (
+        <View style={styles.errorBanner} accessibilityRole="alert">
+          <Ionicons name="alert-circle" size={18} color="#991B1B" />
+          <Text style={styles.errorBannerText}>{submitError}</Text>
+        </View>
+      ) : null}
+
+      {/* Upload Box Card */}
+      <Pressable
+        style={({ pressed }) => [
+          styles.uploadBox,
+          isSelectedPendingUpload && styles.uploadBoxPending,
+          isSavedOnServer && styles.uploadBoxDone,
+          isExpiredOnServer && styles.uploadBoxExpired,
+          pressed && styles.btnPressed,
+        ]}
+        onPress={() => void handlePickFile()}
+        disabled={isSaving}
+        accessibilityRole="button"
+        accessibilityLabel={
+          isSelectedPendingUpload
+            ? `Selected driving licence ${selectedFile.name}, ready to upload`
+            : isSavedOnServer
+              ? 'Driving licence saved for review. Tap to replace document'
+              : 'Select driving licence PDF or JPEG'
+        }>
+        {isSelectedPendingUpload ? (
+          <View style={styles.uploadedState}>
+            <View style={styles.pendingCircle}>
+              <Ionicons name="document-attach" size={26} color="#92400E" />
+            </View>
+            <Text style={styles.pendingTitle} numberOfLines={1}>
+              {selectedFile.name}
+            </Text>
+            <Text style={styles.pendingSub}>
+              Ready to upload · Tap Continue to save for review
+            </Text>
+          </View>
+        ) : isSavedOnServer ? (
+          <View style={styles.uploadedState}>
+            <View style={styles.checkCircle}>
+              <Ionicons name="checkmark" size={26} color="#166534" />
+            </View>
+            <Text style={styles.uploadedTitle}>Saved for review</Text>
+            <Text style={styles.uploadedSub}>
+              {serverLicenceStatus.expiresAtDisplay
+                ? `Expires ${serverLicenceStatus.expiresAtDisplay} · Tap to replace`
+                : 'Tap to replace document'}
+            </Text>
+          </View>
+        ) : isExpiredOnServer ? (
+          <View style={styles.uploadedState}>
+            <View style={styles.expiredCircle}>
+              <Ionicons name="warning-outline" size={26} color="#991B1B" />
+            </View>
+            <Text style={styles.expiredTitle}>Licence expired</Text>
+            <Text style={styles.expiredSub}>
+              Upload a current driving licence and enter its new expiry date
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.emptyState}>
+            <View style={styles.uploadPlusCircle}>
+              <Ionicons name="add" size={28} color="#53616C" />
+            </View>
+            <Text style={styles.uploadTitle}>Select driving licence</Text>
+            <Text style={styles.uploadSub}>PDF, JPG or JPEG · up to 500 KB</Text>
+          </View>
+        )}
+      </Pressable>
+
+      {/* Licence Number Input */}
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Licence number *</Text>
+        <View ref={dlBoxRef} collapsable={false}>
           <Pressable
             onPress={() => dlInputRef.current?.focus()}
             style={[styles.inputWrapper, isFocused && styles.inputWrapperFocused]}>
@@ -288,10 +309,14 @@ export function StepDrivingLicence({
               autoCorrect={false}
               spellCheck={false}
               maxLength={16}
+              blurOnSubmit={false}
               returnKeyType="next"
               onSubmitEditing={() => expiryInputRef.current?.focus()}
               editable={!isSaving}
-              onFocus={() => setIsFocused(true)}
+              onFocus={() => {
+                setIsFocused(true);
+                formScrollRef.current?.focusTarget(dlBoxRef.current);
+              }}
               onBlur={() => setIsFocused(false)}
               accessibilityLabel="Driving licence number"
             />
@@ -305,13 +330,15 @@ export function StepDrivingLicence({
               </Pressable>
             ) : null}
           </Pressable>
-          <Text style={styles.helperText}>
-            Enter without spaces or hyphens as printed on your Smart Card DL.
-          </Text>
         </View>
+        <Text style={styles.helperText}>
+          Enter without spaces or hyphens as printed on your Smart Card DL.
+        </Text>
+      </View>
 
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Licence expiry date *</Text>
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Licence expiry date *</Text>
+        <View ref={expiryBoxRef} collapsable={false}>
           <Pressable
             onPress={() => expiryInputRef.current?.focus()}
             style={[
@@ -323,15 +350,19 @@ export function StepDrivingLicence({
             <TextInput
               ref={expiryInputRef}
               style={styles.textInput}
-              placeholder="DD / MM / YYYY"
+              placeholder="DD/MM/YYYY"
               placeholderTextColor="#53616C"
               value={expiryDate}
               onChangeText={handleExpiryChange}
               keyboardType="number-pad"
               maxLength={10}
               returnKeyType="done"
+              onSubmitEditing={() => Keyboard.dismiss()}
               editable={!isSaving}
-              onFocus={() => setIsExpiryFocused(true)}
+              onFocus={() => {
+                setIsExpiryFocused(true);
+                formScrollRef.current?.focusTarget(expiryBoxRef.current);
+              }}
               onBlur={() => setIsExpiryFocused(false)}
               accessibilityLabel="Driving licence expiry date in DD/MM/YYYY format"
             />
@@ -345,58 +376,54 @@ export function StepDrivingLicence({
               </Pressable>
             ) : null}
           </Pressable>
-          {expiryError ? (
-            <Text style={styles.errorText} accessibilityRole="alert">
-              {expiryError}
-            </Text>
-          ) : (
-            <Text style={styles.helperText}>
-              Enter the future expiry date printed on your licence (DD/MM/YYYY).
-            </Text>
-          )}
         </View>
+        {expiryError ? (
+          <Text style={styles.errorText} accessibilityRole="alert">
+            {expiryError}
+          </Text>
+        ) : (
+          <Text style={styles.helperText}>
+            Enter the future expiry date printed on your licence (DD/MM/YYYY).
+          </Text>
+        )}
+      </View>
 
-        <View style={styles.tipsBox}>
-          <View style={styles.tipsHeaderRow}>
-            <Ionicons name="information-circle" size={18} color="#8C5A20" />
-            <Text style={styles.tipsTitle}>Document guidelines:</Text>
-          </View>
-          <Text style={styles.tipItem}>• PDF, JPG or JPEG only; maximum 500 KB.</Text>
-          <Text style={styles.tipItem}>• All 4 corners of the licence must be visible.</Text>
-          <Text style={styles.tipItem}>• Avoid camera flash reflections or dark shadows.</Text>
-          <Text style={styles.tipItem}>• Must be valid and not expired.</Text>
+      <View style={styles.tipsBox}>
+        <View style={styles.tipsHeaderRow}>
+          <Ionicons name="information-circle" size={18} color="#8C5A20" />
+          <Text style={styles.tipsTitle}>Document guidelines:</Text>
         </View>
+        <Text style={styles.tipItem}>• PDF, JPG or JPEG only; maximum 500 KB.</Text>
+        <Text style={styles.tipItem}>• All 4 corners of the licence must be visible.</Text>
+        <Text style={styles.tipItem}>• Avoid camera flash reflections or dark shadows.</Text>
+        <Text style={styles.tipItem}>• Must be valid and not expired.</Text>
+      </View>
 
-        <CandyButton
-          title="Continue"
-          onPress={handleContinue}
-          disabled={!isValid || isSaving}
-          loading={isSaving}
-          variant={isValid ? 'primary' : 'muted'}
-          icon={
-            <Ionicons
-              name="arrow-forward"
-              size={18}
-              color={isValid ? colors.darkNavy : colors.secondary}
-              style={{ marginLeft: 2 }}
-            />
-          }
-          style={styles.actionBtn}
-        />
-      </ScrollView>
-    </KeyboardAvoidingView>
+      <CandyButton
+        title="Continue"
+        onPress={handleContinue}
+        disabled={!isValid || isSaving}
+        loading={isSaving}
+        variant={isValid ? 'primary' : 'muted'}
+        icon={
+          <Ionicons
+            name="arrow-forward"
+            size={18}
+            color={isValid ? colors.darkNavy : colors.secondary}
+            style={{ marginLeft: 2 }}
+          />
+        }
+        style={styles.actionBtn}
+      />
+
+      {validationPrompt ? (
+        <Text style={styles.validationPrompt}>{validationPrompt}</Text>
+      ) : null}
+    </OnboardingFormScroll>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    paddingHorizontal: 20,
-  },
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -404,9 +431,9 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   closeBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
@@ -702,5 +729,12 @@ const styles = StyleSheet.create({
   },
   actionBtn: {
     marginTop: 8,
+  },
+  validationPrompt: {
+    fontSize: 12.5,
+    color: colors.darkNavy,
+    fontWeight: '600',
+    marginTop: 10,
+    textAlign: 'center',
   },
 });

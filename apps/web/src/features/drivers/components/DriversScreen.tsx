@@ -491,7 +491,7 @@ export function DriversScreen() {
               <span className="font-semibold text-text">{ratingVal}</span>
             </div>
             <span className="text-[11px] text-text-subtle mt-0.5">
-              ({tripCount} {tripCount === 1 ? 'trip' : 'trips'})
+              ({tripCount} {tripCount === 1 ? 'review' : 'reviews'})
             </span>
           </div>
         );

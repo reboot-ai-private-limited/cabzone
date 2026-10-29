@@ -10,12 +10,16 @@ import type {
   ZoneDto,
 } from '@cabzone/contracts';
 import { VEHICLE_CATEGORIES } from '@cabzone/contracts';
-import { Badge, type BadgeTone } from '@cabzone/design-system';
-import { Button } from '@cabzone/design-system';
-import { ConfirmDialog } from '@cabzone/design-system';
-import { type Column, DataTable } from '@cabzone/design-system';
-import { EmptyState } from '@cabzone/design-system';
-import { Select } from '@cabzone/design-system';
+import {
+  Badge,
+  type BadgeTone,
+  Button,
+  type Column,
+  ConfirmDialog,
+  DataTable,
+  EmptyState,
+  Select,
+} from '@cabzone/design-system';
 import { useZones } from '@/features/zones/hooks/useZones.js';
 import { formatPaise } from '@/lib/format.js';
 import {
@@ -51,10 +55,15 @@ export function PricingConfigsTable() {
   const { data: zonesData } = useZones();
   const cityZones: ZoneDto[] = (zonesData?.zones ?? []).filter((z: ZoneDto) => z.type === 'CITY');
 
-  const { data: configs, isLoading, isFetching } = usePricingConfigs({
+  const {
+    data: configs,
+    isLoading,
+    isFetching,
+  } = usePricingConfigs({
     level: selectedLevel === 'ALL' ? undefined : (selectedLevel as PricingConfigLevel),
     cityZoneId: selectedCityZoneId === 'ALL' ? undefined : selectedCityZoneId,
-    vehicleType: selectedVehicleType === 'ALL' ? undefined : (selectedVehicleType as VehicleCategory),
+    vehicleType:
+      selectedVehicleType === 'ALL' ? undefined : (selectedVehicleType as VehicleCategory),
     status: selectedStatus === 'ALL' ? undefined : (selectedStatus as PricingConfigStatus),
   });
 
@@ -97,7 +106,9 @@ export function PricingConfigsTable() {
         return (
           <div className="flex items-center gap-1.5">
             <Badge tone="warning">CITY</Badge>
-            <span className="font-semibold text-text text-sm">{getCityZoneName(row.cityZoneId)}</span>
+            <span className="font-semibold text-text text-sm">
+              {getCityZoneName(row.cityZoneId)}
+            </span>
           </div>
         );
       },
@@ -111,7 +122,9 @@ export function PricingConfigsTable() {
       key: 'vehicleType',
       header: 'Vehicle Type',
       render: (row) => (
-        <span className="text-sm font-semibold tracking-wide text-text uppercase">{row.vehicleType}</span>
+        <span className="text-sm font-semibold tracking-wide text-text uppercase">
+          {row.vehicleType}
+        </span>
       ),
     },
     {
@@ -119,7 +132,9 @@ export function PricingConfigsTable() {
       header: 'Base Fare',
       numeric: true,
       render: (row) => (
-        <span className="font-mono text-sm font-semibold text-text">{formatPaise(row.baseFarePaise)}</span>
+        <span className="font-mono text-sm font-semibold text-text">
+          {formatPaise(row.baseFarePaise)}
+        </span>
       ),
     },
     {
@@ -157,6 +172,21 @@ export function PricingConfigsTable() {
       numeric: true,
       render: (row) => (
         <span className="font-mono text-sm font-semibold text-text">{row.commissionPercent}%</span>
+      ),
+    },
+    {
+      key: 'cancellation',
+      header: 'Cancel Fee',
+      numeric: true,
+      render: (row) => (
+        <div className="flex flex-col items-end whitespace-nowrap">
+          <span className="font-mono text-sm font-semibold text-text">
+            {formatPaise(row.cancellationFeePaise)}
+          </span>
+          <span className="text-[11px] font-mono text-text-subtle">
+            {row.riderCancellationGraceSeconds}s / {row.driverNoShowWaitSeconds}s
+          </span>
+        </div>
       ),
     },
     {
@@ -307,7 +337,7 @@ export function PricingConfigsTable() {
           consequences={[
             `Immediately makes this rule the canonical fare calculator for ${activatingConfig.vehicleType} in ${getCityZoneName(activatingConfig.cityZoneId)}.`,
             'Any previously active rule for this zone and vehicle category will be automatically retired.',
-            'All newly requested ride quotes will reflect these updated base and per-km rates immediately.',
+            'All newly requested ride quotes will reflect these updated base, per-km, and cancellation policy rules immediately.',
           ]}
         />
       )}

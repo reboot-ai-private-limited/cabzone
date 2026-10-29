@@ -16,11 +16,21 @@ import { colors } from '@/design-system';
 export function RidePaymentQr({
   rideId,
   amountPaise,
+  farePaise,
+  arrearsPaise,
+  commissionPaise,
+  cashAllowed = true,
+  cashBlockedReason,
   onPaid,
   onCashReceived,
 }: {
   rideId: string;
   amountPaise: number;
+  farePaise?: number | undefined;
+  arrearsPaise?: number | undefined;
+  commissionPaise?: number | undefined;
+  cashAllowed?: boolean | undefined;
+  cashBlockedReason?: string | null | undefined;
   onPaid: () => Promise<void>;
   onCashReceived: () => Promise<void>;
 }) {
@@ -36,6 +46,14 @@ export function RidePaymentQr({
   const [sheet, setSheet] = useState<'cash' | 'confirm' | null>(null);
   const inFlight = useRef(false);
   const checking = useRef(false);
+
+  const resolvedArrearsPaise = Math.max(0, arrearsPaise ?? 0);
+  const resolvedFarePaise =
+    typeof farePaise === 'number' && Number.isFinite(farePaise)
+      ? Math.max(0, farePaise)
+      : Math.max(0, amountPaise - resolvedArrearsPaise);
+  const resolvedCommissionPaise = Math.max(0, commissionPaise ?? 0);
+  const canSwitchToCash = cashAllowed !== false;
 
   const check = useCallback(
     async (explicit = false) => {
@@ -163,6 +181,27 @@ export function RidePaymentQr({
     <View style={styles.card}>
       <Text style={styles.title}>Collect ride payment</Text>
       <Text style={styles.amount}>₹{(amountPaise / 100).toFixed(2)}</Text>
+      {resolvedArrearsPaise > 0 ? (
+        <View style={styles.breakdownBox}>
+          <View style={styles.breakdownRow}>
+            <Text style={styles.caption}>Agreed trip fare</Text>
+            <Text style={styles.breakdownValue}>₹{(resolvedFarePaise / 100).toFixed(2)}</Text>
+          </View>
+          <View style={styles.breakdownRow}>
+            <Text style={styles.caption}>Rider prior cancellation fee</Text>
+            <Text style={styles.breakdownValue}>₹{(resolvedArrearsPaise / 100).toFixed(2)}</Text>
+          </View>
+          <View style={[styles.breakdownRow, styles.breakdownTotal]}>
+            <Text style={styles.breakdownValue}>Total to collect from rider</Text>
+            <Text style={styles.breakdownValue}>₹{(amountPaise / 100).toFixed(2)}</Text>
+          </View>
+          <Text style={styles.caption}>
+            {cash
+              ? `Cash wallet effect: You keep ₹${(amountPaise / 100).toFixed(2)} cash; ₹${((resolvedCommissionPaise + resolvedArrearsPaise) / 100).toFixed(2)} (commission + collected rider arrears) will be deducted from your wallet.`
+              : `UPI wallet effect: Net trip earnings credit to your wallet; Cabzone retains commission and ₹${(resolvedArrearsPaise / 100).toFixed(2)} rider arrears.`}
+          </Text>
+        </View>
+      ) : null}
       <Text style={styles.body}>
         {cash
           ? 'Collect cash from your rider. Confirm receipt only after you have received the full fare.'
@@ -202,7 +241,7 @@ export function RidePaymentQr({
           </Text>
         )}
       </Pressable>
-      {!cash ? (
+      {!cash && canSwitchToCash ? (
         <Pressable
           style={styles.secondary}
           onPress={() => setSheet('cash')}
@@ -212,6 +251,12 @@ export function RidePaymentQr({
         >
           <Text style={styles.primaryText}>Change payment</Text>
         </Pressable>
+      ) : null}
+      {!cash && !canSwitchToCash ? (
+        <Text style={styles.cashBlockedNotice}>
+          {cashBlockedReason ||
+            'Cash collection is disabled while prior rider cancellation fees are due. Collect the full total via UPI QR.'}
+        </Text>
       ) : null}
       <Pressable
         style={styles.secondary}
@@ -302,6 +347,26 @@ const styles = StyleSheet.create({
   },
   title: { fontSize: 20, lineHeight: 27, fontWeight: '800', color: colors.deepBrown },
   amount: { fontSize: 32, lineHeight: 40, fontWeight: '800', color: colors.deepBrown },
+  breakdownBox: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 12,
+    padding: 12,
+    gap: 6,
+  },
+  breakdownRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  breakdownTotal: {
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    paddingTop: 6,
+  },
+  breakdownValue: { fontSize: 13, lineHeight: 19, fontWeight: '700', color: colors.deepBrown },
+  cashBlockedNotice: { fontSize: 13, lineHeight: 19, fontWeight: '600', color: colors.brandBrown },
   body: { fontSize: 15, lineHeight: 22, color: colors.deepBrown },
   caption: { fontSize: 13, lineHeight: 19, color: colors.secondary },
   qr: {

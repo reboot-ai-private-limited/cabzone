@@ -21,6 +21,7 @@ import type {
   RideRepositoryPort,
   RideReviewRepositoryPort,
 } from './domain/index.js';
+import type { RidePaymentGateway } from './domain/ridePayment.port.js';
 import { ExpireOffersUseCase } from './application/useCases/expireOffers.usecase.js';
 import {
   makeAcceptRideController,
@@ -75,6 +76,7 @@ export interface RidesContainerDeps extends RideHttpContext {
   notifier?: RideNotifierPort | undefined;
   /** Secret used to derive rider-visible pickup OTPs. */
   pickupOtpSecret?: string | undefined;
+  ridePaymentGateway?: RidePaymentGateway | undefined;
 }
 
 export interface RidesContainerAuth {
@@ -107,17 +109,26 @@ export function buildRidesContainer(deps: RidesContainerDeps): RidesContainer {
   const applyRevealedProfileRating: ProfileRatingApplierPort =
     deps.applyRevealedProfileRating ?? (async () => undefined);
 
+  const gatewayEnabled = !isProduction || env.RAZORPAY_MODE === 'live';
+  const defaultGatewayConfigured = Boolean(
+    gatewayEnabled &&
+    env.RAZORPAY_KEY_ID?.startsWith(`rzp_${env.RAZORPAY_MODE}_`) &&
+    env.RAZORPAY_KEY_SECRET,
+  );
+  const gateway =
+    deps.ridePaymentGateway ??
+    new RazorpayGateway(
+      env.RAZORPAY_KEY_ID ?? '',
+      env.RAZORPAY_KEY_SECRET ?? '',
+      gatewayEnabled,
+      env.RAZORPAY_MODE,
+    );
   const upiPayment = new RideUpiPaymentUseCase({
     walletRepo,
     rideRepo,
     rideEventRepo,
     unitOfWork: deps.unitOfWork,
-    gateway: new RazorpayGateway(
-      env.RAZORPAY_KEY_ID ?? '',
-      env.RAZORPAY_KEY_SECRET ?? '',
-      !isProduction || env.RAZORPAY_MODE === 'live',
-      env.RAZORPAY_MODE,
-    ),
+    gateway,
   });
 
   const createRideUseCase = new CreateRideUseCase({
@@ -172,11 +183,18 @@ export function buildRidesContainer(deps: RidesContainerDeps): RidesContainer {
     rideEventRepo,
     unitOfWork: deps.unitOfWork,
   });
+  const reconciliationGateway = deps.ridePaymentGateway
+    ? deps.ridePaymentGateway
+    : defaultGatewayConfigured
+      ? gateway
+      : undefined;
   const driverEarningsUseCase = new DriverEarningsUseCase({
     rideRepo,
     rideEventRepo,
     walletRepo,
     unitOfWork: deps.unitOfWork,
+    gateway: reconciliationGateway,
+    reconcileOnlineRide: (rideId, riderId) => upiPayment.reconcile(rideId, riderId),
   });
 
   const expireOffersUseCase = new ExpireOffersUseCase({

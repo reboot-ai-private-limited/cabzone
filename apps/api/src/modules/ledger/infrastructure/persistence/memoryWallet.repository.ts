@@ -16,6 +16,12 @@ export class MemoryWalletRepository implements WalletRepositoryPort {
   private readonly wallets = new Map<string, WalletEntity>();
   private readonly transactions: WalletTransactionEntity[] = [];
 
+  async findAllWallets(driverId?: string): Promise<WalletEntity[]> {
+    const all = Array.from(this.wallets.values());
+    const filtered = driverId ? all.filter((w) => w.driverId === driverId) : all;
+    return filtered.map((w) => ({ ...w }));
+  }
+
   async findTransactionByIdempotencyKey(key: string): Promise<WalletTransactionEntity | null> {
     const transaction = this.transactions.find((entry) => entry.idempotencyKey === key);
     return transaction ? { ...transaction } : null;
