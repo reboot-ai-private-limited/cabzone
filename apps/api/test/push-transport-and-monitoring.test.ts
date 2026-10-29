@@ -157,9 +157,7 @@ describe('C05: Shared push-token router and rider background push delivery', () 
       token: 'ExponentPushToken[rider-token-abc]',
     });
     expect(reg.status).toBe(200);
-    expect(await pushTokens.list(['rider-user-1'])).toEqual([
-      'ExponentPushToken[rider-token-abc]',
-    ]);
+    expect(await pushTokens.list(['rider-user-1'])).toEqual(['ExponentPushToken[rider-token-abc]']);
 
     const push = new ExpoPushService(pushTokens, pushReceipts, async (batch) => {
       sentBatches.push(batch);
@@ -200,6 +198,23 @@ describe('C05: Shared push-token router and rider background push delivery', () 
 });
 
 describe('C06 & C07: Encrypted backup/restore guards, realtime readiness, and redacted alerting', () => {
+  it('checks actual Mongo snake-case financial records after restoration', () => {
+    const report = verifyRestoredDataInvariants({
+      wallets: [{ _id: 'wallet-1', balance_paise: 900 }],
+      walletTransactions: [
+        {
+          _id: 'tx-1',
+          wallet_id: 'wallet-1',
+          type: 'CREDIT',
+          amount_paise: 1000,
+          balance_before_paise: 0,
+          balance_after_paise: 1000,
+        },
+      ],
+    });
+    expect(report.ok).toBe(false);
+    expect(report.issues.some((issue: string) => issue.includes('wallet-1'))).toBe(true);
+  });
   it('delivers redacted webhook alerts on injected API 500, queue lag, wallet discrepancy, and mobile crash', async () => {
     const delivered: DispatchedOperationalAlert[] = [];
     configureAlertingForTests({

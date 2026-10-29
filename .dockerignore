@@ -6,6 +6,14 @@ dist
 **/dist
 .next
 **/.next
+**/.next-dev
+graphify-out
+tasks
+daily-work
+.agents
+.codex
+.aws
+.tmp-*
 build
 out
 .turbo

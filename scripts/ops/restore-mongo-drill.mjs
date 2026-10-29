@@ -38,6 +38,26 @@ export function verifyRestoredDataInvariants({
   rides = [],
   payments = [],
 }) {
+  // Accept both repository DTOs and the snake-case documents produced by mongodump.
+  wallets = wallets.map((w) => ({
+    ...w,
+    balancePaise: w.balancePaise ?? w.balance_paise,
+    earningsBalancePaise: w.earningsBalancePaise ?? w.earnings_balance_paise,
+  }));
+  walletTransactions = walletTransactions.map((t) => ({
+    ...t,
+    walletId: t.walletId ?? t.wallet_id,
+    amountPaise: t.amountPaise ?? t.amount_paise,
+    balanceBeforePaise: t.balanceBeforePaise ?? t.balance_before_paise,
+    balanceAfterPaise: t.balanceAfterPaise ?? t.balance_after_paise,
+    createdAt: t.createdAt ?? t.created_at,
+  }));
+  rides = rides.map((r) => ({
+    ...r,
+    agreedFarePaise: r.agreedFarePaise ?? r.agreed_fare_paise,
+    suggestedFarePaise: r.suggestedFarePaise ?? r.suggested_fare_paise,
+  }));
+  payments = payments.map((p) => ({ ...p, rideId: p.rideId ?? p.ride_id }));
   const issues = [];
   const rideIds = new Set(rides.map((r) => String(r._id ?? r.id)));
 
@@ -59,9 +79,9 @@ export function verifyRestoredDataInvariants({
           issues.push(`Wallet ${walletId} (${bucket}) has broken tx step on ${tx._id ?? tx.id}.`);
         }
       }
-      const latest = [...bucketTxs].sort(
-        (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
-      ).at(-1);
+      const latest = [...bucketTxs]
+        .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+        .at(-1);
       if (latest && Number(latest.balanceAfterPaise) !== currentBalance) {
         issues.push(
           `Wallet ${walletId} (${bucket}) balance ${currentBalance} != closing tx ${latest.balanceAfterPaise}.`,
@@ -82,7 +102,9 @@ export function verifyRestoredDataInvariants({
 
   for (const payment of payments) {
     if (payment.status === 'CONFIRMED' && !rideIds.has(String(payment.rideId))) {
-      issues.push(`Confirmed payment ${payment._id ?? payment.id} references missing ride ${payment.rideId}.`);
+      issues.push(
+        `Confirmed payment ${payment._id ?? payment.id} references missing ride ${payment.rideId}.`,
+      );
     }
   }
 

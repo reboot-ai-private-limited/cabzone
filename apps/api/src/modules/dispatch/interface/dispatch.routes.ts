@@ -18,9 +18,8 @@ export interface DispatchRouterDeps extends PushTokenRouterDeps {
 export function buildPushTokenRouter(deps: PushTokenRouterDeps): Router {
   registerPushTokenSwaggerPaths();
   const router = Router();
-  router.use(deps.authenticate);
-  router.post('/push-token', deps.registerPushToken);
-  router.delete('/push-token', deps.unregisterPushToken);
+  router.post('/push-token', deps.authenticate, deps.registerPushToken);
+  router.delete('/push-token', deps.authenticate, deps.unregisterPushToken);
   return router;
 }
 
