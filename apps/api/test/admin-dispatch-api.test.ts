@@ -92,7 +92,6 @@ async function buildTestEnv() {
         if (driverId === 'sim-driver-1') {
           return {
             name: 'Rahul Sharma',
-            phoneE164: '+919800111222',
             registrationNumber: 'WB 74 AK 1024',
           };
         }

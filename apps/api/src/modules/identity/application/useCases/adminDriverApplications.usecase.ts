@@ -28,7 +28,7 @@ const PREVIEW_TTL_MS = 5 * 60_000;
 export interface AdminDriverApplicationDeps {
   applicationRepo: DriverApplicationRepositoryPort;
   driverRepo: DriverRepositoryPort;
-  userRepo: UserRepositoryPort;
+  userRepo?: UserRepositoryPort | undefined;
   vehicleRepo: VehicleRepositoryPort;
   documentRepo: DriverDocumentRepositoryPort;
   licenseStorage?: DriverLicenseStoragePort | undefined;
@@ -38,10 +38,34 @@ export interface AdminDriverApplicationDeps {
   removeDriverPresence?: ((driverId: string) => Promise<void>) | undefined;
 }
 
+export interface AdminDriverProfileView {
+  id: string;
+  userId: string;
+  name?: string | null | undefined;
+  profilePhotoUrl?: string | null | undefined;
+  gender?: string | null | undefined;
+  dateOfBirth?: string | null | undefined;
+  experience?: string | null | undefined;
+  hasEmergencyContact: boolean;
+  address?: string | null | undefined;
+  dlNumber?: string | null | undefined;
+  dlExpiry?: string | null | undefined;
+  status: DriverEntity['status'];
+  kycStatus: DriverEntity['kycStatus'];
+  operationalStatus: DriverEntity['operationalStatus'];
+  ratingAverage: number | null;
+  ratingCount: number;
+  trustScore: number | null;
+  currentVehicleId: string | null;
+  walletId: string;
+  version: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface DriverApplicationSummary {
   application: DriverApplicationEntity;
-  driver: DriverEntity | null;
-  phoneE164: string | null;
+  driver: AdminDriverProfileView | null;
   vehicle: VehicleEntity | null;
 }
 
@@ -54,8 +78,35 @@ export interface DriverApplicationDetail extends DriverApplicationSummary {
   documents: DriverDocumentWithUrl[];
 }
 
+function toAdminDriverProfile(driver: DriverEntity): AdminDriverProfileView {
+  return {
+    id: driver.id,
+    userId: driver.userId,
+    name: driver.name,
+    profilePhotoUrl: driver.profilePhotoUrl,
+    gender: driver.gender,
+    dateOfBirth: driver.dateOfBirth,
+    experience: driver.experience,
+    hasEmergencyContact: Boolean(driver.emergencyContact?.trim()),
+    address: driver.address,
+    dlNumber: driver.dlNumber,
+    dlExpiry: driver.dlExpiry,
+    status: driver.status,
+    kycStatus: driver.kycStatus,
+    operationalStatus: driver.operationalStatus,
+    ratingAverage: driver.ratingAverage,
+    ratingCount: driver.ratingCount,
+    trustScore: driver.trustScore,
+    currentVehicleId: driver.currentVehicleId,
+    walletId: driver.walletId,
+    version: driver.version,
+    createdAt: driver.createdAt,
+    updatedAt: driver.updatedAt,
+  };
+}
+
 export async function resolveDriverCityZoneId(
-  driver: DriverEntity | null,
+  driver: { address?: string | null | undefined } | null,
   zoneRepo?: ZoneRepositoryPort,
 ): Promise<string | null> {
   const rawAddress = driver?.address?.trim().toLowerCase();
@@ -100,11 +151,14 @@ async function summarize(
   application: DriverApplicationEntity,
 ): Promise<DriverApplicationSummary> {
   const driver = await deps.driverRepo.findById(application.driverId);
-  const [user, vehicle] = await Promise.all([
-    driver ? deps.userRepo.findById(driver.userId) : null,
-    driver?.currentVehicleId ? deps.vehicleRepo.findById(driver.currentVehicleId) : null,
-  ]);
-  return { application, driver, phoneE164: user?.phoneE164 ?? null, vehicle };
+  const vehicle = driver?.currentVehicleId
+    ? await deps.vehicleRepo.findById(driver.currentVehicleId)
+    : null;
+  return {
+    application,
+    driver: driver ? toAdminDriverProfile(driver) : null,
+    vehicle,
+  };
 }
 
 export class ListDriverApplicationsUseCase {

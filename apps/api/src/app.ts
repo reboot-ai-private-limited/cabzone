@@ -29,7 +29,10 @@ export function createApp(containerOverrides?: Partial<AppContainers>): Express 
   app.use(
     express.json({
       limit: '1mb',
-      type: (req) => String(req.headers['content-type'] ?? '').includes('application/json'),
+      type: (req) => {
+        const contentType = String(req.headers['content-type'] ?? '');
+        return contentType.includes('application/json') || contentType.includes('application/webhook+json');
+      },
       verify: (req, _res, buf) => {
         if (shouldCaptureRawBody(req.url)) {
           (req as express.Request).rawBody = buf.toString('utf8');

@@ -4,9 +4,9 @@ import { useQuery } from '@tanstack/react-query';
 import type {
   AdminRiderDetailDto,
   AdminRiderSummaryDto,
+  AdminUpdateRiderProfileDto,
   ListRidersQueryDto,
   ListRidersResponseDto,
-  UpdateRiderProfileDto,
   UpdateRiderStatusDto,
 } from '@cabzone/contracts';
 import { ridersApi } from '@/lib/api/endpoints/riders';
@@ -57,7 +57,7 @@ export function useUpdateRiderStatus(onDone?: () => void) {
 }
 
 export function useUpdateRiderProfile(onDone?: () => void) {
-  return useApiMutation<{ id: string; body: UpdateRiderProfileDto }, AdminRiderDetailDto>({
+  return useApiMutation<{ id: string; body: AdminUpdateRiderProfileDto }, AdminRiderDetailDto>({
     call: (token, v) => ridersApi.updateProfile(v.id, v.body, token),
     invalidates: [keys.riders.all()],
     ...(onDone === undefined ? {} : { onSuccess: onDone }),

@@ -69,7 +69,10 @@ function screen(extraProps = {}) {
   };
   const api = {
     upiPaymentStatus: async () => ({ paid: false }),
-    createUpiSession: async () => intent(),
+    createUpiSession: async () => {
+      calls.push('createUpiSession');
+      return intent();
+    },
   };
   const linking = {
     openURL: async (url) => {
@@ -80,6 +83,8 @@ function screen(extraProps = {}) {
   vm.runInNewContext(compile('./upi-payment-panel.tsx'), {
     exports: module.exports,
     Error,
+    Number,
+    Math,
     setInterval: (fn) => {
       timers.push(fn);
       return 1;
@@ -148,14 +153,15 @@ function find(node, predicate) {
 const flush = () => new Promise(setImmediate);
 const pay = (tree) => find(tree, (node) => node.props.accessibilityLabel === 'Pay by UPI');
 
-test('launching and returning from UPI never marks payment paid without server confirmation', async () => {
+test('launching and returning from UPI is lazy on mount and never marks paid without server confirmation', async () => {
   const s = screen();
   s.render();
   s.effects();
   await flush();
+  assert.deepEqual(s.calls, []);
   pay(s.render()).props.onPress();
   await flush();
-  assert.deepEqual(s.calls, [intent().upiUrl]);
+  assert.deepEqual(s.calls, ['createUpiSession', intent().upiUrl]);
   s.resume();
   await flush();
   assert.equal(s.calls.includes('paid'), false);
@@ -181,7 +187,7 @@ test('a cancelled launch leaves payment pending and retry enabled', async () => 
       ),
     ),
   );
-  assert.deepEqual(s.calls, []);
+  assert.deepEqual(s.calls, ['createUpiSession']);
 });
 
 test('test sessions use simulated checkout without opening a real UPI app', async () => {
@@ -206,29 +212,52 @@ test('test mode explains why it opens checkout instead of a real UPI app', async
   assert.deepEqual(s.calls, []);
 });
 
-test('rider can request cash but cannot confirm receiving it', async () => {
-  const s = screen();
-  s.api.switchToCash = async () => ({ paid: false, method: 'CASH', testMode: true });
-  find(s.render(), (node) => node.props.accessibilityLabel === 'Change payment').props.onPress();
-  find(s.render(), (node) => node.props.accessibilityLabel === 'Switch to cash').props.onPress();
+test('rider can claim cash paid via onClaimCashPaid while keeping UPI available', async () => {
+  let claimed = 0;
+  const s = screen({
+    onClaimCashPaid: async () => {
+      claimed += 1;
+    },
+  });
+  find(
+    s.render(),
+    (node) => node.props.accessibilityLabel === 'I paid cash to driver',
+  ).props.onPress();
+  find(
+    s.render(),
+    (node) => node.props.accessibilityLabel === 'Confirm I paid cash',
+  ).props.onPress();
   await flush();
+  assert.equal(claimed, 1);
   const tree = s.render();
-  assert.equal(pay(tree), null);
+  assert.ok(pay(tree));
   assert.ok(
     find(tree, (node) =>
-      node.children.includes('Pay your driver in cash. Waiting for the driver to confirm receipt.'),
+      node.children?.some(
+        (child) =>
+          typeof child === 'string' &&
+          child.includes('Marked as paid in cash. Your next booking is unlocked'),
+      ),
     ),
   );
   assert.deepEqual(s.calls, []);
 });
 
-test('reopening the payment panel restores cash selection without opening UPI', async () => {
+test('reopening the payment panel with CASH restores cash notice without opening UPI and keeps UPI available', async () => {
   const s = screen();
-  s.api.upiPaymentStatus = async () => ({ paid: false, method: 'CASH', testMode: true });
+  s.api.upiPaymentStatus = async () => ({ paid: false, method: 'CASH', testMode: false });
   s.render();
   s.effects();
   await flush();
-  assert.equal(pay(s.render()), null);
+  const tree = s.render();
+  assert.ok(pay(tree));
+  assert.ok(
+    find(tree, (node) =>
+      node.children?.some(
+        (child) => typeof child === 'string' && child.includes('Waiting for the driver to confirm receipt'),
+      ),
+    ),
+  );
   assert.deepEqual(s.calls, []);
 });
 
@@ -243,12 +272,10 @@ test('itemizes fare + previous cancellation fee and hides cash option when cashA
   });
   const tree = s.render();
   assert.equal(
-    find(tree, (node) => node.props.accessibilityLabel === 'Change payment'),
+    find(tree, (node) => node.props.accessibilityLabel === 'I paid cash to driver'),
     null,
   );
-  assert.ok(
-    find(tree, (node) => node.children?.includes('Previous cancellation fee')),
-  );
+  assert.ok(find(tree, (node) => node.children?.includes('Previous cancellation fee')));
   assert.ok(
     find(tree, (node) =>
       node.children?.some(
@@ -256,4 +283,28 @@ test('itemizes fare + previous cancellation fee and hides cash option when cashA
       ),
     ),
   );
+});
+
+test('PAYMENT_UNPAID shows unpaid fare notice, keeps UPI available, and exposes dispute button', () => {
+  let disputed = 0;
+  const s = screen({
+    rideStatus: 'PAYMENT_UNPAID',
+    onDisputeUnpaid: () => {
+      disputed += 1;
+    },
+  });
+  const tree = s.render();
+  assert.ok(pay(tree));
+  assert.equal(
+    find(tree, (node) => node.props.accessibilityLabel === 'I paid cash to driver'),
+    null,
+  );
+  assert.ok(find(tree, (node) => node.children?.includes('Unpaid trip fare due')));
+  const disputeBtn = find(
+    tree,
+    (node) => node.props.accessibilityLabel === 'Dispute unpaid report',
+  );
+  assert.ok(disputeBtn);
+  disputeBtn.props.onPress();
+  assert.equal(disputed, 1);
 });

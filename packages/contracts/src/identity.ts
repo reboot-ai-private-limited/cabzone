@@ -30,6 +30,10 @@ export interface EmergencyContactDto {
   phoneE164: string;
 }
 
+export interface AdminRiderEmergencyContactDto {
+  name: string;
+}
+
 export interface RiderDto {
   id: string;
   userId: string;
@@ -72,12 +76,11 @@ export interface TrustScoreBreakdownDto {
 export interface AdminRiderSummaryDto {
   id: string;
   userId: string;
-  phoneE164: string;
   status: UserStatus;
   name: string | null;
   email: string | null;
   preferredLanguage: string | null;
-  emergencyContact: EmergencyContactDto | null;
+  emergencyContact: AdminRiderEmergencyContactDto | null;
   ratingAverage: number | null;
   ratingCount: number;
   trustScore?: number | null | undefined;
@@ -116,6 +119,12 @@ export interface UpdateRiderProfileDto {
   email?: string | null | undefined;
   preferredLanguage?: string | null | undefined;
   emergencyContact?: EmergencyContactDto | null | undefined;
+}
+
+export interface AdminUpdateRiderProfileDto {
+  name?: string | null | undefined;
+  email?: string | null | undefined;
+  preferredLanguage?: string | null | undefined;
 }
 
 export const DRIVER_STATUSES = ['PENDING', 'ACTIVE', 'SUSPENDED', 'REJECTED'] as const;
@@ -180,6 +189,7 @@ export interface AuthContext {
   userId: string;
   sessionId: string;
   role: AuthRole;
+  deviceId?: string | undefined;
 }
 
 export const ADMIN_STATUSES = ['ACTIVE', 'SUSPENDED'] as const;
@@ -188,7 +198,6 @@ export type AdminStatus = (typeof ADMIN_STATUSES)[number];
 export interface AdminUserDto {
   id: string;
   userId: string;
-  phoneE164?: string | undefined;
   name: string | null;
   email: string | null;
   role: AdminRole;
@@ -201,7 +210,6 @@ export interface AdminUserDto {
 export interface AdminUserSummaryDto {
   id: string;
   userId: string;
-  phoneE164: string;
   name: string | null;
   email: string | null;
   role: AdminRole;

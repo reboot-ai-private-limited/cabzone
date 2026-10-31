@@ -1,7 +1,7 @@
-import { DEFAULT_CANCELLATION_FEE_PAISE } from '@cabzone/contracts';
 import { AppError } from '../../../../shared/errors/AppError.js';
 import { newUuid } from '../../../../shared/ids.js';
 import type { UnitOfWorkPort } from '../../../../shared/db/unitOfWork.port.js';
+import { logger } from '../../../../shared/logging/logger.js';
 import { saveRideTransition } from '../rideTransition.js';
 import type { RefundVerifierPort, ProviderRefund } from '../../domain/refundVerifier.port.js';
 import {
@@ -23,9 +23,22 @@ export interface CompleteRideInput {
   completedAt?: Date;
 }
 
+export interface ClaimCashPaidInput {
+  rideId: string;
+  riderId: string;
+}
+
+export interface MarkRideUnpaidInput {
+  rideId: string;
+  driverId: string;
+  reason?: string | null | undefined;
+}
+
 export interface CompleteRideDeps {
   refundVerifier?: RefundVerifierPort | undefined;
   prepareCashConfirmation?: (rideId: string, driverId: string) => Promise<void>;
+  prepareNonUpiResolution?: (rideId: string) => Promise<RideEntity>;
+  onRideCompleted?: (rideId: string) => Promise<void>;
   unitOfWork: UnitOfWorkPort;
   rideRepo: RideRepositoryPort;
   walletRepo: WalletRepositoryPort;
@@ -59,14 +72,22 @@ export class CompleteRideUseCase {
   constructor(private readonly deps: CompleteRideDeps) {}
 
   async execute(input: CompleteRideInput): Promise<CompleteRideResult> {
-    return this.deps.unitOfWork.run(async () => {
+    const result = await this.deps.unitOfWork.run(async () => {
       const ride = await this.deps.rideRepo.findById(input.rideId);
       if (!ride) throw AppError.notFound('RIDE_NOT_FOUND: The requested ride was not found.');
       if (ride.driverId !== input.driverId)
         throw AppError.forbidden(
           'UNAUTHORIZED_DRIVER: You are not the assigned driver for this ride.',
         );
-      if (!['TRIP_STARTED', 'PAYMENT_PENDING', 'SETTLED'].includes(ride.status)) {
+      if (
+        ![
+          'TRIP_STARTED',
+          'PAYMENT_PENDING',
+          'PAYMENT_CASH_CLAIMED',
+          'PAYMENT_UNPAID',
+          'SETTLED',
+        ].includes(ride.status)
+      ) {
         throw AppError.badRequest(`INVALID_RIDE_STATE: Cannot complete ride in ${ride.status}.`);
       }
       const wallet = await this.deps.walletRepo.findByDriverId(input.driverId);
@@ -119,6 +140,17 @@ export class CompleteRideUseCase {
         driverWallet: wallet,
       };
     });
+    if (result.ride.status === 'PAYMENT_PENDING') {
+      try {
+        await this.deps.onRideCompleted?.(result.ride.id);
+      } catch (error) {
+        logger.warn(
+          { rideId: result.ride.id, error: String(error) },
+          'failed to end ride call after completion',
+        );
+      }
+    }
+    return result;
   }
 
   async confirmPayment(input: CompleteRideInput): Promise<CompleteRideResult> {
@@ -144,6 +176,211 @@ export class CompleteRideUseCase {
     }
   }
 
+  async claimCashPaid(input: ClaimCashPaidInput): Promise<RideEntity> {
+    const ride = await this.deps.rideRepo.findById(input.rideId);
+    if (!ride) throw AppError.notFound('RIDE_NOT_FOUND: The requested ride was not found.');
+    if (ride.bookerRiderId !== input.riderId && ride.passenger.riderId !== input.riderId) {
+      throw AppError.forbidden('UNAUTHORIZED_RIDER: You cannot claim cash payment for this ride.');
+    }
+    if (
+      ride.status === 'SETTLED' ||
+      ride.status === 'PAYMENT_CONFIRMED' ||
+      ride.status === 'PAYMENT_CASH_CLAIMED'
+    ) {
+      return ride;
+    }
+    if (ride.status !== 'PAYMENT_PENDING') {
+      throw AppError.conflict(
+        `INVALID_RIDE_STATE: Cash payment can only be claimed while payment is pending (current status: ${ride.status}).`,
+      );
+    }
+
+    const existingClaims = await this.deps.rideRepo.count({
+      riderId: ride.bookerRiderId,
+      statuses: ['PAYMENT_CASH_CLAIMED'],
+    });
+    if (existingClaims >= 1) {
+      throw AppError.conflict(
+        'CASH_CLAIM_LIMIT_REACHED: Your previous cash payment is still awaiting driver confirmation.',
+      );
+    }
+
+    if (this.deps.prepareNonUpiResolution) {
+      const reconciled = await this.deps.prepareNonUpiResolution(ride.id);
+      if (reconciled.status === 'SETTLED' || reconciled.status === 'PAYMENT_CONFIRMED') {
+        return reconciled;
+      }
+    }
+
+    return this.deps.unitOfWork.run(async () => {
+      const current = await this.deps.rideRepo.findById(input.rideId);
+      if (!current) throw AppError.notFound('RIDE_NOT_FOUND: The requested ride was not found.');
+      if (
+        current.status === 'SETTLED' ||
+        current.status === 'PAYMENT_CONFIRMED' ||
+        current.status === 'PAYMENT_CASH_CLAIMED'
+      ) {
+        return current;
+      }
+      if (current.status !== 'PAYMENT_PENDING') {
+        throw AppError.conflict('RIDE_STATE_CHANGED: Refresh the ride and try again.');
+      }
+      const concurrentClaims = await this.deps.rideRepo.count({
+        riderId: current.bookerRiderId,
+        statuses: ['PAYMENT_CASH_CLAIMED'],
+      });
+      if (concurrentClaims >= 1) {
+        throw AppError.conflict(
+          'CASH_CLAIM_LIMIT_REACHED: Your previous cash payment is still awaiting driver confirmation.',
+        );
+      }
+
+      const now = new Date();
+      const farePaise =
+        current.agreedFarePaise ?? current.proposedFarePaise ?? current.suggestedFarePaise;
+      const arrearsPaise = Math.max(0, current.arrearsPaise ?? 0);
+      const saved = await saveRideTransition(
+        this.deps.rideRepo,
+        {
+          ...current,
+          status: 'PAYMENT_CASH_CLAIMED',
+          updatedAt: now,
+          version: current.version + 1,
+        },
+        current.version,
+      );
+      await this.deps.rideEventRepo?.save({
+        id: newUuid(),
+        rideId: current.id,
+        eventType: 'PAYMENT_CASH_CLAIMED',
+        actorType: 'RIDER',
+        actorId: input.riderId,
+        previousStatus: 'PAYMENT_PENDING',
+        newStatus: 'PAYMENT_CASH_CLAIMED',
+        metadata: {
+          farePaise,
+          arrearsPaise,
+          totalPayablePaise: farePaise + arrearsPaise,
+          claimedAt: now.toISOString(),
+        },
+        createdAt: now,
+      });
+      return saved;
+    });
+  }
+
+  async markUnpaid(input: MarkRideUnpaidInput): Promise<RideEntity> {
+    const ride = await this.deps.rideRepo.findById(input.rideId);
+    if (!ride) throw AppError.notFound('RIDE_NOT_FOUND: The requested ride was not found.');
+    if (ride.driverId !== input.driverId) {
+      throw AppError.forbidden(
+        'UNAUTHORIZED_DRIVER: You are not the assigned driver for this ride.',
+      );
+    }
+    if (
+      ride.status === 'SETTLED' ||
+      ride.status === 'PAYMENT_CONFIRMED' ||
+      ride.status === 'PAYMENT_UNPAID' ||
+      ride.status === 'PAYMENT_DISPUTED'
+    ) {
+      return ride;
+    }
+    if (ride.status !== 'PAYMENT_PENDING' && ride.status !== 'PAYMENT_CASH_CLAIMED') {
+      throw AppError.conflict(
+        `INVALID_RIDE_STATE: Ride cannot be marked unpaid from ${ride.status}.`,
+      );
+    }
+
+    if (this.deps.prepareNonUpiResolution) {
+      const reconciled = await this.deps.prepareNonUpiResolution(ride.id);
+      if (reconciled.status === 'SETTLED' || reconciled.status === 'PAYMENT_CONFIRMED') {
+        return reconciled;
+      }
+    }
+
+    return this.deps.unitOfWork.run(async () => {
+      const current = await this.deps.rideRepo.findById(input.rideId);
+      if (!current) throw AppError.notFound('RIDE_NOT_FOUND: The requested ride was not found.');
+      if (
+        current.status === 'SETTLED' ||
+        current.status === 'PAYMENT_CONFIRMED' ||
+        current.status === 'PAYMENT_UNPAID' ||
+        current.status === 'PAYMENT_DISPUTED'
+      ) {
+        return current;
+      }
+      if (current.status !== 'PAYMENT_PENDING' && current.status !== 'PAYMENT_CASH_CLAIMED') {
+        throw AppError.conflict('RIDE_STATE_CHANGED: Refresh the ride and try again.');
+      }
+
+      const now = new Date();
+      const farePaise =
+        current.agreedFarePaise ?? current.proposedFarePaise ?? current.suggestedFarePaise;
+      const arrearsPaise = Math.max(0, current.arrearsPaise ?? 0);
+      const totalPayablePaise = farePaise + arrearsPaise;
+
+      if (current.status === 'PAYMENT_CASH_CLAIMED') {
+        const disputed = await saveRideTransition(
+          this.deps.rideRepo,
+          {
+            ...current,
+            status: 'PAYMENT_DISPUTED',
+            updatedAt: now,
+            version: current.version + 1,
+          },
+          current.version,
+        );
+        await this.deps.rideEventRepo?.save({
+          id: newUuid(),
+          rideId: current.id,
+          eventType: 'PAYMENT_DISPUTED',
+          actorType: 'DRIVER',
+          actorId: input.driverId,
+          previousStatus: 'PAYMENT_CASH_CLAIMED',
+          newStatus: 'PAYMENT_DISPUTED',
+          metadata: {
+            reason:
+              input.reason?.trim() || 'Driver reported cash not received after rider cash claim',
+            farePaise,
+            arrearsPaise,
+            totalPayablePaise,
+            unpaidAfterCashClaim: true,
+          },
+          createdAt: now,
+        });
+        return disputed;
+      }
+
+      const unpaid = await saveRideTransition(
+        this.deps.rideRepo,
+        {
+          ...current,
+          status: 'PAYMENT_UNPAID',
+          updatedAt: now,
+          version: current.version + 1,
+        },
+        current.version,
+      );
+      await this.deps.rideEventRepo?.save({
+        id: newUuid(),
+        rideId: current.id,
+        eventType: 'PAYMENT_UNPAID',
+        actorType: 'DRIVER',
+        actorId: input.driverId,
+        previousStatus: 'PAYMENT_PENDING',
+        newStatus: 'PAYMENT_UNPAID',
+        metadata: {
+          reason: input.reason?.trim() || 'Driver reported passenger left without paying',
+          farePaise,
+          arrearsPaise,
+          totalPayablePaise,
+        },
+        createdAt: now,
+      });
+      return unpaid;
+    });
+  }
+
   async disputePayment(input: PaymentDisputeInput): Promise<RideEntity> {
     return this.deps.unitOfWork.run(async () => {
       const ride = await this.deps.rideRepo.findById(input.rideId);
@@ -163,10 +400,11 @@ export class CompleteRideUseCase {
           return ride;
         throw AppError.conflict('DISPUTE_ALREADY_FILED: This payment already has a dispute.');
       }
-      if (ride.status !== 'SETTLED')
+      if (ride.status !== 'SETTLED' && ride.status !== 'PAYMENT_UNPAID')
         throw AppError.badRequest(
           'INVALID_RIDE_STATE: Payment must be confirmed before a rider dispute.',
         );
+      const previousStatus = ride.status;
       const now = new Date();
       const saved = await saveRideTransition(
         this.deps.rideRepo,
@@ -179,7 +417,7 @@ export class CompleteRideUseCase {
         eventType: 'PAYMENT_DISPUTED',
         actorType: 'RIDER',
         actorId: input.riderId,
-        previousStatus: 'SETTLED',
+        previousStatus,
         newStatus: 'PAYMENT_DISPUTED',
         metadata: { reason: input.reason },
         createdAt: now,
@@ -391,7 +629,7 @@ export class CompleteRideUseCase {
               updatedAt: now,
             });
           }
-        } else if (!isDuplicateUpiAfterCash) {
+        } else if (!isDuplicateUpiAfterCash && hasCashConfirmation) {
           const charged = await this.deps.walletRepo.findTransactionByIdempotencyKey(
             `commission_debit_${ride.id}`,
           );
@@ -510,6 +748,56 @@ export class CompleteRideUseCase {
             });
           }
         }
+      } else if (
+        input.outcome === 'DRIVER_WINS' &&
+        !hasOnlineConfirmation &&
+        !hasCashConfirmation
+      ) {
+        const unpaidFarePaise =
+          ride.agreedFarePaise ?? ride.proposedFarePaise ?? ride.suggestedFarePaise;
+        if (unpaidFarePaise > 0) {
+          const existingRiderWallet = await this.deps.walletRepo.findByRiderId(ride.bookerRiderId);
+          const riderWalletBase: WalletEntity = existingRiderWallet ?? {
+            id: `rider:${ride.bookerRiderId}`,
+            ownerType: 'RIDER',
+            driverId: '',
+            riderId: ride.bookerRiderId,
+            balancePaise: 0,
+            owedPaise: 0,
+            status: 'ACTIVE',
+            version: 0,
+            createdAt: now,
+            updatedAt: now,
+          };
+          const riderBefore = riderWalletBase.balancePaise;
+          const riderAfter = calculateNewBalance(riderBefore, unpaidFarePaise, 'DEBIT');
+          await this.deps.walletRepo.recordTransaction({
+            id: newUuid(),
+            walletId: riderWalletBase.id,
+            ownerType: 'RIDER',
+            driverId: null,
+            riderId: ride.bookerRiderId,
+            type: 'DEBIT',
+            amountPaise: unpaidFarePaise,
+            referenceType: 'CANCELLATION_FEE_ARREARS',
+            referenceId: ride.id,
+            idempotencyKey: `dispute_unpaid_fare_arrears_${ride.id}`,
+            balanceBeforePaise: riderBefore,
+            balanceAfterPaise: riderAfter,
+            createdBy: input.adminId,
+            note: `${input.reason} (unpaid trip fare added to rider dues)`,
+            createdAt: now,
+          });
+          await this.deps.walletRepo.save({
+            ...riderWalletBase,
+            ownerType: 'RIDER',
+            riderId: ride.bookerRiderId,
+            balancePaise: riderAfter,
+            owedPaise: Math.max(0, -riderAfter),
+            version: riderWalletBase.version + 1,
+            updatedAt: now,
+          });
+        }
       }
 
       await this.deps.rideEventRepo!.save({
@@ -548,7 +836,12 @@ export class CompleteRideUseCase {
       );
     }
 
-    if (ride.status !== 'PAYMENT_PENDING' && ride.status !== 'SETTLED') {
+    if (
+      ride.status !== 'PAYMENT_PENDING' &&
+      ride.status !== 'PAYMENT_CASH_CLAIMED' &&
+      ride.status !== 'PAYMENT_UNPAID' &&
+      ride.status !== 'SETTLED'
+    ) {
       throw AppError.badRequest(
         `INVALID_RIDE_STATE: Payment must be pending to confirm receipt (current status: ${ride.status}).`,
       );
@@ -583,10 +876,12 @@ export class CompleteRideUseCase {
     }
 
     const paymentEvents = await this.deps.rideEventRepo?.findByRideId(ride.id);
+    const latestMethod = [...(paymentEvents ?? [])]
+      .reverse()
+      .find((event) => event.eventType === 'PAYMENT_METHOD_CHANGED')?.metadata.method;
     if (
-      !paymentEvents?.some(
-        (event) => event.eventType === 'PAYMENT_METHOD_CHANGED' && event.metadata.method === 'CASH',
-      ) &&
+      latestMethod !== 'CASH' &&
+      ride.status !== 'PAYMENT_CASH_CLAIMED' &&
       paymentEvents?.some((event) =>
         ['UPI_ORDER_CREATED', 'UPI_QR_CREATED'].includes(event.eventType),
       )
@@ -596,22 +891,13 @@ export class CompleteRideUseCase {
       );
     }
 
-    // D-044 §4: Block cash settlement when rider unpaid arrears >= effective cancellationFeePaise.
-    const cashBlockThresholdPaise =
-      (ride.pricingSnapshot?.cancellationFeePaise ?? DEFAULT_CANCELLATION_FEE_PAISE) > 0
-        ? (ride.pricingSnapshot?.cancellationFeePaise ?? DEFAULT_CANCELLATION_FEE_PAISE)
-        : DEFAULT_CANCELLATION_FEE_PAISE;
     const riderWallet = await this.deps.walletRepo.findByRiderId(ride.bookerRiderId);
     const rideArrearsPaise = Math.max(0, ride.arrearsPaise ?? 0);
     const unpaidArrearsPaise = riderWallet
       ? getRiderUnpaidArrearsPaise(riderWallet)
       : rideArrearsPaise;
-    if (unpaidArrearsPaise >= cashBlockThresholdPaise) {
-      throw AppError.conflict(
-        'RIDER_ARREARS_CASH_BLOCKED: Cash confirmation is blocked while cancellation fee arrears are due. Rider must complete payment via UPI.',
-      );
-    }
     const collectableArrearsPaise = Math.min(rideArrearsPaise, unpaidArrearsPaise);
+    const previousStatus = ride.status;
 
     // Reserve the transition before posting money. A concurrent confirmation retries
     // the transaction, then reads SETTLED and returns without another posting.
@@ -744,14 +1030,11 @@ export class CompleteRideUseCase {
         eventType: 'PAYMENT_CONFIRMED',
         actorType: 'DRIVER',
         actorId: input.driverId,
-        previousStatus: 'PAYMENT_PENDING',
+        previousStatus,
         newStatus: 'SETTLED',
         metadata: {
           ...(input.metadata ?? {}),
-          ...(paymentEvents?.some(
-            (event) =>
-              event.eventType === 'PAYMENT_METHOD_CHANGED' && event.metadata.method === 'CASH',
-          )
+          ...(latestMethod === 'CASH' || previousStatus === 'PAYMENT_CASH_CLAIMED'
             ? { method: 'CASH' }
             : {}),
           farePaise,
@@ -772,7 +1055,7 @@ export class CompleteRideUseCase {
         eventType: 'RIDE_SETTLED',
         actorType: 'DRIVER',
         actorId: input.driverId,
-        previousStatus: 'PAYMENT_PENDING',
+        previousStatus,
         newStatus: 'SETTLED',
         metadata: {
           settledAt: now.toISOString(),

@@ -204,19 +204,21 @@ export default function OtpVerificationScreen() {
               autoFocus
             />
 
-            <View style={styles.devHelperRow}>
-              <Text style={styles.devHelperLabel}>Dev Quick-Fill:</Text>
-              <Pressable
-                style={styles.devChip}
-                disabled={isVerifying}
-                onPress={() => {
-                  setOtp('123456');
-                  void handleVerify('123456');
-                }}
-              >
-                <Text style={styles.devChipText}>Use 123456</Text>
-              </Pressable>
-            </View>
+            {__DEV__ ? (
+              <View style={styles.devHelperRow}>
+                <Text style={styles.devHelperLabel}>Dev Quick-Fill:</Text>
+                <Pressable
+                  style={styles.devChip}
+                  disabled={isVerifying}
+                  onPress={() => {
+                    setOtp('000000');
+                    void handleVerify('000000');
+                  }}
+                >
+                  <Text style={styles.devChipText}>Use 000000</Text>
+                </Pressable>
+              </View>
+            ) : null}
 
             {error ? (
               <View style={styles.errorBox}>

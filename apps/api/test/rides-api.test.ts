@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { Router } from 'express';
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
-import type { AuthRole } from '@cabzone/contracts';
+import { RIDE_STATUSES, type AuthRole } from '@cabzone/contracts';
 import { createApp } from '../src/app.js';
 import { JoseTokenAdapter } from '../src/modules/identity/infrastructure/index.js';
 import type { SessionEntity, SessionRepositoryPort } from '../src/modules/identity/domain/index.js';
@@ -122,7 +122,11 @@ class MemorySessionRepository implements SessionRepositoryPort {
 const pickup = { lat: 26.71, lng: 88.42 };
 const drop = { lat: 26.75, lng: 88.45 };
 
-async function setup() {
+async function setup(
+  communicationConfigured = true,
+  opts: { chatEnabled?: boolean; retryAfterSeconds?: number } = {},
+) {
+  const inactiveUsers = new Set<string>();
   const sessionRepo = new MemorySessionRepository();
   const tokenAdapter = new JoseTokenAdapter(JWT_SECRET);
   const authenticate = makeAuthenticate({ tokenVerifier: tokenAdapter, sessionRepo });
@@ -171,6 +175,11 @@ async function setup() {
   });
 
   const rides = buildRidesContainer({
+    chatEnabled: opts.chatEnabled,
+    consumeChatRateLimit: async () => opts.retryAfterSeconds ?? 0,
+    ...(communicationConfigured ? {
+      isCommunicationAccountActive: async (userId: string) => !inactiveUsers.has(userId),
+    } : {}),
     requireDriverEligibility: async () => 'test-vehicle',
     unitOfWork,
     rideRepo,
@@ -247,6 +256,7 @@ async function setup() {
 
   return {
     app,
+    inactiveUsers,
     rideRepo,
     walletRepo,
     riderAuth,
@@ -259,6 +269,140 @@ async function setup() {
 }
 
 describe('Rides API', () => {
+  it('stores private retry-safe chat with bounded history and closes access with the ride', async () => {
+    const s = await setup();
+    const id = (await s.requestRide()).res.body.data.id;
+    const path = `/api/v1/rides/${id}/messages`;
+    const send = (auth: string, clientMessageId: string, text: string) => request(s.app)
+      .post(path).set('Authorization', auth).send({ clientMessageId, text });
+    await request(s.app).post(`/api/v1/rides/${id}/accept`).set('Authorization', s.driverAuth).send({});
+    const key = crypto.randomUUID();
+    const first = await send(s.riderAuth, key, '  I am at pickup  ');
+    expect(first.status).toBe(201);
+    expect(first.body.data).toMatchObject({ rideId: id, text: 'I am at pickup', senderRole: 'RIDER' });
+    expect(first.body.data).not.toHaveProperty('senderUserId');
+    const retry = await send(s.riderAuth, key, 'I am at pickup');
+    expect(retry.body.data).toEqual(first.body.data);
+    expect((await send(s.riderAuth, key, 'Changed text')).status).toBe(409);
+    expect((await send(s.otherDriverAuth, crypto.randomUUID(), 'Hello')).status).toBe(404);
+    expect((await send(s.adminAuth, crypto.randomUUID(), 'Hello')).status).toBe(404);
+    expect((await send(s.driverAuth, crypto.randomUUID(), ' ')).status).toBe(400);
+    expect((await send(s.driverAuth, crypto.randomUUID(), '😀'.repeat(301))).status).toBe(400);
+    const second = await send(s.driverAuth, crypto.randomUUID(), '😀'.repeat(300));
+    expect(second.status).toBe(201);
+    const latest = await request(s.app).get(`${path}?limit=1`).set('Authorization', s.riderAuth);
+    expect(latest.body.data.messages.map((m: { id: string }) => m.id)).toEqual([second.body.data.id]);
+    expect(latest.body.data.hasMore).toBe(true);
+    const catchup = await request(s.app).get(`${path}?after=${first.body.data.sequence}`).set('Authorization', s.driverAuth);
+    expect(catchup.body.data.messages).toEqual([second.body.data]);
+    const older = await request(s.app).get(`${path}?before=${second.body.data.sequence}`).set('Authorization', s.driverAuth);
+    expect(older.body.data.messages).toEqual([first.body.data]);
+    expect((await request(s.app).get(`${path}?limit=500`).set('Authorization', s.riderAuth)).status).toBe(400);
+    expect((await request(s.app).get(path).set('Authorization', s.otherRiderAuth)).status).toBe(404);
+    const ride = (await s.rideRepo.findById(id))!;
+    await s.rideRepo.save({ ...ride, status: 'TRIP_COMPLETED' });
+    expect((await send(s.riderAuth, crypto.randomUUID(), 'Too late')).status).toBe(409);
+    expect((await request(s.app).get(path).set('Authorization', s.driverAuth)).status).toBe(409);
+  });
+
+  it('enforces chat rate limits with Retry-After and honors RIDE_CHAT_ENABLED=false kill switch', async () => {
+    const limited = await setup(true, { retryAfterSeconds: 18 });
+    const id = (await limited.requestRide()).res.body.data.id as string;
+    await request(limited.app).post(`/api/v1/rides/${id}/accept`).set('Authorization', limited.driverAuth).send({});
+    const blocked = await request(limited.app)
+      .post(`/api/v1/rides/${id}/messages`)
+      .set('Authorization', limited.riderAuth)
+      .send({ clientMessageId: crypto.randomUUID(), text: 'Hello' });
+    expect(blocked.status).toBe(429);
+    expect(blocked.headers['retry-after']).toBe('18');
+    expect(blocked.body.message).toContain('COMMUNICATION_RATE_LIMITED');
+    expect(blocked.body.data).toEqual({ retryAfterSeconds: 18 });
+
+    const disabled = await setup(true, { chatEnabled: false });
+    const disabledId = (await disabled.requestRide()).res.body.data.id as string;
+    await request(disabled.app).post(`/api/v1/rides/${disabledId}/accept`).set('Authorization', disabled.driverAuth).send({});
+    const sendOff = await request(disabled.app)
+      .post(`/api/v1/rides/${disabledId}/messages`)
+      .set('Authorization', disabled.riderAuth)
+      .send({ clientMessageId: crypto.randomUUID(), text: 'Hello' });
+    expect(sendOff.status).toBe(503);
+    expect(sendOff.body.message).toContain('COMMUNICATION_CLOSED');
+    const listOff = await request(disabled.app)
+      .get(`/api/v1/rides/${disabledId}/messages`)
+      .set('Authorization', disabled.driverAuth);
+    expect(listOff.status).toBe(503);
+  });
+
+  it('fails closed when communication identity checks are not configured', async () => {
+    const s = await setup(false);
+    const id = (await s.requestRide()).res.body.data.id;
+    const res = await request(s.app).get(`/api/v1/rides/${id}/communication`)
+      .set('Authorization', s.riderAuth);
+    expect(res.status).toBe(403);
+  });
+
+  it('authorizes communication only for active booker/assigned-driver accounts in eligible states', async () => {
+    const s = await setup();
+    const id = (await s.requestRide()).res.body.data.id;
+    const endpoint = `/api/v1/rides/${id}/communication`;
+    const get = (auth: string) => request(s.app).get(endpoint).set('Authorization', auth);
+    expect((await request(s.app).get(endpoint)).status).toBe(401);
+    expect((await get(s.driverAuth)).status).toBe(404);
+    expect((await get(s.riderAuth)).status).toBe(409);
+    await request(s.app).post(`/api/v1/rides/${id}/accept`).set('Authorization', s.driverAuth).send({});
+    const ride = (await s.rideRepo.findById(id))!;
+    // A guest passenger profile can view a ride, but cannot use booker communication.
+    await s.rideRepo.save({ ...ride, passenger: { ...ride.passenger, riderId: OTHER_RIDER_ID } });
+    for (const auth of [s.otherRiderAuth, s.otherDriverAuth, s.adminAuth]) {
+      expect((await get(auth)).status).toBe(404);
+    }
+    for (const status of RIDE_STATUSES) {
+      await s.rideRepo.save({ ...ride, status });
+      const allowed = ['DRIVER_ASSIGNED', 'DRIVER_EN_ROUTE', 'DRIVER_ARRIVED', 'TRIP_STARTED'].includes(status);
+      for (const [auth, role] of [[s.riderAuth, 'RIDER'], [s.driverAuth, 'DRIVER']]) {
+        const res = await get(auth!);
+        expect(res.status, `${role}: ${status}`).toBe(allowed ? 200 : 409);
+        if (allowed) expect(res.body.data).toEqual({ rideId: id, eligible: true, participantRole: role });
+      }
+    }
+    await s.rideRepo.save(ride);
+    s.inactiveUsers.add(RIDER_USER);
+    s.inactiveUsers.add(DRIVER_USER);
+    expect((await get(s.riderAuth)).status).toBe(403);
+    expect((await get(s.driverAuth)).status).toBe(403);
+    s.inactiveUsers.clear();
+    expect((await get(s.riderAuth)).status).toBe(200);
+    expect((await get(s.driverAuth)).status).toBe(200);
+    await s.rideRepo.save({ ...ride, driverId: OTHER_DRIVER_ID });
+    expect((await get(s.driverAuth)).status).toBe(404);
+    expect((await get(s.otherDriverAuth)).status).toBe(200);
+  });
+
+  it('omits contact numbers from creation, assignment, detail and list responses without changing storage', async () => {
+    const s = await setup();
+    const created = (await s.requestRide()).res;
+    expect(created.status).toBe(201);
+    const id = created.body.data.id;
+    expect(created.body.data.passenger).not.toHaveProperty('phoneE164');
+    const accepted = await request(s.app).post(`/api/v1/rides/${id}/accept`)
+      .set('Authorization', s.driverAuth).send({});
+    expect(accepted.status).toBe(200);
+    expect(accepted.body.data.assignedDriver.name).toBe('Subrata Ghosh');
+    expect(accepted.body.data.assignedDriver).not.toHaveProperty('phoneE164');
+    expect(accepted.body.data.passenger).not.toHaveProperty('phoneE164');
+    for (const auth of [s.riderAuth, s.driverAuth, s.adminAuth]) {
+      const detail = await request(s.app).get(`/api/v1/rides/${id}`).set('Authorization', auth);
+      expect(detail.status).toBe(200);
+      expect(detail.body.data.passenger).not.toHaveProperty('phoneE164');
+      expect(detail.body.data.assignedDriver).not.toHaveProperty('phoneE164');
+      const list = await request(s.app).get('/api/v1/rides').set('Authorization', auth);
+      expect(list.status).toBe(200);
+      expect(JSON.stringify(list.body)).not.toContain('+919876543210');
+      expect(JSON.stringify(list.body)).not.toContain('+919000000012');
+    }
+    expect((await s.rideRepo.findById(id))?.passenger.phoneE164).toBe('+919876543210');
+  });
+
   it('requires authentication', async () => {
     const { app } = await setup();
     expect((await request(app).get('/api/v1/rides')).status).toBe(401);

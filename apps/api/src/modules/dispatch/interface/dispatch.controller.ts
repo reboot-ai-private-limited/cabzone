@@ -1,4 +1,5 @@
 import type { Request, RequestHandler, Response } from 'express';
+import { PUSH_TOKEN_TRANSPORTS } from '@cabzone/contracts';
 import { z } from 'zod';
 import { AppError } from '../../../shared/errors/AppError.js';
 import { asyncHandler } from '../../../shared/http/asyncHandler.js';
@@ -58,16 +59,18 @@ export function makeListOffersController(useCase: ListDriverOffersUseCase): Requ
 }
 
 export const pushTokenSchema = z.object({
-  token: z.string().trim().min(1).max(200),
+  token: z.string().trim().min(1).max(512),
   installationId: z.string().trim().min(8).max(128),
+  platform: z.enum(['android', 'ios']).optional(),
+  transport: z.enum(PUSH_TOKEN_TRANSPORTS).optional(),
 });
 export const removePushTokenSchema = pushTokenSchema.pick({ installationId: true });
 
 export function makeRegisterPushTokenController(push: ExpoPushService): RequestHandler {
   return asyncHandler(async (req: Request, res: Response) => {
-    const { token, installationId } = pushTokenSchema.parse(req.body);
-    if (!await push.register(userId(req), installationId, token)) {
-      throw AppError.badRequest('INVALID_PUSH_TOKEN: Expected an Expo push token.');
+    const { token, installationId, platform, transport } = pushTokenSchema.parse(req.body);
+    if (!(await push.register(userId(req), installationId, token, { platform, transport }))) {
+      throw AppError.badRequest('INVALID_PUSH_TOKEN: Invalid push token for requested transport.');
     }
     sendSuccess(req, res, { ok: true }, 'Push token registered');
   });

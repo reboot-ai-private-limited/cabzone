@@ -11,6 +11,7 @@ import type {
   UpdateSelfRiderProfileUseCase,
 } from '../application/useCases/index.js';
 import {
+  adminUpdateRiderProfileSchema,
   listRidersQuerySchema,
   riderIdParamSchema,
   updateRiderProfileSchema,
@@ -74,7 +75,7 @@ export function makeAdminUpdateRiderProfileController(
 ): RequestHandler {
   return asyncHandler(async (req: Request, res: Response) => {
     const { id } = riderIdParamSchema.parse(req.params);
-    const body = updateRiderProfileSchema.parse(req.body);
+    const body = adminUpdateRiderProfileSchema.parse(req.body);
     const updated = await useCase.execute(id, body);
     sendSuccess(req, res, updated, 'Rider profile updated successfully');
   });

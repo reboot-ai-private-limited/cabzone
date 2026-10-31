@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
-import type { RideUpiCheckoutDto } from '@cabzone/contracts';
+import type { RideStatus, RideUpiCheckoutDto } from '@cabzone/contracts';
 import { useAuth } from '@/context/auth-context';
 import { riderRidesApi } from '@/services/api';
 import { formatRupeesFromPaise } from '@/services/rider-helpers';
@@ -27,7 +27,10 @@ export function UpiPaymentPanel({
   arrearsPaise = 0,
   cashAllowed = true,
   cashBlockedReason = null,
+  rideStatus,
   onPaid,
+  onClaimCashPaid,
+  onDisputeUnpaid,
 }: {
   rideId: string;
   amountPaise: number;
@@ -35,7 +38,10 @@ export function UpiPaymentPanel({
   arrearsPaise?: number;
   cashAllowed?: boolean;
   cashBlockedReason?: string | null;
+  rideStatus?: RideStatus;
   onPaid: () => Promise<void>;
+  onClaimCashPaid?: () => Promise<void>;
+  onDisputeUnpaid?: () => void;
 }) {
   const { token } = useAuth();
   const [checkout, setCheckout] = useState<RideUpiCheckoutDto | null>(null);
@@ -56,7 +62,7 @@ export function UpiPaymentPanel({
       try {
         const result = await riderRidesApi.upiPaymentStatus(token, rideId);
         if (!active) return;
-        setCash((previous) => previous || result.method === 'CASH');
+        setCash((previous) => previous || result.method === 'CASH' || !!result.cashClaimedByRider);
         setTestMode(result.testMode ?? null);
         if (result.method === 'CASH') setCheckout(null);
         if (result.paid || result.requiresReview) {
@@ -98,31 +104,49 @@ export function UpiPaymentPanel({
     setBusy(true);
     setMessage(null);
     try {
+      if (action === 'cash') {
+        if (onClaimCashPaid) {
+          await onClaimCashPaid();
+          setCash(true);
+          setCheckout(null);
+          setMessage(
+            'Marked as paid in cash. Your next booking is unlocked while your driver confirms receipt.',
+          );
+          return;
+        }
+        const switched = await riderRidesApi.switchToCash(token, rideId);
+        setCash(true);
+        setTestMode(switched.testMode ?? null);
+        setCheckout(null);
+        if (switched.paid || switched.requiresReview) {
+          await onPaid();
+          return;
+        }
+        setMessage('Pay your driver in cash. The driver will confirm receipt to complete payment.');
+        return;
+      }
+
       const result =
-        action === 'cash'
-          ? await riderRidesApi.switchToCash(token, rideId)
-          : action === 'verify' && proof
-            ? await riderRidesApi.verifyUpiPayment(token, rideId, proof)
-            : await riderRidesApi.upiPaymentStatus(token, rideId);
-      setCash((previous) => previous || result.method === 'CASH');
+        action === 'verify' && proof
+          ? await riderRidesApi.verifyUpiPayment(token, rideId, proof)
+          : await riderRidesApi.upiPaymentStatus(token, rideId);
+      setCash((previous) =>
+        action === 'open' ? false : previous || result.method === 'CASH' || !!result.cashClaimedByRider,
+      );
       setTestMode(result.testMode ?? null);
       if (result.paid || result.requiresReview) {
         setCheckout(null);
         await onPaid();
         return;
       }
-      if (result.method === 'CASH') {
-        setCheckout(null);
-        setMessage('Pay your driver in cash. The driver will confirm receipt to complete payment.');
-        return;
-      }
       if (action === 'open') {
         const session = await riderRidesApi.createUpiSession(token, rideId);
+        setCash(false);
         if (session.kind === 'checkout') {
           setTestMode(true);
           setMessage(
             cashAllowed
-              ? 'Test mode: real UPI apps cannot be opened. Use simulated checkout or switch to cash.'
+              ? 'Test mode: real UPI apps cannot be opened. Use simulated checkout or pay cash to your driver.'
               : 'Test mode: real UPI apps cannot be opened. Complete payment in simulated UPI checkout.',
           );
           setCheckout(session.checkout);
@@ -143,7 +167,9 @@ export function UpiPaymentPanel({
             );
           }
         }
-      } else setMessage('Payment is not confirmed yet. If you paid, check again shortly.');
+      } else {
+        setMessage('Payment is not confirmed yet. If you paid, check again shortly.');
+      }
     } catch (error) {
       setMessage(
         error instanceof Error ? error.message : 'Unable to check payment. Please try again.',
@@ -160,9 +186,29 @@ export function UpiPaymentPanel({
       ? farePaise
       : Math.max(0, amountPaise - Math.max(0, arrearsPaise));
 
+  const isCashClaimed = rideStatus === 'PAYMENT_CASH_CLAIMED';
+  const isUnpaid = rideStatus === 'PAYMENT_UNPAID';
+
+  const panelTitle = isUnpaid
+    ? 'Unpaid trip fare due'
+    : isCashClaimed
+      ? 'Cash payment awaiting driver confirmation'
+      : 'Your trip is complete';
+
+  const panelBody = isUnpaid
+    ? 'Your driver reported this trip fare as unpaid. Pay by UPI below to clear this balance and unlock booking, or raise a dispute if you already paid.'
+    : isCashClaimed
+      ? 'You marked this fare as paid in cash. Your next ride is unlocked while your driver confirms receipt — or you can still pay by UPI below.'
+      : cash
+        ? 'Pay your driver in cash. Waiting for the driver to confirm receipt — or pay securely by UPI below.'
+        : cashAllowed
+          ? 'Pay securely by UPI, or hand cash to your driver and tap "I paid cash to driver".'
+          : cashBlockedReason ||
+            'Cash is unavailable while previous cancellation fees are due. Pay securely by UPI.';
+
   return (
     <View style={styles.panel}>
-      <Text style={styles.title}>Your trip is complete</Text>
+      <Text style={styles.title}>{panelTitle}</Text>
       <Text style={styles.fare}>{formatRupeesFromPaise(amountPaise)}</Text>
       {arrearsPaise > 0 ? (
         <View style={styles.breakdownBox} accessibilityRole="summary">
@@ -180,50 +226,41 @@ export function UpiPaymentPanel({
           </View>
         </View>
       ) : null}
-      <Text style={styles.body}>
-        {cash
-          ? 'Pay your driver in cash. Waiting for the driver to confirm receipt.'
-          : cashAllowed
-            ? 'Pay securely by UPI, or change payment to cash.'
-            : cashBlockedReason ||
-              'Cash is unavailable while previous cancellation fees are due. Pay securely by UPI.'}
-      </Text>
-      {testMode && !cash ? (
+      <Text style={styles.body}>{panelBody}</Text>
+      {testMode ? (
         <Text style={styles.caption}>
           {cashAllowed
             ? 'Test mode · UPI app payments need live credentials. You can use test checkout or pay cash.'
             : 'Test mode · UPI app payments need live credentials. Complete payment using test checkout.'}
         </Text>
       ) : null}
-      {!cash ? (
-        <Pressable
-          style={styles.primary}
-          onPress={() => void run('open')}
-          disabled={busy || !token}
-          accessibilityRole="button"
-          accessibilityLabel={testMode ? 'Open UPI test checkout' : 'Pay by UPI'}
-          accessibilityState={{ disabled: busy || !token, busy }}
-        >
-          {busy ? (
-            <ActivityIndicator color={colors.deepBrown} />
-          ) : (
-            <Text style={styles.primaryText}>
-              {testMode
-                ? 'Open UPI test checkout'
-                : `Pay ${formatRupeesFromPaise(amountPaise)} by UPI`}
-            </Text>
-          )}
-        </Pressable>
-      ) : null}
-      {!cash && cashAllowed ? (
+      <Pressable
+        style={styles.primary}
+        onPress={() => void run('open')}
+        disabled={busy || !token}
+        accessibilityRole="button"
+        accessibilityLabel={testMode ? 'Open UPI test checkout' : 'Pay by UPI'}
+        accessibilityState={{ disabled: busy || !token, busy }}
+      >
+        {busy ? (
+          <ActivityIndicator color={colors.deepBrown} />
+        ) : (
+          <Text style={styles.primaryText}>
+            {testMode
+              ? 'Open UPI test checkout'
+              : `Pay ${formatRupeesFromPaise(amountPaise)} by UPI`}
+          </Text>
+        )}
+      </Pressable>
+      {!isUnpaid && !isCashClaimed && cashAllowed ? (
         <Pressable
           style={styles.secondary}
           disabled={busy || !token}
           accessibilityRole="button"
-          accessibilityLabel="Change payment"
+          accessibilityLabel="I paid cash to driver"
           onPress={() => setChooseCash(true)}
         >
-          <Text style={styles.primaryText}>Change payment</Text>
+          <Text style={styles.primaryText}>I paid cash to driver</Text>
         </Pressable>
       ) : null}
       <Pressable
@@ -235,6 +272,19 @@ export function UpiPaymentPanel({
       >
         <Text style={styles.primaryText}>Check payment status</Text>
       </Pressable>
+      {isUnpaid && onDisputeUnpaid ? (
+        <Pressable
+          style={styles.secondary}
+          onPress={onDisputeUnpaid}
+          disabled={busy}
+          accessibilityRole="button"
+          accessibilityLabel="Dispute unpaid report"
+        >
+          <Text style={[styles.primaryText, { color: colors.error }]}>
+            I already paid — Dispute
+          </Text>
+        </Pressable>
+      ) : null}
       {message ? (
         <Text style={styles.error} accessibilityRole="alert">
           {message}
@@ -248,22 +298,21 @@ export function UpiPaymentPanel({
       >
         <View style={styles.shade}>
           <View style={styles.sheet}>
-            <Text style={styles.title}>Pay cash instead?</Text>
+            <Text style={styles.title}>Confirm cash paid to driver?</Text>
             <Text style={styles.body}>
-              Your UPI checkout will close. Choose cash only if you have not paid by UPI. Your
-              driver must confirm receiving the cash.
+              {`Confirm only if you have handed ${formatRupeesFromPaise(amountPaise)} in cash to your driver. Your next booking will unlock while your driver confirms receipt.`}
             </Text>
             <Pressable
               style={styles.primary}
               disabled={busy || !token}
               accessibilityRole="button"
-              accessibilityLabel="Switch to cash"
+              accessibilityLabel="Confirm I paid cash"
               onPress={() => void run('cash')}
             >
               {busy ? (
                 <ActivityIndicator color={colors.deepBrown} />
               ) : (
-                <Text style={styles.primaryText}>Switch to cash</Text>
+                <Text style={styles.primaryText}>Confirm I paid cash</Text>
               )}
             </Pressable>
             <Pressable
@@ -272,7 +321,7 @@ export function UpiPaymentPanel({
               accessibilityRole="button"
               onPress={() => setChooseCash(false)}
             >
-              <Text style={styles.primaryText}>Keep UPI</Text>
+              <Text style={styles.primaryText}>Cancel</Text>
             </Pressable>
           </View>
         </View>

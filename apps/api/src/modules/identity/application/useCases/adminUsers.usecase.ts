@@ -98,12 +98,12 @@ export const ADMIN_ROLE_PERMISSIONS: AdminRolePermissionDto[] = [
       {
         module: 'Customers',
         action: 'Customer Dossier',
-        description: 'Inspect rider history, manage emergency contacts, update language preferences',
+        description: 'Inspect rider history, view safety status, update language preferences',
       },
       {
         module: 'Fleet & KYC',
         action: 'Driver Dossier',
-        description: 'Inspect vehicle documents, license validity, contact details',
+        description: 'Inspect vehicle documents, license validity, profile details',
       },
       {
         module: 'Dispatch',
@@ -174,7 +174,6 @@ export class ListAdminUsersUseCase {
     const dtoList: AdminUserSummaryDto[] = admins.map((a) => ({
       id: a.id,
       userId: a.userId,
-      phoneE164: a.phoneE164,
       name: a.name,
       email: a.email,
       role: a.role,
@@ -207,7 +206,6 @@ export class GetAdminUserDetailUseCase {
       throw AppError.notFound('Associated user account not found.');
     }
 
-    // Resolve city zone names if zone repo is provided
     let cityZones: Array<{ id: string; name: string; code?: string }> | undefined;
     if (this.deps.zoneRepo && admin.cityZoneIds.length > 0) {
       const zonePromises = admin.cityZoneIds.map((id) => this.deps.zoneRepo!.findById(id));
@@ -224,7 +222,6 @@ export class GetAdminUserDetailUseCase {
     return {
       id: admin.id,
       userId: admin.userId,
-      phoneE164: user.phoneE164,
       name: admin.name,
       email: admin.email,
       role: admin.role,
@@ -288,7 +285,6 @@ export class CreateAdminUserUseCase {
 
     const saved = await this.deps.adminUserRepo.save(newAdmin);
 
-    // Resolve city zone names if zone repo is available
     let cityZones: Array<{ id: string; name: string; code?: string }> | undefined;
     if (this.deps.zoneRepo && saved.cityZoneIds.length > 0) {
       const zonePromises = saved.cityZoneIds.map((id) => this.deps.zoneRepo!.findById(id));
@@ -305,7 +301,6 @@ export class CreateAdminUserUseCase {
     return {
       id: saved.id,
       userId: saved.userId,
-      phoneE164: user.phoneE164,
       name: saved.name,
       email: saved.email,
       role: saved.role,
@@ -324,7 +319,7 @@ export class UpdateAdminUserUseCase {
   async execute(
     adminId: string,
     callerUserId: string,
-    input: UpdateAdminUserDto
+    input: UpdateAdminUserDto,
   ): Promise<AdminUserDetailDto> {
     const admin = await this.deps.adminUserRepo.findById(adminId);
     if (!admin) {
@@ -336,7 +331,9 @@ export class UpdateAdminUserUseCase {
       throw AppError.badRequest('You cannot demote your own account from SUPER_ADMIN.');
     }
 
-    const updates: Partial<Pick<AdminUserEntity, 'name' | 'email' | 'role' | 'cityZoneIds' | 'passwordHash'>> = {};
+    const updates: Partial<
+      Pick<AdminUserEntity, 'name' | 'email' | 'role' | 'cityZoneIds' | 'passwordHash'>
+    > = {};
     if (input.name !== undefined) updates.name = input.name ? input.name.trim() : null;
     if (input.email !== undefined) updates.email = input.email ? input.email.trim() : null;
     if (input.password !== undefined && input.password.trim()) {
@@ -382,7 +379,6 @@ export class UpdateAdminUserUseCase {
     return {
       id: updated.id,
       userId: updated.userId,
-      phoneE164: user.phoneE164,
       name: updated.name,
       email: updated.email,
       role: updated.role,
@@ -401,7 +397,7 @@ export class UpdateAdminUserStatusUseCase {
   async execute(
     adminId: string,
     callerUserId: string,
-    input: UpdateAdminUserStatusDto
+    input: UpdateAdminUserStatusDto,
   ): Promise<AdminUserSummaryDto> {
     const admin = await this.deps.adminUserRepo.findById(adminId);
     if (!admin) {
@@ -423,12 +419,9 @@ export class UpdateAdminUserStatusUseCase {
       await this.deps.sessionRepo.revokeAllForUser(admin.userId);
     }
 
-    const user = await this.deps.userRepo.findById(updated.userId);
-
     return {
       id: updated.id,
       userId: updated.userId,
-      phoneE164: user?.phoneE164 ?? '',
       name: updated.name,
       email: updated.email,
       role: updated.role,

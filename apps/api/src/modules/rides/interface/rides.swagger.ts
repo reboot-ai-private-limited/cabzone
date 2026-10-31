@@ -5,6 +5,8 @@ import {
   extensionParamsSchema,
 } from './rideExtensions.controller.js';
 import { DRIVER_EARNINGS_PERIODS } from '@cabzone/contracts';
+import { chatSendSchema, chatQuerySchema } from './rideChat.controller.js';
+import { callStartSchema, callInstallationSchema } from './rideCalls.controller.js';
 import {
   registry,
   successResponse,
@@ -22,6 +24,7 @@ import {
   listRidesQuerySchema,
   rideIdParamSchema,
   paymentDisputeSchema,
+  markRideUnpaidSchema,
   paymentDisputeResolutionSchema,
   proposeFareSchema,
   submitRideRatingSchema,
@@ -91,7 +94,6 @@ export const rideViewSchema = z.object({
     .object({
       driverId: z.string(),
       name: z.string(),
-      phoneE164: z.string(),
       profilePhotoUrl: z.string().nullable(),
       vehicle: z
         .object({
@@ -112,7 +114,6 @@ export const rideViewSchema = z.object({
   passenger: z.object({
     riderId: z.string().uuid().nullable(),
     name: z.string(),
-    phoneE164: z.string(),
     pickupOtpExpiresAt: z.string().nullable().optional(),
   }),
   routeSnapshot: z.object({
@@ -217,6 +218,100 @@ let registered = false;
 export function registerRidesSwaggerPaths(): void {
   if (registered) return;
   registered = true;
+  const callSchema = z.object({
+    id: z.string().uuid(), rideId: z.string().uuid(),
+    state: z.enum(['RINGING', 'ACCEPTED', 'CONNECTED', 'ENDED', 'DECLINED', 'MISSED', 'CANCELLED', 'FAILED']),
+    callerRole: z.enum(['RIDER', 'DRIVER']), createdAt: z.string().datetime(),
+    ringingUntil: z.string().datetime(), joinUntil: z.string().datetime().nullable(),
+    connectedAt: z.string().datetime().nullable().optional(),
+  });
+  const tokenSchema = z.object({ url: z.string().url(), token: z.string(), expiresAt: z.string().datetime() });
+  const callActions = [
+    { method: 'get', path: '/v1/rides/{id}/calls/current', request: { params: rideIdParamSchema }, response: z.object({ call: callSchema.nullable() }), summary: 'Get the active private ride call' },
+    { method: 'post', path: '/v1/rides/{id}/calls', request: { params: rideIdParamSchema, body: { content: { 'application/json': { schema: callStartSchema } } } }, response: callSchema, summary: 'Start a private ride call (3 attempts/minute)' },
+    { method: 'post', path: '/v1/rides/{id}/calls/{callId}/answer', request: { params: rideIdParamSchema.extend({ callId: z.string().uuid() }), body: { content: { 'application/json': { schema: callInstallationSchema } } } }, response: callSchema, summary: 'Answer an incoming ride call' },
+    { method: 'post', path: '/v1/rides/{id}/calls/{callId}/decline', request: { params: rideIdParamSchema.extend({ callId: z.string().uuid() }) }, response: callSchema, summary: 'Decline an incoming ride call' },
+    { method: 'post', path: '/v1/rides/{id}/calls/{callId}/end', request: { params: rideIdParamSchema.extend({ callId: z.string().uuid() }) }, response: callSchema, summary: 'End or cancel a ride call' },
+    { method: 'post', path: '/v1/rides/{id}/calls/{callId}/token', request: { params: rideIdParamSchema.extend({ callId: z.string().uuid() }), body: { content: { 'application/json': { schema: callInstallationSchema } } } }, response: tokenSchema, summary: 'Issue a restricted short-lived LiveKit audio token' },
+    { method: 'post', path: '/v1/rides/{id}/calls/{callId}/connected', request: { params: rideIdParamSchema.extend({ callId: z.string().uuid() }) }, response: callSchema, summary: 'Verify both media participants are active in the LiveKit room' },
+  ] as const;
+  for (const action of callActions) {
+    registry.registerPath({
+      method: action.method,
+      path: action.path,
+      tags: ['Rides'],
+      security: bearerAuth,
+      summary: action.summary,
+      request: action.request,
+      responses: {
+        200: { description: 'Call result', content: { 'application/json': { schema: successResponse(action.response) } } },
+        201: { description: 'Call started', content: { 'application/json': { schema: successResponse(action.response) } } },
+        401: { description: 'Authentication required', content: { 'application/json': { schema: errorResponse } } },
+        403: { description: 'Call installation or account is unavailable', content: { 'application/json': { schema: errorResponse } } },
+        404: { description: 'Ride or call unavailable', content: { 'application/json': { schema: errorResponse } } },
+        409: { description: 'Call is busy, expired or already answered', content: { 'application/json': { schema: errorResponse } } },
+        429: { description: 'Call rate limited; Retry-After is in seconds', content: { 'application/json': { schema: errorResponse } } },
+        503: { description: 'Private calling is disabled', content: { 'application/json': { schema: errorResponse } } },
+      },
+    });
+  }
+  registry.registerPath({
+    method: 'post', path: '/v1/rides/calls/current/end', tags: ['Rides'],
+    security: bearerAuth, summary: 'End the authenticated user’s call during logout',
+    responses: { 200: { description: 'Active call ended', content: { 'application/json': { schema: successResponse(z.object({ ended: z.boolean() })) } } } },
+  });
+  registry.registerPath({
+    method: 'post', path: '/v1/rides/calls/webhook', tags: ['Rides'],
+    summary: 'Receive a signed LiveKit room callback',
+    responses: { 200: { description: 'Callback accepted' }, 400: { description: 'Invalid callback signature or body' } },
+  });
+  const messageSchema = z.object({
+    id: z.string(), rideId: z.string(), clientMessageId: z.string(),
+    senderRole: z.enum(['RIDER', 'DRIVER']), sequence: z.number().int(),
+    text: z.string(), createdAt: z.string(),
+  });
+  for (const method of ['get', 'post'] as const) {
+    registry.registerPath({
+      method, path: '/v1/rides/{id}/messages', tags: ['Rides'], security: bearerAuth,
+      summary: method === 'get' ? 'Read active-ride chat (bounded history/catch-up)' : 'Send a short private ride message (20 attempts per minute)',
+      request: { params: rideIdParamSchema, ...(method === 'get' ? { query: chatQuerySchema }
+        : { body: { content: { 'application/json': { schema: chatSendSchema } } } }) },
+      responses: {
+        [method === 'get' ? 200 : 201]: { description: 'Chat result', content: { 'application/json': {
+          schema: successResponse(method === 'get' ? z.object({ messages: z.array(messageSchema), hasMore: z.boolean() }) : messageSchema),
+        } } },
+        400: { description: 'Invalid text, key or cursor', content: { 'application/json': { schema: errorResponse } } },
+        401: { description: 'Authentication required', content: { 'application/json': { schema: errorResponse } } },
+        403: { description: 'Account inactive', content: { 'application/json': { schema: errorResponse } } },
+        404: { description: 'Ride missing or participant unauthorized', content: { 'application/json': { schema: errorResponse } } },
+        409: { description: 'Ride closed or message key conflict', content: { 'application/json': { schema: errorResponse } } },
+        429: { description: 'Rate limited; Retry-After is in seconds', content: { 'application/json': { schema: errorResponse } } },
+        503: { description: 'Ride chat temporarily disabled', content: { 'application/json': { schema: errorResponse } } },
+      },
+    });
+  }
+  registry.registerPath({
+    method: 'get',
+    path: '/v1/rides/{id}/communication',
+    tags: ['Rides'],
+    security: bearerAuth,
+    summary: 'Check active booker or assigned-driver communication access (no admin bypass)',
+    request: { params: rideIdParamSchema },
+    responses: {
+      200: {
+        description: 'Communication policy permits this participant; chat/call availability is separate',
+        content: { 'application/json': { schema: successResponse(z.object({
+          rideId: z.string().uuid(),
+          eligible: z.literal(true),
+          participantRole: z.enum(['RIDER', 'DRIVER']),
+        })) } },
+      },
+      401: { description: 'Session missing, revoked or expired', content: { 'application/json': { schema: errorResponse } } },
+      403: { description: 'Account inactive', content: { 'application/json': { schema: errorResponse } } },
+      404: { description: 'Ride missing or caller is not the booker/assigned driver', content: { 'application/json': { schema: errorResponse } } },
+      409: { description: 'COMMUNICATION_CLOSED: ride is not assigned or communication has closed', content: { 'application/json': { schema: errorResponse } } },
+    },
+  });
   for (const action of ['propose', 'respond'] as const) {
     registry.registerPath({
       method: 'post',
@@ -535,6 +630,41 @@ export function registerRidesSwaggerPaths(): void {
   });
   registry.registerPath({
     method: 'post',
+    path: '/v1/rides/{id}/payment/claim-cash',
+    tags: ['Rides'],
+    security: bearerAuth,
+    summary: 'Rider claims cash was handed to driver; unblocks rider booking while awaiting driver confirmation',
+    request: { params: rideIdParamSchema },
+    responses: {
+      200: {
+        description: 'Ride transitioned to PAYMENT_CASH_CLAIMED',
+        content: { 'application/json': { schema: successResponse(rideViewSchema) } },
+      },
+      403: { description: 'Only booking rider or passenger can claim cash' },
+      409: { description: 'Previous cash claim still unconfirmed or ride not awaiting payment' },
+    },
+  });
+  registry.registerPath({
+    method: 'post',
+    path: '/v1/rides/{id}/payment/unpaid',
+    tags: ['Rides'],
+    security: bearerAuth,
+    summary: 'Assigned driver reports passenger left without paying; charges 0 commission and clears driver pending lock',
+    request: {
+      params: rideIdParamSchema,
+      body: { content: { 'application/json': { schema: markRideUnpaidSchema } } },
+    },
+    responses: {
+      200: {
+        description: 'Ride marked PAYMENT_UNPAID (or PAYMENT_DISPUTED if cash was claimed)',
+        content: { 'application/json': { schema: successResponse(rideViewSchema) } },
+      },
+      403: { description: 'Only assigned driver can mark ride unpaid' },
+      409: { description: 'Ride is not in an unpaid-eligible state' },
+    },
+  });
+  registry.registerPath({
+    method: 'post',
     path: '/v1/rides/{id}/payment/cash',
     tags: ['Rides'],
     security: bearerAuth,
@@ -551,6 +681,8 @@ export function registerRidesSwaggerPaths(): void {
                 method: z.enum(['UPI', 'CASH']),
                 testMode: z.boolean(),
                 requiresReview: z.boolean(),
+                cashClaimedByRider: z.boolean().optional(),
+                unpaidReportedByDriver: z.boolean().optional(),
               }),
             ),
           },
@@ -593,7 +725,7 @@ export function registerRidesSwaggerPaths(): void {
                     orderId: z.string(),
                     amountPaise: z.number().int(),
                     currency: z.literal('INR'),
-                    testMode: z.literal(true),
+                    testMode: z.boolean(),
                   }),
                 }),
               ]),
@@ -650,7 +782,7 @@ export function registerRidesSwaggerPaths(): void {
                       orderId: z.string(),
                       amountPaise: z.number().int(),
                       currency: z.literal('INR'),
-                      testMode: z.literal(true),
+                      testMode: z.boolean(),
                     })
                   : z.object({ paid: z.boolean() }),
               ),
@@ -1257,4 +1389,57 @@ export function registerRidesSwaggerPaths(): void {
       },
     },
   });
+
+  const ridePaymentQrViewSchema = z.object({
+    ride: rideViewSchema,
+    qr: z.object({
+      state: z.enum(['NONE', 'PENDING', 'PAID', 'EXPIRED']),
+      upiUri: z.string().nullable(),
+      imageUrl: z.string().nullable(),
+      expiresAt: z.string().nullable(),
+      amountPaise: z.number().int(),
+      lines: z.array(
+        z.object({
+          label: z.string(),
+          amountPaise: z.number().int(),
+        }),
+      ),
+    }),
+  });
+
+  for (const method of ['post', 'get'] as const) {
+    registry.registerPath({
+      method,
+      path: '/v1/rides/{id}/payment-qr',
+      tags: ['Rides'],
+      summary:
+        method === 'post'
+          ? 'Create or reuse single-use Razorpay UPI QR for driver fare collection'
+          : 'Poll Razorpay UPI QR payment status for assigned driver',
+      security: bearerAuth,
+      request: { params: rideIdParamSchema },
+      responses: {
+        200: {
+          description: 'Ride and UPI QR payment state',
+          content: { 'application/json': { schema: successResponse(ridePaymentQrViewSchema) } },
+        },
+        401: {
+          description: 'Authentication required',
+          content: { 'application/json': { schema: errorResponse } },
+        },
+        403: {
+          description: 'Driver profile required',
+          content: { 'application/json': { schema: errorResponse } },
+        },
+        404: {
+          description: 'Ride not found',
+          content: { 'application/json': { schema: errorResponse } },
+        },
+        409: {
+          description: 'Ride is not awaiting payment',
+          content: { 'application/json': { schema: errorResponse } },
+        },
+      },
+    });
+  }
 }

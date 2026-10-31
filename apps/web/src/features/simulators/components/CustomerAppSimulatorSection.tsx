@@ -177,6 +177,7 @@ export function CustomerAppSimulatorSection() {
   // 2. Customer Booking & Quote State
   const [customerName, setCustomerName] = useState('Priya Mukherjee');
   const [customerPhone, setCustomerPhone] = useState('+919000000003');
+  const [simDriverPhone, setSimDriverPhone] = useState('+919000000002');
   const [pickup, setPickup] = useState<GeoPoint | null>(DEFAULT_SILIGURI_PICKUP);
   const [drop, setDrop] = useState<GeoPoint | null>(DEFAULT_SILIGURI_DROP);
   const [activePinTarget, setActivePinTarget] = useState<'pickup' | 'drop' | 'auto'>('auto');
@@ -304,7 +305,6 @@ export function CustomerAppSimulatorSection() {
       {
         driverId: string;
         name: string;
-        phone: string;
         vehicleRegistration: string | null;
         vehicleCategory: VehicleCategory | null;
         livePresence: DispatchFleetDriverDto | null;
@@ -316,8 +316,7 @@ export function CustomerAppSimulatorSection() {
       const parsed = parseVehicleInfo(w.vehicleNumber);
       map.set(w.ownerId, {
         driverId: w.ownerId,
-        name: w.name || `Driver (${w.phoneE164.slice(-4)})`,
-        phone: w.phoneE164,
+        name: w.name || `Driver #${w.ownerId.slice(0, 6)}`,
         vehicleRegistration: parsed.registration,
         vehicleCategory: parsed.category,
         livePresence: null,
@@ -330,7 +329,6 @@ export function CustomerAppSimulatorSection() {
       map.set(f.driverId, {
         driverId: f.driverId,
         name: f.driverName || existing?.name || f.driverId,
-        phone: f.phoneE164 || existing?.phone || '—',
         vehicleRegistration: f.vehicleRegistration || existing?.vehicleRegistration || null,
         vehicleCategory: f.vehicleCategory ?? existing?.vehicleCategory ?? null,
         livePresence: f,
@@ -509,15 +507,15 @@ export function CustomerAppSimulatorSection() {
     const targetDriver =
       driverOptions.find((d) => d.driverId === (activeRide.driverId ?? selectedDriverId)) ??
       selectedDriver;
-    if (!targetDriver?.phone || targetDriver.phone === '—') {
-      setBannerError('Select a registered driver account in Section 1 first.');
+    if (!targetDriver || !simDriverPhone.trim()) {
+      setBannerError('Select a registered driver account and enter the test driver OTP phone in Section 1 first.');
       return;
     }
 
     setDriverActionLoading(true);
     setBannerError(null);
     try {
-      const driverToken = await ensureSimDriverToken(targetDriver.phone);
+      const driverToken = await ensureSimDriverToken(simDriverPhone);
       // Ensure driver is online at pickup before ACCEPT / COUNTER
       if (action === 'ACCEPT' || action === 'COUNTER') {
         await ridesApi
@@ -838,8 +836,18 @@ export function CustomerAppSimulatorSection() {
                 disabled={driverOptions.length === 0}
                 options={driverOptions.map((d) => ({
                   value: d.driverId,
-                  label: `${d.livePresence ? '🟢' : '⚪'} ${d.name} (${d.phone})`,
+                  label: `${d.livePresence ? '🟢' : '⚪'} ${d.name} (${d.vehicleRegistration ?? d.driverId.slice(0, 8)})`,
                 }))}
+              />
+            </div>
+
+            <div className="w-40">
+              <Input
+                aria-label="Test Driver OTP Phone"
+                value={simDriverPhone}
+                onChange={(e) => setSimDriverPhone(e.target.value)}
+                placeholder="+919000000002"
+                className="h-9 text-xs font-mono"
               />
             </div>
 
@@ -1839,7 +1847,7 @@ export function CustomerAppSimulatorSection() {
                           </Badge>
                         </td>
                         <td className="px-4 py-2.5 text-text">
-                          {r.passenger.name} ({r.passenger.phoneE164})
+                          {r.passenger.name}
                         </td>
                         <td className="px-4 py-2.5 font-mono text-text-subtle">
                           {(r.routeSnapshot.distanceM / 1000).toFixed(2)} km

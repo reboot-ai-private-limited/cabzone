@@ -225,6 +225,7 @@ describe('authenticate Middleware', () => {
       userId: 'user-123',
       sessionId: 'session-123',
       role: 'DRIVER',
+      deviceId: 'device-123',
     });
   });
 });

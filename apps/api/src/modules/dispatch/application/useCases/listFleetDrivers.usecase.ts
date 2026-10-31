@@ -55,14 +55,12 @@ export class ListFleetDriversUseCase {
 
       const activeRideId = activeRide?.id ?? null;
       let driverName: string | undefined;
-      let phoneE164: string | undefined;
       let vehicleRegistration: string | undefined;
 
       if (this.lookups.getDriverInfo) {
         const info = await this.lookups.getDriverInfo(d.driverId);
         if (info) {
           driverName = info.name;
-          phoneE164 = info.phoneE164;
           vehicleRegistration = info.registrationNumber;
         }
       }
@@ -79,7 +77,6 @@ export class ListFleetDriversUseCase {
         activeRideId,
         locationUpdatedAt: d.locationUpdatedAt.toISOString(),
         ...(driverName ? { driverName } : {}),
-        ...(phoneE164 ? { phoneE164 } : {}),
         ...(vehicleRegistration ? { vehicleRegistration } : {}),
       });
     }

@@ -105,7 +105,6 @@ function screen(clock = Date.now()) {
           formatRupeesFromPaise: (value) => `₹${value / 100}`,
           formatAssignedDriverSummary: (ride) => ({
             driverName: ride.assignedDriver?.name || 'Your driver',
-            phoneE164: ride.assignedDriver?.phoneE164 || null,
             profilePhotoUrl: ride.assignedDriver?.profilePhotoUrl || null,
             vehicleLabel: ride.assignedDriver?.vehicle
               ? `${ride.assignedDriver.vehicle.color} ${ride.assignedDriver.vehicle.make} ${ride.assignedDriver.vehicle.model}`
@@ -184,12 +183,12 @@ test('pickup stages show the OTP and let riders open details, share, and use saf
   assert.ok(byLabel(s.render(), 'Show ride details'));
 });
 
-test('assigned driver details display name, vehicle plate, and call action', () => {
+test('assigned driver details display name, vehicle plate, and in-app call action without tel: dialing', () => {
   const s = screen();
+  s.props.onCallDriver = () => s.calls.push('PrivateCall');
   s.props.ride.assignedDriver = {
     driverId: 'driver-1',
     name: 'Subrata Ghosh',
-    phoneE164: '+919000000012',
     profilePhotoUrl: null,
     vehicle: {
       vehicleId: 'veh-1',
@@ -207,7 +206,19 @@ test('assigned driver details display name, vehicle plate, and call action', () 
   assert.ok(byLabel(tree, 'Vehicle number WB74AB1234'));
   assert.ok(byText(tree, 'Contact driver'));
   byLabel(tree, 'Call driver').props.onPress();
-  assert.deepEqual(s.calls, ['Dial:tel:+919000000012']);
+  assert.deepEqual(s.calls, ['PrivateCall']);
+});
+
+test('driver without onCallDriver handler remains identifiable and has no direct-call action', () => {
+  const s = screen();
+  s.props.ride.assignedDriver = {
+    driverId: 'driver-1', name: 'Subrata Ghosh', profilePhotoUrl: null, vehicle: null,
+  };
+  const tree = s.render();
+  assert.ok(byText(tree, 'Subrata Ghosh'));
+  assert.equal(byLabel(tree, 'Call driver'), null);
+  assert.equal(byText(tree, 'Contact driver'), null);
+  assert.deepEqual(s.calls, []);
 });
 
 test('approaching driver has a clear status without an invented arrival estimate', () => {
@@ -338,4 +349,20 @@ test('ongoing ride sheet surfaces previous cancellation fee arrears alongside ag
   s.props.ride.arrearsPaise = 5000;
   const tree = s.render();
   assert.ok(byText(tree, '+ ₹50 previous cancellation fee (₹133 total)'));
+});
+
+test('chat control renders only when onChat is provided and shows unread indicator when flagged', () => {
+  const s = screen();
+  assert.equal(byLabel(s.render(), 'Chat with driver'), null);
+
+  s.props.onChat = () => s.calls.push('Chat');
+  let tree = s.render();
+  assert.ok(byText(tree, 'Chat'));
+  byLabel(tree, 'Chat with driver').props.onPress();
+  assert.deepEqual(s.calls, ['Chat']);
+
+  s.props.hasUnreadChat = true;
+  tree = s.render();
+  assert.ok(byText(tree, 'Chat •'));
+  assert.ok(byLabel(tree, 'Chat with driver, new message'));
 });

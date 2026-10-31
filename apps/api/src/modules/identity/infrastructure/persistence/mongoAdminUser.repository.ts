@@ -38,7 +38,7 @@ export class MongoAdminUserRepository implements AdminUserRepositoryPort {
           status: admin.status,
         },
       },
-      { upsert: true, new: true, setDefaultsOnInsert: true }
+      { upsert: true, new: true, setDefaultsOnInsert: true },
     )
       .lean<AdminUserDocument>()
       .exec();
@@ -47,7 +47,9 @@ export class MongoAdminUserRepository implements AdminUserRepositoryPort {
 
   async update(
     id: string,
-    updates: Partial<Pick<AdminUserEntity, 'name' | 'email' | 'role' | 'cityZoneIds' | 'status' | 'passwordHash'>>
+    updates: Partial<
+      Pick<AdminUserEntity, 'name' | 'email' | 'role' | 'cityZoneIds' | 'status' | 'passwordHash'>
+    >,
   ): Promise<AdminUserEntity | null> {
     const setFields: Record<string, unknown> = {};
     if (updates.name !== undefined) setFields.name = updates.name;
@@ -61,11 +63,7 @@ export class MongoAdminUserRepository implements AdminUserRepositoryPort {
       return this.findById(id);
     }
 
-    const doc = await AdminUserModel.findByIdAndUpdate(
-      id,
-      { $set: setFields },
-      { new: true }
-    )
+    const doc = await AdminUserModel.findByIdAndUpdate(id, { $set: setFields }, { new: true })
       .lean<AdminUserDocument | null>()
       .exec();
 
@@ -73,22 +71,13 @@ export class MongoAdminUserRepository implements AdminUserRepositoryPort {
     return this.toEntity(doc);
   }
 
-  async list(filter: AdminUserListFilter = {}): Promise<{ admins: AdminUserWithUser[]; total: number }> {
+  async list(
+    filter: AdminUserListFilter = {},
+  ): Promise<{ admins: AdminUserWithUser[]; total: number }> {
     const limit = Math.min(Math.max(filter.limit ?? 20, 1), 100);
     const offset = Math.max(filter.offset ?? 0, 0);
 
-    const pipeline: PipelineStage[] = [
-      {
-        $lookup: {
-          from: 'users',
-          localField: 'user_id',
-          foreignField: '_id',
-          as: 'user',
-        },
-      },
-      { $unwind: { path: '$user', preserveNullAndEmptyArrays: true } },
-    ];
-
+    const pipeline: PipelineStage[] = [];
     const matchConditions: Record<string, unknown>[] = [];
 
     if (filter.status) {
@@ -111,7 +100,8 @@ export class MongoAdminUserRepository implements AdminUserRepositoryPort {
         $or: [
           { name: { $regex: regex } },
           { email: { $regex: regex } },
-          { 'user.phone_e164': { $regex: regex } },
+          { _id: { $regex: regex } },
+          { user_id: { $regex: regex } },
         ],
       });
     }
@@ -125,26 +115,19 @@ export class MongoAdminUserRepository implements AdminUserRepositoryPort {
     pipeline.push({
       $facet: {
         metadata: [{ $count: 'total' }],
-        data: [
-          { $sort: { created_at: -1 } },
-          { $skip: offset },
-          { $limit: limit },
-        ],
+        data: [{ $sort: { created_at: -1 } }, { $skip: offset }, { $limit: limit }],
       },
     });
 
     const [facetResult] = (await AdminUserModel.aggregate(pipeline).exec()) as [
-      | { metadata: { total: number }[]; data: (AdminUserDocument & { user?: { phone_e164?: string } })[] }
+      | { metadata: { total: number }[]; data: AdminUserDocument[] }
       | undefined,
     ];
 
     const total = facetResult?.metadata?.[0]?.total ?? 0;
     const data = facetResult?.data ?? [];
 
-    const admins: AdminUserWithUser[] = data.map((doc) => ({
-      ...this.toEntity(doc),
-      phoneE164: doc.user?.phone_e164 ?? '',
-    }));
+    const admins: AdminUserWithUser[] = data.map((doc) => this.toEntity(doc));
 
     return { admins, total };
   }

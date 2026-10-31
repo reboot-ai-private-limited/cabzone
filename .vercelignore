@@ -1,0 +1,26 @@
+# Mobile apps and native builds
+apps/driver-mobile
+apps/rider-mobile
+apps/api
+.cxx
+.turbo
+android
+ios
+
+# Logs and test artifacts
+*.log
+artifacts
+graphify-out
+.ui-check
+.agents
+daily-work
+docs
+tasks
+
+# Dependencies and caches
+node_modules
+.next
+.next-dev
+dist
+build
+.git

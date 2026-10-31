@@ -25,6 +25,12 @@ import {
 import { useAuth } from './auth-context';
 
 const RIDER_HISTORY_PAGE_SIZE = 40;
+const CHAT_ELIGIBLE_STATUSES = new Set<string>([
+  'DRIVER_ASSIGNED',
+  'DRIVER_EN_ROUTE',
+  'DRIVER_ARRIVED',
+  'TRIP_STARTED',
+]);
 
 export interface BookingDraft {
   mode: 'IN_CITY' | 'OUTSTATION';
@@ -43,6 +49,9 @@ export interface BookingDraft {
 }
 
 interface RideContextValue {
+  chatRevision: number;
+  unreadChatRideId: string | null;
+  clearUnreadChat: (rideId?: string) => void;
   activeRide: RiderRideViewDto | null;
   activeRideEvents: RideEventDto[];
   pendingCounters: PendingDriverCounter[];
@@ -69,12 +78,15 @@ interface RideContextValue {
   ) => Promise<void>;
   raiseFare: (rideId: string, proposedFarePaise: number) => Promise<RiderRideViewDto>;
   cancelRide: (rideId: string, reason: CancellationReason) => Promise<RiderRideViewDto>;
+  claimCashPaid: (rideId: string) => Promise<RiderRideViewDto>;
   disputePayment: (rideId: string, reason: string) => Promise<RiderRideViewDto>;
 }
 
 const RideContext = createContext<RideContextValue | null>(null);
 
 export function RideProvider({ children }: { children: React.ReactNode }) {
+  const [chatRevision, setChatRevision] = useState(0);
+  const [unreadChatRideId, setUnreadChatRideId] = useState<string | null>(null);
   const { token } = useAuth();
   const [activeRide, setActiveRide] = useState<RiderRideViewDto | null>(null);
   const [activeRideEvents, setActiveRideEvents] = useState<RideEventDto[]>([]);
@@ -95,6 +107,10 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     activeRideIdRef.current = activeRide?.id ?? null;
   }, [activeRide?.id]);
+
+  const clearUnreadChat = useCallback((rideId?: string) => {
+    setUnreadChatRideId((prev) => (!rideId || prev === rideId ? null : prev));
+  }, []);
 
   const handleSyncError = useCallback((error: unknown) => {
     if (isApiError(error) && error.code === 'SESSION_CHANGED') return;
@@ -136,6 +152,7 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
       setRideHistory([]);
       setHasMoreRides(false);
       setSyncError(null);
+      setUnreadChatRideId(null);
       return null;
     }
     setIsLoadingRides(true);
@@ -212,6 +229,7 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
         setHasMoreRides(false);
         setIsRealtimeConnected(false);
         setDriverLiveLocation(null);
+        setUnreadChatRideId(null);
         return;
       }
       void refreshRides();
@@ -250,10 +268,18 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
           if (!msg.event) return;
 
           if (msg.event === 'connection.ready') {
+            setChatRevision((n) => n + 1);
             void refreshRides();
             return;
           }
 
+          if (msg.event === 'ride.chat.message') {
+            setChatRevision((n) => n + 1);
+            if (msg.data?.senderRole === 'DRIVER' && typeof msg.data?.rideId === 'string') {
+              setUnreadChatRideId(msg.data.rideId);
+            }
+            return;
+          }
           if (msg.event === 'driver.location.updated' && msg.data) {
             if (msg.data.rideId !== activeRideIdRef.current) return;
             const lat = Number(msg.data.lat);
@@ -274,6 +300,7 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
           }
 
           if (msg.event.startsWith('ride.')) {
+            setChatRevision((n) => n + 1);
             const rideId =
               typeof msg.data?.rideId === 'string' ? msg.data.rideId : activeRideIdRef.current;
             if (rideId) {
@@ -384,6 +411,7 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
       setActiveRide(null);
       setActiveRideEvents([]);
       setDriverLiveLocation(null);
+      setUnreadChatRideId(null);
       setRideHistory((prev) => prev.map((r) => (r.id === cancelled.id ? cancelled : r)));
       return cancelled;
     },
@@ -398,6 +426,25 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
       return updated;
     },
     [refreshRideById, token],
+  );
+
+  const claimCashPaid = useCallback(
+    async (rideId: string): Promise<RiderRideViewDto> => {
+      if (!token) throw new Error('Authentication required');
+      const claimed = await riderRidesApi.claimCashPaid(token, rideId);
+      if (
+        (activeRideIdRef.current === claimed.id || activeRide?.id === claimed.id) &&
+        !isRideActive(claimed.status)
+      ) {
+        activeRideIdRef.current = null;
+        setActiveRide(null);
+        setActiveRideEvents([]);
+        setDriverLiveLocation(null);
+      }
+      setRideHistory((prev) => prev.map((r) => (r.id === claimed.id ? claimed : r)));
+      return claimed;
+    },
+    [activeRide?.id, token],
   );
 
   const disputePayment = useCallback(
@@ -424,8 +471,19 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
     [activeRideEvents],
   );
 
+  const visibleUnreadChatRideId =
+    token &&
+    activeRide &&
+    CHAT_ELIGIBLE_STATUSES.has(activeRide.status) &&
+    unreadChatRideId === activeRide.id
+      ? unreadChatRideId
+      : null;
+
   const value = useMemo<RideContextValue>(
     () => ({
+      chatRevision,
+      unreadChatRideId: visibleUnreadChatRideId,
+      clearUnreadChat,
       activeRide,
       activeRideEvents,
       pendingCounters,
@@ -445,9 +503,13 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
       respondToCounter,
       raiseFare,
       cancelRide,
+      claimCashPaid,
       disputePayment,
     }),
     [
+      chatRevision,
+      visibleUnreadChatRideId,
+      clearUnreadChat,
       activeRide,
       activeRideEvents,
       pendingCounters,
@@ -466,6 +528,7 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
       respondToCounter,
       raiseFare,
       cancelRide,
+      claimCashPaid,
       disputePayment,
     ],
   );

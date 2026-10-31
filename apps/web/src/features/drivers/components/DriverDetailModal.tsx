@@ -49,7 +49,7 @@ export function DriverDetailModal({
 
   if (!driverSummary) return null;
 
-  const { driver, application, vehicle, phoneE164 } = driverSummary;
+  const { driver, application, vehicle } = driverSummary;
   const isSuspended = driver?.status === 'SUSPENDED';
   const dlExpiryBadge = computeDocumentExpiryBadge(driver?.dlExpiry, driver?.kycStatus);
 
@@ -57,7 +57,7 @@ export function DriverDetailModal({
     <Dialog
       open={open}
       onOpenChange={onOpenChange}
-      title={driver?.name || phoneE164 || 'Driver Profile'}
+      title={driver?.name || `Driver #${application.driverId.slice(0, 8)}`}
       description="Operational fleet profile and driver dispatch record"
       className="max-w-xl"
     >
@@ -101,8 +101,8 @@ export function DriverDetailModal({
                 <span className="font-semibold text-text">{driver.name}</span>
               </FieldRow>
             ) : null}
-            <FieldRow label="Registered Phone">
-              <span className="font-mono font-medium text-text">{phoneE164 ?? '—'}</span>
+            <FieldRow label="Driver ID">
+              <span className="font-mono text-xs text-text">{application.driverId}</span>
             </FieldRow>
             <FieldRow label="Driving Licence">
               <div className="flex items-center gap-2">

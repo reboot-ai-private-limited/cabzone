@@ -273,7 +273,7 @@ async function setupAuditFixture() {
       findByUserId: async (uid: string) =>
         [...riders.values()].find((r) => r.userId === uid) ?? null,
       list: async () => ({
-        items: [{ rider: riders.get(riderId)!, phoneE164: '+919800000101', userStatus: 'ACTIVE' }],
+        items: [{ rider: riders.get(riderId)!, status: 'ACTIVE', totalRides: 0, completedRides: 0 }],
         total: 1,
       }),
     } as unknown as IdentityContainerDeps['riderRepo'],

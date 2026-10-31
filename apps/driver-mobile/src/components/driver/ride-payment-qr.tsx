@@ -1,8 +1,7 @@
+import type { RideDto, RideStatus } from '@cabzone/contracts';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  AppState,
-  Image,
   Modal,
   Pressable,
   StyleSheet,
@@ -10,156 +9,128 @@ import {
   View,
 } from 'react-native';
 import { useAuth } from '@/context/auth-context';
-import { ridesApi } from '@/services/api';
 import { colors } from '@/design-system';
+import { ridesApi } from '@/services/api';
+import { RidePaymentQrSheet } from './ride-payment-qr-sheet';
 
 export function RidePaymentQr({
   rideId,
+  rideStatus = 'PAYMENT_PENDING',
   amountPaise,
   farePaise,
   arrearsPaise,
   commissionPaise,
   cashAllowed = true,
   cashBlockedReason,
+  onRide,
   onPaid,
   onCashReceived,
+  onMarkUnpaid,
 }: {
   rideId: string;
+  rideStatus?: RideStatus | undefined;
   amountPaise: number;
   farePaise?: number | undefined;
   arrearsPaise?: number | undefined;
   commissionPaise?: number | undefined;
   cashAllowed?: boolean | undefined;
   cashBlockedReason?: string | null | undefined;
+  onRide?: ((ride: RideDto) => void) | undefined;
   onPaid: () => Promise<void>;
   onCashReceived: () => Promise<void>;
+  onMarkUnpaid?: (() => Promise<void>) | undefined;
 }) {
   const { token } = useAuth();
-  const [qr, setQr] = useState<{
-    imageDataUrl: string;
-    expiresAt: string;
-    testMode: boolean;
-  } | null>(null);
+  const [qrOpen, setQrOpen] = useState(false);
+  const [qrPaidSeen, setQrPaidSeen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const [cash, setCash] = useState(false);
-  const [sheet, setSheet] = useState<'cash' | 'confirm' | null>(null);
+  const [sheet, setSheet] = useState<'confirm' | 'unpaid' | null>(null);
   const inFlight = useRef(false);
-  const checking = useRef(false);
 
+  const onRideRef = useRef(onRide);
+  const onPaidRef = useRef(onPaid);
+
+  useEffect(() => {
+    onRideRef.current = onRide;
+    onPaidRef.current = onPaid;
+  }, [onRide, onPaid]);
+
+  const isAwaitingPayment =
+    rideStatus === 'PAYMENT_PENDING' || rideStatus === 'PAYMENT_CASH_CLAIMED';
+  const isCashClaimed = rideStatus === 'PAYMENT_CASH_CLAIMED';
   const resolvedArrearsPaise = Math.max(0, arrearsPaise ?? 0);
   const resolvedFarePaise =
     typeof farePaise === 'number' && Number.isFinite(farePaise)
       ? Math.max(0, farePaise)
       : Math.max(0, amountPaise - resolvedArrearsPaise);
   const resolvedCommissionPaise = Math.max(0, commissionPaise ?? 0);
-  const canSwitchToCash = cashAllowed !== false;
+  const canAcceptCash = cashAllowed !== false;
 
-  const check = useCallback(
-    async (explicit = false) => {
-      if (!token || inFlight.current || checking.current) return;
-      checking.current = true;
-      if (explicit) {
-        inFlight.current = true;
-        setBusy(true);
-        setMessage(null);
-      }
-      try {
-        const result = await ridesApi.checkUpiPayment(token, rideId);
-        setCash((previous) => previous || result.method === 'CASH');
-        if (result.method === 'CASH') setQr(null);
-        if (result.paid || result.requiresReview) {
-          setQr(null);
-          await onPaid();
-        } else if (explicit)
-          setMessage(
-            'Payment is not confirmed yet. Ask the rider to finish checkout, then check again.',
-          );
-      } catch (error) {
-        if (explicit)
-          setMessage(
-            error instanceof Error ? error.message : 'Unable to check payment. Please retry.',
-          );
-      } finally {
-        checking.current = false;
-        if (explicit) {
-          inFlight.current = false;
-          setBusy(false);
-        }
-      }
-    },
-    [token, rideId, onPaid],
-  );
-
-  useEffect(() => {
-    const poll = () => {
-      if (AppState.currentState !== 'active') return;
-      if (qr && Date.parse(qr.expiresAt) <= Date.now()) {
-        setQr(null);
-        setMessage('This QR has expired. Check payment status before retrying.');
-      }
-      void check();
-    };
-    poll();
-    const timer = setInterval(poll, 5000);
-    const listener = AppState.addEventListener('change', (state) => {
-      if (state === 'active') poll();
-    });
-    return () => {
-      clearInterval(timer);
-      listener.remove();
-    };
-  }, [check, qr]);
-
-  const showQr = useCallback(async () => {
+  const checkStatus = useCallback(async () => {
     if (!token || inFlight.current) return;
     inFlight.current = true;
     setBusy(true);
     setMessage(null);
     try {
-      const result = await ridesApi.getPaymentQr(token, rideId);
-      setCash((previous) => previous || result.method === 'CASH');
-      if (result.paid || result.requiresReview) {
-        setQr(null);
-        await onPaid();
-      } else if (result.method === 'CASH') setQr(null);
-      else if (result.imageDataUrl && result.expiresAt)
-        setQr({
-          imageDataUrl: result.imageDataUrl,
-          expiresAt: result.expiresAt,
-          testMode: result.testMode !== false,
-        });
-      else throw new Error('Payment QR is unavailable. Please retry.');
+      const result = await ridesApi.checkUpiPayment(token, rideId);
+      await onPaidRef.current();
+      if (!result.paid && !result.requiresReview) {
+        setMessage(
+          result.cashClaimedByRider
+            ? 'Passenger marked cash paid. Confirm receipt if you received cash, or tap "Rider didn\'t pay".'
+            : 'Payment is not confirmed yet. Tap "Show QR" for UPI or "Cash received" after collecting cash.',
+        );
+      }
     } catch (error) {
       setMessage(
-        error instanceof Error ? error.message : 'Unable to create payment QR. Please retry.',
+        error instanceof Error ? error.message : 'Unable to check payment. Please retry.',
       );
     } finally {
       inFlight.current = false;
       setBusy(false);
     }
-  }, [token, rideId, onPaid]);
+  }, [token, rideId]);
 
-  const cashAction = async () => {
-    if (!token || inFlight.current) return;
+  const handleSheetRide = useCallback((updatedRide: RideDto) => {
+    onRideRef.current?.(updatedRide);
+    if (updatedRide.status === 'SETTLED' || updatedRide.status === 'PAYMENT_CONFIRMED') {
+      setQrPaidSeen(true);
+    }
+  }, []);
+
+  const handleSheetClose = useCallback(() => {
+    setQrOpen(false);
+    if (qrPaidSeen || rideStatus === 'SETTLED' || rideStatus === 'PAYMENT_CONFIRMED') {
+      setQrPaidSeen(false);
+      void onPaidRef.current();
+    }
+  }, [qrPaidSeen, rideStatus]);
+
+  const handleCashFromQrSheet = useCallback(() => {
+    setQrOpen(false);
+    if (!canAcceptCash) return;
+    setSheet('confirm');
+  }, [canAcceptCash]);
+
+  const submitSheetAction = async () => {
+    if (!token || inFlight.current || !sheet) return;
+    const activeSheet = sheet;
     inFlight.current = true;
     setBusy(true);
     setMessage(null);
     try {
-      if (sheet === 'confirm') {
+      if (activeSheet === 'confirm') {
         await onCashReceived();
         await onPaid();
-      } else {
-        const result = await ridesApi.switchToCash(token, rideId);
-        setCash((previous) => previous || result.method === 'CASH');
-        setQr(null);
-        if (result.paid || result.requiresReview) await onPaid();
+      } else if (activeSheet === 'unpaid' && onMarkUnpaid) {
+        await onMarkUnpaid();
       }
       setSheet(null);
     } catch (error) {
       setSheet(null);
       setMessage(
-        error instanceof Error ? error.message : 'Unable to change payment. Please retry.',
+        error instanceof Error ? error.message : 'Unable to update payment status. Please retry.',
       );
     } finally {
       inFlight.current = false;
@@ -167,20 +138,39 @@ export function RidePaymentQr({
     }
   };
 
-  useEffect(() => {
-    let active = true;
-    void Promise.resolve().then(() => {
-      if (active) void showQr();
-    });
-    return () => {
-      active = false;
-    };
-  }, [showQr]);
+  if (!isAwaitingPayment && !qrOpen) {
+    return null;
+  }
+
+  if (!isAwaitingPayment && qrOpen) {
+    return (
+      <RidePaymentQrSheet
+        visible={qrOpen}
+        rideId={rideId}
+        cashAllowed={canAcceptCash}
+        cashBlockedReason={cashBlockedReason}
+        onRide={handleSheetRide}
+        onClose={handleSheetClose}
+        onCash={handleCashFromQrSheet}
+      />
+    );
+  }
 
   return (
     <View style={styles.card}>
       <Text style={styles.title}>Collect ride payment</Text>
       <Text style={styles.amount}>₹{(amountPaise / 100).toFixed(2)}</Text>
+
+      {isCashClaimed ? (
+        <View style={styles.cashClaimedNotice} accessibilityRole="alert">
+          <Text style={styles.cashClaimedTitle}>Passenger marked cash paid</Text>
+          <Text style={styles.cashClaimedBody}>
+            Confirm receipt below if you collected ₹{(amountPaise / 100).toFixed(2)} in cash, or
+            tap &quot;Rider didn&apos;t pay&quot; if you did not receive payment.
+          </Text>
+        </View>
+      ) : null}
+
       {resolvedArrearsPaise > 0 ? (
         <View style={styles.breakdownBox}>
           <View style={styles.breakdownRow}>
@@ -196,91 +186,102 @@ export function RidePaymentQr({
             <Text style={styles.breakdownValue}>₹{(amountPaise / 100).toFixed(2)}</Text>
           </View>
           <Text style={styles.caption}>
-            {cash
-              ? `Cash wallet effect: You keep ₹${(amountPaise / 100).toFixed(2)} cash; ₹${((resolvedCommissionPaise + resolvedArrearsPaise) / 100).toFixed(2)} (commission + collected rider arrears) will be deducted from your wallet.`
+            {canAcceptCash
+              ? `Cash: keep ₹${(amountPaise / 100).toFixed(2)} cash (₹${((resolvedCommissionPaise + resolvedArrearsPaise) / 100).toFixed(2)} commission + rider arrears deducted from wallet). UPI QR: net trip earnings credit to your wallet.`
               : `UPI wallet effect: Net trip earnings credit to your wallet; Cabzone retains commission and ₹${(resolvedArrearsPaise / 100).toFixed(2)} rider arrears.`}
           </Text>
         </View>
       ) : null}
+
       <Text style={styles.body}>
-        {cash
-          ? 'Collect cash from your rider. Confirm receipt only after you have received the full fare.'
-          : qr?.testMode === false
-            ? 'Ask your rider to scan with GPay, PhonePe, or another UPI app. Payment updates automatically.'
-            : 'Show the QR to your rider. They can scan it with their phone camera to open test checkout.'}
+        Accept payment in Cash or UPI. Tap &quot;Show QR&quot; only when the passenger wants to
+        scan a UPI QR code.
       </Text>
-      {qr && !cash ? (
-        <Image
-          source={{ uri: qr.imageDataUrl }}
-          style={styles.qr}
-          resizeMode="contain"
-          accessibilityLabel={
-            qr.testMode
-              ? 'Ride payment QR. Scan with the rider’s phone camera.'
-              : 'Ride payment QR. Scan with a UPI app.'
-          }
-          onError={() => {
-            setQr(null);
-            setMessage('The QR could not load. Please try again.');
-          }}
-        />
-      ) : null}
+
       <Pressable
         style={styles.primary}
-        onPress={() => (cash ? setSheet('confirm') : void showQr())}
+        onPress={() => {
+          setMessage(null);
+          setQrOpen(true);
+        }}
         disabled={busy || !token}
         accessibilityRole="button"
-        accessibilityLabel={cash ? 'Cash received' : qr ? 'Refresh payment QR' : 'Show payment QR'}
+        accessibilityLabel="Show QR"
         accessibilityState={{ disabled: busy || !token, busy }}
       >
         {busy ? (
           <ActivityIndicator color={colors.deepBrown} />
         ) : (
-          <Text style={styles.primaryText}>
-            {cash ? 'Cash received' : qr ? 'Refresh QR' : 'Show payment QR'}
-          </Text>
+          <Text style={styles.primaryText}>Show QR</Text>
         )}
       </Pressable>
-      {!cash && canSwitchToCash ? (
+
+      {canAcceptCash ? (
         <Pressable
-          style={styles.secondary}
-          onPress={() => setSheet('cash')}
+          style={styles.cashOutlineBtn}
+          onPress={() => {
+            setMessage(null);
+            setSheet('confirm');
+          }}
           disabled={busy || !token}
           accessibilityRole="button"
-          accessibilityLabel="Change payment"
+          accessibilityLabel="Cash received"
         >
-          <Text style={styles.primaryText}>Change payment</Text>
+          <Text style={styles.primaryText}>Cash received</Text>
         </Pressable>
-      ) : null}
-      {!cash && !canSwitchToCash ? (
+      ) : (
         <Text style={styles.cashBlockedNotice}>
           {cashBlockedReason ||
             'Cash collection is disabled while prior rider cancellation fees are due. Collect the full total via UPI QR.'}
         </Text>
-      ) : null}
+      )}
+
       <Pressable
         style={styles.secondary}
-        onPress={() => void check(true)}
+        onPress={() => void checkStatus()}
         disabled={busy || !token}
         accessibilityRole="button"
         accessibilityLabel="Check payment status"
       >
         <Text style={styles.primaryText}>Check payment status</Text>
       </Pressable>
-      {qr?.testMode ? (
-        <Text style={styles.caption}>
-          Test payment · No real money is charged. This QR opens checkout; it is not a GPay or
-          PhonePe UPI QR.
-        </Text>
+
+      {onMarkUnpaid ? (
+        <Pressable
+          style={styles.secondary}
+          onPress={() => {
+            setMessage(null);
+            setSheet('unpaid');
+          }}
+          disabled={busy || !token}
+          accessibilityRole="button"
+          accessibilityLabel="Rider didn't pay"
+        >
+          <Text style={styles.unpaidText}>Rider didn&apos;t pay</Text>
+        </Pressable>
       ) : null}
+
       <Text style={styles.caption}>
-        You can return to Home while waiting. This ride stays pending until payment is confirmed.
+        You can return to Home anytime — pending payment never blocks new ride offers or going
+        offline.
       </Text>
+
       {message ? (
         <Text style={styles.error} accessibilityRole="alert">
           {message}
         </Text>
       ) : null}
+
+      <RidePaymentQrSheet
+        visible={qrOpen}
+        rideId={rideId}
+        cashAllowed={canAcceptCash}
+        cashBlockedReason={cashBlockedReason}
+        onRide={handleSheetRide}
+        onClose={handleSheetClose}
+        onCash={handleCashFromQrSheet}
+      />
+
       <Modal
         visible={sheet !== null}
         transparent
@@ -290,25 +291,31 @@ export function RidePaymentQr({
         <View style={styles.shade}>
           <View style={styles.sheet}>
             <Text style={styles.title}>
-              {sheet === 'confirm' ? 'Have you received the cash?' : 'Switch to cash?'}
+              {sheet === 'confirm' ? 'Have you received the cash?' : 'Report unpaid ride?'}
             </Text>
             <Text style={styles.body}>
               {sheet === 'confirm'
-                ? `Confirm only after receiving ₹${(amountPaise / 100).toFixed(2)} from your rider. This completes payment for the ride.`
-                : 'The UPI checkout will close. Make sure the rider has not paid online. You will confirm receipt after collecting cash.'}
+                ? `Confirm only after receiving ₹${(amountPaise / 100).toFixed(2)} in cash from your rider. Any open UPI QR will be closed automatically.`
+                : isCashClaimed
+                  ? 'Your rider marked this trip paid in cash. Reporting unpaid will open a payment dispute for Cabzone Support with ₹0 commission charged right now.'
+                  : 'Use this if the passenger left without paying. You will be charged ₹0 commission, and the passenger must settle before booking again.'}
             </Text>
             <Pressable
-              style={styles.primary}
+              style={sheet === 'unpaid' ? styles.dangerBtn : styles.primary}
               disabled={busy || !token}
-              onPress={() => void cashAction()}
+              onPress={() => void submitSheetAction()}
               accessibilityRole="button"
-              accessibilityLabel={sheet === 'confirm' ? 'Confirm cash received' : 'Switch to cash'}
+              accessibilityLabel={
+                sheet === 'confirm' ? 'Confirm cash received' : "Confirm rider didn't pay"
+              }
             >
               {busy ? (
-                <ActivityIndicator color={colors.deepBrown} />
+                <ActivityIndicator
+                  color={sheet === 'unpaid' ? colors.white : colors.deepBrown}
+                />
               ) : (
-                <Text style={styles.primaryText}>
-                  {sheet === 'confirm' ? 'Confirm cash received' : 'Switch to cash'}
+                <Text style={sheet === 'unpaid' ? styles.dangerBtnText : styles.primaryText}>
+                  {sheet === 'confirm' ? 'Confirm cash received' : "Confirm rider didn't pay"}
                 </Text>
               )}
             </Pressable>
@@ -318,7 +325,7 @@ export function RidePaymentQr({
               onPress={() => setSheet(null)}
               accessibilityRole="button"
             >
-              <Text style={styles.primaryText}>{sheet === 'confirm' ? 'Not yet' : 'Keep UPI'}</Text>
+              <Text style={styles.primaryText}>{sheet === 'confirm' ? 'Not yet' : 'Go back'}</Text>
             </Pressable>
           </View>
         </View>
@@ -347,6 +354,25 @@ const styles = StyleSheet.create({
   },
   title: { fontSize: 20, lineHeight: 27, fontWeight: '800', color: colors.deepBrown },
   amount: { fontSize: 32, lineHeight: 40, fontWeight: '800', color: colors.deepBrown },
+  cashClaimedNotice: {
+    backgroundColor: '#FFFBEB',
+    borderWidth: 1,
+    borderColor: colors.amber,
+    borderRadius: 12,
+    padding: 12,
+    gap: 4,
+  },
+  cashClaimedTitle: {
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: '800',
+    color: colors.deepBrown,
+  },
+  cashClaimedBody: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: colors.deepBrown,
+  },
   breakdownBox: {
     borderWidth: 1,
     borderColor: colors.border,
@@ -369,13 +395,6 @@ const styles = StyleSheet.create({
   cashBlockedNotice: { fontSize: 13, lineHeight: 19, fontWeight: '600', color: colors.brandBrown },
   body: { fontSize: 15, lineHeight: 22, color: colors.deepBrown },
   caption: { fontSize: 13, lineHeight: 19, color: colors.secondary },
-  qr: {
-    width: '100%',
-    maxWidth: 288,
-    aspectRatio: 1,
-    alignSelf: 'center',
-    backgroundColor: colors.white,
-  },
   primary: {
     minHeight: 56,
     padding: 16,
@@ -384,7 +403,27 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: colors.amber,
   },
+  cashOutlineBtn: {
+    minHeight: 52,
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: colors.deepBrown,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.white,
+  },
+  dangerBtn: {
+    minHeight: 56,
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.error,
+  },
+  dangerBtnText: { fontSize: 15, lineHeight: 21, fontWeight: '700', color: colors.white },
   primaryText: { fontSize: 15, lineHeight: 21, fontWeight: '700', color: colors.deepBrown },
+  unpaidText: { fontSize: 14, lineHeight: 20, fontWeight: '700', color: colors.error },
   secondary: { minHeight: 48, alignItems: 'center', justifyContent: 'center' },
   error: { fontSize: 13, lineHeight: 19, color: colors.error },
 });

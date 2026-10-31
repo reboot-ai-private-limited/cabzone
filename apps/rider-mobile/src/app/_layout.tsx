@@ -1,3 +1,4 @@
+import '@/services/voice-bootstrap';
 import React, { useEffect, useRef } from 'react';
 import { Alert } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
@@ -5,7 +6,9 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from '@/context/auth-context';
 import { RideProvider, useRide } from '@/context/ride-context';
+import { RideCallProvider } from '@/context/call-context';
 import { isRideActive } from '@/services/rider-helpers';
+import { RIDE_COMMUNICATION_STATUSES } from '@cabzone/contracts';
 import { colors } from '@/design-system';
 
 function NotificationNavigator() {
@@ -25,14 +28,24 @@ function NotificationNavigator() {
           response: NonNullable<ReturnType<typeof Notifications.getLastNotificationResponse>>,
         ) => {
           const notification = response.notification;
+          const { rideId, type } = notification.request.content.data ?? {};
+          if (type === 'ride.call.incoming') return;
           if (handledRef.current === notification.request.identifier) return;
           handledRef.current = notification.request.identifier;
-          const { rideId } = notification.request.content.data ?? {};
           try {
             if (typeof rideId === 'string' && rideId.length > 0) {
               const detail = await refreshRideById(rideId);
               void refreshRides().catch(() => null);
-              if (detail && isRideActive(detail.ride.status)) {
+              if (
+                detail &&
+                type === 'ride.chat.message' &&
+                RIDE_COMMUNICATION_STATUSES.includes(detail.ride.status)
+              ) {
+                router.push({ pathname: '/(rider)/chat/[rideId]', params: { rideId } });
+              } else if (
+                detail &&
+                (isRideActive(detail.ride.status) || detail.ride.status === 'PAYMENT_CASH_CLAIMED')
+              ) {
                 router.push(`/(rider)/ride/${rideId}`);
               } else if (
                 detail &&
@@ -72,19 +85,21 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <AuthProvider>
         <RideProvider>
-          <StatusBar style="dark" />
-          <NotificationNavigator />
-          <Stack
-            screenOptions={{
-              headerShown: false,
-              contentStyle: { backgroundColor: colors.background },
-            }}
-          >
-            <Stack.Screen name="index" />
-            <Stack.Screen name="(auth)" />
-            <Stack.Screen name="(onboarding)" />
-            <Stack.Screen name="(rider)" />
-          </Stack>
+          <RideCallProvider>
+            <StatusBar style="dark" />
+            <NotificationNavigator />
+            <Stack
+              screenOptions={{
+                headerShown: false,
+                contentStyle: { backgroundColor: colors.background },
+              }}
+            >
+              <Stack.Screen name="index" />
+              <Stack.Screen name="(auth)" />
+              <Stack.Screen name="(onboarding)" />
+              <Stack.Screen name="(rider)" />
+            </Stack>
+          </RideCallProvider>
         </RideProvider>
       </AuthProvider>
     </SafeAreaProvider>

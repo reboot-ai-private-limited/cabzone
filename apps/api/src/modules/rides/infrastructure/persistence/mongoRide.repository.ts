@@ -1,4 +1,4 @@
-import { ACTIVE_RIDE_STATUSES } from '@cabzone/contracts';
+import { ACTIVE_RIDE_STATUSES, RIDE_COMMUNICATION_STATUSES } from '@cabzone/contracts';
 import type {
   RideCountFilter,
   RideEntity,
@@ -12,6 +12,21 @@ import { AppError } from '../../../../shared/errors/AppError.js';
 export class MongoRideRepository implements RideRepositoryPort {
   async ensureReady(): Promise<void> {
     await RideModel.init();
+  }
+
+  async allocateChatSequence(rideId: string, expectedDriverId: string): Promise<number | null> {
+    const doc = await RideModel.findOneAndUpdate(
+      {
+        _id: rideId,
+        driver_id: expectedDriverId,
+        status: { $in: [...RIDE_COMMUNICATION_STATUSES] },
+      },
+      { $inc: { chat_sequence: 1 } },
+      { new: true },
+    )
+      .lean<RideDocument | null>()
+      .exec();
+    return doc?.chat_sequence ?? null;
   }
 
   async create(ride: RideEntity): Promise<RideEntity> {
@@ -219,6 +234,8 @@ export class MongoRideRepository implements RideRepositoryPort {
                     [
                       'TRIP_COMPLETED',
                       'PAYMENT_PENDING',
+                      'PAYMENT_CASH_CLAIMED',
+                      'PAYMENT_UNPAID',
                       'PAYMENT_DISPUTED',
                       'SETTLED',
                       'PAYMENT_CONFIRMED',
@@ -259,6 +276,8 @@ export class MongoRideRepository implements RideRepositoryPort {
                     [
                       'TRIP_COMPLETED',
                       'PAYMENT_PENDING',
+                      'PAYMENT_CASH_CLAIMED',
+                      'PAYMENT_UNPAID',
                       'PAYMENT_DISPUTED',
                       'SETTLED',
                       'PAYMENT_CONFIRMED',
@@ -339,6 +358,8 @@ export class MongoRideRepository implements RideRepositoryPort {
                     [
                       'TRIP_COMPLETED',
                       'PAYMENT_PENDING',
+                      'PAYMENT_CASH_CLAIMED',
+                      'PAYMENT_UNPAID',
                       'PAYMENT_DISPUTED',
                       'SETTLED',
                       'PAYMENT_CONFIRMED',

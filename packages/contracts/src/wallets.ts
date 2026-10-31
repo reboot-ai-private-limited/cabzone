@@ -47,7 +47,6 @@ export interface WalletSummaryDto {
   ownerType: 'DRIVER' | 'RIDER';
   ownerId: string;
   name: string | null;
-  phoneE164: string;
   email?: string | null | undefined;
   // Driver metadata
   vehicleNumber?: string | null | undefined;
@@ -190,7 +189,6 @@ export interface AdjustWalletRequestDto {
   amountPaise: number;
   reason: string;
 }
-
 
 export type WalletLedgerReconciliationIssueCode =
   | 'WALLET_BALANCE_DRIFT'

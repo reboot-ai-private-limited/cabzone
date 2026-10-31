@@ -1,4 +1,4 @@
-import { isActiveRideStatus } from '@cabzone/contracts';
+import { isActiveRideStatus, RIDE_COMMUNICATION_STATUSES } from '@cabzone/contracts';
 import type {
   RideCountFilter,
   RideEntity,
@@ -14,6 +14,21 @@ function duplicateKeyError(message: string): Error & { code: number } {
 
 export class MemoryRideRepository implements RideRepositoryPort {
   private readonly rides = new Map<string, RideEntity>();
+  private readonly chatSequences = new Map<string, number>();
+
+  async allocateChatSequence(rideId: string, expectedDriverId: string): Promise<number | null> {
+    const ride = this.rides.get(rideId);
+    if (
+      !ride ||
+      ride.driverId !== expectedDriverId ||
+      !RIDE_COMMUNICATION_STATUSES.includes(ride.status)
+    ) {
+      return null;
+    }
+    const next = (this.chatSequences.get(rideId) ?? 0) + 1;
+    this.chatSequences.set(rideId, next);
+    return next;
+  }
 
   private assertUniqueConstraints(ride: RideEntity): void {
     for (const existing of this.rides.values()) {
@@ -223,6 +238,8 @@ export class MemoryRideRepository implements RideRepositoryPort {
     const isCompleted = (status: string) =>
       status === 'TRIP_COMPLETED' ||
       status === 'PAYMENT_PENDING' ||
+      status === 'PAYMENT_CASH_CLAIMED' ||
+      status === 'PAYMENT_UNPAID' ||
       status === 'PAYMENT_DISPUTED' ||
       status === 'SETTLED' ||
       status === 'PAYMENT_CONFIRMED';
@@ -257,6 +274,8 @@ export class MemoryRideRepository implements RideRepositoryPort {
     const isCompleted = (status: string) =>
       status === 'TRIP_COMPLETED' ||
       status === 'PAYMENT_PENDING' ||
+      status === 'PAYMENT_CASH_CLAIMED' ||
+      status === 'PAYMENT_UNPAID' ||
       status === 'PAYMENT_DISPUTED' ||
       status === 'SETTLED' ||
       status === 'PAYMENT_CONFIRMED';

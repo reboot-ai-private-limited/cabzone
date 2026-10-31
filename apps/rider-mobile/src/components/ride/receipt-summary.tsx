@@ -15,6 +15,8 @@ const milestoneLabels: Record<string, string> = {
   DRIVER_ARRIVED: 'Driver arrived',
   TRIP_STARTED: 'Trip started',
   TRIP_COMPLETED: 'Trip completed',
+  PAYMENT_CASH_CLAIMED: 'Marked cash paid to driver',
+  PAYMENT_UNPAID: 'Reported unpaid by driver',
   PAYMENT_CONFIRMED: 'Payment confirmed',
   CANCELLED: 'Ride cancelled',
   CANCELLATION_FEE_APPLIED: 'Cancellation fee added to next trip',

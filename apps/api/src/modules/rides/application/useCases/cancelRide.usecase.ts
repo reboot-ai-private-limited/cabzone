@@ -2,6 +2,7 @@ import type { CancellationReason, RideEventActor } from '@cabzone/contracts';
 import { AppError } from '../../../../shared/errors/AppError.js';
 import { newUuid } from '../../../../shared/ids.js';
 import type { UnitOfWorkPort } from '../../../../shared/db/unitOfWork.port.js';
+import { logger } from '../../../../shared/logging/logger.js';
 import { saveRideTransition } from '../rideTransition.js';
 import {
   calculateNewBalance,
@@ -47,6 +48,7 @@ export interface CancelRideDeps {
   rideRepo: RideRepositoryPort;
   walletRepo: WalletRepositoryPort;
   rideEventRepo?: RideEventRepositoryPort;
+  onRideCancelled?: (rideId: string) => Promise<void>;
 }
 
 export interface CancelRideResult {
@@ -61,7 +63,12 @@ export class CancelRideUseCase {
 
   async execute(input: CancelRideInput): Promise<CancelRideResult> {
     try {
-      return await this.deps.unitOfWork.run(() => this.cancel(input));
+      const result = await this.deps.unitOfWork.run(() => this.cancel(input));
+      if (result.ride.status === 'CANCELLED') {
+        try { await this.deps.onRideCancelled?.(result.ride.id); }
+        catch (error) { logger.warn({ rideId: result.ride.id, error: String(error) }, 'failed to end ride call after cancellation'); }
+      }
+      return result;
     } catch (error) {
       const isStateOrDuplicateConflict =
         (error instanceof AppError &&

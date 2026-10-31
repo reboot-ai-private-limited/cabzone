@@ -6,6 +6,8 @@
 **Primary stack:** Node.js / TypeScript / MongoDB
 
 > **2026-10-01 (D-037):** This document previously specified a stored State entity (admin-managed GeoJSON boundary polygons, a States admin screen, and per-state `StatePricing`). That system is removed. See [`decision-log.md`](../decision-log.md#d-037--supersede-d-035-remove-state-boundarystatepricing-system-adopt-global-outstation-pricing) (D-037, supersedes D-035) and [`open-questions.md`](open-questions.md) OQ-011. This document now reflects the current (post-D-037) design.
+>
+> **2026-10-30 Sync Note (D-039 & D-045 Supersession):** Decision [`D-039`](../decision-log.md) supersedes D-037's uniform-pricing rule with hierarchical `CITY → STATE → GLOBAL` `PricingConfig` resolution and bundled offline state-boundary GeoJSON segment splitting for `INTERSTATE` distance pricing (while preserving D-038 outstation tiers and keeping every destination state serviceable without admin-drawn state polygons). Decision [`D-045`](../decision-log.md#d-045--highway-toll--interstate-permit-quoteride-treatment) freezes route tolls/permits in a separate non-commissioned `tollSnapshot` payable at actuals (`null` when unknown, never coerced to `₹0`). Where older sections below describe uniform city-only pricing or toll-inclusive fares, `D-039` and `D-045` govern.
 
 ---
 

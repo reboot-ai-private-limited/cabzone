@@ -1,4 +1,8 @@
 import type {
+  RideChatPageDto,
+  RideChatMessageDto,
+  RideCallDto,
+  RideCallTokenDto,
   ProposeRideExtensionRequestDto,
   CancellationReason,
   CreateQuoteResponseDto,
@@ -54,9 +58,33 @@ function getApiBaseUrl(): string {
 
 export const API_BASE_URL = getApiBaseUrl();
 
+export const rideChatApi = {
+  list: (token: string, rideId: string, cursor: { before?: number; after?: number } = {}) => {
+    const query = new URLSearchParams();
+    if (cursor.before !== undefined) query.set('before', String(cursor.before));
+    if (cursor.after !== undefined) query.set('after', String(cursor.after));
+    return request<RideChatPageDto>(`/api/v1/rides/${encodeURIComponent(rideId)}/messages?${query}`, {}, token);
+  },
+  send: (token: string, rideId: string, clientMessageId: string, text: string) =>
+    request<RideChatMessageDto>(`/api/v1/rides/${encodeURIComponent(rideId)}/messages`, {
+      method: 'POST', body: JSON.stringify({ clientMessageId, text }),
+    }, token),
+};
+
+export const rideCallsApi = {
+  current: (token: string, rideId: string) => request<{ call: RideCallDto | null }>(`/api/v1/rides/${encodeURIComponent(rideId)}/calls/current`, {}, token),
+  start: (token: string, rideId: string, installationId: string, clientRequestId: string) => request<RideCallDto>(`/api/v1/rides/${encodeURIComponent(rideId)}/calls`, { method: 'POST', body: JSON.stringify({ installationId, clientRequestId }) }, token),
+  answer: (token: string, rideId: string, callId: string, installationId: string) => request<RideCallDto>(`/api/v1/rides/${encodeURIComponent(rideId)}/calls/${encodeURIComponent(callId)}/answer`, { method: 'POST', body: JSON.stringify({ installationId }) }, token),
+  decline: (token: string, rideId: string, callId: string) => request<RideCallDto>(`/api/v1/rides/${encodeURIComponent(rideId)}/calls/${encodeURIComponent(callId)}/decline`, { method: 'POST' }, token),
+  end: (token: string, rideId: string, callId: string) => request<RideCallDto>(`/api/v1/rides/${encodeURIComponent(rideId)}/calls/${encodeURIComponent(callId)}/end`, { method: 'POST' }, token),
+  token: (token: string, rideId: string, callId: string, installationId: string) => request<RideCallTokenDto>(`/api/v1/rides/${encodeURIComponent(rideId)}/calls/${encodeURIComponent(callId)}/token`, { method: 'POST', body: JSON.stringify({ installationId }) }, token),
+  connected: (token: string, rideId: string, callId: string) => request<RideCallDto>(`/api/v1/rides/${encodeURIComponent(rideId)}/calls/${encodeURIComponent(callId)}/connected`, { method: 'POST' }, token),
+  endCurrent: (token: string) => request<{ ended: boolean }>('/api/v1/rides/calls/current/end', { method: 'POST' }, token),
+};
+
 export function getRealtimeWsUrl(token: string): string {
   const wsBase = API_BASE_URL.replace(/^http/, 'ws');
-  return `${wsBase}/ws?token=${encodeURIComponent(token)}`;
+  return `${wsBase}/ws?access_token=${encodeURIComponent(token)}`;
 }
 
 interface ApiResponse<T> {
@@ -358,6 +386,13 @@ export const riderRidesApi = {
       token,
     );
   },
+  async claimCashPaid(token: string, rideId: string): Promise<RiderRideViewDto> {
+    return request<RiderRideViewDto>(
+      `/api/v1/rides/${encodeURIComponent(rideId)}/payment/claim-cash`,
+      { method: 'POST', body: JSON.stringify({}) },
+      token,
+    );
+  },
   async createUpiSession(
     token: string,
     rideId: string,
@@ -535,10 +570,19 @@ export const pushApi = {
     token: string,
     pushToken: string,
     installationId: string,
+    meta?: { platform?: 'android' | 'ios'; transport?: 'EXPO' | 'FCM_CALL' | 'APNS_VOIP' },
   ): Promise<{ ok: boolean }> {
     return request<{ ok: boolean }>(
       '/api/v1/push-token',
-      { method: 'POST', body: JSON.stringify({ token: pushToken, installationId }) },
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          token: pushToken,
+          installationId,
+          ...(meta?.platform ? { platform: meta.platform } : {}),
+          ...(meta?.transport ? { transport: meta.transport } : {}),
+        }),
+      },
       token,
     );
   },

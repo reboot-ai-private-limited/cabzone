@@ -22,6 +22,8 @@ export const RIDE_STATUSES = [
   'TRIP_STARTED',
   'TRIP_COMPLETED',
   'PAYMENT_PENDING',
+  'PAYMENT_CASH_CLAIMED',
+  'PAYMENT_UNPAID',
   'PAYMENT_CONFIRMED',
   'PAYMENT_DISPUTED',
   'SETTLED',
@@ -32,8 +34,8 @@ export const RIDE_STATUSES = [
 export type RideStatus = (typeof RIDE_STATUSES)[number];
 
 /**
- * Ride statuses that block a rider (`bookerRiderId`) from creating another ride (Decision D-043).
- * Non-blocking statuses: SETTLED, CANCELLED, EXPIRED, PAYMENT_DISPUTED.
+ * Ride statuses indexed by MongoDB's `one_active_ride_per_rider` partial unique index (Decision D-043).
+ * Keep this exact 9-status list stable so existing MongoDB partial indexes never conflict on boot.
  */
 export const ACTIVE_RIDE_STATUSES = [
   'REQUESTED',
@@ -49,10 +51,42 @@ export const ACTIVE_RIDE_STATUSES = [
 
 export type ActiveRideStatus = (typeof ACTIVE_RIDE_STATUSES)[number];
 
+/**
+ * Statuses that block a rider (`bookerRiderId`) from creating a new ride:
+ * includes `PAYMENT_UNPAID` (driver reported trip unpaid; rider must settle via UPI),
+ * and excludes `PAYMENT_CASH_CLAIMED` (rider claimed cash handover awaiting driver confirmation).
+ */
+export const RIDER_BOOKING_BLOCKED_STATUSES = [
+  ...ACTIVE_RIDE_STATUSES,
+  'PAYMENT_UNPAID',
+] as const satisfies readonly RideStatus[];
+
+/**
+ * Statuses where an assigned driver is physically on an active trip and unavailable for new offers.
+ * Post-drop payment states (`TRIP_COMPLETED`, `PAYMENT_PENDING`, `PAYMENT_CASH_CLAIMED`) never block new offers.
+ */
+export const DRIVER_ON_TRIP_STATUSES = [
+  'DRIVER_ASSIGNED',
+  'DRIVER_EN_ROUTE',
+  'DRIVER_ARRIVED',
+  'TRIP_STARTED',
+] as const satisfies readonly RideStatus[];
+
+export const DRIVER_PENDING_PAYMENT_STATUSES = [
+  'TRIP_COMPLETED',
+  'PAYMENT_PENDING',
+  'PAYMENT_CASH_CLAIMED',
+] as const satisfies readonly RideStatus[];
+
 const ACTIVE_RIDE_STATUS_SET: ReadonlySet<RideStatus> = new Set(ACTIVE_RIDE_STATUSES);
+const RIDER_BOOKING_BLOCKED_SET: ReadonlySet<RideStatus> = new Set(RIDER_BOOKING_BLOCKED_STATUSES);
 
 export function isActiveRideStatus(status: RideStatus): boolean {
   return ACTIVE_RIDE_STATUS_SET.has(status);
+}
+
+export function isRiderBookingBlockedStatus(status: RideStatus): boolean {
+  return RIDER_BOOKING_BLOCKED_SET.has(status);
 }
 
 export interface ActiveRideConflictDetailsDto {
@@ -126,7 +160,8 @@ export interface RideAssignedDriverVehicleDto {
 export interface RideAssignedDriverDto {
   driverId: string;
   name: string;
-  phoneE164: string;
+  /** Legacy clients may supply this field; public ride responses omit it. */
+  phoneE164?: string;
   profilePhotoUrl: string | null;
   ratingAverage?: number | null;
   ratingCount?: number;
@@ -264,7 +299,8 @@ export interface RideDto {
   passenger: {
     riderId: string | null;
     name: string;
-    phoneE164: string;
+    /** Legacy clients may supply this field; public ride responses omit it. */
+    phoneE164?: string;
     pickupOtpExpiresAt?: string | null;
   };
   driverId: string | null;

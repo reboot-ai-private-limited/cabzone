@@ -6,6 +6,7 @@ import React, {
   useMemo,
   useState,
 } from 'react';
+import { Platform } from 'react-native';
 import type {
   AuthenticatedUserSummary,
   RiderDto,
@@ -15,10 +16,12 @@ import {
   authApi,
   isApiError,
   pushApi,
+  rideCallsApi,
   riderProfileApi,
   subscribeAccessToken,
 } from '@/services/api';
 import {
+  getNativeCallPushTokenAsync,
   listenForPushTokenChanges,
   registerForPushAsync,
 } from '@/services/push-notifications';
@@ -36,6 +39,7 @@ import {
   type RiderLocalPreferences,
 } from '@/services/storage';
 import type { SavedRouteTemplate } from '@/services/rider-helpers';
+import { stopActiveRideCallMedia } from '@/services/ride-call-media';
 
 interface AuthContextValue {
   isBootstrapping: boolean;
@@ -161,10 +165,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         });
       });
       const pushToken = await registerForPushAsync();
-      if (!pushToken || cancelled) return;
-      await pushApi.registerPushToken(token, pushToken, installationId).catch((error: unknown) => {
-        console.warn('Rider push registration failed:', error);
-      });
+      if (pushToken && !cancelled) {
+        await pushApi
+          .registerPushToken(token, pushToken, installationId, {
+            platform: Platform.OS === 'ios' ? 'ios' : 'android',
+            transport: 'EXPO',
+          })
+          .catch((error: unknown) => {
+            console.warn('Rider push registration failed:', error);
+          });
+      }
+      const nativeCallToken = await getNativeCallPushTokenAsync();
+      if (nativeCallToken && !cancelled) {
+        await pushApi
+          .registerPushToken(token, nativeCallToken.token, installationId, {
+            platform: nativeCallToken.platform,
+            transport: nativeCallToken.transport,
+          })
+          .catch(() => {});
+      }
     });
     return () => {
       cancelled = true;
@@ -264,6 +283,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       if (activeToken) {
         const installationId = await getOrCreateDeviceId();
+        await rideCallsApi.endCurrent(activeToken).catch(() => {});
+        await stopActiveRideCallMedia();
         await pushApi.unregisterPushToken(activeToken, installationId).catch(() => {});
         await authApi.logout(activeToken).catch(() => {});
       }

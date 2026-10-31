@@ -12,6 +12,7 @@ import {
 } from '@/modules/pricing/index.js';
 import {
   canDriverGoOnline,
+  canUserAuthenticate,
   DriverModel,
   isVehicleApproved,
   MongoDriverRepository,
@@ -32,7 +33,7 @@ import { DEFAULT_DISPATCH_CONFIG } from '@/modules/dispatch/application/dispatch
 import { RedisOfferRecipientsRepository } from '@/modules/dispatch/infrastructure/offerRecipients.repository.js';
 import { MongoPushTokenRepository } from '@/modules/dispatch/infrastructure/pushToken.repository.js';
 import { MongoPushReceiptRepository } from '@/modules/dispatch/infrastructure/pushReceipt.repository.js';
-import { MongoWalletRepository } from '@/modules/ledger/index.js';
+import { MongoPaymentRepository, MongoWalletRepository } from '@/modules/ledger/index.js';
 import { buildLedgerContainer, type LedgerContainer } from '@/modules/ledger/ledger.container.js';
 import { RazorpayGateway } from '@/modules/rides/infrastructure/razorpay.adapter.js';
 import {
@@ -45,7 +46,11 @@ import { getRedis } from '@/shared/queue/redis.js';
 import { getRealtimeHub } from '@/shared/realtime/index.js';
 import { buildZoneContainer, type ZoneContainer } from '@/modules/zone/zone.container.js';
 import { buildRoutingContainer, type RoutingContainer } from '@/modules/routing/index.js';
+import { RIDE_CALL_RATE_LIMIT_PER_MIN, RIDE_CHAT_RATE_LIMIT_PER_MIN } from '@cabzone/contracts';
 import { AppError } from '@/shared/errors/AppError.js';
+import { MongoRideChatRepository } from '@/modules/rides/infrastructure/persistence/mongoRideChat.repository.js';
+import { MongoRideCallRepository } from '@/modules/rides/infrastructure/persistence/mongoRideCall.repository.js';
+import { MongoRateLimitStore } from '@/shared/http/rateLimit.js';
 import { isDriverEligibleForRide } from '@/modules/identity/domain/driverRideEligibility.js';
 
 export interface AppContainers {
@@ -123,6 +128,7 @@ export function buildContainers(overrides?: Partial<AppContainers>): AppContaine
   };
 
   const dispatchRef: { current?: DispatchContainer } = {};
+  const ridesRef: { current?: RidesContainer } = {};
 
   const identity =
     overrides?.identity ??
@@ -146,6 +152,21 @@ export function buildContainers(overrides?: Partial<AppContainers>): AppContaine
       },
       removeDriverPresence: async (driverId: string) => {
         await (dispatchRef.current?.presence ?? presenceRepo).remove(driverId);
+        const driver = await driverRepo.findById(driverId);
+        if (driver) {
+          await ridesRef.current?.rideCalls.endForUser(driver.userId, 'access_revoked');
+        }
+      },
+      onSessionRevoked: async (session) => {
+        await dispatchRef.current?.push.unregister(session.userId, session.deviceId);
+        await ridesRef.current?.rideCalls.endForInstallation(
+          session.userId,
+          session.deviceId,
+          'logout',
+        );
+      },
+      onAccountSuspended: async (userId: string) => {
+        await ridesRef.current?.rideCalls.endForUser(userId, 'access_revoked');
       },
       notifyDriver: async (notification) => {
         getRealtimeHub().publishToUser(
@@ -214,13 +235,12 @@ export function buildContainers(overrides?: Partial<AppContainers>): AppContaine
               name = 'Dev Driver';
             else if (u?.phone_e164 === '+919000000012' && !d.name) name = 'Subrata Ghosh';
             else if (u?.phone_e164 === '+919000000013' && !d.name) name = 'Rajesh Barman';
-            else if (!d.name && u) name = `Driver (${u.phone_e164.slice(-4)})`;
+            else if (!d.name) name = `Driver #${d._id.slice(0, 6)}`;
 
             const vCat = v?.vehicle_type ? `[${v.vehicle_type}] ` : '';
             return {
               id: d._id,
               name,
-              phoneE164: u?.phone_e164 ?? '',
               vehicleNumber: v?.registration_number
                 ? `${vCat}${v.registration_number}`
                 : (v?.vehicle_type ?? null),
@@ -233,7 +253,6 @@ export function buildContainers(overrides?: Partial<AppContainers>): AppContaine
           return res.items.map((item) => ({
             id: item.rider.id,
             name: item.rider.name,
-            phoneE164: item.phoneE164,
             email: item.rider.email,
           }));
         },
@@ -287,13 +306,11 @@ export function buildContainers(overrides?: Partial<AppContainers>): AppContaine
         getDriverInfo: async (driverId) => {
           const driver = await driverRepo.findById(driverId);
           if (!driver) return null;
-          const user = await userRepo.findById(driver.userId);
           const vehicle = driver.currentVehicleId
             ? await vehicleRepo.findById(driver.currentVehicleId)
             : null;
           return {
-            name: driver.name || (user ? `Driver (${user.phoneE164.slice(-4)})` : 'Driver'),
-            phoneE164: user?.phoneE164 ?? '',
+            name: driver.name?.trim() || `Driver #${driver.id.slice(0, 6)}`,
             registrationNumber: vehicle?.registrationNumber ?? undefined,
           };
         },
@@ -301,9 +318,76 @@ export function buildContainers(overrides?: Partial<AppContainers>): AppContaine
     });
   dispatchRef.current = dispatch;
 
+  const chatRateLimiter = new MongoRateLimitStore();
   const rides =
     overrides?.rides ??
     buildRidesContainer({
+      chatMessages: new MongoRideChatRepository(),
+      consumeChatRateLimit: (userId) =>
+        chatRateLimiter.consume(`ride-chat:${userId}`, RIDE_CHAT_RATE_LIMIT_PER_MIN, 60_000),
+      notifyChat: (ride, message) => dispatch.notifier.chatMessage(ride, message),
+      callRecords: new MongoRideCallRepository(),
+      getUserIdForRider: async (riderId) => (await riderRepo.findById(riderId))?.userId ?? null,
+      getUserIdForDriver: async (driverId) => (await driverRepo.findById(driverId))?.userId ?? null,
+      getCallerDisplayName: async (ride, callerRole) => {
+        if (callerRole === 'RIDER') {
+          return ride.passenger.name?.trim() || 'Your rider';
+        }
+        const driver = ride.driverId ? await driverRepo.findById(ride.driverId) : null;
+        return driver?.name?.trim() || 'Your driver';
+      },
+      isInstallationRegistered: (userId, installationId) =>
+        dispatch.push.hasInstallation(userId, installationId),
+      consumeCallRateLimit: (userId) =>
+        chatRateLimiter.consume(`ride-calls:${userId}`, RIDE_CALL_RATE_LIMIT_PER_MIN, 60_000),
+      notifyCall: async (userId, event, call, callerName) => {
+        const isActive =
+          call.state === 'RINGING' || call.state === 'ACCEPTED' || call.state === 'CONNECTED';
+        const type =
+          event === 'incoming'
+            ? 'ride.call.incoming'
+            : isActive
+              ? 'ride.call.updated'
+              : 'ride.call.ended';
+        const data = {
+          type,
+          callId: call.id,
+          rideId: call.rideId,
+          state: call.state,
+          callerRole: call.callerRole,
+          ...(callerName ? { callerName } : {}),
+          ...(call.connectedAt ? { connectedAt: call.connectedAt } : {}),
+          ...(event === 'incoming' ? { expiresAt: call.ringingUntil } : {}),
+        };
+        getRealtimeHub().publishToUser(userId, type, data);
+        if (event === 'incoming' || !isActive) {
+          await dispatch.push.notify([userId], {
+            title:
+              event === 'incoming'
+                ? `Incoming ride call${callerName ? ` · ${callerName}` : ''}`
+                : 'Ride call ended',
+            body:
+              event === 'incoming'
+                ? 'Tap to answer privately in Cabzone.'
+                : 'Your private ride call has ended.',
+            channelId: 'ride-calls',
+            data,
+            expiresAt:
+              event === 'incoming'
+                ? new Date(call.ringingUntil)
+                : new Date(Date.now() + 30_000),
+          });
+        }
+      },
+      isCommunicationAccountActive: async (userId, role) => {
+        const user = await userRepo.findById(userId);
+        if (!user || !canUserAuthenticate(user)) return false;
+        if (role === 'DRIVER') {
+          const driver = await driverRepo.findByUserId(userId);
+          return driver?.status === 'ACTIVE';
+        }
+        return true;
+      },
       extensions: {
         routing: routing.getRouteUseCase,
         getDriverLocation: async (driverId) => {
@@ -330,6 +414,7 @@ export function buildContainers(overrides?: Partial<AppContainers>): AppContaine
       rideRepo,
       rideEventRepo: new MongoRideEventRepository(),
       rideReviewRepo: new MongoRideReviewRepository(),
+      paymentRepo: new MongoPaymentRepository(),
       applyRevealedProfileRating: async (targetRole, targetId, stars) => {
         if (targetRole === 'DRIVER') {
           if (driverRepo.applyRevealedRating) {
@@ -374,16 +459,11 @@ export function buildContainers(overrides?: Partial<AppContainers>): AppContaine
         const driver = await driverRepo.findById(driverId);
         if (!driver) return null;
         const targetVehicleId = vehicleId ?? driver.currentVehicleId;
-        const [user, vehicle] = await Promise.all([
-          userRepo.findById(driver.userId),
-          targetVehicleId ? vehicleRepo.findById(targetVehicleId) : Promise.resolve(null),
-        ]);
-        const name =
-          driver.name?.trim() || (user ? `Driver (${user.phoneE164.slice(-4)})` : 'Cabzone Driver');
+        const vehicle = targetVehicleId ? await vehicleRepo.findById(targetVehicleId) : null;
+        const name = driver.name?.trim() || 'Cabzone Driver';
         return {
           driverId: driver.id,
           name,
-          phoneE164: user?.phoneE164 ?? '',
           profilePhotoUrl: driver.profilePhotoUrl ?? null,
           ratingAverage: driver.ratingCount > 0 ? driver.ratingAverage : null,
           ratingCount: driver.ratingCount,
@@ -452,6 +532,7 @@ export function buildContainers(overrides?: Partial<AppContainers>): AppContaine
         return vehicle!.id;
       },
     });
+  ridesRef.current = rides;
 
   return {
     health,

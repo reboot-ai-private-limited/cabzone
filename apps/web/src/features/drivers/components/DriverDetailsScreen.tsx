@@ -318,8 +318,7 @@ export function DriverDetailsScreen({ id }: DriverDetailsScreenProps) {
 
   const driverDisplayName =
     d.driver?.name?.trim() ||
-    d.phoneE164 ||
-    (d.vehicle?.make ? `${d.vehicle.make} ${d.vehicle.model}` : 'Unnamed Driver');
+    (d.vehicle?.make ? `${d.vehicle.make} ${d.vehicle.model}` : `Driver #${driverId.slice(0, 8)}`);
   const driverIdDisplay = d.driver?.id ?? d.application.driverId ?? '—';
   const isSuspended = d.driver?.status === 'SUSPENDED';
 
@@ -332,7 +331,6 @@ export function DriverDetailsScreen({ id }: DriverDetailsScreenProps) {
           ownerType: 'DRIVER',
           ownerId: driverId,
           name: d.driver?.name ?? null,
-          phoneE164: d.phoneE164 ?? '',
           vehicleNumber: d.vehicle?.registrationNumber ?? null,
           balancePaise,
           spendableCreditPaise: Math.max(0, balancePaise),
@@ -488,15 +486,9 @@ export function DriverDetailsScreen({ id }: DriverDetailsScreenProps) {
                 {/* Column 1 */}
                 <div className="flex flex-col">
                   <div className="flex items-center justify-between py-3.5 border-b border-slate-100 text-sm">
-                    <span className="text-slate-500">Phone Number</span>
+                    <span className="text-slate-500">Driver ID</span>
                     <span className="font-medium text-slate-900 font-mono">
-                      {d.phoneE164 ?? '—'}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between py-3.5 border-b border-slate-100 text-sm">
-                    <span className="text-slate-500">Alternate Phone</span>
-                    <span className="font-medium text-slate-900 font-mono">
-                      {d.driver?.alternatePhone ?? '—'}
+                      {driverIdDisplay}
                     </span>
                   </div>
                   <div className="flex items-center justify-between py-3.5 border-b border-slate-100 text-sm">
@@ -522,7 +514,7 @@ export function DriverDetailsScreen({ id }: DriverDetailsScreenProps) {
                   <div className="flex items-center justify-between py-3.5 border-b border-slate-100 text-sm">
                     <span className="text-slate-500">Emergency Contact</span>
                     <span className="font-medium text-slate-900">
-                      {d.driver?.emergencyContact ?? '—'}
+                      {d.driver?.hasEmergencyContact ? 'Configured (private)' : 'Not set'}
                     </span>
                   </div>
                   <div className="flex items-center justify-between py-3.5 border-b border-slate-100 text-sm">
@@ -1197,7 +1189,6 @@ export function DriverDetailsScreen({ id }: DriverDetailsScreenProps) {
       <DocumentPreviewDialog
         applicationId={d.application.id}
         document={selectedDoc}
-        driverPhone={d.phoneE164}
         open={selectedDoc !== null}
         onOpenChange={(open) => !open && setSelectedDoc(null)}
       />
@@ -1227,7 +1218,7 @@ export function DriverDetailsScreen({ id }: DriverDetailsScreenProps) {
         open={isSuspendConfirmOpen}
         onOpenChange={setIsSuspendConfirmOpen}
         title={isSuspended ? 'Activate Driver Account' : 'Suspend Driver Account'}
-        description={`Are you sure you want to ${isSuspended ? 'restore active dispatch privileges for' : 'suspend'} driver ${d.phoneE164 ?? driverDisplayName}?`}
+        description={`Are you sure you want to ${isSuspended ? 'restore active dispatch privileges for' : 'suspend'} driver ${driverDisplayName}?`}
       >
         {!isSuspended && (
           <div className="flex flex-col gap-1.5 pt-2">

@@ -5,9 +5,9 @@ const apiUpstreamOrigin = process.env.API_UPSTREAM_ORIGIN?.trim().replace(/\/$/,
 
 const config: NextConfig = {
   distDir: process.env.NODE_ENV === 'development' ? '.next-dev' : '.next',
-  output: 'standalone',
+  output: process.env.VERCEL ? undefined : 'standalone',
   outputFileTracingRoot: fileURLToPath(new URL('../../', import.meta.url)),
-  transpilePackages: ['@cabzone/contracts'],
+  transpilePackages: ['@cabzone/contracts', '@cabzone/design-system', '@cabzone/geo'],
   reactStrictMode: true,
   images: {
     dangerouslyAllowSVG: false,

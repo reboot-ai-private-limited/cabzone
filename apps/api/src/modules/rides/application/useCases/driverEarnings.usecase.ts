@@ -65,7 +65,12 @@ function anchorTimestamp(ride: RideEntity): Date {
   if (ride.status === 'SETTLED' || ride.status === 'PAYMENT_CONFIRMED') {
     return ride.settledAt ?? ride.completedAt ?? ride.createdAt;
   }
-  if (ride.status === 'TRIP_COMPLETED' || ride.status === 'PAYMENT_PENDING') {
+  if (
+    ride.status === 'TRIP_COMPLETED' ||
+    ride.status === 'PAYMENT_PENDING' ||
+    ride.status === 'PAYMENT_CASH_CLAIMED' ||
+    ride.status === 'PAYMENT_UNPAID'
+  ) {
     return ride.completedAt ?? ride.createdAt;
   }
   if (ride.status === 'PAYMENT_DISPUTED') {
@@ -397,7 +402,12 @@ export class DriverEarningsUseCase {
         commissionRefundedPaise += settlement.commissionRefundedPaise;
         onlineEarningsReversedPaise += settlement.onlineEarningsReversedPaise ?? 0;
         if (!reconciled) unreconciledRidesCount += 1;
-      } else if (ride.status === 'TRIP_COMPLETED' || ride.status === 'PAYMENT_PENDING') {
+      } else if (
+        ride.status === 'TRIP_COMPLETED' ||
+        ride.status === 'PAYMENT_PENDING' ||
+        ride.status === 'PAYMENT_CASH_CLAIMED' ||
+        ride.status === 'PAYMENT_UNPAID'
+      ) {
         pendingPaymentTripsCount += 1;
         pendingPaymentGrossPaise += farePaise;
       } else if (ride.status === 'PAYMENT_DISPUTED') {
@@ -475,14 +485,20 @@ export class DriverEarningsUseCase {
           const ride = await this.deps.rideRepo.findById(id);
           if (!ride) continue;
           if (input.driverId && ride.driverId !== input.driverId) continue;
-          if (ride.status === 'PAYMENT_PENDING') pendingCandidates.push(ride);
+          if (
+            ride.status === 'PAYMENT_PENDING' ||
+            ride.status === 'PAYMENT_CASH_CLAIMED' ||
+            ride.status === 'PAYMENT_UNPAID'
+          ) {
+            pendingCandidates.push(ride);
+          }
         }
       } else {
         let offset = 0;
         for (;;) {
           const page = await this.deps.rideRepo.list({
             driverId: input.driverId,
-            statuses: ['PAYMENT_PENDING'],
+            statuses: ['PAYMENT_PENDING', 'PAYMENT_CASH_CLAIMED', 'PAYMENT_UNPAID'],
             limit: CHUNK_SIZE,
             offset,
           });
@@ -585,7 +601,12 @@ export class DriverEarningsUseCase {
 
     for (const ride of targetRides) {
       if (ride.status !== 'SETTLED' && ride.status !== 'PAYMENT_CONFIRMED') {
-        if (mode === 'RECONCILE_PENDING_ONLINE' && ride.status === 'PAYMENT_PENDING') {
+        if (
+          mode === 'RECONCILE_PENDING_ONLINE' &&
+          (ride.status === 'PAYMENT_PENDING' ||
+            ride.status === 'PAYMENT_CASH_CLAIMED' ||
+            ride.status === 'PAYMENT_UNPAID')
+        ) {
           continue;
         }
         issues.push({

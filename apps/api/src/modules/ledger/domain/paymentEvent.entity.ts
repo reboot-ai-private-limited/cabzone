@@ -1,6 +1,6 @@
 export interface PaymentEventEntity {
   id: string;
-  paymentId: string;
+  paymentId: string | null;
   provider: string;
   providerEventId: string;
   eventType: string;

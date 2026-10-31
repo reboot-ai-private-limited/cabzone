@@ -218,3 +218,11 @@ test('pushApi registers and unregisters installation tokens on /api/v1/push-toke
     installationId: 'install-device-001',
   });
 });
+
+test('getRealtimeWsUrl authenticates /ws upgrades using access_token query param', () => {
+  const s = apiSession();
+  const wsUrl = new URL(s.getRealtimeWsUrl('jwt.with+special/chars=1'));
+  assert.equal(wsUrl.pathname, '/ws');
+  assert.equal(wsUrl.searchParams.get('access_token'), 'jwt.with+special/chars=1');
+  assert.equal(wsUrl.searchParams.get('token'), null);
+});

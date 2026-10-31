@@ -1,9 +1,9 @@
-import {
-  DEFAULT_CANCELLATION_FEE_PAISE,
-  type RidePaymentStateDto,
-  type RideUpiCheckoutDto,
-  type RideUpiIntentDto,
-  type RideUpiSessionDto,
+import type {
+  RidePaymentStateDto,
+  RideStatus,
+  RideUpiCheckoutDto,
+  RideUpiIntentDto,
+  RideUpiSessionDto,
 } from '@cabzone/contracts';
 import { z } from 'zod';
 import { AppError } from '../../../../shared/errors/AppError.js';
@@ -18,10 +18,19 @@ import type { RidePaymentGateway } from '../../domain/ridePayment.port.js';
 import { saveRideTransition } from '../rideTransition.js';
 import {
   calculateNewBalance,
-  getRiderUnpaidArrearsPaise,
   type WalletEntity,
   type WalletRepositoryPort,
 } from '../../../ledger/ledger.public.js';
+
+const AWAITING_PAYMENT_STATUSES: readonly RideStatus[] = [
+  'PAYMENT_PENDING',
+  'PAYMENT_CASH_CLAIMED',
+  'PAYMENT_UNPAID',
+];
+
+function isAwaitingPaymentStatus(status: RideStatus): boolean {
+  return AWAITING_PAYMENT_STATUSES.includes(status);
+}
 
 export class RideUpiPaymentUseCase {
   get live() {
@@ -34,6 +43,7 @@ export class RideUpiPaymentUseCase {
       unitOfWork: UnitOfWorkPort;
       gateway: RidePaymentGateway;
       walletRepo: WalletRepositoryPort;
+      closeQrCollectionForCash?: (rideId: string) => Promise<{ alreadyPaid: boolean }>;
     },
   ) {}
 
@@ -67,22 +77,6 @@ export class RideUpiPaymentUseCase {
     return this.fare(ride) + this.arrears(ride);
   }
 
-  private async assertCashAllowedForRide(ride: RideEntity): Promise<void> {
-    const thresholdPaise =
-      (ride.pricingSnapshot?.cancellationFeePaise ?? DEFAULT_CANCELLATION_FEE_PAISE) > 0
-        ? (ride.pricingSnapshot?.cancellationFeePaise ?? DEFAULT_CANCELLATION_FEE_PAISE)
-        : DEFAULT_CANCELLATION_FEE_PAISE;
-    const riderWallet = await this.deps.walletRepo.findByRiderId(ride.bookerRiderId);
-    const unpaidArrearsPaise = riderWallet
-      ? getRiderUnpaidArrearsPaise(riderWallet)
-      : this.arrears(ride);
-    if (unpaidArrearsPaise >= thresholdPaise) {
-      throw AppError.conflict(
-        'RIDER_ARREARS_CASH_BLOCKED: Cash payment is unavailable while cancellation fee arrears are due. Please complete payment via UPI.',
-      );
-    }
-  }
-
   private async cashSelected(rideId: string): Promise<boolean> {
     const events = await this.deps.rideEventRepo.findByRideId(rideId);
     return (
@@ -108,11 +102,15 @@ export class RideUpiPaymentUseCase {
       method:
         confirmed?.metadata.method === 'UPI'
           ? 'UPI'
-          : confirmed?.metadata.method === 'CASH' || (await this.cashSelected(rideId))
+          : confirmed?.metadata.method === 'CASH' ||
+              ride.status === 'PAYMENT_CASH_CLAIMED' ||
+              (await this.cashSelected(rideId))
             ? 'CASH'
             : 'UPI',
       testMode: !this.live,
       requiresReview: ride.status === 'PAYMENT_DISPUTED',
+      ...(ride.status === 'PAYMENT_CASH_CLAIMED' ? { cashClaimedByRider: true } : {}),
+      ...(ride.status === 'PAYMENT_UNPAID' ? { unpaidReportedByDriver: true } : {}),
     };
   }
 
@@ -123,12 +121,18 @@ export class RideUpiPaymentUseCase {
     const ride = await this.deps.rideRepo.findById(rideId);
     if (!ride || (actor.role === 'DRIVER' ? ride.driverId : ride.bookerRiderId) !== actor.id)
       throw AppError.forbidden('You cannot change payment for this ride.');
-    if (ride.status !== 'PAYMENT_PENDING' && ride.status !== 'SETTLED')
+    const canSwitchStatus =
+      ride.status === 'PAYMENT_PENDING' ||
+      ride.status === 'PAYMENT_CASH_CLAIMED' ||
+      (actor.role === 'DRIVER' && ride.status === 'PAYMENT_UNPAID') ||
+      ride.status === 'SETTLED';
+    if (!canSwitchStatus)
       throw AppError.conflict('This ride is not awaiting payment.');
     const current = await this.reconcile(rideId, ride.bookerRiderId);
     if (current.status === 'SETTLED' || (await this.cashSelected(rideId)))
       return this.paymentState(rideId);
-    await this.assertCashAllowedForRide(current);
+    const qrCollection = await this.deps.closeQrCollectionForCash?.(rideId);
+    if (qrCollection?.alreadyPaid) return this.paymentState(rideId);
     const qr = await this.qrSession(rideId);
     if (qr) await this.deps.gateway.closeQrForCash(qr.qrId);
     const checked = await this.reconcile(rideId, ride.bookerRiderId);
@@ -136,9 +140,12 @@ export class RideUpiPaymentUseCase {
     await this.deps.unitOfWork.run(async () => {
       const fresh = await this.ownedRide(rideId, ride.bookerRiderId);
       if (fresh.status === 'SETTLED' || (await this.cashSelected(rideId))) return;
-      if (fresh.status !== 'PAYMENT_PENDING')
+      const freshAllowed =
+        fresh.status === 'PAYMENT_PENDING' ||
+        fresh.status === 'PAYMENT_CASH_CLAIMED' ||
+        (actor.role === 'DRIVER' && fresh.status === 'PAYMENT_UNPAID');
+      if (!freshAllowed)
         throw AppError.conflict('Ride payment state changed.');
-      await this.assertCashAllowedForRide(fresh);
       if ((await this.qrSession(rideId))?.qrId !== qr?.qrId)
         throw AppError.conflict(
           'Payment options changed. Retry switching to cash so the new QR can be closed.',
@@ -163,15 +170,39 @@ export class RideUpiPaymentUseCase {
     return this.paymentState(rideId);
   }
 
+  async prepareNonUpiResolution(rideId: string): Promise<RideEntity> {
+    const ride = await this.deps.rideRepo.findById(rideId);
+    if (!ride) throw AppError.notFound('Ride not found.');
+    const current = await this.reconcile(rideId, ride.bookerRiderId);
+    if (current.status === 'SETTLED' || current.status === 'PAYMENT_CONFIRMED') return current;
+    const qrCollection = await this.deps.closeQrCollectionForCash?.(rideId);
+    if (qrCollection?.alreadyPaid) {
+      return (await this.deps.rideRepo.findById(rideId)) ?? current;
+    }
+    const qr = await this.qrSession(rideId);
+    if (qr) await this.deps.gateway.closeQrForCash(qr.qrId);
+    return this.reconcile(rideId, ride.bookerRiderId);
+  }
+
   async prepareCashConfirmation(rideId: string, driverId: string): Promise<void> {
     const ride = await this.deps.rideRepo.findById(rideId);
     if (!ride || ride.driverId !== driverId)
       throw AppError.forbidden('Only the assigned driver can confirm cash.');
-    if (!(await this.cashSelected(rideId))) return;
-    const current = await this.reconcile(rideId, ride.bookerRiderId);
-    if (current.status === 'SETTLED') return;
-    const qr = await this.qrSession(rideId);
-    if (qr) await this.deps.gateway.closeQrForCash(qr.qrId);
+    if (ride.status === 'SETTLED' || ride.status === 'PAYMENT_CONFIRMED') return;
+    const events = await this.deps.rideEventRepo.findByRideId(rideId);
+    const hasOnlineAttempt = events.some((e) =>
+      ['UPI_ORDER_CREATED', 'UPI_QR_CREATED'].includes(e.eventType),
+    );
+    const cashAlreadySelected = await this.cashSelected(rideId);
+    if (!hasOnlineAttempt && !cashAlreadySelected) {
+      await this.deps.closeQrCollectionForCash?.(rideId);
+      return;
+    }
+    if (!cashAlreadySelected) {
+      await this.switchToCash(rideId, { role: 'DRIVER', id: driverId });
+      return;
+    }
+    await this.prepareNonUpiResolution(rideId);
   }
 
   async create(rideId: string, riderId: string): Promise<RideUpiCheckoutDto> {
@@ -181,7 +212,7 @@ export class RideUpiPaymentUseCase {
     if (this.live) throw AppError.badRequest('Use the ride UPI session to pay.');
     if (await this.qrSession(rideId))
       throw AppError.conflict('This ride already uses live UPI payment. Contact support.');
-    if (ride.status !== 'PAYMENT_PENDING')
+    if (!isAwaitingPaymentStatus(ride.status))
       throw AppError.badRequest('This ride is not awaiting payment.');
     let orderId = await this.order(rideId);
     const farePaise = this.fare(ride);
@@ -192,7 +223,7 @@ export class RideUpiPaymentUseCase {
       // Persist one checkout choice before exposing an order; unused concurrent orders cannot be paid from the app.
       orderId = await this.deps.unitOfWork.run(async () => {
         const current = await this.ownedRide(rideId, riderId);
-        if (current.status !== 'PAYMENT_PENDING')
+        if (!isAwaitingPaymentStatus(current.status))
           throw AppError.conflict('Ride payment state changed. Refresh the ride.');
         if (await this.cashSelected(rideId)) throw AppError.conflict('This ride now uses cash.');
         const existing = await this.order(rideId);
@@ -234,7 +265,7 @@ export class RideUpiPaymentUseCase {
 
   private async qrSession(rideId: string): Promise<RideUpiIntentDto | null> {
     const event = (await this.deps.rideEventRepo.findByRideId(rideId)).find(
-      (e) => e.eventType === 'UPI_QR_CREATED',
+      (e) => e.eventType === 'UPI_QR_CREATED' && e.metadata.session != null,
     );
     if (!event) return null;
     return z
@@ -255,7 +286,7 @@ export class RideUpiPaymentUseCase {
     const ride = await this.ownedRide(rideId, riderId);
     if (await this.cashSelected(rideId))
       throw AppError.conflict('This ride now uses cash. Ask the driver to confirm receipt.');
-    if (ride.status !== 'PAYMENT_PENDING')
+    if (!isAwaitingPaymentStatus(ride.status))
       throw AppError.badRequest('This ride is not awaiting payment.');
     if (await this.order(rideId))
       throw AppError.conflict(
@@ -265,10 +296,14 @@ export class RideUpiPaymentUseCase {
     let session = await this.qrSession(rideId);
     if (!session) {
       const created = await this.deps.gateway.createQr(amountPaise, rideId);
+      if (!created) throw AppError.badRequest('UPI QR payment is unavailable on the server.');
       session = await this.deps.unitOfWork.run(async () => {
         const current = await this.ownedRide(rideId, riderId);
         if (await this.cashSelected(rideId)) throw AppError.conflict('This ride now uses cash.');
-        if (current.status !== 'PAYMENT_PENDING' || this.payableAmount(current) !== created.amountPaise)
+        if (
+          !isAwaitingPaymentStatus(current.status) ||
+          this.payableAmount(current) !== created.amountPaise
+        )
           throw AppError.conflict('Ride payment state changed.');
         const existing = await this.qrSession(rideId);
         if (existing) return existing;
@@ -336,7 +371,7 @@ export class RideUpiPaymentUseCase {
     }
     if (ride.status === 'SETTLED' && !(await this.cashCollected(rideId))) return ride;
     if (ride.status === 'PAYMENT_DISPUTED') return ride;
-    if (ride.status !== 'PAYMENT_PENDING' && ride.status !== 'SETTLED')
+    if (!isAwaitingPaymentStatus(ride.status) && ride.status !== 'SETTLED')
       throw AppError.conflict('Ride is not awaiting payment.');
     const farePaise = this.fare(ride);
     const arrearsPaise = this.arrears(ride);
@@ -348,7 +383,7 @@ export class RideUpiPaymentUseCase {
     if (proof && proof.paymentId !== paymentId)
       throw AppError.badRequest('Captured payment does not match checkout.');
     try {
-      return await this.deps.unitOfWork.run(async () => {
+      const result = await this.deps.unitOfWork.run(async () => {
         const current = await this.ownedRide(rideId, riderId);
         if (current.status === 'SETTLED') {
           if (!(await this.cashCollected(rideId))) return current;
@@ -381,7 +416,7 @@ export class RideUpiPaymentUseCase {
           return disputed;
         }
         if (
-          current.status !== 'PAYMENT_PENDING' ||
+          !isAwaitingPaymentStatus(current.status) ||
           this.fare(current) !== farePaise ||
           this.arrears(current) !== arrearsPaise ||
           !current.driverId
@@ -395,6 +430,7 @@ export class RideUpiPaymentUseCase {
         const driverWallet = await this.deps.walletRepo.findByDriverId(current.driverId);
         if (!driverWallet)
           throw AppError.conflict('Driver wallet is unavailable. Payment needs reconciliation.');
+        const previousStatus = current.status;
         const now = new Date();
         const settled = await saveRideTransition(
           this.deps.rideRepo,
@@ -506,7 +542,7 @@ export class RideUpiPaymentUseCase {
             eventType,
             actorType: 'SYSTEM',
             actorId: null,
-            previousStatus: 'PAYMENT_PENDING',
+            previousStatus,
             newStatus: 'SETTLED',
             metadata,
             createdAt: now,
@@ -514,6 +550,10 @@ export class RideUpiPaymentUseCase {
         }
         return settled;
       });
+      if (result.status === 'SETTLED') {
+        await this.deps.closeQrCollectionForCash?.(rideId).catch(() => undefined);
+      }
+      return result;
     } catch (error) {
       const isStateOrDuplicateConflict =
         (error instanceof AppError &&

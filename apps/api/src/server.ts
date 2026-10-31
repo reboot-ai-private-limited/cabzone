@@ -12,6 +12,7 @@ const OFFER_SWEEP_MS = 15_000;
 const PUSH_RECEIPT_SWEEP_MS = 60_000;
 const KYC_EXPIRY_SWEEP_MS = 5 * 60_000;
 const RATING_REVEAL_SWEEP_MS = 60_000;
+const RIDE_CALL_SWEEP_MS = 5_000;
 
 async function main(): Promise<void> {
   loadEnv();
@@ -71,6 +72,14 @@ async function main(): Promise<void> {
   const kycExpirySweep = setInterval(runKycExpirySweep, KYC_EXPIRY_SWEEP_MS);
   kycExpirySweep.unref();
 
+  const runRideCallSweep = () => {
+    containers.rides.rideCalls.maintain()
+      .catch((err: unknown) => logger.warn({ err: String(err) }, 'ride call maintenance failed'));
+  };
+  runRideCallSweep();
+  const rideCallSweep = setInterval(runRideCallSweep, RIDE_CALL_SWEEP_MS);
+  rideCallSweep.unref();
+
   const shutdown = (signal: string) => {
     logger.info({ signal }, 'signal received, draining');
     const force = setTimeout(() => {
@@ -83,6 +92,7 @@ async function main(): Promise<void> {
     clearInterval(receiptSweep);
     clearInterval(kycExpirySweep);
     clearInterval(ratingRevealSweep);
+    clearInterval(rideCallSweep);
     hub.close();
     server.close(() => {
       void (async () => {

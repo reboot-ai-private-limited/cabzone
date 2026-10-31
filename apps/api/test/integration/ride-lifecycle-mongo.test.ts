@@ -1055,7 +1055,7 @@ describe('MongoDB Atomic Claim & Lifecycle Integration Test (rs0 Replica Set)', 
       expect(riderWalletDoc?.owed_paise).toBe(5000);
     });
 
-    it('blocks cash at >= threshold, recovers full arrears via UPI without charging commission on arrears, and unblocks cash thereafter', async () => {
+    it('keeps cash fallback available at >= threshold, recovers full arrears via UPI without charging commission on arrears, and clears arrears thereafter', async () => {
       // 1. Incur ₹50 late cancellation fee on ride 1
       const ride1 = await createInitialRide();
       const claim1 = await acceptRideUseCase.execute({ rideId: ride1.id, driverId: DRIVER_ID_1 });
@@ -1067,7 +1067,7 @@ describe('MongoDB Atomic Claim & Lifecycle Integration Test (rs0 Replica Set)', 
         cancelledAt: new Date(claim1.ride.acceptedAt!.getTime() + 180000),
       });
 
-      // 2. Next quote surfaces arrears & cashAllowed = false; cash booking rejected
+      // 2. Next quote surfaces arrears while keeping cashAllowed = true
       const pickup = { lat: 26.71, lng: 88.42, address: 'Hill Cart Road' };
       const drop = { lat: 26.75, lng: 88.45, address: 'Sevoke Road' };
       const quote2 = await quoteUseCase.execute({
@@ -1078,23 +1078,9 @@ describe('MongoDB Atomic Claim & Lifecycle Integration Test (rs0 Replica Set)', 
       });
       expect(quote2.arrearsPaise).toBe(5000);
       expect(quote2.totalEstimatedPayablePaise).toBe(quote2.suggestedFarePaise + 5000);
-      expect(quote2.cashAllowed).toBe(false);
+      expect(quote2.cashAllowed).toBe(true);
 
-      await expect(
-        createRideUseCase.execute({
-          quoteToken: quote2.quoteToken,
-          proposedFarePaise: quote2.suggestedFarePaise,
-          riderId: RIDER_ID,
-          passengerName: 'Subir Roy',
-          passengerPhoneE164: '+919876543210',
-          pickup,
-          drop,
-          vehicleCategory: 'CAB',
-          paymentMethod: 'CASH',
-        }),
-      ).rejects.toThrow('RIDER_ARREARS_CASH_BLOCKED');
-
-      // 3. Create ride 2 (UPI), progress to PAYMENT_PENDING
+      // 3. Create ride 2, progress to PAYMENT_PENDING
       const ride2 = await createRideUseCase.execute({
         quoteToken: quote2.quoteToken,
         proposedFarePaise: quote2.suggestedFarePaise,
@@ -1117,11 +1103,6 @@ describe('MongoDB Atomic Claim & Lifecycle Integration Test (rs0 Replica Set)', 
       });
       await completeRideUseCase.execute({ rideId: ride2.id, driverId: DRIVER_ID_1 });
 
-      // Direct cash confirmPayment and switchToCash are both blocked while arrears >= 5000
-      await expect(
-        completeRideUseCase.confirmPayment({ rideId: ride2.id, driverId: DRIVER_ID_1 }),
-      ).rejects.toThrow('RIDER_ARREARS_CASH_BLOCKED');
-
       const expectedTotal = claim2.ride.agreedFarePaise! + 5000;
       const upiPayment = new RideUpiPaymentUseCase({
         unitOfWork: new MongoUnitOfWork(),
@@ -1142,10 +1123,6 @@ describe('MongoDB Atomic Claim & Lifecycle Integration Test (rs0 Replica Set)', 
           closeQrForCash: async () => {},
         },
       });
-
-      await expect(
-        upiPayment.switchToCash(ride2.id, { role: 'RIDER', id: RIDER_ID }),
-      ).rejects.toThrow('RIDER_ARREARS_CASH_BLOCKED');
 
       const driverBefore = (await walletRepo.findByDriverId(DRIVER_ID_1))!.balancePaise;
       const checkout = await upiPayment.create(ride2.id, RIDER_ID);

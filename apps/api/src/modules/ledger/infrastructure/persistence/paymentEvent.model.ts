@@ -2,7 +2,7 @@ import mongoose, { type Document, Schema } from 'mongoose';
 
 export interface PaymentEventDocument extends Document<string> {
   _id: string;
-  payment_id: string;
+  payment_id: string | null;
   provider: string;
   provider_event_id: string;
   event_type: string;
@@ -15,7 +15,7 @@ export interface PaymentEventDocument extends Document<string> {
 const paymentEventSchema = new Schema<PaymentEventDocument>(
   {
     _id: { type: String, required: true },
-    payment_id: { type: String, required: true },
+    payment_id: { type: String, default: null },
     provider: { type: String, required: true },
     provider_event_id: { type: String, required: true },
     event_type: { type: String, required: true },

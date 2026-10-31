@@ -14,3 +14,5 @@ export * from './routing.js';
 export * from './dispatch.js';
 export * from './tolls.js';
 export * from './extensions.js';
+export * from './communication.js';
+export * from './ride-calls.js';

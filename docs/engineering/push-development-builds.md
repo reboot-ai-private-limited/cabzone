@@ -22,6 +22,12 @@ In `metro.config.js` (`shouldUsePushStub`), the real `expo-notifications` native
 
 ## 3. Building & Running Push-Capable Android APKs
 
+For a LAN API such as `http://192.168.1.4:4000`, build with the `development` or `preview` profile. Both apps' Expo manifest plugins allow Android cleartext traffic for these internal profiles. The `production` profile and local `NODE_ENV=production` builds without an internal profile keep cleartext disabled and require an HTTPS API URL. A native rebuild/reinstall is required after changing this policy; a Metro reload cannot update the installed manifest.
+
+For a local internal APK, set `EAS_BUILD_PROFILE=preview` before prebuild and keep it set during the Gradle build. `pnpm --filter @cabzone/driver-mobile test:network-policy` checks the profile rules for both apps without generating native files.
+
+Both apps' Expo config plugins (`withCabzoneVoiceCallManifest`) inject `-dontwarn livekit.org.jni_zero.**` and `-keep class livekit.org.** { *; }` into `android/app/proguard-rules.pro` so R8 release minification succeeds with `@livekit/react-native-webrtc`.
+
 ```bash
 # Build push-capable Android development APKs
 pnpm --filter @cabzone/driver-mobile exec eas build --profile development --platform android

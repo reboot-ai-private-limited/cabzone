@@ -53,7 +53,7 @@ async function verifyBearerToken(
   }
 
   return {
-    auth: { userId: payload.sub, sessionId: payload.sessionId, role: payload.role },
+    auth: { userId: payload.sub, sessionId: payload.sessionId, role: payload.role, deviceId: session.deviceId },
     ...(adminCityZoneIds !== undefined ? { adminCityZoneIds } : {}),
   };
 }

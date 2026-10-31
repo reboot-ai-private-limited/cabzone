@@ -166,23 +166,6 @@ export function AdminEditDialog({
           </div>
         )}
 
-        {/* Mobile number - non editable */}
-        <div className="flex flex-col gap-1.5">
-          <label htmlFor="edit-admin-phone" className="text-sm font-semibold text-text">
-            Mobile number
-          </label>
-          <input
-            id="edit-admin-phone"
-            value={admin.phoneE164}
-            disabled
-            readOnly
-            className="h-11 w-full px-3.5 rounded-xl font-mono text-sm bg-surface-muted text-text font-medium border border-border-strong cursor-not-allowed select-all"
-          />
-          <span className="text-xs text-text-subtle font-normal">
-            The sign-in number. Not editable.
-          </span>
-        </div>
-
         {/* Full name */}
         <div className="flex flex-col gap-1.5">
           <label htmlFor="edit-admin-name" className="text-sm font-semibold text-text">

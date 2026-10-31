@@ -10,6 +10,8 @@ const TONES: Record<RideStatus, BadgeTone> = {
   TRIP_STARTED: 'accent',
   TRIP_COMPLETED: 'success',
   PAYMENT_PENDING: 'warning',
+  PAYMENT_CASH_CLAIMED: 'warning',
+  PAYMENT_UNPAID: 'danger',
   PAYMENT_CONFIRMED: 'success',
   PAYMENT_DISPUTED: 'danger',
   SETTLED: 'success',

@@ -762,10 +762,12 @@ describe('Driver Onboarding Endpoints (Supertest)', () => {
       .expect(200);
     expect(listRes.body.data).toHaveLength(1);
     expect(listRes.body.data[0]).toMatchObject({
-      phoneE164: '+919800000001',
       application: { id: applicationId, status: 'APPROVED' },
       vehicle: { registrationNumber: 'WB74AB1234' },
     });
+    expect(listRes.body.data[0]).not.toHaveProperty('phoneE164');
+    expect(listRes.body.data[0].driver).not.toHaveProperty('alternatePhone');
+    expect(listRes.body.data[0].driver).not.toHaveProperty('emergencyContact');
 
     const emptyRes = await request(app)
       .get('/api/v1/admin/driver-applications?status=REJECTED')

@@ -5,7 +5,7 @@ export interface RidePaymentGateway {
   fetchRefund?: RefundVerifierPort['fetchRefund'];
   readonly keyId: string;
   readonly live: boolean;
-  createQr(amountPaise: number, rideId: string): Promise<RideUpiIntentDto>;
+  createQr(amountPaise: number, rideId: string): Promise<RideUpiIntentDto | null>;
   findQrPayment(qrId: string, amountPaise: number): Promise<string | null>;
   closeQrForCash(qrId: string): Promise<void>;
   createOrder(amountPaise: number, rideId: string): Promise<string>;

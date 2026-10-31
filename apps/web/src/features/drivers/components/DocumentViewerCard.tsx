@@ -22,7 +22,6 @@ import {
 export interface DocumentViewerCardProps {
   applicationId: string;
   document: DriverDocumentAdminDto;
-  driverPhone?: string | null;
 }
 
 const formatDate = (iso: string | null): string =>
@@ -31,7 +30,6 @@ const formatDate = (iso: string | null): string =>
 export function DocumentViewerCard({
   applicationId,
   document,
-  driverPhone,
 }: DocumentViewerCardProps) {
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
@@ -109,7 +107,6 @@ export function DocumentViewerCard({
       <DocumentPreviewDialog
         applicationId={applicationId}
         document={document}
-        driverPhone={driverPhone}
         open={isPreviewOpen}
         onOpenChange={setIsPreviewOpen}
       />

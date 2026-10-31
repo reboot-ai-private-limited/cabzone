@@ -102,6 +102,9 @@ export const startRideRequestSchema = z.object({
 export const rideIdParamSchema = z.object({ id: z.string().uuid() });
 
 export const paymentDisputeSchema = z.object({ reason: z.string().trim().min(10).max(1000) });
+export const markRideUnpaidSchema = z.object({
+  reason: z.string().trim().min(3).max(500).optional(),
+});
 export const paymentDisputeResolutionSchema = z.object({
   outcome: z.enum(['RIDER_WINS', 'DRIVER_WINS']),
   reason: z.string().trim().min(10).max(1000),

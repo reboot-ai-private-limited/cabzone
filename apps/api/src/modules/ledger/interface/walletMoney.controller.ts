@@ -4,6 +4,7 @@ import { AppError } from '../../../shared/errors/AppError.js';
 import { asyncHandler } from '../../../shared/http/asyncHandler.js';
 import { sendSuccess } from '../../../shared/http/response.util.js';
 import {
+  adminWalletOperationView,
   walletOperationView,
   type WalletMoneyUseCase,
 } from '../application/useCases/walletMoney.usecase.js';
@@ -107,7 +108,7 @@ export function walletMoneyControllers(
       sendSuccess(
         req,
         res,
-        walletOperationView(
+        adminWalletOperationView(
           await money.resolveCashout(id, body.outcome, body.detail, req.auth.userId),
         ),
       );

@@ -4,7 +4,7 @@ import {
   RIDE_RATING_WINDOW_MS,
   VEHICLE_CATEGORY_REGISTRY,
   formatPublicRatingLabel,
-  isActiveRideStatus,
+  isRiderBookingBlockedStatus,
   type RideDto,
   type RideEventDto,
   type RideStatus,
@@ -22,7 +22,6 @@ export function formatAssignedDriverSummary(
   ride: Pick<RideDto, 'driverId' | 'vehicleCategory' | 'assignedDriver'>,
 ): {
   driverName: string;
-  phoneE164: string | null;
   profilePhotoUrl: string | null;
   vehicleLabel: string;
   registrationNumber: string | null;
@@ -32,7 +31,6 @@ export function formatAssignedDriverSummary(
   const driverName =
     assigned?.name?.trim() ||
     (ride.driverId ? `Driver #${ride.driverId.slice(0, 6).toUpperCase()}` : 'Your driver');
-  const phoneE164 = assigned?.phoneE164?.trim() || null;
   const profilePhotoUrl = assigned?.profilePhotoUrl?.trim() || null;
   const vehicle = assigned?.vehicle;
   const makeModel = vehicle
@@ -47,7 +45,6 @@ export function formatAssignedDriverSummary(
 
   return {
     driverName,
-    phoneE164,
     profilePhotoUrl,
     vehicleLabel,
     registrationNumber,
@@ -177,7 +174,7 @@ export const PLACE_PRESETS: PlacePreset[] = [
 ];
 
 export function isRideActive(status: RideStatus): boolean {
-  return isActiveRideStatus(status);
+  return isRiderBookingBlockedStatus(status);
 }
 
 export function extractActiveRideConflictId(error: unknown): string | null {
@@ -331,15 +328,12 @@ export function resolveRideCashAvailability(
   const arrearsPaise = Math.max(0, ride.arrearsPaise ?? 0);
   const rawThreshold = ride.pricingSnapshot?.cancellationFeePaise ?? DEFAULT_CANCELLATION_FEE_PAISE;
   const cashBlockThresholdPaise = rawThreshold > 0 ? rawThreshold : DEFAULT_CANCELLATION_FEE_PAISE;
-  const cashAllowed = arrearsPaise < cashBlockThresholdPaise;
 
   return {
-    cashAllowed,
+    cashAllowed: true,
     arrearsPaise,
     cashBlockThresholdPaise,
-    reason: cashAllowed
-      ? null
-      : `Cash is unavailable while ${formatRupeesFromPaise(arrearsPaise)} in previous cancellation fees is due. Pay by UPI to clear arrears.`,
+    reason: null,
   };
 }
 
@@ -448,8 +442,22 @@ export function getRideStatusMeta(status: RideStatus): {
     case 'PAYMENT_PENDING':
       return {
         label: 'Payment Pending',
-        subtitle: 'Pay the Agreed Fare directly via Cash or UPI.',
+        subtitle: 'Pay via UPI or confirm if you already paid cash to your driver.',
         tone: 'amber',
+      };
+    case 'PAYMENT_CASH_CLAIMED':
+      return {
+        label: 'Cash Paid · Awaiting Driver',
+        subtitle:
+          'You marked this fare paid in cash. Your next ride is unlocked while your driver confirms receipt.',
+        tone: 'amber',
+      };
+    case 'PAYMENT_UNPAID':
+      return {
+        label: 'Unpaid Fare Due',
+        subtitle:
+          'Your driver reported this trip unpaid. Pay via UPI below or report a payment issue if you paid cash.',
+        tone: 'red',
       };
     case 'PAYMENT_CONFIRMED':
       return {

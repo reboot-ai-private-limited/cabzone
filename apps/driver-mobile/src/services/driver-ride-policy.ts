@@ -30,7 +30,7 @@ export function resolveDriverCashAvailability(
   const arrearsPaise = Math.max(0, ride.arrearsPaise ?? 0);
   const rawThreshold = ride.pricingSnapshot?.cancellationFeePaise ?? DEFAULT_CANCELLATION_FEE_PAISE;
   const cashBlockThresholdPaise = rawThreshold > 0 ? rawThreshold : DEFAULT_CANCELLATION_FEE_PAISE;
-  const cashAllowed = arrearsPaise < cashBlockThresholdPaise;
+  const cashAllowed = true;
 
   return {
     cashAllowed,

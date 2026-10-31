@@ -1,0 +1,11 @@
+{$API_DOMAIN} {
+    encode gzip zstd
+
+    # Proxy all HTTP REST and WebSocket requests to the API service
+    reverse_proxy api:4000 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+}

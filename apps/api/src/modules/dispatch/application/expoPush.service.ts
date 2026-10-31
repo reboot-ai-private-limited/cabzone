@@ -1,14 +1,15 @@
 import { env } from '../../../config/env.js';
 import { logger } from '../../../shared/logging/logger.js';
 import { emitOperationalAlert } from '../../../shared/monitoring/alerting.js';
-import type { PushTokenPort } from './pushToken.port.js';
+import type { PushTokenMetadata, PushTokenPort } from './pushToken.port.js';
 import type { PushReceiptPort } from './pushReceipt.port.js';
 
 const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
 const EXPO_RECEIPTS_URL = 'https://exp.host/--/api/v2/push/getReceipts';
 const EXPO_TOKEN = /^Expo(nent)?PushToken\[[^\]]+\]$/;
+const NATIVE_DEVICE_TOKEN = /^[^\s]{16,512}$/;
 
-export type PushNotificationChannel = 'ride-offers' | 'ride-updates';
+export type PushNotificationChannel = 'ride-offers' | 'ride-updates' | 'ride-calls';
 
 interface ExpoResult {
   status: 'ok' | 'error';
@@ -80,14 +81,28 @@ export class ExpoPushService {
     private readonly receiptReader: ReceiptReader = readReceipts,
   ) {}
 
-  async register(userId: string, installationId: string, token: string): Promise<boolean> {
-    if (!EXPO_TOKEN.test(token)) return false;
-    await this.tokens.put(userId, installationId, token);
+  async register(
+    userId: string,
+    installationId: string,
+    token: string,
+    meta?: PushTokenMetadata,
+  ): Promise<boolean> {
+    const transport = meta?.transport ?? 'EXPO';
+    if (transport === 'EXPO') {
+      if (!EXPO_TOKEN.test(token)) return false;
+    } else if (!NATIVE_DEVICE_TOKEN.test(token)) {
+      return false;
+    }
+    await this.tokens.put(userId, installationId, token, meta);
     return true;
   }
 
   async unregister(userId: string, installationId: string): Promise<void> {
     await this.tokens.remove(userId, installationId);
+  }
+
+  async hasInstallation(userId: string, installationId: string): Promise<boolean> {
+    return this.tokens.hasInstallation?.(userId, installationId) ?? false;
   }
 
   /** Best effort: never throws. */
@@ -104,7 +119,7 @@ export class ExpoPushService {
     try {
       if (message.expiresAt && message.expiresAt <= new Date()) return;
       const { expiresAt, channelId = 'ride-offers', ...content } = message;
-      const messages = (await this.tokens.list(userIds)).map((to) => ({
+      const messages = (await this.tokens.list(userIds, 'EXPO')).map((to) => ({
         to,
         sound: 'default',
         priority: 'high',

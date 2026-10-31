@@ -9,9 +9,7 @@ export interface AdminUserListFilter {
   offset?: number | undefined;
 }
 
-export interface AdminUserWithUser extends AdminUserEntity {
-  phoneE164: string;
-}
+export type AdminUserWithUser = AdminUserEntity;
 
 export interface AdminUserRepositoryPort {
   findByUserId(userId: string): Promise<AdminUserEntity | null>;
@@ -19,7 +17,9 @@ export interface AdminUserRepositoryPort {
   save(admin: AdminUserEntity): Promise<AdminUserEntity>;
   update(
     id: string,
-    updates: Partial<Pick<AdminUserEntity, 'name' | 'email' | 'role' | 'cityZoneIds' | 'status' | 'passwordHash'>>
+    updates: Partial<
+      Pick<AdminUserEntity, 'name' | 'email' | 'role' | 'cityZoneIds' | 'status' | 'passwordHash'>
+    >,
   ): Promise<AdminUserEntity | null>;
   list(filter?: AdminUserListFilter): Promise<{ admins: AdminUserWithUser[]; total: number }>;
 }

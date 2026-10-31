@@ -29,7 +29,6 @@ import { DocumentStatusBadge, computeDocumentExpiryBadge } from './StatusBadge';
 export interface DocumentPreviewDialogProps {
   applicationId: string | null;
   document: DriverDocumentAdminDto | null;
-  driverPhone?: string | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
@@ -55,7 +54,6 @@ export { isPdfPreview };
 export function DocumentPreviewDialog({
   applicationId,
   document,
-  driverPhone,
   open,
   onOpenChange,
 }: DocumentPreviewDialogProps) {
@@ -105,7 +103,7 @@ export function DocumentPreviewDialog({
         onOpenChange(next);
       }}
       title={`${docTitle} — Audited Preview`}
-      description={`Private KYC document for driver ${driverPhone ?? 'applicant'} (access logged)`}
+      description="Private KYC document for applicant (access logged)"
       className="max-w-4xl"
     >
       <div className="flex flex-col gap-4">
@@ -253,7 +251,7 @@ export function DocumentPreviewDialog({
             <div className="flex items-center justify-center w-full h-full overflow-auto py-2">
               <img
                 src={signedUrl}
-                alt={`${docTitle} uploaded by ${driverPhone ?? 'driver'}`}
+                alt={`${docTitle} uploaded by applicant`}
                 onError={() => setFailedPreviewUrl(signedUrl)}
                 className="max-h-[480px] max-w-full w-auto object-contain rounded-lg shadow-2xl transition-transform duration-200 ease-out origin-center"
                 style={{

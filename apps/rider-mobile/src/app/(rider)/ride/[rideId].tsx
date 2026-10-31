@@ -1,4 +1,5 @@
 import {
+  RIDE_COMMUNICATION_STATUSES,
   tollDisclosure,
   calculateNegotiationBounds,
   type CancellationReason,
@@ -27,6 +28,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { useAuth } from '@/context/auth-context';
 import { useRide } from '@/context/ride-context';
+import { useRideCall } from '@/context/call-context';
 import type { RiderRideViewDto } from '@/services/api';
 import {
   extractPendingDriverCounters,
@@ -64,8 +66,10 @@ export default function ActiveRideScreen() {
   const { rideId } = useLocalSearchParams<{ rideId: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { profile, user } = useAuth();
+  const { profile } = useAuth();
+  const { startCall } = useRideCall();
   const {
+    unreadChatRideId,
     activeRide,
     activeRideEvents,
     isRealtimeConnected,
@@ -76,6 +80,7 @@ export default function ActiveRideScreen() {
     respondToCounter,
     raiseFare,
     cancelRide,
+    claimCashPaid,
     disputePayment,
   } = useRide();
 
@@ -92,6 +97,8 @@ export default function ActiveRideScreen() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const previousCounterCount = useRef<number | null>(null);
   const checkedExpiry = useRef<string | null>(null);
+
+  const startPrivateCall = (targetRideId: string, driverName?: string) => startCall(targetRideId, driverName);
 
   // Countdown for OFFERING
   const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
@@ -141,15 +148,22 @@ export default function ActiveRideScreen() {
     return () => clearTimeout(timer);
   }, [loadRide]);
 
-  // Keep synced with context activeRide when it matches rideId
+  // Keep synced with context activeRide when it matches rideId, and reload when activeRide clears on terminal transitions
   useEffect(() => {
-    if (!activeRide || activeRide.id !== rideId) return;
-    const timer = setTimeout(() => {
-      setRide(activeRide);
-      setEvents(activeRideEvents);
-    }, 0);
-    return () => clearTimeout(timer);
-  }, [activeRide, activeRideEvents, rideId]);
+    if (activeRide && activeRide.id === rideId) {
+      const timer = setTimeout(() => {
+        setRide(activeRide);
+        setEvents(activeRideEvents);
+      }, 0);
+      return () => clearTimeout(timer);
+    }
+    if (!activeRide && ride && ride.id === rideId && isRideActive(ride.status)) {
+      const timer = setTimeout(() => {
+        void loadRide();
+      }, 0);
+      return () => clearTimeout(timer);
+    }
+  }, [activeRide, activeRideEvents, loadRide, ride, rideId]);
 
   // Offer expiry countdown
   useEffect(() => {
@@ -173,15 +187,17 @@ export default function ActiveRideScreen() {
   }, [ride]);
 
   useEffect(() => {
-    if (
-      ride?.status === 'OFFERING' &&
-      ride.offeringExpiresAt &&
-      remainingSeconds === 0 &&
-      checkedExpiry.current !== ride.offeringExpiresAt
-    ) {
+    if (ride?.status !== 'OFFERING' || !ride.offeringExpiresAt || remainingSeconds !== 0) {
+      return;
+    }
+    if (checkedExpiry.current !== ride.offeringExpiresAt) {
       checkedExpiry.current = ride.offeringExpiresAt;
       void loadRide();
     }
+    const pollTimer = setInterval(() => {
+      void loadRide();
+    }, 4000);
+    return () => clearInterval(pollTimer);
   }, [ride, remainingSeconds, loadRide]);
 
   const counters = useMemo(() => extractPendingDriverCounters(events), [events]);
@@ -393,9 +409,18 @@ export default function ActiveRideScreen() {
           error={actionError}
           refreshing={isRefreshing}
           passengerLabel={
-            ride.passenger.phoneE164 === user?.phoneE164 ? 'For you' : `For ${ride.passenger.name}`
+            ride.passenger.riderId != null && ride.passenger.riderId === profile?.id
+              ? 'For you'
+              : `For ${ride.passenger.name}`
           }
+          onCallDriver={profile?.id === ride.bookerRiderId ? () => void startPrivateCall(ride.id, ride.assignedDriver?.name) : undefined}
           onBack={() => router.replace('/(rider)/(tabs)/home')}
+          onChat={
+            profile?.id === ride.bookerRiderId
+              ? () => router.push({ pathname: '/(rider)/chat/[rideId]', params: { rideId: ride.id } })
+              : undefined
+          }
+          hasUnreadChat={unreadChatRideId === ride.id}
           onSafety={() => setShowSafetyModal(true)}
           onShare={() => void handleShareTrip()}
           onCancel={openCancelSheet}
@@ -416,7 +441,7 @@ export default function ActiveRideScreen() {
               {!isRealtimeConnected || syncError ? (
                 <View style={styles.connectionPill}>
                   <View style={[styles.connDot, { backgroundColor: colors.brandBrown }]} />
-                  <Text style={styles.connectionText}>Reconnecting…</Text>
+                  <Text style={styles.connectionText}>Reconnectingâ€¦</Text>
                 </View>
               ) : null}
             </View>
@@ -454,7 +479,7 @@ export default function ActiveRideScreen() {
                   </Text>
                   <Text style={styles.statusSubtitle}>
                     {isSearching && remainingSeconds === 0
-                      ? 'Checking the final responses…'
+                      ? 'Checking the final responsesâ€¦'
                       : statusMeta.subtitle}
                   </Text>
                 </View>
@@ -464,7 +489,7 @@ export default function ActiveRideScreen() {
                     accessibilityLabel={`Search expires in ${remainingSeconds} seconds`}
                   >
                     <Ionicons name="timer-outline" size={16} color={colors.deepBrown} />
-                    <Text style={styles.timerBadgeText}>Searching · {remainingSeconds}s</Text>
+                    <Text style={styles.timerBadgeText}>Searching Â· {remainingSeconds}s</Text>
                   </View>
                 ) : null}
               </View>
@@ -528,7 +553,7 @@ export default function ActiveRideScreen() {
                     <View style={{ flex: 1 }}>
                       <Text style={styles.waitingCountersTitle}>Offers will appear here</Text>
                       <Text style={styles.waitingCountersSub}>
-                        We’ll let you know when a driver responds.
+                        Weâ€™ll let you know when a driver responds.
                       </Text>
                     </View>
                   </View>
@@ -545,7 +570,7 @@ export default function ActiveRideScreen() {
                             <Text style={styles.counterDriverName}>Verified Cabzone Driver</Text>
                             <Text style={styles.counterDriverSub}>
                               {counter.vehicleLabel ||
-                                `Driver #${counter.driverId.slice(0, 6).toUpperCase()} · Cab (4 Seats)`}
+                                `Driver #${counter.driverId.slice(0, 6).toUpperCase()} Â· Cab (4 Seats)`}
                             </Text>
                           </View>
                           <View style={{ alignItems: 'flex-end' }}>
@@ -595,24 +620,22 @@ export default function ActiveRideScreen() {
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.driverCardTitle}>
-                      {`${formatAssignedDriverSummary(ride).driverName} · ★ ${formatAssignedDriverSummary(ride).ratingLabel}`}
+                      {`${formatAssignedDriverSummary(ride).driverName} Â· â˜… ${formatAssignedDriverSummary(ride).ratingLabel}`}
                     </Text>
                     <Text style={styles.driverCardSub}>
                       {formatAssignedDriverSummary(ride).vehicleLabel}
                       {formatAssignedDriverSummary(ride).registrationNumber
-                        ? ` · ${formatAssignedDriverSummary(ride).registrationNumber}`
+                        ? ` Â· ${formatAssignedDriverSummary(ride).registrationNumber}`
                         : ''}
                     </Text>
                     {driverLiveLocation ? (
                       <Text style={styles.liveGpsText}>Driver location is live</Text>
                     ) : null}
                   </View>
-                  {formatAssignedDriverSummary(ride).phoneE164 ? (
+                  {RIDE_COMMUNICATION_STATUSES.includes(ride.status) && profile?.id === ride.bookerRiderId ? (
                     <Pressable
                       style={styles.verifiedPill}
-                      onPress={() =>
-                        void Linking.openURL(`tel:${formatAssignedDriverSummary(ride).phoneE164}`)
-                      }
+                      onPress={() => void startPrivateCall(ride.id, ride.assignedDriver?.name)}
                       accessibilityRole="button"
                       accessibilityLabel="Call driver"
                     >
@@ -633,7 +656,10 @@ export default function ActiveRideScreen() {
               {tollDisclosure(ride.tollSnapshot, ride.extensionProposal?.status === 'ACCEPTED')}
             </Text>
             {/* PAYMENT PENDING INSTRUCTION CARD (D-040) */}
-            {ride.status === 'PAYMENT_PENDING' || ride.status === 'TRIP_COMPLETED' ? (
+            {ride.status === 'PAYMENT_PENDING' ||
+            ride.status === 'TRIP_COMPLETED' ||
+            ride.status === 'PAYMENT_CASH_CLAIMED' ||
+            ride.status === 'PAYMENT_UNPAID' ? (
               <UpiPaymentPanel
                 rideId={ride.id}
                 amountPaise={totalPayablePaise}
@@ -641,7 +667,14 @@ export default function ActiveRideScreen() {
                 arrearsPaise={arrearsPaise}
                 cashAllowed={cashAvailability.cashAllowed}
                 cashBlockedReason={cashAvailability.reason}
+                rideStatus={ride.status}
                 onPaid={loadRide}
+                onClaimCashPaid={async () => {
+                  const updated = await claimCashPaid(ride.id);
+                  setRide(updated);
+                  await loadRide();
+                }}
+                onDisputeUnpaid={() => setShowDisputeModal(true)}
               />
             ) : null}
 
@@ -662,7 +695,7 @@ export default function ActiveRideScreen() {
                     <Text style={styles.settledTitle}>
                       {ride.status === 'PAYMENT_DISPUTED'
                         ? 'Payment Dispute Under Admin Review'
-                        : `Paid ${formatRupeesFromPaise(totalPayablePaise)} · Settled`}
+                        : `Paid ${formatRupeesFromPaise(totalPayablePaise)} Â· Settled`}
                     </Text>
                     <Text style={styles.settledSub}>
                       {ride.status === 'PAYMENT_DISPUTED'
@@ -733,16 +766,16 @@ export default function ActiveRideScreen() {
               <View style={styles.kvRow}>
                 <Text style={styles.kvKey}>Passenger</Text>
                 <Text style={[styles.kvVal, styles.kvValFlexible]}>
-                  {ride.passenger.phoneE164 === user?.phoneE164
+                  {ride.passenger.riderId != null && ride.passenger.riderId === profile?.id
                     ? 'You'
-                    : `${ride.passenger.name} · ${ride.passenger.phoneE164.slice(0, -5)}••••${ride.passenger.phoneE164.slice(-1)}`}
+                    : ride.passenger.name}
                 </Text>
               </View>
 
               <View style={styles.kvRow}>
                 <Text style={styles.kvKey}>Distance & Zone</Text>
                 <Text style={styles.kvVal}>
-                  {(ride.routeSnapshot.distanceM / 1000).toFixed(1)} km ·{' '}
+                  {(ride.routeSnapshot.distanceM / 1000).toFixed(1)} km Â·{' '}
                   {ride.zoneSnapshot.classification === 'IN_CITY'
                     ? 'In-city'
                     : ride.zoneSnapshot.classification === 'OUTSTATION'
@@ -786,7 +819,7 @@ export default function ActiveRideScreen() {
               ) : null}
               {isSearching ? (
                 <Text style={styles.fareRange}>
-                  You can offer {formatRupeesFromPaise(floorPaise)}–
+                  You can offer {formatRupeesFromPaise(floorPaise)}â€“
                   {formatRupeesFromPaise(ceilingPaise)}
                 </Text>
               ) : null}
@@ -855,9 +888,9 @@ export default function ActiveRideScreen() {
                 ) : (
                   <Text style={styles.raiseFareText}>
                     {ride.status === 'REQUESTED'
-                      ? 'Waiting for search…'
+                      ? 'Waiting for searchâ€¦'
                       : remainingSeconds === 0
-                        ? 'Checking search…'
+                        ? 'Checking searchâ€¦'
                         : canRaiseFare
                           ? `Raise fare +${formatRupeesFromPaise(nextFarePaise - offerPaise)}`
                           : 'Maximum fare reached'}

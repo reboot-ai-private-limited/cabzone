@@ -100,17 +100,22 @@ async function seed() {
   const driverWalletId = '01900000-0000-7000-8000-000000000030';
   const driverVehicleId = '01900000-0000-7000-8000-000000000040';
 
-  // Dev Driver wallet matching screenshot: owes ₹275 (-27,500 paise balance)
+  // Seed initial Dev Driver wallet balance only on insert so re-seeding never clobbers live chains
+  const existingDevDriverTxCount = await WalletTransactionModel.countDocuments({
+    wallet_id: driverWalletId,
+  });
   await WalletModel.findOneAndUpdate(
     { driver_id: driverProfileId },
     {
-      $setOnInsert: { _id: driverWalletId },
-      $set: {
-        driver_id: driverProfileId,
+      $setOnInsert: {
+        _id: driverWalletId,
         balance_paise: -27_500,
         owed_paise: 27_500,
-        status: 'ACTIVE',
         version: 1,
+      },
+      $set: {
+        driver_id: driverProfileId,
+        status: 'ACTIVE',
       },
     },
     { upsert: true, new: true },
@@ -141,8 +146,8 @@ async function seed() {
     {
       id: '01900000-0000-7000-8000-000000000053',
       type: 'DEBIT' as const,
-      amountPaise: 4_000, // ₹40 platform commission
-      refType: 'RIDE_COMMISSION' as const,
+      amountPaise: 4_000, // ₹40 historical fee adjustment
+      refType: 'ADMIN_ADJUSTMENT' as const,
       before: 85_000,
       after: 81_000,
       note: 'Platform commission 8% #RIDE-8101',
@@ -161,8 +166,8 @@ async function seed() {
     {
       id: '01900000-0000-7000-8000-000000000055',
       type: 'DEBIT' as const,
-      amountPaise: 3_500, // ₹35 platform commission
-      refType: 'RIDE_COMMISSION' as const,
+      amountPaise: 3_500, // ₹35 historical fee adjustment
+      refType: 'ADMIN_ADJUSTMENT' as const,
       before: 111_000,
       after: 107_500,
       note: 'Platform commission 8% #RIDE-8102',
@@ -180,7 +185,7 @@ async function seed() {
     },
   ];
 
-  for (const tx of devDriverTx) {
+  for (const tx of existingDevDriverTxCount === 0 ? devDriverTx : []) {
     await WalletTransactionModel.findOneAndUpdate(
       { _id: tx.id },
       {
@@ -560,16 +565,19 @@ async function seed() {
     { upsert: true, new: true },
   );
 
+  const existingD4TxCount = await WalletTransactionModel.countDocuments({ wallet_id: d4WalletId });
   await WalletModel.findOneAndUpdate(
     { driver_id: d4ProfileId },
     {
-      $setOnInsert: { _id: d4WalletId },
-      $set: {
-        driver_id: d4ProfileId,
+      $setOnInsert: {
+        _id: d4WalletId,
         balance_paise: 25_000,
         owed_paise: 0,
-        status: 'ACTIVE',
         version: 1,
+      },
+      $set: {
+        driver_id: d4ProfileId,
+        status: 'ACTIVE',
       },
     },
     { upsert: true, new: true },
@@ -639,55 +647,57 @@ async function seed() {
     { upsert: true, new: true },
   );
 
-  await WalletTransactionModel.findOneAndUpdate(
-    { _id: '01900000-0000-7000-8000-000000000081' },
-    {
-      $setOnInsert: { _id: '01900000-0000-7000-8000-000000000081' },
-      $set: {
-        wallet_id: d4WalletId,
-        owner_type: 'DRIVER',
-        driver_id: d4ProfileId,
-        rider_id: null,
-        type: 'CREDIT',
-        amount_paise: 45_000,
-        reference_type: 'RIDE_COMMISSION',
-        reference_id: 'REF_MS_01',
-        idempotency_key: 'seed_ms_01',
-        balance_before_paise: 0,
-        balance_after_paise: 45_000,
-        created_by: adminId,
-        note: 'Trip payout - Dabgram to Junction',
-        created_at: new Date('2026-10-04T10:00:00Z'),
-        updated_at: new Date('2026-10-04T10:00:00Z'),
+  if (existingD4TxCount === 0) {
+    await WalletTransactionModel.findOneAndUpdate(
+      { _id: '01900000-0000-7000-8000-000000000081' },
+      {
+        $setOnInsert: { _id: '01900000-0000-7000-8000-000000000081' },
+        $set: {
+          wallet_id: d4WalletId,
+          owner_type: 'DRIVER',
+          driver_id: d4ProfileId,
+          rider_id: null,
+          type: 'CREDIT',
+          amount_paise: 45_000,
+          reference_type: 'WALLET_RECHARGE',
+          reference_id: 'REF_MS_01',
+          idempotency_key: 'seed_ms_01',
+          balance_before_paise: 0,
+          balance_after_paise: 45_000,
+          created_by: adminId,
+          note: 'Initial onboarding float - Dabgram',
+          created_at: new Date('2026-10-04T10:00:00Z'),
+          updated_at: new Date('2026-10-04T10:00:00Z'),
+        },
       },
-    },
-    { upsert: true, new: true },
-  );
+      { upsert: true, new: true },
+    );
 
-  await WalletTransactionModel.findOneAndUpdate(
-    { _id: '01900000-0000-7000-8000-000000000082' },
-    {
-      $setOnInsert: { _id: '01900000-0000-7000-8000-000000000082' },
-      $set: {
-        wallet_id: d4WalletId,
-        owner_type: 'DRIVER',
-        driver_id: d4ProfileId,
-        rider_id: null,
-        type: 'DEBIT',
-        amount_paise: 20_000,
-        reference_type: 'ADMIN_ADJUSTMENT',
-        reference_id: 'REF_MS_02',
-        idempotency_key: 'seed_ms_02',
-        balance_before_paise: 45_000,
-        balance_after_paise: 25_000,
-        created_by: adminId,
-        note: 'Platform fee deduction',
-        created_at: new Date('2026-10-04T11:30:00Z'),
-        updated_at: new Date('2026-10-04T11:30:00Z'),
+    await WalletTransactionModel.findOneAndUpdate(
+      { _id: '01900000-0000-7000-8000-000000000082' },
+      {
+        $setOnInsert: { _id: '01900000-0000-7000-8000-000000000082' },
+        $set: {
+          wallet_id: d4WalletId,
+          owner_type: 'DRIVER',
+          driver_id: d4ProfileId,
+          rider_id: null,
+          type: 'DEBIT',
+          amount_paise: 20_000,
+          reference_type: 'ADMIN_ADJUSTMENT',
+          reference_id: 'REF_MS_02',
+          idempotency_key: 'seed_ms_02',
+          balance_before_paise: 45_000,
+          balance_after_paise: 25_000,
+          created_by: adminId,
+          note: 'Platform fee deduction',
+          created_at: new Date('2026-10-04T11:30:00Z'),
+          updated_at: new Date('2026-10-04T11:30:00Z'),
+        },
       },
-    },
-    { upsert: true, new: true },
-  );
+      { upsert: true, new: true },
+    );
+  }
 
   await DriverDocumentModel.findOneAndUpdate(
     { _id: '01900000-0000-7000-8000-000000000091' },

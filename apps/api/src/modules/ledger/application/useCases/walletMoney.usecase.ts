@@ -10,6 +10,23 @@ import type {
   WalletPaymentGateway,
 } from '../../domain/walletOperation.port.js';
 
+/**
+ * Masks phone-number-based UPI addresses (local part before `@` with >= 7 digits)
+ * on other-account admin outputs while preserving non-phone VPA handles.
+ */
+export function maskPhoneBasedUpi(vpa: string | null): string | null {
+  if (!vpa) return null;
+  const atIndex = vpa.indexOf('@');
+  const local = atIndex >= 0 ? vpa.slice(0, atIndex) : vpa;
+  const domain = atIndex >= 0 ? vpa.slice(atIndex) : '';
+  const digits = local.replace(/\D/g, '');
+  if (digits.length < 7) return vpa;
+  let seen = 0;
+  const keepFrom = digits.length - 4;
+  const maskedLocal = local.replace(/\d/g, (digit) => (seen++ < keepFrom ? '*' : digit));
+  return `${maskedLocal}${domain}`;
+}
+
 export function walletOperationView(operation: WalletOperation): WalletOperationDto {
   return {
     id: operation.id,
@@ -20,6 +37,24 @@ export function walletOperationView(operation: WalletOperation): WalletOperation
     rechargePaise: operation.rechargePaise,
     earningsPaise: operation.earningsPaise,
     destinationUpi: operation.destinationUpi,
+    transferReference: operation.transferReference,
+    reason: operation.reason,
+    testMode: true,
+    createdAt: operation.createdAt.toISOString(),
+    updatedAt: operation.updatedAt.toISOString(),
+  };
+}
+
+export function adminWalletOperationView(operation: WalletOperation): WalletOperationDto {
+  return {
+    id: operation.id,
+    driverId: operation.driverId,
+    kind: operation.kind,
+    status: operation.status,
+    amountPaise: operation.amountPaise,
+    rechargePaise: operation.rechargePaise,
+    earningsPaise: operation.earningsPaise,
+    destinationUpi: maskPhoneBasedUpi(operation.destinationUpi),
     transferReference: operation.transferReference,
     reason: operation.reason,
     testMode: true,
@@ -363,7 +398,7 @@ export class WalletMoneyUseCase {
   }
   async cashouts() {
     return (await this.deps.operations.list(undefined, 'CASHOUT', 'PENDING')).map(
-      walletOperationView,
+      adminWalletOperationView,
     );
   }
 }
