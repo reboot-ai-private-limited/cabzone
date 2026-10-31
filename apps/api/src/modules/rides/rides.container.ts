@@ -405,7 +405,7 @@ export function buildRidesContainer(deps: RidesContainerDeps): RidesContainer {
         callToken: callControllers.token,
         confirmCallConnected: callControllers.connected,
         endCurrentCall: callControllers.endCurrent,
-        ...((deps.callsEnabled ?? env.RIDE_CALL_ENABLED) ? { callWebhook: callControllers.webhook } : {}),
+        callWebhook: callControllers.webhook,
         getRideEvents: makeRideEventsController(rideRepo, rideEventRepo, actors),
         getRideRating: makeGetRideRatingController(rideRepo, rideRatingsUseCase, actors),
         submitRideRating: makeSubmitRideRatingController(rideRepo, rideRatingsUseCase, actors),

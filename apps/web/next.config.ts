@@ -1,7 +1,8 @@
 import type { NextConfig } from 'next';
 import { fileURLToPath } from 'node:url';
 
-const apiUpstreamOrigin = process.env.API_UPSTREAM_ORIGIN?.trim().replace(/\/$/, '');
+const rawOrigin = (process.env.API_UPSTREAM_ORIGIN || 'http://200.234.38.54:4090').trim().replace(/\/$/, '');
+const apiUpstreamOrigin = rawOrigin.endsWith('/api') ? rawOrigin.slice(0, -4) : rawOrigin;
 
 const config: NextConfig = {
   distDir: process.env.NODE_ENV === 'development' ? '.next-dev' : '.next',

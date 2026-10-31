@@ -4,6 +4,18 @@ import { ApiError, NetworkError } from './ApiError.js';
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:4000/api';
 const BASE_URL = API_BASE_URL;
 
+function toUrl(path: string): URL {
+  const fullPath = BASE_URL.endsWith('/') ? BASE_URL.slice(0, -1) + path : BASE_URL + path;
+  if (/^https?:\/\//i.test(fullPath)) {
+    return new URL(fullPath);
+  }
+  const origin =
+    typeof window !== 'undefined' && window.location?.origin
+      ? window.location.origin
+      : 'http://localhost:3000';
+  return new URL(fullPath.startsWith('/') ? fullPath : '/' + fullPath, origin);
+}
+
 export interface RequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   body?: unknown;
@@ -30,7 +42,7 @@ function refreshAccessToken(): Promise<string | null> {
     try {
       const refreshToken = localStorage.getItem(REFRESH_KEY);
       if (!refreshToken) return null;
-      const res = await fetch(new URL(BASE_URL + '/v1/auth/refresh'), {
+      const res = await fetch(toUrl('/v1/auth/refresh'), {
         method: 'POST',
         headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
         body: JSON.stringify({ refreshToken, deviceId: DEVICE_ID }),
@@ -65,7 +77,7 @@ export async function request<T>(
       ? localStorage.getItem('Cabzonee_access_token') ?? undefined
       : undefined);
 
-  const url = new URL(BASE_URL + path);
+  const url = toUrl(path);
   if (query !== undefined) {
     for (const [key, value] of Object.entries(query)) {
       if (value !== undefined) url.searchParams.set(key, String(value));
