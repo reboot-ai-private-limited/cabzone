@@ -47,3 +47,4 @@ docs/design&flow
 
 .vercel
 .env*
+release-apks/
