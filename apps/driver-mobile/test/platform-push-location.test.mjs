@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
 
-// 1. Verify Metro push-stub resolution never leaks stub into EAS, --push, or production builds (C05)
+// 1. Verify Metro push-stub & native-voice-stub resolution never leaks stubs into EAS, --push, or production builds (C05)
 const driverMetro = require(path.resolve(__dirname, '../metro.config.js'));
 const riderMetro = require(path.resolve(__dirname, '../../rider-mobile/metro.config.js'));
 
@@ -40,6 +40,30 @@ for (const [label, metro] of [
     true,
     `${label}: explicit EXPO_USE_PUSH=0 override should force stub`,
   );
+
+  const mockContext = {
+    resolveRequest: (_ctx, moduleName) => ({ filePath: `/real/${moduleName}`, type: 'sourceFile' }),
+  };
+
+  delete process.env.EXPO_USE_PUSH;
+  for (const voicePkg of ['@livekit/react-native', '@livekit/react-native-webrtc', 'react-native-callkeep']) {
+    const stubbed = metro.resolver.resolveRequest(mockContext, voicePkg, 'android');
+    assert.ok(
+      stubbed.filePath.endsWith('native-voice-stub.js'),
+      `${label}: ${voicePkg} must resolve to native-voice-stub.js in Expo Go`,
+    );
+  }
+
+  process.env.EXPO_USE_PUSH = '1';
+  for (const voicePkg of ['@livekit/react-native', '@livekit/react-native-webrtc', 'react-native-callkeep']) {
+    const real = metro.resolver.resolveRequest(mockContext, voicePkg, 'android');
+    assert.equal(
+      real.filePath,
+      `/real/${voicePkg}`,
+      `${label}: ${voicePkg} must resolve to real module when EXPO_USE_PUSH=1`,
+    );
+  }
+  delete process.env.EXPO_USE_PUSH;
 }
 
 // 2. Verify app.config.js dynamic EAS projectId and googleServicesFile wiring without secrets (C05)

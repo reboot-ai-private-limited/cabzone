@@ -225,7 +225,7 @@ export function RideDetailDialog({
               <RideStatusBadge status={ride.status} />
             </FieldRow>
             <FieldRow label="Passenger">
-              {ride.passenger.name} · <span className="font-mono">{ride.passenger.phoneE164}</span>
+              {ride.passenger.name}
             </FieldRow>
             <FieldRow label="Driver">
               {ride.driverId === null ? (

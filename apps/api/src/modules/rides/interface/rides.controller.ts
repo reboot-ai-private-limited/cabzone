@@ -1,5 +1,5 @@
 import type { Request, RequestHandler, Response } from 'express';
-import type { RideAssignedDriverDto, WalletTransactionDto } from '@cabzone/contracts';
+import type { RideAssignedDriverDto, RideCommunicationAccessDto, WalletTransactionDto } from '@cabzone/contracts';
 import { AppError } from '../../../shared/errors/AppError.js';
 import { asyncHandler } from '../../../shared/http/asyncHandler.js';
 import { sendSuccess } from '../../../shared/http/response.util.js';
@@ -23,6 +23,7 @@ import type {
 import { logger } from '../../../shared/logging/logger.js';
 import { derivePickupOtp, type RideNotifierPort } from '../domain/index.js';
 import { toRideView, type RideView } from './rides.presenter.js';
+import type { RideCommunicationAccessUseCase } from '../application/useCases/rideCommunicationAccess.usecase.js';
 import {
   cancelRideSchema,
   counterResponseSchema,
@@ -34,6 +35,7 @@ import {
   listPaymentDisputesQuerySchema,
   listRidesQuerySchema,
   paymentDisputeSchema,
+  markRideUnpaidSchema,
   paymentDisputeResolutionSchema,
   proposeFareSchema,
   reconcileDriverEarningsSchema,
@@ -91,7 +93,9 @@ function classifyPaymentCollection(
   const cash =
     confirmedMethod !== 'UPI' &&
     paymentAudit.some(
-      (event) => event.eventType === 'PAYMENT_METHOD_CHANGED' && event.metadata.method === 'CASH',
+      (event) =>
+        (event.eventType === 'PAYMENT_METHOD_CHANGED' && event.metadata.method === 'CASH') ||
+        event.eventType === 'PAYMENT_CASH_CLAIMED',
     );
   if (cash) return 'CASH';
   if (paymentAudit.some((event) => event.eventType === 'UPI_QR_CREATED')) return 'RAZORPAY_UPI';
@@ -134,6 +138,15 @@ async function requireDriverId(req: Request, actors: RideHttpContext): Promise<s
     return id;
   }
   throw AppError.forbidden('DRIVER_PROFILE_REQUIRED: No driver profile for this account.');
+}
+
+export function makeGetRideCommunicationController(access: RideCommunicationAccessUseCase): RequestHandler {
+  return asyncHandler(async (req, res) => {
+    const { id } = rideIdParamSchema.parse(req.params);
+    const { ride, participantRole } = await access.execute(id, auth(req));
+    const data: RideCommunicationAccessDto = { rideId: ride.id, eligible: true, participantRole };
+    sendSuccess(req, res, data, 'Ride communication is permitted');
+  });
 }
 
 async function canView(req: Request, ride: RideEntity, actors: RideHttpContext): Promise<boolean> {
@@ -540,6 +553,49 @@ export function makeCompleteRideController(
   });
 }
 
+export function makeClaimCashPaidController(
+  useCase: CompleteRideUseCase,
+  actors: RideHttpContext,
+): RequestHandler {
+  return asyncHandler(async (req: Request, res: Response) => {
+    const { id } = rideIdParamSchema.parse(req.params);
+    const riderId = await requireRiderId(req, actors);
+    const ride = await useCase.claimCashPaid({ rideId: id, riderId });
+    await notify(
+      actors.notifier?.rideUpdated(
+        ride,
+        ride.status === 'SETTLED' ? 'ride.payment.confirmed' : 'ride.payment.cash_claimed',
+      ),
+    );
+    sendSuccess(
+      req,
+      res,
+      await toEnrichedRideView(ride, actors),
+      'Cash payment claim recorded; awaiting driver confirmation',
+    );
+  });
+}
+
+export function makeMarkRideUnpaidController(
+  useCase: CompleteRideUseCase,
+  actors: RideHttpContext,
+): RequestHandler {
+  return asyncHandler(async (req: Request, res: Response) => {
+    const { id } = rideIdParamSchema.parse(req.params);
+    const { reason } = markRideUnpaidSchema.parse(req.body ?? {});
+    const driverId = await requireDriverId(req, actors);
+    const ride = await useCase.markUnpaid({ rideId: id, driverId, reason });
+    const event =
+      ride.status === 'SETTLED'
+        ? 'ride.payment.confirmed'
+        : ride.status === 'PAYMENT_DISPUTED'
+          ? 'ride.payment.disputed'
+          : 'ride.payment.unpaid';
+    await notify(actors.notifier?.rideUpdated(ride, event));
+    sendSuccess(req, res, await toEnrichedRideView(ride, actors), 'Unpaid ride recorded');
+  });
+}
+
 export function makeDisputePaymentController(
   useCase: CompleteRideUseCase,
   actors: RideHttpContext,
@@ -803,9 +859,7 @@ export function makeListPaymentDisputesController(
         const fields = [
           item.ride.id,
           item.ride.passenger.name,
-          item.ride.passenger.phoneE164,
           item.ride.assignedDriver?.name ?? '',
-          item.ride.assignedDriver?.phoneE164 ?? '',
           item.ride.assignedDriver?.vehicle?.registrationNumber ?? '',
           item.evidence.providerOrderId ?? '',
           item.evidence.providerPaymentId ?? '',

@@ -43,7 +43,11 @@ async function setup() {
   const identity: IdentityContainer = {
     requireAdminScope: () => requireRole('SUPER_ADMIN'),
     buildAuthRouter: () => Router(),
-    buildDriverRouter: () => Router(),
+    buildDriverRouter: () => {
+      const r = Router();
+      r.use(makeAuthenticate({ tokenVerifier: tokenAdapter, sessionRepo }));
+      return r;
+    },
     buildAdminDriverRouter: () => Router(),
     authenticate: makeAuthenticate({ tokenVerifier: tokenAdapter, sessionRepo }),
     requireRole,
@@ -331,6 +335,13 @@ describe('Wallet API', () => {
       .set('Authorization', s.finance);
     expect(txRes.status).toBe(200);
     expect(txRes.body.data.items).toHaveLength(2);
+  });
+
+  it('serves GET /api/v1/driver/wallet/recharge-checkout publicly without being shadowed by /v1/driver auth', async () => {
+    const s = await setup();
+    const pageRes = await request(s.app).get('/api/v1/driver/wallet/recharge-checkout');
+    expect(pageRes.status).toBe(200);
+    expect(pageRes.headers['content-type']).toContain('text/html');
   });
 });
 

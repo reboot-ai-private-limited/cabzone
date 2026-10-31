@@ -21,7 +21,12 @@ export function buildApiRouter(c: AppContainers): Router {
     router.use('/v1/auth/otp/verify', makeRateLimit('otp-verify', 30, 15 * 60_000));
     router.use('/v1/pricing/quotes', makeRateLimit('quote', 60, 60_000));
   }
+  const walletAuth = {
+    authenticate: c.identity.authenticate,
+    requireRole: c.identity.requireRole,
+  };
   router.use('/v1/auth', c.identity.buildAuthRouter());
+  router.use('/v1/driver/wallet', c.ledger.buildDriverWalletRouter(walletAuth));
   router.use('/v1/driver', c.identity.buildDriverRouter());
   if (c.identity.buildRiderRouter) {
     router.use('/v1/riders', c.identity.buildRiderRouter());
@@ -90,12 +95,7 @@ export function buildApiRouter(c: AppContainers): Router {
     }),
   );
   router.use('/v1/pricing', c.pricing.buildPricingRouter());
-  const walletAuth = {
-    authenticate: c.identity.authenticate,
-    requireRole: c.identity.requireRole,
-  };
   router.use('/v1/admin/wallets', c.ledger.buildAdminWalletRouter(walletAuth));
-  router.use('/v1/driver/wallet', c.ledger.buildDriverWalletRouter(walletAuth));
   router.use('/v1', c.dispatch.buildPushTokenRouter(walletAuth));
   router.use('/v1/driver', c.dispatch.buildDispatchRouter(walletAuth));
   router.use('/v1/admin/dispatch', c.dispatch.buildAdminDispatchRouter(walletAuth));

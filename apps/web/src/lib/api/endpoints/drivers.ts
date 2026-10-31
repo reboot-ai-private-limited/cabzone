@@ -24,11 +24,10 @@ export interface DriverApplicationSummaryDto {
     id: string;
     name?: string | null | undefined;
     profilePhotoUrl?: string | null | undefined;
-    alternatePhone?: string | null | undefined;
     gender?: string | null | undefined;
     dateOfBirth?: string | null | undefined;
     experience?: string | null | undefined;
-    emergencyContact?: string | null | undefined;
+    hasEmergencyContact?: boolean | undefined;
     address?: string | null | undefined;
     dlNumber?: string | null | undefined;
     dlExpiry?: string | null | undefined;
@@ -38,7 +37,6 @@ export interface DriverApplicationSummaryDto {
     ratingCount: number;
     trustScore?: number | null | undefined;
   } | null;
-  phoneE164: string | null;
   vehicle: {
     id: string;
     vehicleType: VehicleCategory;

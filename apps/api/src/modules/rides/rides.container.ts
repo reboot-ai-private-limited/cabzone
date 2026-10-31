@@ -1,7 +1,11 @@
 import type { RequestHandler, Router } from 'express';
 import type { AuthRole } from '@cabzone/contracts';
 import type { UnitOfWorkPort } from '../../shared/db/unitOfWork.port.js';
-import type { WalletRepositoryPort } from '../ledger/ledger.public.js';
+import {
+  MemoryPaymentRepository,
+  type PaymentRepositoryPort,
+  type WalletRepositoryPort,
+} from '../ledger/ledger.public.js';
 import type { PricingConfigRepositoryPort } from '../pricing/pricing.public.js';
 import { AcceptRideUseCase } from './application/useCases/acceptRide.usecase.js';
 import { CancelRideUseCase } from './application/useCases/cancelRide.usecase.js';
@@ -26,8 +30,10 @@ import { ExpireOffersUseCase } from './application/useCases/expireOffers.usecase
 import {
   makeAcceptRideController,
   makeCancelRideController,
+  makeClaimCashPaidController,
   makeCompleteRideController,
   makeDisputePaymentController,
+  makeMarkRideUnpaidController,
   makeResolvePaymentDisputeController,
   makeListPaymentDisputesController,
   makeCreateRideController,
@@ -40,6 +46,7 @@ import {
   makeRaiseFareController,
   makeDriverEnRouteController,
   makeGetRideController,
+  makeGetRideCommunicationController,
   makeGetRideRatingController,
   makeListRidesController,
   makeRideEventsController,
@@ -57,6 +64,12 @@ import {
 } from './interface/rideUpiPayment.controller.js';
 import { makeRideUpiWebhook } from './interface/rideUpiWebhook.controller.js';
 import { RazorpayGateway } from './infrastructure/razorpay.adapter.js';
+import {
+  MockQrPaymentGateway,
+  RazorpayQrGateway,
+} from './infrastructure/razorpayQr.gateway.js';
+import type { QrPaymentGatewayPort } from './domain/qrPaymentGateway.port.js';
+import { RideQrPaymentUseCase } from './application/useCases/rideQrPayment.usecase.js';
 import { MemoryRideReviewRepository } from './infrastructure/persistence/memoryRideReview.repository.js';
 import { env, isProduction } from '../../config/env.js';
 import { RidePaymentQrAdapter } from './infrastructure/ridePaymentQr.adapter.js';
@@ -66,8 +79,36 @@ import {
   type RideExtensionsDeps,
 } from './application/useCases/rideExtensions.usecase.js';
 import { makeExtensionControllers } from './interface/rideExtensions.controller.js';
+import { RideCommunicationAccessUseCase, type RideCommunicationAccessDeps } from './application/useCases/rideCommunicationAccess.usecase.js';
+import type { RideChatMessageDto } from '@cabzone/contracts';
+import type { RideChatRepositoryPort } from './domain/rideChat.port.js';
+import { MemoryRideChatRepository } from './infrastructure/persistence/memoryRideChat.repository.js';
+import { RideChatUseCase } from './application/useCases/rideChat.usecase.js';
+import { makeChatControllers } from './interface/rideChat.controller.js';
+import { AppError } from '../../shared/errors/AppError.js';
+import type { RideCallPushPort, RideCallRepositoryPort, RideVoiceProviderPort } from './domain/rideCall.port.js';
+import { MemoryRideCallRepository } from './infrastructure/persistence/memoryRideCall.repository.js';
+import { RideCallsUseCase } from './application/useCases/rideCalls.usecase.js';
+import { makeRideCallControllers } from './interface/rideCalls.controller.js';
+import { LiveKitVoiceGateway } from './infrastructure/liveKitVoice.gateway.js';
 
 export interface RidesContainerDeps extends RideHttpContext {
+  chatEnabled?: boolean;
+  chatMessages?: RideChatRepositoryPort;
+  consumeChatRateLimit?: (userId: string) => Promise<number>;
+  notifyChat?: (ride: RideEntity, message: RideChatMessageDto) => Promise<void>;
+  callsEnabled?: boolean | undefined;
+  providerUrl?: string | undefined;
+  callRecords?: RideCallRepositoryPort | undefined;
+  voiceProvider?: RideVoiceProviderPort | undefined;
+  isInstallationRegistered?: ((userId: string, installationId: string) => Promise<boolean>) | undefined;
+  requireRegisteredInstallation?: boolean | undefined;
+  getCallerDisplayName?: ((ride: RideEntity, callerRole: 'RIDER' | 'DRIVER') => Promise<string>) | undefined;
+  notifyCall?: RideCallPushPort['notify'] | undefined;
+  consumeCallRateLimit?: ((userId: string) => Promise<number>) | undefined;
+  getUserIdForRider?: (riderId: string) => Promise<string | null>;
+  getUserIdForDriver?: (driverId: string) => Promise<string | null>;
+  isCommunicationAccountActive?: RideCommunicationAccessDeps['isCommunicationAccountActive'];
   extensions?: Pick<RideExtensionsDeps, 'routing' | 'getDriverLocation' | 'classify'>;
   unitOfWork: UnitOfWorkPort;
   rideRepo: RideRepositoryPort;
@@ -83,6 +124,8 @@ export interface RidesContainerDeps extends RideHttpContext {
   /** Secret used to derive rider-visible pickup OTPs. */
   pickupOtpSecret?: string | undefined;
   ridePaymentGateway?: RidePaymentGateway | undefined;
+  qrPaymentGateway?: QrPaymentGatewayPort | undefined;
+  paymentRepo?: PaymentRepositoryPort | undefined;
 }
 
 export interface RidesContainerAuth {
@@ -91,6 +134,8 @@ export interface RidesContainerAuth {
 }
 
 export interface RidesContainer {
+  communicationAccess: RideCommunicationAccessUseCase;
+  rideCalls: RideCallsUseCase;
   rideRepo: RideRepositoryPort;
   rideReviewRepo: RideReviewRepositoryPort;
   createRideUseCase: CreateRideUseCase;
@@ -111,7 +156,45 @@ const ADMIN_ROLES: AuthRole[] = ['SUPER_ADMIN', 'CITY_ADMIN', 'SUPPORT_ADMIN', '
 export function buildRidesContainer(deps: RidesContainerDeps): RidesContainer {
   registerRidesSwaggerPaths();
   const { rideRepo, rideEventRepo, walletRepo } = deps;
+  const communicationAccess = new RideCommunicationAccessUseCase({
+    rideRepo,
+    resolveRiderId: deps.resolveRiderId,
+    resolveDriverId: deps.resolveDriverId,
+    // Missing identity wiring must never grant communication access.
+    isCommunicationAccountActive: deps.isCommunicationAccountActive ?? (async () => false),
+  });
   const rideReviewRepo = deps.rideReviewRepo ?? new MemoryRideReviewRepository();
+  const chat = new RideChatUseCase({
+    access: communicationAccess,
+    rideRepo,
+    messages: deps.chatMessages ?? new MemoryRideChatRepository(),
+    unitOfWork: deps.unitOfWork,
+    chatEnabled: deps.chatEnabled ?? env.RIDE_CHAT_ENABLED,
+    notify: deps.notifyChat,
+  });
+  const chatControllers = makeChatControllers(chat, deps.consumeChatRateLimit ?? (async () => {
+    throw AppError.internal('INTERNAL', 'Chat rate-limit store is not configured');
+  }));
+  const rideCalls = new RideCallsUseCase({
+    access: communicationAccess,
+    rideRepo,
+    calls: deps.callRecords ?? new MemoryRideCallRepository(),
+    unitOfWork: deps.unitOfWork,
+    provider: deps.voiceProvider ?? new LiveKitVoiceGateway(
+      env.LIVEKIT_URL ?? '', env.LIVEKIT_API_KEY ?? '', env.LIVEKIT_API_SECRET ?? '',
+    ),
+    providerUrl: deps.providerUrl ?? env.LIVEKIT_URL ?? '',
+    enabled: deps.callsEnabled ?? env.RIDE_CALL_ENABLED,
+    getUserIdForRider: deps.getUserIdForRider ?? (async () => null),
+    getUserIdForDriver: deps.getUserIdForDriver ?? (async () => null),
+    getCallerDisplayName: deps.getCallerDisplayName,
+    isInstallationRegistered: deps.isInstallationRegistered ?? (async () => false),
+    requireRegisteredInstallation: deps.requireRegisteredInstallation,
+    push: { notify: deps.notifyCall ?? (async () => undefined) },
+  });
+  const callControllers = makeRideCallControllers(rideCalls, deps.consumeCallRateLimit ?? (async () => {
+    throw AppError.internal('INTERNAL', 'Call rate-limit store is not configured');
+  }));
   const applyRevealedProfileRating: ProfileRatingApplierPort =
     deps.applyRevealedProfileRating ?? (async () => undefined);
 
@@ -129,12 +212,31 @@ export function buildRidesContainer(deps: RidesContainerDeps): RidesContainer {
       gatewayEnabled,
       env.RAZORPAY_MODE,
     );
+  const paymentRepo = deps.paymentRepo ?? new MemoryPaymentRepository();
+  const hasRazorpayQrKeys = Boolean(env.RAZORPAY_KEY_ID && env.RAZORPAY_KEY_SECRET);
+  const qrGateway =
+    deps.qrPaymentGateway ??
+    (hasRazorpayQrKeys
+      ? new RazorpayQrGateway(env.RAZORPAY_KEY_ID!, env.RAZORPAY_KEY_SECRET!)
+      : new MockQrPaymentGateway(isProduction));
+  const qrPayment = new RideQrPaymentUseCase({
+    rideRepo,
+    rideEventRepo,
+    paymentRepo,
+    walletRepo,
+    unitOfWork: deps.unitOfWork,
+    gateway: qrGateway,
+    onRideSettled: async (ride, event) => {
+      await deps.notifier?.rideUpdated(ride, event);
+    },
+  });
   const upiPayment = new RideUpiPaymentUseCase({
     walletRepo,
     rideRepo,
     rideEventRepo,
     unitOfWork: deps.unitOfWork,
     gateway,
+    closeQrCollectionForCash: (rideId) => qrPayment.closeForCash(rideId),
   });
 
   const createRideUseCase = new CreateRideUseCase({
@@ -181,16 +283,19 @@ export function buildRidesContainer(deps: RidesContainerDeps): RidesContainer {
       : undefined,
     prepareCashConfirmation: (rideId, driverId) =>
       upiPayment.prepareCashConfirmation(rideId, driverId),
+    prepareNonUpiResolution: (rideId) => upiPayment.prepareNonUpiResolution(rideId),
     rideRepo,
     walletRepo,
     rideEventRepo,
     unitOfWork: deps.unitOfWork,
+    onRideCompleted: (rideId) => rideCalls.endForRide(rideId, 'ride_completed'),
   });
   const cancelRideUseCase = new CancelRideUseCase({
     rideRepo,
     walletRepo,
     rideEventRepo,
     unitOfWork: deps.unitOfWork,
+    onRideCancelled: (rideId) => rideCalls.endForRide(rideId, 'ride_cancelled'),
   });
   const reconciliationGateway = deps.ridePaymentGateway
     ? deps.ridePaymentGateway
@@ -234,6 +339,7 @@ export function buildRidesContainer(deps: RidesContainerDeps): RidesContainer {
     payment: upiPayment,
     qr: new RidePaymentQrAdapter(deps.tokenSecret),
     actors,
+    qrPayment,
   });
   const extensionControllers = makeExtensionControllers(
     deps.extensions
@@ -249,6 +355,8 @@ export function buildRidesContainer(deps: RidesContainerDeps): RidesContainer {
 
   return {
     rideRepo,
+    communicationAccess,
+    rideCalls,
     rideReviewRepo,
     createRideUseCase,
     acceptRideUseCase,
@@ -286,6 +394,18 @@ export function buildRidesContainer(deps: RidesContainerDeps): RidesContainer {
         driverHistory: makeDriverHistoryController(rideRepo, driverEarningsUseCase, actors),
         reconcileDriverEarnings: makeReconcileDriverEarningsController(driverEarningsUseCase),
         getRide: makeGetRideController(rideRepo, actors, rideEventRepo, driverEarningsUseCase),
+        getCommunication: makeGetRideCommunicationController(communicationAccess),
+        listMessages: chatControllers.list,
+        sendMessage: chatControllers.send,
+        currentCall: callControllers.current,
+        startCall: callControllers.start,
+        answerCall: callControllers.answer,
+        declineCall: callControllers.decline,
+        endCall: callControllers.end,
+        callToken: callControllers.token,
+        confirmCallConnected: callControllers.connected,
+        endCurrentCall: callControllers.endCurrent,
+        callWebhook: callControllers.webhook,
         getRideEvents: makeRideEventsController(rideRepo, rideEventRepo, actors),
         getRideRating: makeGetRideRatingController(rideRepo, rideRatingsUseCase, actors),
         submitRideRating: makeSubmitRideRatingController(rideRepo, rideRatingsUseCase, actors),
@@ -298,14 +418,23 @@ export function buildRidesContainer(deps: RidesContainerDeps): RidesContainer {
         startRide: makeStartRideController(startRideUseCase, actors),
         completeRide: makeCompleteRideController(completeRideUseCase, actors),
         confirmPayment: makeCompleteRideController(completeRideUseCase, actors, true),
+        claimCashPaid: makeClaimCashPaidController(completeRideUseCase, actors),
+        markRideUnpaid: makeMarkRideUnpaidController(completeRideUseCase, actors),
         createUpiPayment: makeRideUpiController(upiPayment, actors, 'create'),
         upiSession: makeRideUpiController(upiPayment, actors, 'session'),
         switchToCash: makeSwitchToCashController(upiPayment, actors, rideRepo),
-        upiWebhook: makeRideUpiWebhook(upiPayment, actors, env.RAZORPAY_WEBHOOK_SECRET),
+        upiWebhook: makeRideUpiWebhook(
+          upiPayment,
+          actors,
+          env.RAZORPAY_WEBHOOK_SECRET,
+          qrPayment,
+        ),
         verifyUpiPayment: makeRideUpiController(upiPayment, actors, 'verify'),
         upiPaymentStatus: makeRideUpiController(upiPayment, actors, 'status'),
         driverPaymentQr: qrControllers.driverQr,
         driverPaymentStatus: qrControllers.driverStatus,
+        driverCreatePaymentQr: qrControllers.driverCreatePaymentQr,
+        driverPollPaymentQr: qrControllers.driverPollPaymentQr,
         checkoutPage: qrControllers.page,
         checkoutSession: qrControllers.session,
         checkoutVerify: qrControllers.verify,

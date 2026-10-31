@@ -12,8 +12,6 @@ import {
   ExternalLink,
   Mail,
   MapPin,
-  Phone,
-  PhoneCall,
   Shield,
   ShieldCheck,
   Star,
@@ -176,9 +174,8 @@ export function RiderDetailModal({
                     />
                   </div>
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-subtle mt-0.5">
-                    <span className="font-mono font-medium text-text flex items-center gap-1">
-                      <Phone className="size-3 text-text-subtle" />
-                      {rider.phoneE164}
+                    <span className="font-mono font-medium text-text">
+                      ID: {rider.id.slice(0, 8)}
                     </span>
                     {rider.email && (
                       <span className="flex items-center gap-1">
@@ -299,17 +296,10 @@ export function RiderDetailModal({
                       <span className="text-sm font-medium text-text">
                         {rider.emergencyContact.name}
                       </span>
-                      <span className="font-mono text-xs text-text-subtle">
-                        {rider.emergencyContact.phoneE164}
+                      <span className="text-xs text-text-subtle">
+                        Configured (number private)
                       </span>
                     </div>
-                    <a
-                      href={`tel:${rider.emergencyContact.phoneE164}`}
-                      className="size-8 rounded-full bg-surface-muted hover:bg-border flex items-center justify-center text-text transition-colors"
-                      title="Call Emergency Contact"
-                    >
-                      <PhoneCall className="size-4 text-emerald-600" />
-                    </a>
                   </div>
                 ) : (
                   <span className="text-xs text-text-subtle italic mt-1">

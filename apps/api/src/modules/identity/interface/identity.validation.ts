@@ -42,6 +42,14 @@ export const updateRiderProfileSchema = z.object({
     .optional(),
 });
 
+export const adminUpdateRiderProfileSchema = z
+  .object({
+    name: z.string().trim().min(1).max(100).nullable().optional(),
+    email: z.string().trim().email('Invalid email address').nullable().optional(),
+    preferredLanguage: z.string().trim().min(2).max(10).nullable().optional(),
+  })
+  .strict();
+
 export const listRidersQuerySchema = z.object({
   search: z.string().trim().max(100).optional(),
   status: z.enum(USER_STATUSES).optional(),
@@ -107,7 +115,6 @@ export const listAdminUsersQuerySchema = z.object({
 export const adminUserIdParamSchema = z.object({
   id: z.string().uuid('Invalid adminUserId UUID'),
 });
-
 
 export const userStatusSchema = z.enum(USER_STATUSES);
 export const driverStatusSchema = z.enum(DRIVER_STATUSES);

@@ -1,13 +1,8 @@
-import type { RideStatus } from '@cabzone/contracts';
+import { DRIVER_ON_TRIP_STATUSES, type RideStatus } from '@cabzone/contracts';
 import { isDriverEligibleForNewRides, type WalletRepositoryPort } from '../../../ledger/ledger.public.js';
 import type { RideRepositoryPort } from '../../../rides/rides.public.js';
 
-export const ACTIVE_RIDE_STATUSES: readonly RideStatus[] = [
-  'DRIVER_ASSIGNED',
-  'DRIVER_EN_ROUTE',
-  'DRIVER_ARRIVED',
-  'TRIP_STARTED',
-];
+export const ACTIVE_RIDE_STATUSES: readonly RideStatus[] = DRIVER_ON_TRIP_STATUSES;
 
 /** Dispatch-time gates that are not about where the driver is: wallet balance and being free. */
 export class DriverOfferEligibility {

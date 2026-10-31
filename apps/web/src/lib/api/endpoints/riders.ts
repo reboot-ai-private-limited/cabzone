@@ -1,9 +1,9 @@
 import type {
   AdminRiderDetailDto,
   AdminRiderSummaryDto,
+  AdminUpdateRiderProfileDto,
   ListRidersQueryDto,
   ListRidersResponseDto,
-  UpdateRiderProfileDto,
   UpdateRiderStatusDto,
 } from '@cabzone/contracts';
 import { request } from '../client.js';
@@ -36,7 +36,7 @@ export const ridersApi = {
       token,
     }),
 
-  updateProfile: (id: string, body: UpdateRiderProfileDto, token?: string) =>
+  updateProfile: (id: string, body: AdminUpdateRiderProfileDto, token?: string) =>
     request<AdminRiderDetailDto>(`/v1/admin/riders/${id}`, {
       method: 'PATCH',
       body,

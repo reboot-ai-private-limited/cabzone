@@ -695,10 +695,7 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
               <View style={styles.bufferNotice}>
                 <Ionicons name="information-circle-outline" size={15} color={colors.brandBrown} />
                 <Text style={styles.bufferNoticeText}>
-                  {`Ride offer ${formatRupeesFromPaise(proposedFarePaise)} + ${formatRupeesFromPaise(activeQuote.arrearsPaise ?? 0)} previous cancellation fee = ${formatRupeesFromPaise(proposedFarePaise + (activeQuote.arrearsPaise ?? 0))} estimated total.`}
-                  {activeQuote.cashAllowed === false
-                    ? ' Cash payment is unavailable until cancellation arrears are cleared — pay via UPI after trip.'
-                    : ''}
+                  {`Ride offer ${formatRupeesFromPaise(proposedFarePaise)} + ${formatRupeesFromPaise(activeQuote.arrearsPaise ?? 0)} previous cancellation fee = ${formatRupeesFromPaise(proposedFarePaise + (activeQuote.arrearsPaise ?? 0))} estimated total. Payable via Cash or UPI after your trip.`}
                 </Text>
               </View>
             ) : null}
@@ -726,6 +723,37 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
           Free cancellation while searching or within grace period after assignment; standard fee
           applies later or after driver arrival.
         </Text>
+      ) : null}
+
+      {activeRide ? (
+        <Pressable
+          style={styles.activeRideBanner}
+          onPress={() => router.push(`/(rider)/ride/${activeRide.id}`)}
+          accessibilityRole="button"
+          accessibilityLabel={`Open blocking ride: ${getRideStatusMeta(activeRide.status).label}`}
+        >
+          <View style={styles.activeRideBannerLeft}>
+            <View style={styles.pulseDot} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.activeRideBannerTitle}>
+                {activeRide.status === 'PAYMENT_PENDING' ||
+                activeRide.status === 'TRIP_COMPLETED' ||
+                activeRide.status === 'PAYMENT_UNPAID'
+                  ? `Payment due · ${formatRupeesFromPaise((activeRide.agreedFarePaise ?? activeRide.proposedFarePaise ?? activeRide.suggestedFarePaise) + (activeRide.arrearsPaise ?? 0))}`
+                  : `Active Ride · ${getRideStatusMeta(activeRide.status).label}`}
+              </Text>
+              <Text style={styles.activeRideBannerSub} numberOfLines={1}>
+                {activeRide.status === 'PAYMENT_UNPAID'
+                  ? 'Pay via UPI or dispute to unlock your next ride'
+                  : activeRide.status === 'PAYMENT_PENDING' ||
+                      activeRide.status === 'TRIP_COMPLETED'
+                    ? 'Pay via UPI or tap "I paid cash to driver" to unlock next ride'
+                    : 'Tap to open your current trip'}
+              </Text>
+            </View>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={colors.deepBrown} />
+        </Pressable>
       ) : null}
 
       {/* Primary Book Ride CTA */}
@@ -1035,7 +1063,13 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
           activeRide={
             activeRide
               ? {
-                  label: getRideStatusMeta(activeRide.status).label + ' - View ride',
+                  label:
+                    activeRide.status === 'PAYMENT_PENDING' ||
+                    activeRide.status === 'TRIP_COMPLETED'
+                      ? `Pending payment (${formatRupeesFromPaise((activeRide.agreedFarePaise ?? activeRide.proposedFarePaise ?? activeRide.suggestedFarePaise) + (activeRide.arrearsPaise ?? 0))}) · Pay UPI or Confirm Cash`
+                      : activeRide.status === 'PAYMENT_UNPAID'
+                        ? `Unpaid fare due (${formatRupeesFromPaise((activeRide.agreedFarePaise ?? activeRide.proposedFarePaise ?? activeRide.suggestedFarePaise) + (activeRide.arrearsPaise ?? 0))}) · Tap to resolve`
+                        : getRideStatusMeta(activeRide.status).label + ' - View ride',
                   onPress: () => router.push(`/(rider)/ride/${activeRide.id}`),
                 }
               : null
@@ -1071,9 +1105,13 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
                 Active Ride · {getRideStatusMeta(activeRide.status).label}
               </Text>
               <Text style={styles.activeRideBannerSub} numberOfLines={1}>
-                {activeRide.pickupOtp
-                  ? `Pickup OTP: ${activeRide.pickupOtp} · Tap to open live trip`
-                  : 'Tap to view live driver status & counter-offers'}
+                {activeRide.status === 'PAYMENT_PENDING' ||
+                activeRide.status === 'TRIP_COMPLETED' ||
+                activeRide.status === 'PAYMENT_UNPAID'
+                  ? 'Pay via UPI or confirm cash paid to unlock your next booking'
+                  : activeRide.pickupOtp
+                    ? `Pickup OTP: ${activeRide.pickupOtp} · Tap to open live trip`
+                    : 'Tap to view live driver status & counter-offers'}
               </Text>
             </View>
           </View>

@@ -1,4 +1,8 @@
 import type {
+  RideChatPageDto,
+  RideChatMessageDto,
+  RideCallDto,
+  RideCallTokenDto,
   TollSnapshot,
   CancellationReason,
   DriverDocumentDto,
@@ -13,6 +17,7 @@ import type {
   RequestOtpResponseDto,
   RideDto,
   RideEventDto,
+  RidePaymentQrResponseDto,
   RideRatingStatusDto,
   SubmitRideRatingRequestDto,
   RideStatus,
@@ -34,7 +39,7 @@ export type { DriverProfileDetailDto };
 function getApiBaseUrl(): string {
   // 1. Explicit environment variable
   if (process.env.EXPO_PUBLIC_API_URL) {
-    return process.env.EXPO_PUBLIC_API_URL.replace(/\/$/, '');
+    return process.env.EXPO_PUBLIC_API_URL.replace(/\/+$/, '').replace(/\/api$/, '');
   }
 
   // 2. Web browser: localhost is fine
@@ -61,6 +66,30 @@ function getApiBaseUrl(): string {
 }
 
 export const API_BASE_URL = getApiBaseUrl();
+
+export const rideChatApi = {
+  list: (token: string, rideId: string, cursor: { before?: number; after?: number } = {}) => {
+    const query = new URLSearchParams();
+    if (cursor.before !== undefined) query.set('before', String(cursor.before));
+    if (cursor.after !== undefined) query.set('after', String(cursor.after));
+    return request<RideChatPageDto>(`/api/v1/rides/${encodeURIComponent(rideId)}/messages?${query}`, {}, token);
+  },
+  send: (token: string, rideId: string, clientMessageId: string, text: string) =>
+    request<RideChatMessageDto>(`/api/v1/rides/${encodeURIComponent(rideId)}/messages`, {
+      method: 'POST', body: JSON.stringify({ clientMessageId, text }),
+    }, token),
+};
+
+export const rideCallsApi = {
+  current: (token: string, rideId: string) => request<{ call: RideCallDto | null }>(`/api/v1/rides/${encodeURIComponent(rideId)}/calls/current`, {}, token),
+  start: (token: string, rideId: string, installationId: string, clientRequestId: string) => request<RideCallDto>(`/api/v1/rides/${encodeURIComponent(rideId)}/calls`, { method: 'POST', body: JSON.stringify({ installationId, clientRequestId }) }, token),
+  answer: (token: string, rideId: string, callId: string, installationId: string) => request<RideCallDto>(`/api/v1/rides/${encodeURIComponent(rideId)}/calls/${encodeURIComponent(callId)}/answer`, { method: 'POST', body: JSON.stringify({ installationId }) }, token),
+  decline: (token: string, rideId: string, callId: string) => request<RideCallDto>(`/api/v1/rides/${encodeURIComponent(rideId)}/calls/${encodeURIComponent(callId)}/decline`, { method: 'POST' }, token),
+  end: (token: string, rideId: string, callId: string) => request<RideCallDto>(`/api/v1/rides/${encodeURIComponent(rideId)}/calls/${encodeURIComponent(callId)}/end`, { method: 'POST' }, token),
+  token: (token: string, rideId: string, callId: string, installationId: string) => request<RideCallTokenDto>(`/api/v1/rides/${encodeURIComponent(rideId)}/calls/${encodeURIComponent(callId)}/token`, { method: 'POST', body: JSON.stringify({ installationId }) }, token),
+  connected: (token: string, rideId: string, callId: string) => request<RideCallDto>(`/api/v1/rides/${encodeURIComponent(rideId)}/calls/${encodeURIComponent(callId)}/connected`, { method: 'POST' }, token),
+  endCurrent: (token: string) => request<{ ended: boolean }>('/api/v1/rides/calls/current/end', { method: 'POST' }, token),
+};
 
 interface ApiResponse<T> {
   success: boolean;
@@ -464,10 +493,19 @@ export const dispatchApi = {
     token: string,
     pushToken: string,
     installationId: string,
+    meta?: { platform?: 'android' | 'ios'; transport?: 'EXPO' | 'FCM_CALL' | 'APNS_VOIP' },
   ): Promise<{ ok: boolean }> {
     return request<{ ok: boolean }>(
       '/api/v1/driver/push-token',
-      { method: 'POST', body: JSON.stringify({ token: pushToken, installationId }) },
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          token: pushToken,
+          installationId,
+          ...(meta?.platform ? { platform: meta.platform } : {}),
+          ...(meta?.transport ? { transport: meta.transport } : {}),
+        }),
+      },
       token,
     );
   },
@@ -501,6 +539,20 @@ export const ridesApi = {
     return request(
       `/api/v1/rides/${encodeURIComponent(rideId)}/payment/cash`,
       { method: 'POST' },
+      token,
+    );
+  },
+  async createPaymentQr(token: string, rideId: string): Promise<RidePaymentQrResponseDto> {
+    return request<RidePaymentQrResponseDto>(
+      `/api/v1/rides/${encodeURIComponent(rideId)}/payment-qr`,
+      { method: 'POST', body: JSON.stringify({}) },
+      token,
+    );
+  },
+  async pollPaymentQr(token: string, rideId: string): Promise<RidePaymentQrResponseDto> {
+    return request<RidePaymentQrResponseDto>(
+      `/api/v1/rides/${encodeURIComponent(rideId)}/payment-qr`,
+      { method: 'GET' },
       token,
     );
   },
@@ -682,6 +734,14 @@ export const ridesApi = {
     return request<CompleteRideResultDto>(
       `/api/v1/rides/${encodeURIComponent(rideId)}/payment/confirm`,
       { method: 'POST', body: JSON.stringify({}) },
+      token,
+    );
+  },
+
+  async markRideUnpaid(token: string, rideId: string, reason?: string): Promise<RideDto> {
+    return request<RideDto>(
+      `/api/v1/rides/${encodeURIComponent(rideId)}/payment/unpaid`,
+      { method: 'POST', body: JSON.stringify(reason ? { reason } : {}) },
       token,
     );
   },

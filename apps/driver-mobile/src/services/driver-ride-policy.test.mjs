@@ -14,20 +14,21 @@ const code = ts.transpileModule(
 const policy = {};
 vm.runInNewContext(code, { exports: policy, Date, Math, Number, String });
 
-test('resolveDriverCashAvailability blocks cash when rider arrears reach policy threshold', () => {
-  const blocked = policy.resolveDriverCashAvailability({
+test('resolveDriverCashAvailability always allows cash or UPI even when rider arrears apply', () => {
+  const withArrears = policy.resolveDriverCashAvailability({
     arrearsPaise: 5000,
     pricingSnapshot: { cancellationFeePaise: 5000 },
   });
-  assert.equal(blocked.cashAllowed, false);
-  assert.match(blocked.reason, /Cash collection is disabled while ₹50\.00/);
+  assert.equal(withArrears.cashAllowed, true);
+  assert.equal(withArrears.arrearsPaise, 5000);
+  assert.equal(withArrears.reason, null);
 
-  const allowed = policy.resolveDriverCashAvailability({
+  const lowArrears = policy.resolveDriverCashAvailability({
     arrearsPaise: 2500,
     pricingSnapshot: { cancellationFeePaise: 5000 },
   });
-  assert.equal(allowed.cashAllowed, true);
-  assert.equal(allowed.reason, null);
+  assert.equal(lowArrears.cashAllowed, true);
+  assert.equal(lowArrears.reason, null);
 });
 
 test('resolveDriverNoShowStatus enforces arrival state and driverNoShowWaitSeconds threshold', () => {

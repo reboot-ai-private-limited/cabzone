@@ -32,6 +32,8 @@ export interface RiderTripCountsSummary {
 
 export interface RideRepositoryPort {
   ensureReady?(): Promise<void>;
+  /** Atomically verifies communication-eligible ride state + assigned driver and allocates next chat sequence. */
+  allocateChatSequence?(rideId: string, expectedDriverId: string): Promise<number | null>;
   create(ride: RideEntity): Promise<RideEntity>;
   save(ride: RideEntity): Promise<RideEntity>;
   /** Updates an existing ride only when its version still matches. Never upserts. */

@@ -8,8 +8,9 @@ import type {
   DriverProfileDetailDto,
   KycComplianceSummaryDto,
 } from '@cabzone/contracts';
-import { authApi, dispatchApi, driverApi, isApiError, subscribeAccessToken } from '@/services/api';
+import { authApi, dispatchApi, driverApi, isApiError, rideCallsApi, subscribeAccessToken } from '@/services/api';
 import { canAccessDriverShell as evaluateCanAccessDriverShell } from '@/services/profile';
+import { stopActiveRideCallMedia } from '@/services/ride-call-media';
 import {
   clearAuthTokens,
   getAccessToken,
@@ -281,6 +282,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(true);
     try {
       if (token) {
+        await rideCallsApi.endCurrent(token).catch(() => {});
+        await stopActiveRideCallMedia();
         await dispatchApi.unregisterPushToken(token, await getOrCreateDeviceId()).catch(() => {});
         await authApi.logout(token).catch(() => {});
       }

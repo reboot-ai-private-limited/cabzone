@@ -53,7 +53,11 @@ function provider() {
             ? err.details.rideId
             : null,
         extractPendingDriverCounters: () => [],
-        isRideActive: (status) => status === 'OFFERING' || status === 'PAYMENT_CONFIRMED',
+        isRideActive: (status) =>
+          status === 'OFFERING' ||
+          status === 'PAYMENT_PENDING' ||
+          status === 'PAYMENT_UNPAID' ||
+          status === 'PAYMENT_CONFIRMED',
       };
       throw new Error(`Unexpected module: ${name}`);
     },
@@ -129,6 +133,45 @@ test('createRide hydrates activeRide when server returns 409 ACTIVE_RIDE_EXISTS,
   s.api.disputePayment = async () => ({ ...existing, status: 'PAYMENT_DISPUTED' });
   await s.render().disputePayment('ride-active-99', 'Overcharged cash fare');
   assert.equal(s.render().activeRide, null);
+});
+
+test('claimCashPaid unblocks activeRide immediately on PAYMENT_CASH_CLAIMED while PAYMENT_UNPAID blocks', async () => {
+  const s = provider();
+  const pending = { id: 'ride-pay-1', status: 'PAYMENT_PENDING', createdAt: '2026-10-22T10:00:00Z' };
+  s.api.listRides = async () => [pending];
+  s.api.getRide = async () => pending;
+  s.api.getRideEvents = async () => [];
+  await s.render().refreshRides();
+  assert.equal(s.render().activeRide?.id, 'ride-pay-1');
+
+  s.api.claimCashPaid = async (_token, id) => ({ ...pending, id, status: 'PAYMENT_CASH_CLAIMED' });
+  const claimed = await s.render().claimCashPaid('ride-pay-1');
+  assert.equal(claimed.status, 'PAYMENT_CASH_CLAIMED');
+  assert.equal(s.render().activeRide, null);
+  assert.equal(s.render().rideHistory[0].status, 'PAYMENT_CASH_CLAIMED');
+
+  const unpaid = { id: 'ride-unpaid-2', status: 'PAYMENT_UNPAID', createdAt: '2026-10-22T11:00:00Z' };
+  s.api.getRide = async () => unpaid;
+  s.api.createRide = async () => {
+    const err = new Error('ACTIVE_RIDE_EXISTS');
+    err.name = 'ApiError';
+    err.status = 409;
+    err.details = { code: 'ACTIVE_RIDE_EXISTS', rideId: 'ride-unpaid-2', status: 'PAYMENT_UNPAID' };
+    throw err;
+  };
+  await assert.rejects(
+    s.render().createRide({
+      quoteToken: 'qt',
+      proposedFarePaise: 9000,
+      passenger: { name: 'Rider', phoneE164: '+919876543210' },
+      vehicleCategory: 'CAB',
+      pickup: { lat: 26.71, lng: 88.42 },
+      drop: { lat: 26.75, lng: 88.45 },
+    }),
+    /ACTIVE_RIDE_EXISTS/,
+  );
+  assert.equal(s.render().activeRide?.id, 'ride-unpaid-2');
+  assert.equal(s.render().activeRide?.status, 'PAYMENT_UNPAID');
 });
 
 test('loadOlderRides appends older pages with offset and deduplicates overlapping ride IDs', async () => {

@@ -16,6 +16,7 @@ import {
 } from '@/shared/http/swagger.util.js';
 import {
   adminLoginSchema,
+  adminUpdateRiderProfileSchema,
   adminUserIdParamSchema,
   createAdminUserSchema,
   listAdminUsersQuerySchema,
@@ -676,7 +677,7 @@ export function registerIdentitySwaggerPaths(): void {
     security: bearerAuth,
     request: {
       params: riderIdParamSchema,
-      body: { content: { 'application/json': { schema: updateRiderProfileSchema } } },
+      body: { content: { 'application/json': { schema: adminUpdateRiderProfileSchema } } },
     },
     responses: {
       200: {

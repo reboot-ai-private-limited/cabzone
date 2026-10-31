@@ -1,6 +1,8 @@
 # Customer ride fares: UPI app handoff, driver QR, and test checkout
 
-The default `RAZORPAY_MODE=test` keeps the existing simulated checkout and browser QR; test checkout is disabled in production. An explicitly configured `RAZORPAY_MODE=live` with matching live credentials uses one single-use, fixed-fare Razorpay QR session for both rider app handoff and driver QR scanning. No live credentials are configured by this change. Refund automation, driver recharge and payout transfers are not implemented.
+For the driver's full-screen, 15-minute QR collection flow, see [Driver UPI QR collection](driver-upi-qr-collection.md). The legacy rider app handoff/browser checkout below retains its own contracts.
+
+The default `RAZORPAY_MODE=test` keeps the existing simulated checkout and browser QR; test checkout is disabled in production. An explicitly configured `RAZORPAY_MODE=live` with matching live credentials uses one single-use, fixed-fare Razorpay QR session for both rider app handoff and driver QR scanning. No live credentials are configured by default. Driver test wallet recharge (`₹100`–`₹1,00,000`), manual Finance/Super Admin cashout review (`wallet_operations`), signed live QR webhooks, and verified provider-refund dispute reversal (`D-041` / `D-044`) are implemented; automated bank payouts (`RazorpayX`) remain deferred to the commercial launch gate per `D-042`.
 
 Backend credentials live in the ignored root `.env` as `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET`. Restart the API after changing them. Never put the secret in an `EXPO_PUBLIC_` variable or a mobile checkout response.
 
@@ -11,7 +13,7 @@ Backend credentials live in the ignored root `.env` as `RAZORPAY_KEY_ID` and `RA
 3. The existing WebView opens Standard Checkout, configured to show UPI only. No new native module is required for this test screen.
 4. Success proof is verified using HMAC-SHA256 of the stored order ID and returned payment ID. The backend also fetches the order's payments and requires an exact amount, INR, UPI and `captured` status. A client success message alone never settles a ride.
 5. **Check payment status**, reopening the payment panel and foregrounding the app recover payments from the provider, including when the checkout callback was lost. This test integration uses authenticated provider polling, not webhooks; background settlement requires the app to check again.
-6. Ride settlement and audit entries are transactional. A `DRIVER_PAYOUT_PENDING` event records gross fare, commission and net payable, all labelled `mode: test`. This is an audit liability record, not a spendable wallet credit or an actual payout. The driver's prepaid commission wallet is unchanged.
+6. Ride settlement and audit entries are transactional. Newly reconciled online UPI settlements credit the driver's wallet net of ride commission (`agreedFarePaise - commissionPaise`, `RIDE_ONLINE_EARNINGS`), settle any attached rider cancellation arrears (`arrearsPaise`, `D-044`) without charging commission on arrears, and record audit events labelled with the active provider mode (`test` or `live`). Test balances never migrate into withdrawable live funds (`D-042`).
 
 Once an online order has been exposed, direct cash/personal-UPI confirmation is blocked until an authenticated cash switch is recorded. A new order and a payment-method switch each increment the ride version so they cannot race successfully with settlement. Existing checkout tickets cannot open a new payment after cash selection.
 
@@ -41,7 +43,7 @@ Ride detail includes optional `paymentCollection: DIRECT | RAZORPAY_TEST | RAZOR
 
 ## Test on a phone
 
-Enable automatic payment capture in the Razorpay test dashboard. Complete a test ride and open the customer's payment screen. In test UPI checkout, use `success@razorpay` or `failure@razorpay`. Confirm that failure leaves payment pending, success settles once, and closing/reopening after success recovers the payment. Check that the driver is not asked to collect again and their prepaid wallet remains unchanged.
+Enable **UPI** (`collect` and `intent` under **Account & Settings → Payment Methods**) and automatic payment capture in the Razorpay Test Dashboard (if UPI is disabled on the test merchant account, Standard Checkout renders `"No appropriate payment method found"` because Cabzone restricts checkout to UPI instruments). Complete a test ride and open the customer's payment screen. In test UPI checkout, use `success@razorpay` or `failure@razorpay`. Confirm that failure leaves payment pending, success settles once, and closing/reopening after success recovers the payment. Check that the driver is not asked to collect again and their prepaid wallet remains unchanged.
 
 Razorpay documents simulated UPI testing separately from real UPI Intent/QR app handoff, which requires live-mode testing. Existing test keys remain unchanged.
 

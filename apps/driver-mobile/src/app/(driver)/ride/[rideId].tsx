@@ -1,5 +1,6 @@
 import {
   tollDisclosure,
+  RIDE_COMMUNICATION_STATUSES,
   type CancellationReason,
   type RideDto,
   type RideStatus,
@@ -26,6 +27,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
 import { useRide } from '@/context/ride-context';
+import { useRideCall } from '@/context/call-context';
 import { computeRideEarningsBreakdown } from '@/context/duty-context';
 import { colors, typography } from '@/design-system';
 import {
@@ -90,11 +92,27 @@ function getStatusMeta(status: RideStatus): {
     case 'TRIP_COMPLETED':
     case 'PAYMENT_PENDING':
       return {
-        badge: 'AWAITING DIRECT PAYMENT',
-        headline: 'Collect Cash or UPI directly',
+        badge: 'AWAITING PAYMENT',
+        headline: 'Collect Cash or UPI',
         subtitle:
-          'Collect the agreed fare directly from the passenger via Cash or personal UPI, then confirm receipt below.',
+          'Collect the agreed fare in Cash or tap "Show QR" for UPI. You can return to Home anytime.',
         tone: 'amber',
+      };
+    case 'PAYMENT_CASH_CLAIMED':
+      return {
+        badge: 'CASH CLAIMED BY RIDER',
+        headline: 'Passenger marked cash paid',
+        subtitle:
+          'Confirm receipt below if you received cash, or tap "Rider didn\'t pay" to dispute.',
+        tone: 'amber',
+      };
+    case 'PAYMENT_UNPAID':
+      return {
+        badge: 'REPORTED UNPAID',
+        headline: 'Marked unpaid · ₹0 commission charged',
+        subtitle:
+          'No commission was deducted from your wallet. If the rider pays later via UPI, your net earnings will be credited automatically.',
+        tone: 'red',
       };
     case 'SETTLED':
     case 'PAYMENT_CONFIRMED':
@@ -130,10 +148,13 @@ function getStatusMeta(status: RideStatus): {
 }
 
 export default function ActiveRideScreen() {
+  const { startCall } = useRideCall();
   const router = useRouter();
   const { rideId } = useLocalSearchParams<{ rideId: string }>();
   const {
+    unreadChatRideId,
     activeRide,
+    pendingPaymentRide,
     isMutatingRide,
     rideError,
     clearRideError,
@@ -143,6 +164,7 @@ export default function ActiveRideScreen() {
     startTripWithOtp,
     completeTrip,
     confirmDirectPayment,
+    markRideUnpaid,
     cancelTrip,
   } = useRide();
 
@@ -161,12 +183,19 @@ export default function ActiveRideScreen() {
   } | null>(null);
 
   const setRide = setFetchedRide;
-  const ride =
+  const matchingActive =
     activeRide && activeRide.id === rideId
       ? activeRide
-      : fetchedRide && fetchedRide.id === rideId
-        ? fetchedRide
+      : pendingPaymentRide && pendingPaymentRide.id === rideId
+        ? pendingPaymentRide
         : null;
+  const matchingFetched = fetchedRide && fetchedRide.id === rideId ? fetchedRide : null;
+  const ride =
+    matchingActive && matchingFetched
+      ? matchingFetched.version >= matchingActive.version
+        ? matchingFetched
+        : matchingActive
+      : (matchingActive ?? matchingFetched);
 
   const loadRide = useCallback(async () => {
     if (!rideId) return;
@@ -182,12 +211,12 @@ export default function ActiveRideScreen() {
   }, [rideId, refreshActiveRide]);
 
   useEffect(() => {
-    if (activeRide && activeRide.id === rideId) {
+    if (matchingActive) {
       return;
     }
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadRide();
-  }, [activeRide, rideId, loadRide]);
+  }, [matchingActive, rideId, loadRide]);
 
   const [arrivalClockNow, setArrivalClockNow] = useState<number>(() => Date.now());
   useEffect(() => {
@@ -270,10 +299,7 @@ export default function ActiveRideScreen() {
     void Linking.openURL(url);
   };
 
-  const callPassenger = () => {
-    if (!ride.passenger?.phoneE164) return;
-    void Linking.openURL(`tel:${ride.passenger.phoneE164}`);
-  };
+  const callPassenger = () => { void startCall(ride.id, ride.passenger?.name); };
 
   const handleEnRoute = async () => {
     const updated = await markEnRoute(ride.id);
@@ -377,7 +403,9 @@ export default function ActiveRideScreen() {
         <RideExtensionPanel ride={ride} onRefresh={loadRide} />
         <View style={styles.heroCard}>
           {/* 5-Step Lifecycle Progress Bar */}
-          {ride.status !== 'CANCELLED' && ride.status !== 'PAYMENT_DISPUTED' ? (
+          {ride.status !== 'CANCELLED' &&
+          ride.status !== 'PAYMENT_DISPUTED' &&
+          ride.status !== 'PAYMENT_UNPAID' ? (
             <View style={styles.stepperRow}>
               {[
                 { label: 'Assigned', idx: 0 },
@@ -437,7 +465,24 @@ export default function ActiveRideScreen() {
                 {ride.vehicleCategory} · {distanceKm} km · ~{durationMin} mins
               </Text>
             </View>
-            {ride.passenger?.phoneE164 ? (
+            {RIDE_COMMUNICATION_STATUSES.includes(ride.status) ? (
+              <Pressable
+                style={styles.callBtn}
+                onPress={() =>
+                  router.push({ pathname: '/(driver)/chat/[rideId]', params: { rideId: ride.id } })
+                }
+                accessibilityRole="button"
+                accessibilityLabel={
+                  unreadChatRideId === ride.id ? 'Chat with rider, new message' : 'Chat with rider'
+                }
+              >
+                <Ionicons name="chatbubble-outline" size={18} color={colors.deepBrown} />
+                <Text style={styles.callBtnText}>
+                  {unreadChatRideId === ride.id ? 'Chat •' : 'Chat'}
+                </Text>
+              </Pressable>
+            ) : null}
+            {RIDE_COMMUNICATION_STATUSES.includes(ride.status) ? (
               <Pressable
                 style={styles.callBtn}
                 onPress={callPassenger}
@@ -451,25 +496,36 @@ export default function ActiveRideScreen() {
           </View>
         </View>
 
-        {ride.status === 'PAYMENT_PENDING' ? (
-          <RidePaymentQr
-            key={ride.id}
-            rideId={ride.id}
-            amountPaise={totalCollectablePaise}
-            farePaise={breakdown.grossPaise}
-            arrearsPaise={arrearsPaise}
-            commissionPaise={breakdown.commissionPaise}
-            cashAllowed={cashAvailability.cashAllowed}
-            cashBlockedReason={cashAvailability.reason}
-            onPaid={loadRide}
-            onCashReceived={async () => {
-              const result = await confirmDirectPayment(ride.id);
-              if (!result)
-                throw new Error('Cash confirmation failed. Check payment status before retrying.');
-              setRide(result.ride);
-            }}
-          />
-        ) : null}
+        <RidePaymentQr
+          key={ride.id}
+          rideId={ride.id}
+          rideStatus={ride.status}
+          amountPaise={totalCollectablePaise}
+          farePaise={breakdown.grossPaise}
+          arrearsPaise={arrearsPaise}
+          commissionPaise={breakdown.commissionPaise}
+          cashAllowed={cashAvailability.cashAllowed}
+          cashBlockedReason={cashAvailability.reason}
+          onRide={(updated) => setRide(updated)}
+          onPaid={loadRide}
+          onCashReceived={async () => {
+            const result = await confirmDirectPayment(ride.id);
+            if (!result)
+              throw new Error('Cash confirmation failed. Check payment status before retrying.');
+            setRide(result.ride);
+            setSettlementSummary({
+              farePaise: result.farePaise,
+              commissionPaise: result.commissionPaise,
+              walletBalancePaise: result.walletBalancePaise,
+            });
+          }}
+          onMarkUnpaid={async () => {
+            const updated = await markRideUnpaid(ride.id);
+            if (!updated)
+              throw new Error('Unable to mark ride unpaid right now. Please retry.');
+            setRide(updated);
+          }}
+        />
 
         {/* Route & Navigation Card */}
         <View style={styles.card}>
@@ -670,7 +726,8 @@ export default function ActiveRideScreen() {
         {ride.status === 'SETTLED' ||
         ride.status === 'PAYMENT_CONFIRMED' ||
         ride.status === 'CANCELLED' ||
-        ride.status === 'PAYMENT_DISPUTED' ? (
+        ride.status === 'PAYMENT_DISPUTED' ||
+        ride.status === 'PAYMENT_UNPAID' ? (
           <Pressable
             style={styles.primaryCta}
             onPress={() => router.replace('/(driver)/(tabs)/home')}
@@ -1199,8 +1256,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    gap: 12,
   },
   breakdownLabel: {
+    flex: 1,
+    flexShrink: 1,
     fontSize: typography.sizes.xs,
     color: colors.secondary,
     fontWeight: '600',
@@ -1222,6 +1282,8 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   breakdownTotalLabel: {
+    flex: 1,
+    flexShrink: 1,
     fontSize: typography.sizes.sm,
     fontWeight: '800',
     color: colors.deepBrown,

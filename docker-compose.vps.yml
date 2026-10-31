@@ -1,0 +1,117 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# CABZONE BACKEND STACK (VPS Deployment with Automated SSL via Caddy)
+#
+# Services:
+#   - mongo:       MongoDB 7 Replica Set (rs0) for multi-document ACID transactions
+#   - mongo-init:  Replica Set initialiser
+#   - redis:       Redis 7 with append-only persistence (BullMQ queues & pub/sub)
+#   - api:         Cabzone API (Express REST + WebSockets on port 4000)
+#   - worker:      Cabzone BullMQ Worker (notifications, sweeps, dispatch)
+#   - caddy:       Automated Let's Encrypt SSL & reverse proxy (ports 80 & 443)
+#
+# Quickstart on VPS:
+#   1. cp .env.vps.example .env.vps
+#   2. Fill in .env.vps (API_DOMAIN, CORS_ORIGINS, secrets)
+#   3. docker compose -f docker-compose.vps.yml --env-file .env.vps up -d --build
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+  mongo:
+    image: mongo:7
+    command: ['--replSet', 'rs0', '--bind_ip_all']
+    volumes:
+      - mongo-data:/data/db
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD', 'mongosh', '--quiet', '--eval', "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  mongo-init:
+    image: mongo:7
+    depends_on:
+      mongo: { condition: service_healthy }
+    restart: 'no'
+    entrypoint:
+      - bash
+      - -c
+      - mongosh --host mongo --quiet --eval 'try { rs.status() } catch (e) { rs.initiate({_id:"rs0",members:[{_id:0,host:"mongo:27017"}]}) }'
+
+  redis:
+    image: redis:7-alpine
+    command: ['redis-server', '--appendonly', 'yes']
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    depends_on:
+      mongo: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    env_file: [.env.vps]
+    environment:
+      NODE_ENV: production
+      MONGO_URI: mongodb://mongo:27017/Cabzonee_prod?replicaSet=rs0
+      REDIS_URL: redis://redis:6379
+    expose:
+      - '4000'
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:4000/api/health']
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  worker:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    command: ['node', 'dist/worker.js']
+    depends_on:
+      mongo: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    env_file: [.env.vps]
+    environment:
+      NODE_ENV: production
+      MONGO_URI: mongodb://mongo:27017/Cabzonee_prod?replicaSet=rs0
+      REDIS_URL: redis://redis:6379
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD', 'pgrep', '-f', 'dist/worker.js']
+      interval: 20s
+      timeout: 5s
+      retries: 3
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '443:443'
+    volumes:
+      - ./deploy/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    environment:
+      API_DOMAIN: ${API_DOMAIN:?Set API_DOMAIN in .env.vps, e.g. api.yourdomain.com}
+    depends_on:
+      api: { condition: service_healthy }
+
+volumes:
+  mongo-data:
+    name: cabzone-vps-mongo-data
+  redis-data:
+    name: cabzone-vps-redis-data
+  caddy-data:
+    name: cabzone-vps-caddy-data
+  caddy-config:
+    name: cabzone-vps-caddy-config

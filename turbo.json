@@ -2,7 +2,7 @@
   "$schema": "https://turbo.build/schema.json",
   "ui": "stream",
   "globalDependencies": ["packages/config/**", ".npmrc"],
-  "globalEnv": ["NODE_ENV"],
+  "globalEnv": ["NODE_ENV", "API_UPSTREAM_ORIGIN", "NEXT_PUBLIC_API_BASE_URL"],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],

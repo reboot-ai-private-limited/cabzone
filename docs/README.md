@@ -2,8 +2,8 @@
 
 **Cabzonee** is a zone-based ride-hailing and driver dispatch platform featuring:
 
-- **Rider Mobile App** (Roadmap)
-- **Driver Mobile App** (Roadmap)
+- **Rider Mobile App** (`apps/rider-mobile`, `@cabzone/rider-mobile`)
+- **Driver Mobile App** (`apps/driver-mobile`, `@cabzone/driver-mobile`)
 - **Admin & Operations Web Console** (`apps/web`, `@cabzone/web`)
 - **Core API & Dispatch Worker** (`apps/api`, `@cabzone/api`)
 

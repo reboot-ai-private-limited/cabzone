@@ -9,7 +9,6 @@ import {
   Clock,
   CreditCard,
   MapPin,
-  Phone,
   RefreshCw,
   Star,
   UserCheck,
@@ -97,17 +96,7 @@ const formatTimeAgo = (iso: string | null): string => {
   return `${days}d ago`;
 };
 
-const formatPhoneDisplay = (phoneE164: string | null): string => {
-  if (!phoneE164) return '—';
-  const cleaned = phoneE164.replace(/\s+/g, '');
-  const match = cleaned.match(/^(\+91)(\d{5})(\d{5})$/);
-  if (match) {
-    return `${match[1]} ${match[2]} ${match[3]}`;
-  }
-  return phoneE164;
-};
-
-const getDriverInitials = (name: string | null | undefined, phone: string | null): string => {
+const getDriverInitials = (name: string | null | undefined, driverId?: string): string => {
   const trimmed = name?.trim();
   if (trimmed) {
     const parts = trimmed.split(/\s+/).filter(Boolean);
@@ -116,8 +105,7 @@ const getDriverInitials = (name: string | null | undefined, phone: string | null
     }
     return trimmed.slice(0, 2).toUpperCase();
   }
-  const digits = (phone ?? '').replace(/\D/g, '');
-  return digits.slice(-2) || 'DR';
+  return (driverId ?? '').slice(0, 2).toUpperCase() || 'DR';
 };
 
 type IndexedDriverRow = DriverApplicationSummaryDto & { sl: number };
@@ -187,12 +175,10 @@ export function DriversScreen() {
         if (!REVIEWABLE.has(row.application.status)) return false;
       }
 
-      // Search query (name, phone, DL, address, driverId, registrationNumber, make/model)
+      // Search query (name, DL, address, driverId, registrationNumber, make/model)
       if (searchQuery.trim().length > 0) {
         const q = searchQuery.trim().toLowerCase();
         const name = row.driver?.name?.toLowerCase() ?? '';
-        const phone = row.phoneE164?.toLowerCase() ?? '';
-        const phoneFormatted = formatPhoneDisplay(row.phoneE164).toLowerCase();
         const dl = row.driver?.dlNumber?.toLowerCase() ?? '';
         const address = row.driver?.address?.toLowerCase() ?? '';
         const driverId = row.application.driverId.toLowerCase();
@@ -201,8 +187,6 @@ export function DriversScreen() {
 
         const matches =
           name.includes(q) ||
-          phone.includes(q) ||
-          phoneFormatted.includes(q) ||
           dl.includes(q) ||
           address.includes(q) ||
           driverId.includes(q) ||
@@ -250,7 +234,7 @@ export function DriversScreen() {
       render: (r) => {
         const driverName = r.driver?.name?.trim() || 'Unnamed Driver';
         const dlNumber = r.driver?.dlNumber?.trim() || 'No DL Number';
-        const initials = getDriverInitials(r.driver?.name, r.phoneE164);
+        const initials = getDriverInitials(r.driver?.name, r.application.driverId);
         return (
           <div className="flex items-center gap-3">
             <div className="size-9 rounded-full bg-surface-muted border border-border flex items-center justify-center shrink-0 text-xs font-bold text-text">
@@ -265,13 +249,12 @@ export function DriversScreen() {
       },
     },
     {
-      key: 'mobile',
-      header: 'Mobile',
+      key: 'driverId',
+      header: 'Driver ID',
       render: (r) => (
-        <div className="inline-flex items-center gap-1.5 text-xs font-medium text-text">
-          <Phone className="size-3.5 text-text-subtle shrink-0" />
-          <span>{formatPhoneDisplay(r.phoneE164)}</span>
-        </div>
+        <span className="font-mono text-xs font-medium text-text-subtle">
+          {r.application.driverId.slice(0, 8)}
+        </span>
       ),
     },
     {
@@ -395,7 +378,7 @@ export function DriversScreen() {
       render: (r) => {
         const driverName = r.driver?.name?.trim() || 'Unnamed Driver';
         const dlNumber = r.driver?.dlNumber?.trim() || 'No DL Number';
-        const initials = getDriverInitials(r.driver?.name, r.phoneE164);
+        const initials = getDriverInitials(r.driver?.name, r.application.driverId);
         return (
           <div className="flex items-center gap-3">
             <div className="size-9 rounded-full bg-surface-muted border border-border flex items-center justify-center shrink-0 text-xs font-bold text-text">
@@ -416,13 +399,12 @@ export function DriversScreen() {
       },
     },
     {
-      key: 'mobile',
-      header: 'Mobile',
+      key: 'driverId',
+      header: 'Driver ID',
       render: (r) => (
-        <div className="inline-flex items-center gap-1.5 text-xs font-medium text-text">
-          <Phone className="size-3.5 text-text-subtle shrink-0" />
-          <span>{formatPhoneDisplay(r.phoneE164)}</span>
-        </div>
+        <span className="font-mono text-xs font-medium text-text-subtle">
+          {r.application.driverId.slice(0, 8)}
+        </span>
       ),
     },
     {
@@ -633,7 +615,7 @@ export function DriversScreen() {
               setSearchQuery(val);
               setPage(1);
             }}
-            placeholder="Search by name or phone..."
+            placeholder="Search by name, DL, plate, or driver ID..."
           />
         </div>
 

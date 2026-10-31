@@ -78,9 +78,8 @@ export class RazorpayGateway implements RidePaymentGateway, RefundVerifierPort {
   async createOrder(
     amountPaise: number,
     rideId: string,
-    purpose = 'ride_fare_test',
+    purpose = this.live ? 'ride_fare' : 'ride_fare_test',
   ): Promise<string> {
-    if (this.live) throw AppError.badRequest('Use the ride UPI session to pay.');
     const result = z.object({ id: z.string().regex(/^order_[a-zA-Z0-9]+$/) }).parse(
       await this.api('orders', {
         amount: amountPaise,
@@ -92,12 +91,12 @@ export class RazorpayGateway implements RidePaymentGateway, RefundVerifierPort {
     return result.id;
   }
 
-  async createQr(amountPaise: number, rideId: string): Promise<RideUpiIntentDto> {
+  async createQr(amountPaise: number, rideId: string): Promise<RideUpiIntentDto | null> {
     if (!this.live) throw AppError.badRequest('UPI app payments require live mode.');
     const qr = z
       .object({
         id: z.string().regex(/^qr_[a-zA-Z0-9]+$/),
-        image_content: z.string().max(4096),
+        image_content: z.string().max(4096).nullable().optional(),
         close_by: z.number().int(),
         payment_amount: z.literal(amountPaise),
         fixed_amount: z.literal(true),
@@ -114,6 +113,12 @@ export class RazorpayGateway implements RidePaymentGateway, RefundVerifierPort {
           notes: { rideId },
         }),
       );
+    if (!qr.image_content) {
+      await this.api(`payments/qr_codes/${encodeURIComponent(qr.id)}/close`, {}).catch(
+        () => undefined,
+      );
+      return null;
+    }
     const url = new URL(qr.image_content);
     if (
       url.protocol !== 'upi:' ||

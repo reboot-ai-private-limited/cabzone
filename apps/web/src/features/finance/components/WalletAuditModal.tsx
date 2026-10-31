@@ -58,7 +58,7 @@ export function WalletAuditModal({
                 {wallet.ownerType === 'DRIVER' ? 'Driver' : 'Customer'}
               </Badge>
             </div>
-            <span className="font-mono text-xs text-text-subtle">{wallet.phoneE164}</span>
+            <span className="font-mono text-xs text-text-subtle">ID: {wallet.ownerId.slice(0, 8)}</span>
             {wallet.vehicleNumber && (
               <span className="text-xs text-text-subtle font-mono">
                 Vehicle: {wallet.vehicleNumber} {wallet.zoneName ? `• Zone: ${wallet.zoneName}` : ''}

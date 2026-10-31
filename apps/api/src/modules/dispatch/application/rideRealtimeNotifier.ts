@@ -1,4 +1,5 @@
 import { logger } from '../../../shared/logging/logger.js';
+import type { RideChatMessageDto } from '@cabzone/contracts';
 import type { RealtimePublisherPort } from '../../../shared/realtime/realtime.port.js';
 import type {
   RideEntity,
@@ -33,6 +34,10 @@ const RIDER_PUSH_MESSAGES: Partial<
     title: 'Trip completed',
     body: 'Review the final fare and complete payment in Cabzone.',
   },
+  'ride.payment.unpaid': {
+    title: 'Trip payment pending',
+    body: 'Your trip fare is unpaid. Open Cabzone to pay via UPI.',
+  },
   'ride.cancelled': {
     title: 'Ride cancelled',
     body: 'Your ride request was cancelled.',
@@ -49,6 +54,30 @@ const RIDER_PUSH_MESSAGES: Partial<
  * REST endpoints remain the source of truth.
  */
 export class RideRealtimeNotifier implements RideNotifierPort, DriverLocationObserver {
+  async chatMessage(ride: RideEntity, message: RideChatMessageDto): Promise<void> {
+    const rider = await this.lookups.getUserIdForRider(ride.bookerRiderId);
+    const driver = ride.driverId ? await this.lookups.getUserIdForDriver(ride.driverId) : null;
+    const data = {
+      rideId: ride.id,
+      messageId: message.id,
+      sequence: message.sequence,
+      senderRole: message.senderRole,
+    };
+    const recipient = message.senderRole === 'RIDER' ? driver : rider;
+    for (const userId of [rider, driver]) {
+      if (userId) this.publisher.publishToUser(userId, 'ride.chat.message', data);
+    }
+    if (recipient) {
+      await this.notifyBackgroundUser(recipient, {
+        title: 'New ride message',
+        body: 'Open Cabzone to read your message.',
+        channelId: message.senderRole === 'RIDER' ? 'ride-offers' : 'ride-updates',
+        data: { ...data, type: 'ride.chat.message' },
+        expiresAt: new Date(Date.now() + 10 * 60_000),
+      });
+    }
+  }
+
   constructor(
     private readonly publisher: RealtimePublisherPort,
     private readonly findCandidates: FindCandidateDriversUseCase,
@@ -153,6 +182,14 @@ export class RideRealtimeNotifier implements RideNotifierPort, DriverLocationObs
         const driverUserId = await this.lookups.getUserIdForDriver(ride.driverId);
         if (driverUserId) {
           this.publisher.publishToUser(driverUserId, event, base);
+          if (event === 'ride.payment.cash_claimed') {
+            void this.notifyBackgroundUser(driverUserId, {
+              title: 'Confirm cash payment',
+              body: 'Passenger marked the trip paid in cash. Open Cabzone to confirm or report unpaid.',
+              channelId: 'ride-updates',
+              data: { type: event, rideId: ride.id, rideVersion: ride.version },
+            });
+          }
           if (event === 'ride.driver.assigned' && shared['viaCounter']) {
             void this.notifyBackgroundUser(driverUserId, {
               title: 'Ride confirmed',

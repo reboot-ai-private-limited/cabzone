@@ -4,13 +4,10 @@ import { useMemo, useState } from 'react';
 import {
   Building2,
   Calendar,
-  Check,
   CheckCircle2,
-  Copy,
   Edit2,
   Globe,
   Headphones,
-  Phone,
   RefreshCw,
   ShieldAlert,
   UserCheck,
@@ -82,42 +79,6 @@ const formatDate = (iso: string | null): string => {
   }
 };
 
-const formatPhone = (phone: string | null): string => {
-  if (!phone) return '—';
-  if (phone.startsWith('+91') && phone.length === 13) {
-    return `+91 ${phone.slice(3, 8)} ${phone.slice(8)}`;
-  }
-  return phone;
-};
-
-function CopyPhoneButton({ phone }: { phone: string }) {
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (typeof navigator !== 'undefined') {
-      navigator.clipboard.writeText(phone);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
-  };
-
-  return (
-    <button
-      type="button"
-      onClick={handleCopy}
-      className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-      title="Copy Mobile Phone"
-      aria-label="Copy phone"
-    >
-      {copied ? (
-        <Check className="size-3 text-success animate-in zoom-in-50 duration-200" />
-      ) : (
-        <Copy className="size-3" />
-      )}
-    </button>
-  );
-}
 
 export function AdminsScreen() {
   const [segmentView, setSegmentView] = useState<SegmentView>('ALL');
@@ -277,14 +238,12 @@ export function AdminsScreen() {
       ),
     },
     {
-      key: 'phone',
-      header: 'Phone',
+      key: 'adminId',
+      header: 'Admin ID',
       render: (a) => (
-        <div className="flex items-center gap-1.5 font-mono text-sm font-medium text-text">
-          <Phone className="size-3.5 text-text-subtle shrink-0" />
-          <span>{formatPhone(a.phoneE164)}</span>
-          <CopyPhoneButton phone={a.phoneE164} />
-        </div>
+        <span className="font-mono text-xs font-medium text-text-subtle">
+          {a.id.slice(0, 8)}
+        </span>
       ),
     },
     {
@@ -506,7 +465,7 @@ export function AdminsScreen() {
       <FilterBar>
         <FilterField label="Search Operator">
           <SearchInput
-            placeholder="Search by name, email, or mobile phone..."
+            placeholder="Search by name, email, or admin ID..."
             value={searchQuery}
             onChange={(val: string) => {
               setSearchQuery(val);

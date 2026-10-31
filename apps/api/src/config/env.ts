@@ -28,7 +28,9 @@ const schema = z.object({
     .enum(['development', 'test', 'stage', 'staging', 'production'])
     .default('development'),
   PORT: z.coerce.number().int().positive().default(4000),
-  RAZORPAY_MODE: z.enum(['test', 'live']).default('test'),
+  RAZORPAY_MODE: z
+    .enum(['test', 'live'])
+    .default(() => (process.env.RAZORPAY_KEY_ID?.startsWith('rzp_live_') ? 'live' : 'test')),
   RAZORPAY_KEY_ID: z
     .string()
     .regex(/^rzp_(test|live)_[a-zA-Z0-9]+$/)
@@ -130,6 +132,17 @@ const schema = z.object({
     .enum(['true', 'false'])
     .default('false')
     .transform((v) => v === 'true'),
+  RIDE_CHAT_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((v) => v === 'true'),
+  RIDE_CALL_ENABLED: z
+    .enum(['true', 'false'])
+    .default(() => (process.env.RIDE_CALLS_ENABLED === 'true' ? 'true' : 'false'))
+    .transform((v) => v === 'true'),
+  LIVEKIT_URL: z.string().url().optional(),
+  LIVEKIT_API_KEY: z.string().min(1).optional(),
+  LIVEKIT_API_SECRET: z.string().min(1).optional(),
 });
 
 const parsed = schema.safeParse(process.env);
@@ -153,6 +166,8 @@ export const env: Env = parsed.success
         ROUTING_TIMEOUT_MS: z.coerce.number().default(4000),
         ROUTING_CACHE_TTL_S: z.coerce.number().default(600),
         ROUTING_TRAFFIC_AWARE: z.boolean().default(false),
+        RIDE_CHAT_ENABLED: z.boolean().default(true),
+        RIDE_CALL_ENABLED: z.boolean().default(false),
       })
       .parse({ NODE_ENV: process.env.NODE_ENV });
 
@@ -167,6 +182,14 @@ export const isProdLike = isProduction || isStaging;
 export const allowDevShortcuts = isDevelopment || (isStaging && env.STAGING_UNSAFE);
 
 export function validateLoadedEnv(data: Env): Env {
+  if (data.RAZORPAY_KEY_ID && !data.RAZORPAY_KEY_ID.startsWith(`rzp_${data.RAZORPAY_MODE}_`)) {
+    throw new Error(
+      `Invalid environment:\n  RAZORPAY_MODE="${data.RAZORPAY_MODE}" does not match RAZORPAY_KEY_ID prefix.`,
+    );
+  }
+  if (data.RIDE_CALL_ENABLED && (!data.LIVEKIT_URL || !data.LIVEKIT_API_KEY || !data.LIVEKIT_API_SECRET)) {
+    throw new Error('Invalid environment:\n  RIDE_CALL_ENABLED requires LIVEKIT_URL, LIVEKIT_API_KEY, and LIVEKIT_API_SECRET.');
+  }
   // Dual-lock: DEV_FIXED_OTP must NEVER run in live production
   if (data.NODE_ENV === 'production' && data.DEV_FIXED_OTP !== undefined) {
     throw new Error(

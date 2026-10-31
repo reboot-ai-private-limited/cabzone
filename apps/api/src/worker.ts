@@ -7,6 +7,8 @@ import { logger } from '@/shared/logging/logger.js';
 import { buildContainers } from './container.js';
 import { emitOperationalAlert } from '@/shared/monitoring/alerting.js';
 
+const RIDE_CALL_SWEEP_MS = 5_000;
+
 async function main(): Promise<void> {
   loadEnv();
 
@@ -14,6 +16,15 @@ async function main(): Promise<void> {
 
   const containers = buildContainers();
   logger.info({ modules: Object.keys(containers) }, 'worker initialized');
+
+  const runRideCallSweep = () => {
+    containers.rides.rideCalls
+      .maintain()
+      .catch((err: unknown) => logger.warn({ err: String(err) }, 'worker ride call maintenance failed'));
+  };
+  runRideCallSweep();
+  const rideCallSweep = setInterval(runRideCallSweep, RIDE_CALL_SWEEP_MS);
+  rideCallSweep.unref();
 
   const notificationsWorker = new Worker(
     QUEUE_NAMES.notifications,
@@ -26,7 +37,8 @@ async function main(): Promise<void> {
   notificationsWorker.on('failed', (job, err) => {
     logger.error({ id: job?.id, name: job?.name, err: err.message }, 'notification job failed');
     void emitOperationalAlert({
-      category: 'QUEUE_HEALTH', severity: 'critical',
+      category: 'QUEUE_HEALTH',
+      severity: 'critical',
       dedupeKey: `QUEUE_HEALTH:notifications:${job?.name ?? 'unknown'}`,
       summary: 'Notification worker job failed.',
       metadata: { jobId: job?.id, jobName: job?.name },
@@ -38,6 +50,7 @@ async function main(): Promise<void> {
   const shutdown = (signal: string) => {
     void (async () => {
       logger.info({ signal }, 'signal received, closing workers');
+      clearInterval(rideCallSweep);
       await notificationsWorker.close();
       await closeQueues();
       await disconnectMongo();

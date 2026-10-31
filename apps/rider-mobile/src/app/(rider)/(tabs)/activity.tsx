@@ -45,7 +45,8 @@ export default function ActivityScreen() {
         return (
           r.status === 'SETTLED' ||
           r.status === 'PAYMENT_CONFIRMED' ||
-          r.status === 'PAYMENT_DISPUTED'
+          r.status === 'PAYMENT_DISPUTED' ||
+          r.status === 'PAYMENT_CASH_CLAIMED'
         );
       }
       if (filter === 'CANCELLED') {
@@ -225,7 +226,13 @@ export default function ActivityScreen() {
                 <View key={ride.id} style={styles.historyCard}>
                   <Pressable
                     style={styles.historyCardMain}
-                    onPress={() => router.push(`/(rider)/history/${ride.id}`)}
+                    onPress={() =>
+                      router.push(
+                        ride.status === 'PAYMENT_CASH_CLAIMED'
+                          ? `/(rider)/ride/${ride.id}`
+                          : `/(rider)/history/${ride.id}`,
+                      )
+                    }
                     accessibilityRole="button"
                     accessibilityLabel={`${meta.label}, ${formatRupeesFromPaise(fare)}, ${dateStr}`}
                   >
@@ -265,7 +272,13 @@ export default function ActivityScreen() {
                   <View style={styles.historyActionsRow}>
                     <Pressable
                       style={styles.historyActionBtn}
-                      onPress={() => router.push(`/(rider)/history/${ride.id}`)}
+                      onPress={() =>
+                      router.push(
+                        ride.status === 'PAYMENT_CASH_CLAIMED'
+                          ? `/(rider)/ride/${ride.id}`
+                          : `/(rider)/history/${ride.id}`,
+                      )
+                    }
                       accessibilityRole="button"
                       accessibilityLabel={
                         canPromptRating ? 'View receipt and rate trip' : 'View trip receipt'

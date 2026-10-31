@@ -9,3 +9,4 @@ export * from './application/useCases/startRide.usecase.js';
 export * from './application/useCases/completeRide.usecase.js';
 export * from './application/useCases/cancelRide.usecase.js';
 export * from './application/useCases/rideRatings.usecase.js';
+export * from './application/useCases/rideCalls.usecase.js';

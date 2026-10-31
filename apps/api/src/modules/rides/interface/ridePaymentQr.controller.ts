@@ -3,24 +3,60 @@ import { z } from 'zod';
 import { asyncHandler } from '../../../shared/http/asyncHandler.js';
 import { sendSuccess } from '../../../shared/http/response.util.js';
 import { AppError } from '../../../shared/errors/AppError.js';
-import type { RideRepositoryPort } from '../domain/index.js';
+import type { RideEntity, RideRepositoryPort } from '../domain/index.js';
 import type { RidePaymentQrPort } from '../domain/ridePaymentQr.port.js';
+import type { RideQrPaymentUseCase } from '../application/useCases/rideQrPayment.usecase.js';
 import type { RideUpiPaymentUseCase } from '../application/useCases/rideUpiPayment.usecase.js';
 import type { RideHttpContext } from './rides.controller.js';
+import { toRideView } from './rides.presenter.js';
 import { rideIdParamSchema, upiPaymentProofSchema } from './rides.validation.js';
 import { rideCheckoutHtml } from './rideCheckout.html.js';
+
+async function formatRide(ride: RideEntity, actors: RideHttpContext) {
+  if (!ride.driverId || !actors.resolveAssignedDriver) {
+    return toRideView(ride, null);
+  }
+  try {
+    const assigned = await actors.resolveAssignedDriver(ride.driverId, ride.vehicleId);
+    return toRideView(ride, assigned);
+  } catch {
+    return toRideView(ride, null);
+  }
+}
 
 export function makeRidePaymentQrControllers(deps: {
   rideRepo: RideRepositoryPort;
   payment: RideUpiPaymentUseCase;
   qr: RidePaymentQrPort;
   actors: RideHttpContext;
+  qrPayment?: RideQrPaymentUseCase | undefined;
 }) {
-  const { rideRepo, payment, qr, actors } = deps;
+  const { rideRepo, payment, qr, actors, qrPayment } = deps;
   const notifyPaid = async (ride: Awaited<ReturnType<RideUpiPaymentUseCase['reconcile']>>) => {
     if (ride.status === 'SETTLED')
       await actors.notifier?.rideUpdated(ride, 'ride.payment.confirmed').catch(() => {});
   };
+
+  const driverQrSheetAction = (mode: 'create' | 'poll') =>
+    asyncHandler(async (req, res) => {
+      if (!qrPayment) {
+        throw AppError.badRequest('UPI QR collection is not enabled.');
+      }
+      const { id } = rideIdParamSchema.parse(req.params);
+      const driverId = req.auth ? await actors.resolveDriverId(req.auth.userId) : null;
+      if (!driverId) {
+        throw AppError.forbidden('Driver profile required.');
+      }
+      const result =
+        mode === 'create'
+          ? await qrPayment.createOrGet(id, driverId)
+          : await qrPayment.poll(id, driverId);
+      sendSuccess(req, res, {
+        ride: await formatRide(result.ride, actors),
+        qr: result.qr,
+      });
+    });
+
   const driverAction = (action: 'qr' | 'status') =>
     asyncHandler(async (req, res) => {
       const { id } = rideIdParamSchema.parse(req.params);
@@ -61,6 +97,7 @@ export function makeRidePaymentQrControllers(deps: {
         testMode: true,
       });
     });
+
   const publicAction = (action: 'session' | 'verify' | 'status') =>
     asyncHandler(async (req, res) => {
       const { ticket } = z.object({ ticket: z.string().min(1).max(2048) }).parse(req.body);
@@ -96,7 +133,10 @@ export function makeRidePaymentQrControllers(deps: {
       }
       sendSuccess(req, res, { paid: current.status === 'SETTLED' });
     });
+
   return {
+    driverCreatePaymentQr: driverQrSheetAction('create'),
+    driverPollPaymentQr: driverQrSheetAction('poll'),
     driverQr: driverAction('qr'),
     driverStatus: driverAction('status'),
     session: publicAction('session'),

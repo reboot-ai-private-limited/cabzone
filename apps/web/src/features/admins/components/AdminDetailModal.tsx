@@ -11,7 +11,6 @@ import {
   KeyRound,
   Mail,
   MapPin,
-  Phone,
   Shield,
   ShieldAlert,
   User,
@@ -164,10 +163,7 @@ export function AdminDetailModal({
                     <AdminStatusBadge status={admin.status} />
                   </div>
                   <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
-                    <span className="flex items-center gap-1.5 font-mono">
-                      <Phone className="size-3.5 text-primary" />
-                      {admin.phoneE164}
-                    </span>
+                    <span className="font-mono">ID: {admin.id.slice(0, 8)}</span>
                     {admin.email && (
                       <span className="flex items-center gap-1.5">
                         <Mail className="size-3.5 text-primary" />
@@ -237,7 +233,7 @@ export function AdminDetailModal({
                 icon={<KeyRound className="size-4 text-emerald-600" />}
                 hint={
                   admin.status === 'ACTIVE'
-                    ? 'Authenticated via mobile OTP'
+                    ? 'Console sign-in enabled'
                     : 'Sessions revoked / access blocked'
                 }
                 tone={admin.status === 'ACTIVE' ? 'success' : 'danger'}

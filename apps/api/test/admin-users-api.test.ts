@@ -157,14 +157,13 @@ class TestMemoryAdminUserRepo implements AdminUserRepositoryPort {
         const q = filter.search.toLowerCase();
         const matchesName = a.name?.toLowerCase().includes(q) ?? false;
         const matchesEmail = a.email?.toLowerCase().includes(q) ?? false;
-        const matchesPhone = user.phoneE164.includes(q);
-        if (!matchesName && !matchesEmail && !matchesPhone) continue;
+        const matchesId = a.id.toLowerCase().includes(q) || a.userId.toLowerCase().includes(q);
+        if (!matchesName && !matchesEmail && !matchesId) continue;
       }
 
       all.push({
         id: a.id,
         userId: a.userId,
-        phoneE164: user.phoneE164,
         name: a.name,
         email: a.email,
         role: a.role,
@@ -421,7 +420,7 @@ describe('Admin Users & Roles API', () => {
       expect(res.body.data.admins[0].name).toBe('Ananya City Admin');
     });
 
-    it('searches admins by name/phone/email', async () => {
+    it('searches admins by name/email/ID without exposing phone numbers', async () => {
       const res = await request(app)
         .get('/v1/admin/users?search=vikram')
         .set('Authorization', `Bearer ${cityAdminToken}`);
@@ -441,7 +440,7 @@ describe('Admin Users & Roles API', () => {
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
       expect(res.body.data.name).toBe('Ananya City Admin');
-      expect(res.body.data.phoneE164).toBe('+919999900002');
+      expect(res.body.data).not.toHaveProperty('phoneE164');
       expect(res.body.data.cityZones).toBeDefined();
       expect(res.body.data.cityZones.length).toBe(1);
       expect(res.body.data.cityZones[0].name).toBe('Patna Central');

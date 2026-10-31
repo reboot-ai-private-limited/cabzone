@@ -1,5 +1,4 @@
 import {
-  DEFAULT_CANCELLATION_FEE_PAISE,
   type ActiveRideConflictDetailsDto,
   type GeoPoint,
   type PaymentMethod,
@@ -212,27 +211,29 @@ export class CreateRideUseCase {
       );
     }
 
-    // 5. Enforce one active ride per booker rider (Decision D-043)
+    // 5. Enforce one active or unpaid ride per booker rider (Decision D-043)
     const existingActive = await this.deps.rideRepo.findActiveByBookerRiderId(input.riderId);
     if (existingActive) {
       throw activeRideConflictError(existingActive);
     }
+    const existingUnpaid = (
+      await this.deps.rideRepo.list({
+        riderId: input.riderId,
+        statuses: ['PAYMENT_UNPAID'],
+        limit: 1,
+        offset: 0,
+      })
+    )[0];
+    if (existingUnpaid) {
+      throw activeRideConflictError(existingUnpaid);
+    }
 
-    // 5. Resolve cancellation policy & live unpaid rider arrears (D-044)
+    // 6. Resolve cancellation policy & live unpaid rider arrears (D-044)
     const cancellationPolicy = resolveCancellationPolicy(currentConfig);
     const riderWallet = this.deps.walletRepo
       ? await this.deps.walletRepo.findByRiderId(input.riderId)
       : null;
     const arrearsPaise = getRiderUnpaidArrearsPaise(riderWallet);
-    const cashBlockThresholdPaise =
-      cancellationPolicy.cancellationFeePaise > 0
-        ? cancellationPolicy.cancellationFeePaise
-        : DEFAULT_CANCELLATION_FEE_PAISE;
-    if (input.paymentMethod === 'CASH' && arrearsPaise >= cashBlockThresholdPaise) {
-      throw AppError.conflict(
-        'RIDER_ARREARS_CASH_BLOCKED: Cash bookings are blocked while cancellation fee arrears are unpaid. Please book with online UPI payment.',
-      );
-    }
 
     const now = new Date();
     const rideId = newUuid();

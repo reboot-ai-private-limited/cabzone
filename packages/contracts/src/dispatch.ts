@@ -12,7 +12,6 @@ export interface DispatchFleetDriverDto {
   activeRideId: string | null;
   locationUpdatedAt: string;
   driverName?: string | undefined;
-  phoneE164?: string | undefined;
   vehicleRegistration?: string | undefined;
 }
 

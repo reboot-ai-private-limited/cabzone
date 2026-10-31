@@ -16,7 +16,7 @@ export interface DispatchLookups {
   getUserIdForDriver: (driverId: string) => Promise<string | null>;
   getDriverInfo?: (
     driverId: string,
-  ) => Promise<{ name: string; phoneE164: string; registrationNumber?: string | undefined } | null>;
+  ) => Promise<{ name: string; registrationNumber?: string | undefined } | null>;
   isPointInCityZones?: (
     lat: number,
     lng: number,

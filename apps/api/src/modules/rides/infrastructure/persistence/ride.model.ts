@@ -50,6 +50,7 @@ export interface RideDocument extends Document<string> {
   completed_at: Date | null;
   settled_at: Date | null;
   cancelled_at: Date | null;
+  chat_sequence?: number;
   version: number;
   created_at: Date;
   updated_at: Date;
@@ -119,6 +120,7 @@ const rideSchema = new Schema<RideDocument>(
     completed_at: { type: Date, default: null },
     settled_at: { type: Date, default: null },
     cancelled_at: { type: Date, default: null },
+    chat_sequence: { type: Number, default: 0 },
     version: { type: Number, default: 1 },
   },
   {

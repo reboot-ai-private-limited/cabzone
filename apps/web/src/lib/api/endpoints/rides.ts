@@ -1,16 +1,17 @@
-import type {
-  CancellationReason,
-  DriverEarningsReconciliationDto,
-  DriverRideSettlementDto,
-  RideStatus,
-  VehicleCategory,
+import {
+  ACTIVE_RIDE_STATUSES as CONTRACT_ACTIVE_RIDE_STATUSES,
+  type CancellationReason,
+  type DriverEarningsReconciliationDto,
+  type DriverRideSettlementDto,
+  type RideStatus,
+  type VehicleCategory,
 } from '@cabzone/contracts';
 import { request } from '../client.js';
 
 export interface AdminRideDto {
   id: string;
   bookerRiderId: string;
-  passenger: { riderId: string | null; name: string; phoneE164: string };
+  passenger: { riderId: string | null; name: string };
   driverId: string | null;
   vehicleCategory: VehicleCategory;
   pickup: { lat: number; lng: number; address: string | null };
@@ -115,13 +116,7 @@ export interface PaymentDisputeQueueItemDto {
   evidence: PaymentDisputeEvidenceDto;
 }
 
-export const ACTIVE_RIDE_STATUSES: RideStatus[] = [
-  'OFFERING',
-  'DRIVER_ASSIGNED',
-  'DRIVER_EN_ROUTE',
-  'DRIVER_ARRIVED',
-  'TRIP_STARTED',
-];
+export const ACTIVE_RIDE_STATUSES: RideStatus[] = [...CONTRACT_ACTIVE_RIDE_STATUSES];
 
 export const CANCELLABLE_RIDE_STATUSES: RideStatus[] = [
   'REQUESTED',

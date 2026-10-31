@@ -18,7 +18,6 @@ describe('Finance & Ledger Domain Logic', () => {
     ownerType: 'DRIVER',
     ownerId: '01900000-0000-7000-8000-000000000020',
     name: 'Dev Driver',
-    phoneE164: '+919000000002',
     vehicleNumber: 'WB74A1234',
     zoneName: 'Siliguri City',
     spendableCreditPaise: 0,
@@ -134,5 +133,47 @@ describe('Finance & Ledger Domain Logic', () => {
     expect(riderModalSrc).not.toContain('48000');
     expect(adminsSrc).not.toContain('FILLER_ADMINS');
     expect(driverDetailsSrc).not.toContain('Manik Saha');
+  });
+
+  it('omits other-account phone numbers and tel: links from admin views and CSV exports (P06)', () => {
+    const balancesSrc = readFileSync(
+      new URL('./components/DriverBalancesTable.tsx', import.meta.url),
+      'utf8',
+    );
+    const ridersSrc = readFileSync(
+      new URL('../riders/components/RidersScreen.tsx', import.meta.url),
+      'utf8',
+    );
+    const riderModalSrc = readFileSync(
+      new URL('../riders/components/RiderDetailModal.tsx', import.meta.url),
+      'utf8',
+    );
+    const adminsSrc = readFileSync(
+      new URL('../admins/components/AdminsScreen.tsx', import.meta.url),
+      'utf8',
+    );
+    const driversSrc = readFileSync(
+      new URL('../drivers/components/DriversScreen.tsx', import.meta.url),
+      'utf8',
+    );
+    const driverDetailsSrc = readFileSync(
+      new URL('../drivers/components/DriverDetailsScreen.tsx', import.meta.url),
+      'utf8',
+    );
+
+    for (const src of [
+      balancesSrc,
+      ridersSrc,
+      riderModalSrc,
+      adminsSrc,
+      driversSrc,
+      driverDetailsSrc,
+    ]) {
+      expect(src).not.toContain('phoneE164');
+      expect(src).not.toContain('alternatePhone');
+      expect(src).not.toContain('tel:');
+    }
+    expect(balancesSrc).toContain("'Driver ID'");
+    expect(balancesSrc).not.toContain("'Phone'");
   });
 });

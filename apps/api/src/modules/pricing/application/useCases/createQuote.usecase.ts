@@ -6,7 +6,6 @@ import {
   type StateDistanceBreakdown,
   type VehicleCategory,
   calculateNegotiationBounds,
-  DEFAULT_CANCELLATION_FEE_PAISE,
   SERVICE_CLASSIFICATION_TYPES,
   VEHICLE_CATEGORIES,
 } from '@cabzone/contracts';
@@ -25,7 +24,6 @@ import {
 } from '../../../zone/zone.public.js';
 import {
   calculateBaseFareEstimate,
-  resolveCancellationPolicy,
   type PricingConfigRepositoryPort,
 } from '../../domain/index.js';
 import { isPointInIndia } from '@cabzone/geo';
@@ -277,18 +275,13 @@ export class CreateQuoteUseCase {
       ceilingPercent: config.negotiationCeilingPercent,
     });
 
-    const policy = resolveCancellationPolicy(config);
     const riderWallet =
       input.riderId && this.deps.walletRepo
         ? await this.deps.walletRepo.findByRiderId(input.riderId)
         : null;
     const arrearsPaise = getRiderUnpaidArrearsPaise(riderWallet);
     const totalEstimatedPayablePaise = suggestedFarePaise + arrearsPaise;
-    const cashBlockThresholdPaise =
-      policy.cancellationFeePaise > 0
-        ? policy.cancellationFeePaise
-        : DEFAULT_CANCELLATION_FEE_PAISE;
-    const cashAllowed = arrearsPaise < cashBlockThresholdPaise;
+    const cashAllowed = true;
 
     const quoteId = newUuid();
     const expiresAt = new Date(Date.now() + this.ttlSeconds * 1000);

@@ -1,6 +1,18 @@
 import { Router, type RequestHandler } from 'express';
 
 export interface RidesRouterDeps {
+  getCommunication: RequestHandler;
+  listMessages: RequestHandler;
+  sendMessage: RequestHandler;
+  currentCall?: RequestHandler;
+  startCall?: RequestHandler;
+  answerCall?: RequestHandler;
+  declineCall?: RequestHandler;
+  endCall?: RequestHandler;
+  callToken?: RequestHandler;
+  confirmCallConnected?: RequestHandler;
+  endCurrentCall?: RequestHandler;
+  callWebhook?: RequestHandler;
   proposeExtension?: RequestHandler;
   respondExtension?: RequestHandler;
   authenticate: RequestHandler;
@@ -31,6 +43,8 @@ export interface RidesRouterDeps {
   startRide: RequestHandler;
   completeRide: RequestHandler;
   confirmPayment: RequestHandler;
+  claimCashPaid?: RequestHandler;
+  markRideUnpaid?: RequestHandler;
   createUpiPayment: RequestHandler;
   upiSession: RequestHandler;
   switchToCash: RequestHandler;
@@ -39,6 +53,8 @@ export interface RidesRouterDeps {
   upiPaymentStatus: RequestHandler;
   driverPaymentQr: RequestHandler;
   driverPaymentStatus: RequestHandler;
+  driverCreatePaymentQr?: RequestHandler;
+  driverPollPaymentQr?: RequestHandler;
   checkoutPage: RequestHandler;
   checkoutSession: RequestHandler;
   checkoutVerify: RequestHandler;
@@ -56,12 +72,14 @@ export function buildRidesRouter(deps: RidesRouterDeps): Router {
   const disputeReadGuard = deps.requireDisputeReadAdmin ?? deps.requireDisputeAdmin;
 
   router.post('/payment/upi/webhook', deps.upiWebhook);
+  if (deps.callWebhook) router.post('/calls/webhook', deps.callWebhook);
   // Payment-only QR tickets never grant account or ride-management access.
   router.get('/payment/upi/checkout', deps.checkoutPage);
   router.post('/payment/upi/checkout/session', deps.checkoutSession);
   router.post('/payment/upi/checkout/verify', deps.checkoutVerify);
   router.post('/payment/upi/checkout/status', deps.checkoutStatus);
   router.use(deps.authenticate);
+  if (deps.endCurrentCall) router.post('/calls/current/end', deps.endCurrentCall);
 
   // Rider / Admin / Driver static collection routes (must precede /:id)
   router.post('/', deps.requireRider, deps.createRide);
@@ -73,6 +91,16 @@ export function buildRidesRouter(deps: RidesRouterDeps): Router {
   // Rider / driver / admin
   router.get('/', deps.requireCanRead, deps.listRides);
   router.get('/:id', deps.requireCanRead, deps.getRide);
+  router.get('/:id/communication', deps.getCommunication);
+  router.get('/:id/messages', deps.listMessages);
+  router.post('/:id/messages', deps.sendMessage);
+  if (deps.currentCall) router.get('/:id/calls/current', deps.currentCall);
+  if (deps.startCall) router.post('/:id/calls', deps.startCall);
+  if (deps.answerCall) router.post('/:id/calls/:callId/answer', deps.answerCall);
+  if (deps.declineCall) router.post('/:id/calls/:callId/decline', deps.declineCall);
+  if (deps.endCall) router.post('/:id/calls/:callId/end', deps.endCall);
+  if (deps.callToken) router.post('/:id/calls/:callId/token', deps.callToken);
+  if (deps.confirmCallConnected) router.post('/:id/calls/:callId/connected', deps.confirmCallConnected);
   router.get('/:id/events', deps.requireCanRead, deps.getRideEvents);
   router.get('/:id/rating', deps.requireCanRead, deps.getRideRating);
   router.post('/:id/rating', deps.requireCanCancel, deps.submitRideRating);
@@ -93,6 +121,12 @@ export function buildRidesRouter(deps: RidesRouterDeps): Router {
   router.post('/:id/start', deps.requireDriver, deps.startRide);
   router.post('/:id/complete', deps.requireDriver, deps.completeRide);
   router.post('/:id/payment/confirm', deps.requireDriver, deps.confirmPayment);
+  if (deps.claimCashPaid) {
+    router.post('/:id/payment/claim-cash', deps.requireRider, deps.claimCashPaid);
+  }
+  if (deps.markRideUnpaid) {
+    router.post('/:id/payment/unpaid', deps.requireDriver, deps.markRideUnpaid);
+  }
   router.post('/:id/payment/cash', participantGuard, deps.switchToCash);
   router.post('/:id/payment/upi', deps.requireRider, deps.createUpiPayment);
   router.post('/:id/payment/upi/session', deps.requireRider, deps.upiSession);
@@ -100,6 +134,12 @@ export function buildRidesRouter(deps: RidesRouterDeps): Router {
   router.get('/:id/payment/upi/status', deps.requireRider, deps.upiPaymentStatus);
   router.post('/:id/payment/upi/qr', deps.requireDriver, deps.driverPaymentQr);
   router.get('/:id/payment/upi/driver-status', deps.requireDriver, deps.driverPaymentStatus);
+  if (deps.driverCreatePaymentQr) {
+    router.post('/:id/payment-qr', deps.requireDriver, deps.driverCreatePaymentQr);
+  }
+  if (deps.driverPollPaymentQr) {
+    router.get('/:id/payment-qr', deps.requireDriver, deps.driverPollPaymentQr);
+  }
   router.post('/:id/payment/dispute', deps.requireRider, deps.disputePayment);
   router.post('/:id/payment/dispute/resolve', deps.requireDisputeAdmin, deps.resolvePaymentDispute);
 

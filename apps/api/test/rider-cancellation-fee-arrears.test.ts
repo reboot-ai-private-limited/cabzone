@@ -516,7 +516,7 @@ describe('Step 3: Rider Cancellation & No-Show Fees, Arrears Ledger, Recovery & 
     await assertWalletConservation('018f0a00-0000-7000-8000-000000000301', 250_000);
   });
 
-  it('blocks cash across quote, createRide, switchToCash, and confirmPayment when arrears >= threshold, and settles via UPI', async () => {
+  it('keeps cash fallback available while attaching arrears to quote/createRide and settles full arrears via UPI', async () => {
     const { app, login, rideRepo, rideEventRepo, walletRepo, unitOfWork, assertWalletConservation } =
       await setup();
     const riderAuth = await login(RIDER_USER, 'RIDER');
@@ -553,7 +553,7 @@ describe('Step 3: Rider Cancellation & No-Show Fees, Arrears Ledger, Recovery & 
       .send({ reason: 'RIDER_CHANGED_MIND' })
       .expect(200);
 
-    // 2. Unauthenticated quote returns arrearsPaise = 0; authenticated quote returns arrearsPaise = 5000 & cashAllowed = false
+    // 2. Unauthenticated quote returns arrearsPaise = 0; authenticated quote returns arrearsPaise = 5000 & cashAllowed = true
     const unauthQuoteRes = await request(app)
       .post('/api/v1/pricing/quotes')
       .send({ pickup, drop, vehicleCategory: 'CAB' });
@@ -569,25 +569,9 @@ describe('Step 3: Rider Cancellation & No-Show Fees, Arrears Ledger, Recovery & 
     const q2 = authQuoteRes.body.data;
     expect(q2.arrearsPaise).toBe(5000);
     expect(q2.totalEstimatedPayablePaise).toBe(q2.suggestedFarePaise + 5000);
-    expect(q2.cashAllowed).toBe(false);
+    expect(q2.cashAllowed).toBe(true);
 
-    // 3. CreateRide with paymentMethod = CASH rejected with 409 RIDER_ARREARS_CASH_BLOCKED
-    const cashCreateRes = await request(app)
-      .post('/api/v1/rides')
-      .set('Authorization', riderAuth)
-      .send({
-        quoteToken: q2.quoteToken,
-        proposedFarePaise: q2.suggestedFarePaise,
-        passenger: { name: 'Asha', phoneE164: '+919876543210' },
-        vehicleCategory: 'CAB',
-        pickup,
-        drop,
-        paymentMethod: 'CASH',
-      });
-    expect(cashCreateRes.status).toBe(409);
-    expect(cashCreateRes.body.message).toContain('RIDER_ARREARS_CASH_BLOCKED');
-
-    // 4. Create Ride 2 (UPI), progress to PAYMENT_PENDING
+    // 3. Create Ride 2, progress to PAYMENT_PENDING
     const r2Res = await request(app)
       .post('/api/v1/rides')
       .set('Authorization', riderAuth)
@@ -632,20 +616,7 @@ describe('Step 3: Rider Cancellation & No-Show Fees, Arrears Ledger, Recovery & 
       .set('Authorization', driverAuth)
       .expect(200);
 
-    // 5. Both /payment/cash and /payment/confirm reject with 409 RIDER_ARREARS_CASH_BLOCKED
-    const switchCashRes = await request(app)
-      .post(`/api/v1/rides/${ride2Id}/payment/cash`)
-      .set('Authorization', riderAuth);
-    expect(switchCashRes.status).toBe(409);
-    expect(switchCashRes.body.message).toContain('RIDER_ARREARS_CASH_BLOCKED');
-
-    const confirmCashRes = await request(app)
-      .post(`/api/v1/rides/${ride2Id}/payment/confirm`)
-      .set('Authorization', driverAuth);
-    expect(confirmCashRes.status).toBe(409);
-    expect(confirmCashRes.body.message).toContain('RIDER_ARREARS_CASH_BLOCKED');
-
-    // 6. Settle Ride 2 via UPI -> captures agreedFare + 5000, settles rider arrears once, keeps commission strictly on agreedFare
+    // 4. Settle Ride 2 via UPI -> captures agreedFare + 5000, settles rider arrears once, keeps commission strictly on agreedFare
     const agreedFare = q2.suggestedFarePaise as number;
     const expectedTotal = agreedFare + 5000;
     const upiUseCase = new RideUpiPaymentUseCase({
@@ -886,5 +857,154 @@ describe('Step 3: Rider Cancellation & No-Show Fees, Arrears Ledger, Recovery & 
       'RIDER_REFUND',
     ]);
     await assertWalletConservation(riderWallet.id, 0);
+  });
+
+  it('unblocks both driver and rider on pending payment: claim-cash (max 1 cap), mark-unpaid (0 commission), and UPI recovery', async () => {
+    const { app, login, rideRepo, rideEventRepo, walletRepo, unitOfWork } = await setup();
+    const riderAuth = await login(RIDER_USER, 'RIDER');
+    const otherRiderAuth = await login(OTHER_RIDER_USER, 'RIDER');
+    const driverAuth = await login(DRIVER_USER, 'DRIVER');
+
+    const progressToPaymentPending = async (rAuth: string, paymentMethod?: 'CASH' | 'UPI') => {
+      const q = (
+        await request(app)
+          .post('/api/v1/pricing/quotes')
+          .set('Authorization', rAuth)
+          .send({ pickup, drop, vehicleCategory: 'CAB' })
+      ).body.data;
+      const createRes = await request(app)
+        .post('/api/v1/rides')
+        .set('Authorization', rAuth)
+        .send({
+          quoteToken: q.quoteToken,
+          proposedFarePaise: q.suggestedFarePaise,
+          passenger: { name: 'Asha', phoneE164: '+919876543210' },
+          vehicleCategory: 'CAB',
+          pickup,
+          drop,
+          ...(paymentMethod ? { paymentMethod } : {}),
+        });
+      expect(createRes.status).toBe(201);
+      const id = createRes.body.data.id as string;
+      await request(app).post(`/api/v1/rides/${id}/accept`).set('Authorization', driverAuth).expect(200);
+      const otp = (
+        await request(app).get(`/api/v1/rides/${id}`).set('Authorization', rAuth).expect(200)
+      ).body.data.pickupOtp as string;
+      await request(app).post(`/api/v1/rides/${id}/en-route`).set('Authorization', driverAuth).expect(200);
+      await request(app).post(`/api/v1/rides/${id}/arrived`).set('Authorization', driverAuth).expect(200);
+      await request(app)
+        .post(`/api/v1/rides/${id}/start`)
+        .set('Authorization', driverAuth)
+        .send({ otp })
+        .expect(200);
+      await request(app).post(`/api/v1/rides/${id}/complete`).set('Authorization', driverAuth).expect(200);
+      return { id, quote: q };
+    };
+
+    // 1. Complete Ride A -> PAYMENT_PENDING; driver is NOT blocked from accepting another rider's ride!
+    const rideA = await progressToPaymentPending(riderAuth);
+    const qOther = (
+      await request(app)
+        .post('/api/v1/pricing/quotes')
+        .set('Authorization', otherRiderAuth)
+        .send({ pickup, drop, vehicleCategory: 'CAB' })
+    ).body.data;
+    const otherRideId = (
+      await request(app)
+        .post('/api/v1/rides')
+        .set('Authorization', otherRiderAuth)
+        .send({
+          quoteToken: qOther.quoteToken,
+          proposedFarePaise: qOther.suggestedFarePaise,
+          passenger: { name: 'Rohan', phoneE164: '+919876543211' },
+          vehicleCategory: 'CAB',
+          pickup,
+          drop,
+        })
+    ).body.data.id as string;
+    await request(app).post(`/api/v1/rides/${otherRideId}/accept`).set('Authorization', driverAuth).expect(200);
+    await request(app)
+      .post(`/api/v1/rides/${otherRideId}/cancel`)
+      .set('Authorization', otherRiderAuth)
+      .send({ reason: 'RIDER_CHANGED_MIND' })
+      .expect(200);
+
+    // 2. Rider claims cash paid on Ride A -> PAYMENT_CASH_CLAIMED -> unblocks Ride B immediately!
+    const claimRes = await request(app)
+      .post(`/api/v1/rides/${rideA.id}/payment/claim-cash`)
+      .set('Authorization', riderAuth);
+    expect(claimRes.status).toBe(200);
+    expect(claimRes.body.data.status).toBe('PAYMENT_CASH_CLAIMED');
+
+    // 3. Complete Ride B while Ride A is still PAYMENT_CASH_CLAIMED -> 2nd cash claim hits 409 CASH_CLAIM_LIMIT_REACHED
+    const rideB = await progressToPaymentPending(riderAuth);
+    const secondClaim = await request(app)
+      .post(`/api/v1/rides/${rideB.id}/payment/claim-cash`)
+      .set('Authorization', riderAuth);
+    expect(secondClaim.status).toBe(409);
+    expect(secondClaim.body.details?.code ?? secondClaim.body.message).toContain(
+      'CASH_CLAIM_LIMIT_REACHED',
+    );
+
+    // 4. Driver marks Ride A (which was PAYMENT_CASH_CLAIMED) unpaid -> auto-escalates to PAYMENT_DISPUTED with ₹0 commission
+    const driverBefore = (await walletRepo.findByDriverId(DRIVER_ID))!.balancePaise;
+    const unpaidClaimed = await request(app)
+      .post(`/api/v1/rides/${rideA.id}/payment/unpaid`)
+      .set('Authorization', driverAuth);
+    expect(unpaidClaimed.status).toBe(200);
+    expect(unpaidClaimed.body.data.status).toBe('PAYMENT_DISPUTED');
+    expect((await walletRepo.findByDriverId(DRIVER_ID))!.balancePaise).toBe(driverBefore);
+
+    // 5. Driver marks Ride B (PAYMENT_PENDING) unpaid -> PAYMENT_UNPAID with ₹0 commission; blocks rider's next booking until UPI settles
+    const unpaidPending = await request(app)
+      .post(`/api/v1/rides/${rideB.id}/payment/unpaid`)
+      .set('Authorization', driverAuth);
+    expect(unpaidPending.status).toBe(200);
+    expect(unpaidPending.body.data.status).toBe('PAYMENT_UNPAID');
+    expect((await walletRepo.findByDriverId(DRIVER_ID))!.balancePaise).toBe(driverBefore);
+
+    const qBlocked = (
+      await request(app)
+        .post('/api/v1/pricing/quotes')
+        .set('Authorization', riderAuth)
+        .send({ pickup, drop, vehicleCategory: 'CAB' })
+    ).body.data;
+    const blockedCreate = await request(app)
+      .post('/api/v1/rides')
+      .set('Authorization', riderAuth)
+      .send({
+        quoteToken: qBlocked.quoteToken,
+        proposedFarePaise: qBlocked.suggestedFarePaise,
+        passenger: { name: 'Asha', phoneE164: '+919876543210' },
+        vehicleCategory: 'CAB',
+        pickup,
+        drop,
+      });
+    expect(blockedCreate.status).toBe(409);
+
+    // Rider pays Ride B via UPI even from PAYMENT_UNPAID -> settles and credits driver!
+    const expectedFare = rideB.quote.suggestedFarePaise as number;
+    const upiUseCase = new RideUpiPaymentUseCase({
+      unitOfWork,
+      rideRepo,
+      rideEventRepo,
+      walletRepo,
+      gateway: {
+        live: false,
+        keyId: 'rzp_test_123',
+        createOrder: async () => 'order_unpaid_recover',
+        verifySignature: () => {},
+        findCapturedPayment: async (_orderId, amountPaise) =>
+          amountPaise === expectedFare ? 'pay_unpaid_recover' : null,
+        createQr: async () => {
+          throw new Error('unused');
+        },
+        findQrPayment: async () => null,
+        closeQrForCash: async () => {},
+      },
+    });
+    await upiUseCase.session(rideB.id, RIDER_ID);
+    const settledFromUnpaid = await upiUseCase.reconcile(rideB.id, RIDER_ID);
+    expect(settledFromUnpaid.status).toBe('SETTLED');
   });
 });

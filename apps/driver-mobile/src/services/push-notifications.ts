@@ -25,6 +25,12 @@ if (Platform.OS !== 'web' && typeof Notifications?.setNotificationHandler === 'f
  * Asks for permission and returns this device's Expo push token, or null when push is not
  * available (web, simulator, permission denied, or Expo Go without a project id).
  */
+const EXPO_PUSH_TOKEN_PATTERN = /^Expo(nent)?PushToken\[[^\]]+\]$/;
+
+function resolveEasProjectId(): string | undefined {
+  return Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId ?? undefined;
+}
+
 export async function registerForPushAsync(): Promise<string | null> {
   if (Platform.OS === 'web' || !Device.isDevice) return null;
   try {
@@ -41,8 +47,7 @@ export async function registerForPushAsync(): Promise<string | null> {
     }
     if (status !== 'granted') return null;
 
-    const projectId =
-      Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId ?? undefined;
+    const projectId = resolveEasProjectId();
     if (!projectId) {
       console.warn(
         'Push registration requires an EAS project ID. Configure the Driver Android build first.',
@@ -53,6 +58,25 @@ export async function registerForPushAsync(): Promise<string | null> {
     return data;
   } catch (error) {
     console.warn('Push registration failed:', error);
+    return null;
+  }
+}
+
+export async function getNativeCallPushTokenAsync(): Promise<{
+  token: string;
+  platform: 'android' | 'ios';
+  transport: 'FCM_CALL' | 'APNS_VOIP';
+} | null> {
+  if (Platform.OS === 'web' || !Device.isDevice || typeof Notifications?.getDevicePushTokenAsync !== 'function') {
+    return null;
+  }
+  try {
+    const res = await Notifications.getDevicePushTokenAsync();
+    const raw = typeof res?.data === 'string' ? res.data.trim() : '';
+    if (!raw || EXPO_PUSH_TOKEN_PATTERN.test(raw)) return null;
+    const platform = Platform.OS === 'ios' ? 'ios' : 'android';
+    return { token: raw, platform, transport: platform === 'ios' ? 'APNS_VOIP' : 'FCM_CALL' };
+  } catch {
     return null;
   }
 }
@@ -68,7 +92,27 @@ export function listenForPushTokenChanges(onToken: (token: string) => void): {
     return { remove: () => {} };
   }
   try {
-    return Notifications.addPushTokenListener(({ data }) => onToken(data));
+    return Notifications.addPushTokenListener((devicePushToken) => {
+      const candidate =
+        typeof devicePushToken?.data === 'string' ? devicePushToken.data.trim() : '';
+      if (EXPO_PUSH_TOKEN_PATTERN.test(candidate)) {
+        onToken(candidate);
+        return;
+      }
+      const projectId = resolveEasProjectId();
+      if (!projectId || typeof Notifications?.getExpoPushTokenAsync !== 'function') {
+        return;
+      }
+      void Notifications.getExpoPushTokenAsync({ projectId, devicePushToken })
+        .then(({ data }) => {
+          if (typeof data === 'string' && EXPO_PUSH_TOKEN_PATTERN.test(data.trim())) {
+            onToken(data.trim());
+          }
+        })
+        .catch(() => {
+          // Initial registration runs via registerForPushAsync(); ignore transient listener exchange errors.
+        });
+    });
   } catch {
     return { remove: () => {} };
   }

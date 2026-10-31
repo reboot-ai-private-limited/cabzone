@@ -103,7 +103,6 @@ export function RidesScreen() {
       render: (r) => (
         <div className="flex flex-col">
           <span className="font-medium text-text">{r.passenger.name}</span>
-          <span className="font-mono text-xs text-text-subtle">{r.passenger.phoneE164}</span>
         </div>
       ),
     },
@@ -149,9 +148,6 @@ export function RidesScreen() {
       render: (item) => (
         <div className="flex flex-col">
           <span className="font-medium text-text">{item.ride.passenger.name}</span>
-          <span className="font-mono text-xs text-text-subtle">
-            {item.ride.passenger.phoneE164}
-          </span>
         </div>
       ),
     },
@@ -411,7 +407,7 @@ export function RidesScreen() {
                 type="text"
                 value={disputeSearch}
                 onChange={(e) => setDisputeSearch(e.target.value)}
-                placeholder="Search ride, phone, pay_ / order_ / rfnd_..."
+                placeholder="Search ride, name, pay_ / order_ / rfnd_..."
                 aria-label="Search payment disputes"
                 className="pl-9 text-sm"
               />

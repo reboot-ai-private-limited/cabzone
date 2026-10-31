@@ -27,6 +27,7 @@ export default function RiderGroupLayout() {
     >
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="ride/[rideId]" />
+      <Stack.Screen name="chat/[rideId]" />
       <Stack.Screen name="history/[rideId]" />
       <Stack.Screen name="account/edit-profile" />
       <Stack.Screen name="account/emergency-contact" />

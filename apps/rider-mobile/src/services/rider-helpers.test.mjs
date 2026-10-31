@@ -146,7 +146,6 @@ test('formatAssignedDriverSummary returns enriched driver, vehicle, and >=5 rati
     assignedDriver: {
       driverId: '0195f100-0000-7000-8000-000000000012',
       name: 'Rajesh Barman',
-      phoneE164: '+919000000013',
       profilePhotoUrl: null,
       ratingAverage: 4.82,
       ratingCount: 6,
@@ -161,7 +160,7 @@ test('formatAssignedDriverSummary returns enriched driver, vehicle, and >=5 rati
     },
   });
   assert.equal(enriched.driverName, 'Rajesh Barman');
-  assert.equal(enriched.phoneE164, '+919000000013');
+  assert.equal('phoneE164' in enriched, false);
   assert.equal(enriched.vehicleLabel, 'Silver Hyundai Aura');
   assert.equal(enriched.registrationNumber, 'WB74CD5678');
   assert.equal(enriched.ratingLabel, '4.8');
@@ -172,7 +171,6 @@ test('formatAssignedDriverSummary returns enriched driver, vehicle, and >=5 rati
     assignedDriver: {
       driverId: '0195f100-0000-7000-8000-000000000012',
       name: 'Rajesh Barman',
-      phoneE164: '+919000000013',
       profilePhotoUrl: null,
       ratingAverage: 5.0,
       ratingCount: 4,
@@ -192,7 +190,7 @@ test('formatAssignedDriverSummary returns enriched driver, vehicle, and >=5 rati
   assert.equal(fallback.ratingLabel, 'New');
 });
 
-test('isRideActive matches the 9 D-043 blocking statuses and excludes the 4 non-blocking statuses', () => {
+test('isRideActive blocks the 9 active statuses plus PAYMENT_UNPAID, and unblocks PAYMENT_CASH_CLAIMED', () => {
   for (const blocking of [
     'REQUESTED',
     'OFFERING',
@@ -203,10 +201,17 @@ test('isRideActive matches the 9 D-043 blocking statuses and excludes the 4 non-
     'TRIP_COMPLETED',
     'PAYMENT_PENDING',
     'PAYMENT_CONFIRMED',
+    'PAYMENT_UNPAID',
   ]) {
-    assert.equal(isRideActive(blocking), true, `Expected ${blocking} to be active`);
+    assert.equal(isRideActive(blocking), true, `Expected ${blocking} to block new booking`);
   }
-  for (const nonBlocking of ['PAYMENT_DISPUTED', 'SETTLED', 'CANCELLED', 'EXPIRED']) {
+  for (const nonBlocking of [
+    'PAYMENT_CASH_CLAIMED',
+    'PAYMENT_DISPUTED',
+    'SETTLED',
+    'CANCELLED',
+    'EXPIRED',
+  ]) {
     assert.equal(isRideActive(nonBlocking), false, `Expected ${nonBlocking} to be non-blocking`);
   }
 });
@@ -262,20 +267,21 @@ test('resolveRiderCancellationPreview reflects grace window and arrival fee from
   assert.equal(arrived.feePaise, 4000);
 });
 
-test('resolveRideCashAvailability blocks cash when arrears reach effective cancellationFeePaise', () => {
-  const allowed = resolveRideCashAvailability({
+test('resolveRideCashAvailability always allows cash or UPI even when arrears apply', () => {
+  const lowArrears = resolveRideCashAvailability({
     arrearsPaise: 2000,
     pricingSnapshot: { cancellationFeePaise: 5000 },
   });
-  assert.equal(allowed.cashAllowed, true);
-  assert.equal(allowed.reason, null);
+  assert.equal(lowArrears.cashAllowed, true);
+  assert.equal(lowArrears.reason, null);
 
-  const blocked = resolveRideCashAvailability({
+  const highArrears = resolveRideCashAvailability({
     arrearsPaise: 5000,
     pricingSnapshot: { cancellationFeePaise: 5000 },
   });
-  assert.equal(blocked.cashAllowed, false);
-  assert.match(blocked.reason, /Cash is unavailable while ₹50/);
+  assert.equal(highArrears.cashAllowed, true);
+  assert.equal(highArrears.arrearsPaise, 5000);
+  assert.equal(highArrears.reason, null);
 });
 
 test('isRideWithinRatingWindow enforces the 7-day post-settlement window', () => {

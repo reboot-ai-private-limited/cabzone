@@ -10,7 +10,6 @@ export interface RiderListFilter {
 
 export interface RiderWithUser {
   rider: RiderEntity;
-  phoneE164: string;
   status: UserStatus;
   totalRides: number;
   completedRides: number;

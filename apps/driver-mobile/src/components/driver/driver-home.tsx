@@ -42,8 +42,15 @@ export function DriverHome() {
     refreshSummary,
   } = useDuty();
 
-  const { offers, activeRide, rideError, clearRideError, refreshOffers, refreshActiveRide } =
-    useRide();
+  const {
+    offers,
+    activeRide,
+    pendingPaymentRide,
+    rideError,
+    clearRideError,
+    refreshOffers,
+    refreshActiveRide,
+  } = useRide();
 
   const [timeAgo, setTimeAgo] = useState('just now');
   const [isVerifyingOnline, setIsVerifyingOnline] = useState(false);
@@ -168,6 +175,45 @@ export function DriverHome() {
             </View>
             <View style={styles.activeRideCta}>
               <Text style={styles.activeRideCtaText}>Open →</Text>
+            </View>
+          </Pressable>
+        ) : null}
+
+        {/* Non-blocking Pending Payment Banner */}
+        {pendingPaymentRide && pendingPaymentRide.id !== activeRide?.id ? (
+          <Pressable
+            style={[styles.kycBanner, styles.kycBannerWarning]}
+            onPress={() =>
+              router.push({
+                pathname: '/(driver)/ride/[rideId]',
+                params: { rideId: pendingPaymentRide.id },
+              })
+            }
+            accessibilityRole="button"
+            accessibilityLabel="Settle pending ride payment"
+          >
+            <Ionicons name="wallet-outline" size={22} color={colors.brandBrown} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.kycBannerTitle}>
+                {pendingPaymentRide.status === 'PAYMENT_CASH_CLAIMED'
+                  ? 'Passenger marked cash paid — Confirm receipt'
+                  : `Pending trip payment · ₹${(
+                      ((pendingPaymentRide.agreedFarePaise ??
+                        pendingPaymentRide.proposedFarePaise ??
+                        pendingPaymentRide.suggestedFarePaise ??
+                        0) +
+                        (pendingPaymentRide.arrearsPaise ?? 0)) /
+                      100
+                    ).toFixed(0)}`}
+              </Text>
+              <Text style={styles.kycBannerSub} numberOfLines={2}>
+                {pendingPaymentRide.status === 'PAYMENT_CASH_CLAIMED'
+                  ? 'Tap to confirm cash received or report unpaid. New offers stay unlocked.'
+                  : `${locationLabel(pendingPaymentRide.pickup.address, 'Pickup')} → ${locationLabel(pendingPaymentRide.drop.address, 'Drop')} · Tap for QR or Cash`}
+              </Text>
+            </View>
+            <View style={styles.kycBannerCta}>
+              <Text style={styles.kycBannerCtaText}>Settle →</Text>
             </View>
           </Pressable>
         ) : null}

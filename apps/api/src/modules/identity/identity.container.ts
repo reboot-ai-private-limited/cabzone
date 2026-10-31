@@ -15,6 +15,7 @@ import type {
   DriverRepositoryPort,
   KycAuditRepositoryPort,
   RiderRepositoryPort,
+  SessionEntity,
   SessionRepositoryPort,
   UserRepositoryPort,
   VehicleRepositoryPort,
@@ -160,6 +161,8 @@ export interface IdentityContainerDeps {
   hasActiveRide?: (driverId: string) => Promise<boolean>;
   removeDriverPresence?: (driverId: string) => Promise<void>;
   notifyDriver?: (notification: DriverKycExpiryNotification) => Promise<void>;
+  onSessionRevoked?: (session: SessionEntity) => Promise<void>;
+  onAccountSuspended?: (userId: string) => Promise<void>;
 }
 
 export function buildIdentityContainer(deps?: IdentityContainerDeps): IdentityContainer {
@@ -223,9 +226,7 @@ export function buildIdentityContainer(deps?: IdentityContainerDeps): IdentityCo
     adminRepo,
   });
 
-  const logoutUseCase = new LogoutUseCase({
-    sessionRepo,
-  });
+  const logoutUseCase = new LogoutUseCase({ sessionRepo, onSessionRevoked: deps?.onSessionRevoked });
 
   const createDriverProfileUseCase = new CreateDriverProfileUseCase({
     driverRepo,
@@ -309,6 +310,7 @@ export function buildIdentityContainer(deps?: IdentityContainerDeps): IdentityCo
     userRepo,
     sessionRepo,
     rideRepo: deps?.rideRepo,
+    onAccountSuspended: deps?.onAccountSuspended,
   };
 
   const listRidersUseCase = new ListRidersUseCase(adminRiderDeps);

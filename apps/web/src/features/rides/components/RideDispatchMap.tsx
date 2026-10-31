@@ -9,7 +9,6 @@ import {
   Layers,
   MapPin,
   Navigation,
-  Phone,
   Radio,
   RefreshCw,
   X,
@@ -670,15 +669,6 @@ export function RideDispatchMap({
                   <span className="text-text-subtle">Reg:</span>
                   <span className="font-mono text-text font-medium">
                     {selectedDriver.vehicleRegistration}
-                  </span>
-                </div>
-              )}
-              {selectedDriver.phoneE164 && (
-                <div className="flex items-center gap-1.5 col-span-2">
-                  <Phone className="size-3.5 text-text-subtle shrink-0" />
-                  <span className="text-text-subtle">Phone:</span>
-                  <span className="font-mono text-text font-medium">
-                    {selectedDriver.phoneE164}
                   </span>
                 </div>
               )}

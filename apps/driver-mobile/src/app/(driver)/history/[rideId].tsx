@@ -73,7 +73,11 @@ export default function RideHistoryDetailScreen() {
   const isSettled = settlement
     ? settlement.settledVia !== 'UNSETTLED'
     : ride.status === 'SETTLED' || ride.status === 'PAYMENT_CONFIRMED';
-  const isPendingPayment = ride.status === 'TRIP_COMPLETED' || ride.status === 'PAYMENT_PENDING';
+  const isPendingPayment =
+    ride.status === 'TRIP_COMPLETED' ||
+    ride.status === 'PAYMENT_PENDING' ||
+    ride.status === 'PAYMENT_CASH_CLAIMED';
+  const isUnpaid = ride.status === 'PAYMENT_UNPAID';
   const isDisputed = ride.status === 'PAYMENT_DISPUTED';
   const driverCancelCompPaise =
     ride.status === 'CANCELLED' ? extractDriverCancellationCompensationPaise(events) : 0;
@@ -125,9 +129,11 @@ export default function RideHistoryDetailScreen() {
                 ? 'Driver Cancellation Compensation Credited'
                 : isPendingPayment
                   ? 'Awaiting Payment Confirmation'
-                  : isDisputed
-                    ? 'Under Payment Dispute Review'
-                    : 'Not Settled'}
+                  : isUnpaid
+                    ? 'Reported Unpaid · ₹0 Commission Charged'
+                    : isDisputed
+                      ? 'Under Payment Dispute Review'
+                      : 'Not Settled'}
           </Text>
 
           <View style={styles.metaStrip}>

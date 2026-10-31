@@ -1,12 +1,13 @@
 import type {
   AdminRiderDetailDto,
   AdminRiderSummaryDto,
+  AdminUpdateRiderProfileDto,
   ListRidersQueryDto,
   ListRidersResponseDto,
-  UpdateRiderProfileDto,
 } from '@cabzone/contracts';
 import { AppError } from '../../../../shared/errors/AppError.js';
 import type {
+  RiderEntity,
   RiderRepositoryPort,
   SessionRepositoryPort,
   UserRepositoryPort,
@@ -19,6 +20,11 @@ export interface AdminRiderDeps {
   userRepo: UserRepositoryPort;
   sessionRepo: SessionRepositoryPort;
   rideRepo?: RideRepositoryPort | undefined;
+  onAccountSuspended?: ((userId: string) => Promise<void>) | undefined;
+}
+
+function toAdminEmergencyContact(rider: RiderEntity) {
+  return rider.emergencyContact ? { name: rider.emergencyContact.name } : null;
 }
 
 export class ListRidersUseCase {
@@ -72,17 +78,11 @@ export class ListRidersUseCase {
       return {
         id: item.rider.id,
         userId: item.rider.userId,
-        phoneE164: item.phoneE164,
         status: item.status,
         name: item.rider.name,
         email: item.rider.email,
         preferredLanguage: item.rider.preferredLanguage,
-        emergencyContact: item.rider.emergencyContact
-          ? {
-              name: item.rider.emergencyContact.name,
-              phoneE164: item.rider.emergencyContact.phoneE164,
-            }
-          : null,
+        emergencyContact: toAdminEmergencyContact(item.rider),
         ratingAverage: item.rider.ratingAverage,
         ratingCount: item.rider.ratingCount,
         trustScore: trust.score,
@@ -145,17 +145,11 @@ export class GetRiderDetailUseCase {
     return {
       id: rider.id,
       userId: rider.userId,
-      phoneE164: user.phoneE164,
       status: user.status,
       name: rider.name,
       email: rider.email,
       preferredLanguage: rider.preferredLanguage,
-      emergencyContact: rider.emergencyContact
-        ? {
-            name: rider.emergencyContact.name,
-            phoneE164: rider.emergencyContact.phoneE164,
-          }
-        : null,
+      emergencyContact: toAdminEmergencyContact(rider),
       ratingAverage: rider.ratingAverage,
       ratingCount: rider.ratingCount,
       trustScore: trust.score,
@@ -196,6 +190,7 @@ export class UpdateRiderStatusUseCase {
 
     if (status === 'SUSPENDED') {
       await this.deps.sessionRepo.revokeAllForUser(user.id);
+      await this.deps.onAccountSuspended?.(user.id).catch(() => undefined);
     }
 
     let counts = { totalRides: 0, completedRides: 0, cancelledRides: 0 };
@@ -215,17 +210,11 @@ export class UpdateRiderStatusUseCase {
     return {
       id: rider.id,
       userId: rider.userId,
-      phoneE164: updatedUser.phoneE164,
       status: updatedUser.status,
       name: rider.name,
       email: rider.email,
       preferredLanguage: rider.preferredLanguage,
-      emergencyContact: rider.emergencyContact
-        ? {
-            name: rider.emergencyContact.name,
-            phoneE164: rider.emergencyContact.phoneE164,
-          }
-        : null,
+      emergencyContact: toAdminEmergencyContact(rider),
       ratingAverage: rider.ratingAverage,
       ratingCount: rider.ratingCount,
       totalRides: counts.totalRides,
@@ -239,7 +228,7 @@ export class UpdateRiderStatusUseCase {
 export class UpdateRiderProfileUseCase {
   constructor(private readonly deps: AdminRiderDeps) {}
 
-  async execute(riderId: string, data: UpdateRiderProfileDto): Promise<AdminRiderDetailDto> {
+  async execute(riderId: string, data: AdminUpdateRiderProfileDto): Promise<AdminRiderDetailDto> {
     const rider = await this.deps.riderRepo.findById(riderId);
     if (!rider) {
       throw AppError.notFound('RIDER_NOT_FOUND: Customer profile not found.');
@@ -256,15 +245,6 @@ export class UpdateRiderProfileUseCase {
       email: data.email !== undefined ? data.email : rider.email,
       preferredLanguage:
         data.preferredLanguage !== undefined ? data.preferredLanguage : rider.preferredLanguage,
-      emergencyContact:
-        data.emergencyContact !== undefined
-          ? data.emergencyContact
-            ? {
-                name: data.emergencyContact.name,
-                phoneE164: data.emergencyContact.phoneE164,
-              }
-            : null
-          : rider.emergencyContact,
       updatedAt: new Date(),
     });
 
@@ -280,17 +260,11 @@ export class UpdateRiderProfileUseCase {
     return {
       id: updatedRider.id,
       userId: updatedRider.userId,
-      phoneE164: user.phoneE164,
       status: user.status,
       name: updatedRider.name,
       email: updatedRider.email,
       preferredLanguage: updatedRider.preferredLanguage,
-      emergencyContact: updatedRider.emergencyContact
-        ? {
-            name: updatedRider.emergencyContact.name,
-            phoneE164: updatedRider.emergencyContact.phoneE164,
-          }
-        : null,
+      emergencyContact: toAdminEmergencyContact(updatedRider),
       ratingAverage: updatedRider.ratingAverage,
       ratingCount: updatedRider.ratingCount,
       totalRides: stats.totalRides,

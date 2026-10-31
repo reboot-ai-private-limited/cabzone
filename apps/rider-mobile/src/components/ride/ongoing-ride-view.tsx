@@ -5,7 +5,6 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Animated,
   Image,
-  Linking,
   PanResponder,
   Pressable,
   RefreshControl,
@@ -34,7 +33,9 @@ interface OngoingRideViewProps {
   onShare: () => void;
   onCancel: () => void;
   onRefresh: () => void;
-  onCallDriver?: ((phoneE164: string) => void) | undefined;
+  onCallDriver?: (() => void) | undefined;
+  onChat?: (() => void) | undefined;
+  hasUnreadChat?: boolean | undefined;
 }
 
 export function OngoingRideView({
@@ -50,6 +51,8 @@ export function OngoingRideView({
   onCancel,
   onRefresh,
   onCallDriver,
+  onChat,
+  hasUnreadChat,
 }: OngoingRideViewProps) {
   const reducedMotion = useReducedMotion();
   const [height, setHeight] = useState(700);
@@ -131,13 +134,11 @@ export function OngoingRideView({
   }, [expanded, animateTo, progress]);
 
   const handleCallDriver = useCallback(() => {
-    if (!driverInfo.phoneE164) return;
     if (onCallDriver) {
-      onCallDriver(driverInfo.phoneE164);
+      onCallDriver();
       return;
     }
-    void Linking?.openURL?.(`tel:${driverInfo.phoneE164}`);
-  }, [driverInfo.phoneE164, onCallDriver]);
+  }, [onCallDriver]);
 
   const pan = PanResponder.create({
     onMoveShouldSetPanResponder: (_, gesture) =>
@@ -377,7 +378,22 @@ export function OngoingRideView({
               <Text style={styles.driverName}>{driverInfo.driverName}</Text>
               <Text style={styles.caption}>{`★ ${driverInfo.ratingLabel || 'New'}`}</Text>
             </View>
-            {driverInfo.phoneE164 ? (
+            {onChat ? (
+              <Pressable
+                style={styles.action}
+                onPress={onChat}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  hasUnreadChat ? 'Chat with driver, new message' : 'Chat with driver'
+                }
+              >
+                <View style={styles.actionIcon}>
+                  <Ionicons name="chatbubble-outline" size={22} color={colors.deepBrown} />
+                </View>
+                <Text style={styles.actionLabel}>{hasUnreadChat ? 'Chat •' : 'Chat'}</Text>
+              </Pressable>
+            ) : null}
+            {onCallDriver ? (
               <Pressable
                 style={styles.action}
                 onPress={handleCallDriver}

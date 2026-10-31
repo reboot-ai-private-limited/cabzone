@@ -242,6 +242,9 @@ async function setup() {
     },
   });
   const rides = buildRidesContainer({
+    consumeChatRateLimit: async () => 0,
+    isCommunicationAccountActive: async () => true,
+    notifyChat: (ride, message) => dispatch.notifier.chatMessage(ride, message),
     requireDriverEligibility: async () => 'test-vehicle',
     unitOfWork,
     rideRepo,
@@ -603,6 +606,89 @@ describe('Dispatch: full trip with realtime', () => {
 
     expect((await driverWs.waitFor('ride.cancelled'))['status']).toBe('CANCELLED');
     expect((await riderWs.waitFor('ride.cancelled'))['rideId']).toBe(rideId);
+  });
+
+  it('delivers privacy-safe chat hints only to participants and sends generic push only when offline', async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ data: [{ status: 'ok', id: 'ticket-chat-1' }] }),
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const s = await setup();
+      await s.goOnline('near');
+      await s.goOnline('near2');
+
+      await s.push.register(RIDER_USER, 'rider-phone-1', 'ExponentPushToken[rider-dev]');
+      await s.push.register(
+        drivers['near']!.userId,
+        'driver-phone-1',
+        'ExponentPushToken[driver-dev]',
+      );
+
+      const riderWs = await s.listen(s.riderToken);
+      const driverWs = await s.listen(s.tokens['near']!);
+      const candidateWs = await s.listen(s.tokens['near2']!);
+      const strangerWs = await s.listen(s.otherRiderToken);
+
+      const rideId = (await s.requestRide()).body.data.id as string;
+      await request(s.app)
+        .post(`/api/v1/rides/${rideId}/accept`)
+        .set('Authorization', s.bearer(s.tokens['near']!));
+      await riderWs.waitFor('ride.driver.assigned');
+      await driverWs.waitFor('ride.driver.assigned');
+      fetchMock.mockClear();
+
+      const secretBody = 'Standing near pillar 7 wearing blue shirt';
+      const sent = await request(s.app)
+        .post(`/api/v1/rides/${rideId}/messages`)
+        .set('Authorization', s.bearer(s.riderToken))
+        .send({ clientMessageId: crypto.randomUUID(), text: secretBody });
+      expect(sent.status).toBe(201);
+
+      const driverFrame = await driverWs.waitFor('ride.chat.message');
+      const riderFrame = await riderWs.waitFor('ride.chat.message');
+      expect(driverFrame).toEqual({
+        rideId,
+        messageId: sent.body.data.id,
+        sequence: 1,
+        senderRole: 'RIDER',
+      });
+      expect(riderFrame).toEqual(driverFrame);
+      expect(JSON.stringify(driverFrame)).not.toContain(secretBody);
+      await candidateWs.expectNone('ride.chat.message');
+      await strangerWs.expectNone('ride.chat.message');
+      // Foreground socket suppresses push alerts
+      expect(fetchMock).not.toHaveBeenCalled();
+
+      // Disconnect rider socket -> driver reply triggers generic privacy-safe push
+      riderWs.ws.close();
+      await new Promise((r) => setTimeout(r, 80));
+
+      const replyBody = 'Arriving in 2 minutes near pillar 7';
+      const reply = await request(s.app)
+        .post(`/api/v1/rides/${rideId}/messages`)
+        .set('Authorization', s.bearer(s.tokens['near']!))
+        .send({ clientMessageId: crypto.randomUUID(), text: replyBody });
+      expect(reply.status).toBe(201);
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const [, init] = fetchMock.mock.calls[0] as unknown as [string, { body: string }];
+      const payloadStr = init.body;
+      expect(payloadStr).not.toContain(replyBody);
+      expect(payloadStr).not.toContain('+91');
+      const parsed = JSON.parse(payloadStr) as Array<Record<string, unknown>>;
+      expect(parsed[0]).toMatchObject({
+        to: 'ExponentPushToken[rider-dev]',
+        title: 'New ride message',
+        body: 'Open Cabzone to read your message.',
+        data: { type: 'ride.chat.message', rideId },
+      });
+      expect(Number(parsed[0]!['ttl'])).toBeGreaterThan(500);
+      expect(Number(parsed[0]!['ttl'])).toBeLessThanOrEqual(600);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });
 

@@ -1,11 +1,15 @@
-import type { VehicleCategory, DispatchFleetDriverDto, SimulateFleetPayload, SimulateFleetResponseDto } from '@cabzone/contracts';
+import type {
+  VehicleCategory,
+  DispatchFleetDriverDto,
+  SimulateFleetPayload,
+  SimulateFleetResponseDto,
+} from '@cabzone/contracts';
 import type { DriverPresencePort } from '../../domain/presence.port.js';
 
 export interface SimulatedDriverSeed {
   driverId: string;
   userId: string;
   driverName: string;
-  phoneE164: string;
   vehicleRegistration: string;
   vehicleCategory: VehicleCategory;
   lat: number;
@@ -19,11 +23,10 @@ export const SILIGURI_SIMULATED_FLEET: readonly SimulatedDriverSeed[] = [
     driverId: 'sim-driver-1',
     userId: 'sim-user-1',
     driverName: 'Rahul Sharma',
-    phoneE164: '+919800111222',
     vehicleRegistration: 'WB 74 AK 1024',
     vehicleCategory: 'CAB',
     lat: 26.7271,
-    lng: 88.4230,
+    lng: 88.423,
     heading: 45,
     speedMps: 6,
   },
@@ -31,7 +34,6 @@ export const SILIGURI_SIMULATED_FLEET: readonly SimulatedDriverSeed[] = [
     driverId: 'sim-driver-2',
     userId: 'sim-user-2',
     driverName: 'Bikash Roy',
-    phoneE164: '+919800222333',
     vehicleRegistration: 'WB 73 B 4421',
     vehicleCategory: 'CAB',
     lat: 26.7115,
@@ -43,11 +45,10 @@ export const SILIGURI_SIMULATED_FLEET: readonly SimulatedDriverSeed[] = [
     driverId: 'sim-driver-3',
     userId: 'sim-user-3',
     driverName: 'Amit Barman',
-    phoneE164: '+919800333444',
     vehicleRegistration: 'WB 74 C 9980',
     vehicleCategory: 'CAB',
-    lat: 26.7450,
-    lng: 88.4350,
+    lat: 26.745,
+    lng: 88.435,
     heading: 190,
     speedMps: 8,
   },
@@ -55,11 +56,10 @@ export const SILIGURI_SIMULATED_FLEET: readonly SimulatedDriverSeed[] = [
     driverId: 'sim-driver-4',
     userId: 'sim-user-4',
     driverName: 'Subhash Das',
-    phoneE164: '+919800444555',
     vehicleRegistration: 'WB 73 D 3311',
     vehicleCategory: 'CAB',
-    lat: 26.6850,
-    lng: 88.3300,
+    lat: 26.685,
+    lng: 88.33,
     heading: 270,
     speedMps: 12,
   },
@@ -67,11 +67,10 @@ export const SILIGURI_SIMULATED_FLEET: readonly SimulatedDriverSeed[] = [
     driverId: 'sim-driver-5',
     userId: 'sim-user-5',
     driverName: 'Karan Chettri',
-    phoneE164: '+919800555666',
     vehicleRegistration: 'WB 74 M 7622',
     vehicleCategory: 'E_RICKSHAW',
-    lat: 26.7580,
-    lng: 88.4600,
+    lat: 26.758,
+    lng: 88.46,
     heading: 90,
     speedMps: 7,
   },
@@ -79,11 +78,10 @@ export const SILIGURI_SIMULATED_FLEET: readonly SimulatedDriverSeed[] = [
     driverId: 'sim-driver-6',
     userId: 'sim-user-6',
     driverName: 'Pradip Paul',
-    phoneE164: '+919800666777',
     vehicleRegistration: 'WB 74 ER 5519',
     vehicleCategory: 'E_RICKSHAW',
-    lat: 26.6870,
-    lng: 88.4410,
+    lat: 26.687,
+    lng: 88.441,
     heading: 310,
     speedMps: 3,
   },
@@ -133,7 +131,6 @@ export class SimulateFleetUseCase {
         activeRideId: null,
         locationUpdatedAt: now.toISOString(),
         driverName: d.driverName,
-        phoneE164: d.phoneE164,
         vehicleRegistration: d.vehicleRegistration,
       });
     }

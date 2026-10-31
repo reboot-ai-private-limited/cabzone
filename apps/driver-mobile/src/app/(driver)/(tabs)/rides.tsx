@@ -15,7 +15,11 @@ import { Ionicons } from '@expo/vector-icons';
 import type { DriverEarningsSummaryDto, RideDto, RideStatus } from '@cabzone/contracts';
 import { useAuth } from '@/context/auth-context';
 import { computeRideEarningsBreakdown, useDuty } from '@/context/duty-context';
-import { ACTIVE_RIDE_STATUSES, useRide } from '@/context/ride-context';
+import {
+  ACTIVE_RIDE_STATUSES,
+  PENDING_PAYMENT_STATUSES,
+  useRide,
+} from '@/context/ride-context';
 import { ridesApi } from '@/services/api';
 import { colors, typography } from '@/design-system';
 
@@ -32,11 +36,17 @@ const FILTER_TABS: { key: FilterTab; label: string }[] = [
 const HISTORY_PAGE_SIZE = 20;
 const COUNTER_STEP_PAISE = 1000;
 
+const PENDING_SET: ReadonlySet<RideStatus> =
+  PENDING_PAYMENT_STATUSES ??
+  new Set<RideStatus>(['TRIP_COMPLETED', 'PAYMENT_PENDING', 'PAYMENT_CASH_CLAIMED']);
+
 function statusesForFilter(filter: FilterTab): RideStatus[] | undefined {
-  if (filter === 'ACTIVE') return Array.from(ACTIVE_RIDE_STATUSES) as RideStatus[];
+  if (filter === 'ACTIVE') {
+    return [...Array.from(ACTIVE_RIDE_STATUSES), ...Array.from(PENDING_SET)] as RideStatus[];
+  }
   if (filter === 'COMPLETED') return ['SETTLED', 'PAYMENT_CONFIRMED'];
   if (filter === 'CANCELLED') return ['CANCELLED', 'EXPIRED'];
-  if (filter === 'DISPUTED') return ['PAYMENT_DISPUTED'];
+  if (filter === 'DISPUTED') return ['PAYMENT_DISPUTED', 'PAYMENT_UNPAID'];
   return undefined;
 }
 
@@ -54,17 +64,28 @@ function getStatusPillStyle(status: RideStatus): {
       text: '#15803D',
     };
   }
-  if (status === 'CANCELLED' || status === 'EXPIRED') {
+  if (status === 'CANCELLED' || status === 'EXPIRED' || status === 'PAYMENT_UNPAID') {
     return {
-      label: status === 'CANCELLED' ? 'Cancelled' : 'Expired',
+      label:
+        status === 'CANCELLED' ? 'Cancelled' : status === 'EXPIRED' ? 'Expired' : 'Unpaid',
       bg: '#FEE2E2',
       border: '#FCA5A5',
       text: colors.error,
     };
   }
-  if (status === 'PAYMENT_DISPUTED') {
+  if (
+    status === 'PAYMENT_DISPUTED' ||
+    status === 'PAYMENT_CASH_CLAIMED' ||
+    status === 'PAYMENT_PENDING' ||
+    status === 'TRIP_COMPLETED'
+  ) {
     return {
-      label: 'Disputed',
+      label:
+        status === 'PAYMENT_DISPUTED'
+          ? 'Disputed'
+          : status === 'PAYMENT_CASH_CLAIMED'
+            ? 'Cash Claimed'
+            : 'Payment Pending',
       bg: '#FEF3C7',
       border: '#FCD34D',
       text: colors.brandBrown,
@@ -257,7 +278,7 @@ export default function DriverRidesTab() {
   };
 
   const handlePressRide = (ride: RideDto) => {
-    if (ACTIVE_RIDE_STATUSES.has(ride.status)) {
+    if (ACTIVE_RIDE_STATUSES.has(ride.status) || PENDING_SET.has(ride.status)) {
       router.push({
         pathname: '/(driver)/ride/[rideId]',
         params: { rideId: ride.id },

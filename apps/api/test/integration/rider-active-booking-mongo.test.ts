@@ -3,7 +3,12 @@ import { resolve } from 'node:path';
 import mongoose from 'mongoose';
 import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { ACTIVE_RIDE_STATUSES, RIDE_STATUSES, type RideStatus } from '@cabzone/contracts';
+import {
+  ACTIVE_RIDE_STATUSES,
+  RIDE_STATUSES,
+  RIDER_BOOKING_BLOCKED_STATUSES,
+  type RideStatus,
+} from '@cabzone/contracts';
 import {
   CreateQuoteUseCase,
   MemoryPricingConfigRepository,
@@ -255,16 +260,26 @@ describe('Mongo one-active-rider-booking concurrency & status matrix (D-043)', (
     });
   });
 
-  it('blocks new bookings across all 9 active statuses and allows them across all 4 non-blocking statuses', async () => {
+  it('blocks new bookings across all 10 booking-blocked statuses and allows them across all 5 non-blocking statuses', async () => {
     const nonBlockingStatuses = RIDE_STATUSES.filter(
-      (s): s is RideStatus => !ACTIVE_RIDE_STATUSES.includes(s as (typeof ACTIVE_RIDE_STATUSES)[number]),
+      (s): s is RideStatus =>
+        !RIDER_BOOKING_BLOCKED_STATUSES.includes(
+          s as (typeof RIDER_BOOKING_BLOCKED_STATUSES)[number],
+        ),
     );
     expect(ACTIVE_RIDE_STATUSES).toHaveLength(9);
-    expect(nonBlockingStatuses).toEqual(['PAYMENT_DISPUTED', 'SETTLED', 'CANCELLED', 'EXPIRED']);
+    expect(RIDER_BOOKING_BLOCKED_STATUSES).toHaveLength(10);
+    expect(nonBlockingStatuses).toEqual([
+      'PAYMENT_CASH_CLAIMED',
+      'PAYMENT_DISPUTED',
+      'SETTLED',
+      'CANCELLED',
+      'EXPIRED',
+    ]);
 
     const initial = await createRideUseCase.execute(await buildRideInput(RIDER_ID));
 
-    for (const blockingStatus of ACTIVE_RIDE_STATUSES) {
+    for (const blockingStatus of RIDER_BOOKING_BLOCKED_STATUSES) {
       await RideModel.updateOne({ _id: initial.id }, { $set: { status: blockingStatus } }).exec();
 
       await expect(createRideUseCase.execute(await buildRideInput(RIDER_ID))).rejects.toMatchObject(

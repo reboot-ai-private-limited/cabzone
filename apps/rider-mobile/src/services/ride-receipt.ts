@@ -37,7 +37,11 @@ export function rideReceipt(ride: RideDto, events: RideEventDto[]) {
   const status =
     ride.status === 'PAYMENT_DISPUTED'
       ? 'Payment under review'
-      : ride.status === 'CANCELLED'
+      : ride.status === 'PAYMENT_UNPAID'
+        ? 'Reported unpaid'
+        : ride.status === 'PAYMENT_CASH_CLAIMED'
+          ? 'Cash claimed · Awaiting driver'
+          : ride.status === 'CANCELLED'
         ? 'Cancelled'
         : ride.status === 'EXPIRED'
           ? 'Request expired'

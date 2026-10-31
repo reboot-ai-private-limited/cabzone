@@ -29,13 +29,11 @@ export interface DriverCoords {
   timestamp: number;
 }
 
-const ACTIVE_RIDE_STATUSES: ReadonlySet<string> = new Set([
+const ACTIVE_RIDE_STATUSES: ReadonlySet<RideDto['status']> = new Set([
   'DRIVER_ASSIGNED',
   'DRIVER_EN_ROUTE',
   'DRIVER_ARRIVED',
   'TRIP_STARTED',
-  'TRIP_COMPLETED',
-  'PAYMENT_PENDING',
 ]);
 
 interface DutyContextType {
@@ -476,7 +474,7 @@ export function DutyProvider({ children }: { children: React.ReactNode }) {
 
     const hasActiveRide = myRides.some((r) => ACTIVE_RIDE_STATUSES.has(r.status));
     if (hasActiveRide) {
-      setError('Complete or settle your active ride before going offline.');
+      setError('Complete your active trip before going offline.');
       return false;
     }
 

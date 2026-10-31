@@ -107,15 +107,14 @@ class TestMemoryRiderRepo implements RiderRepositoryPort {
         const q = filter.search.trim().toLowerCase();
         const matchesName = rider.name?.toLowerCase().includes(q) ?? false;
         const matchesEmail = rider.email?.toLowerCase().includes(q) ?? false;
-        const matchesPhone = user.phoneE164.toLowerCase().includes(q);
-        if (!matchesName && !matchesEmail && !matchesPhone) {
+        const matchesId = rider.id.toLowerCase().includes(q) || rider.userId.toLowerCase().includes(q);
+        if (!matchesName && !matchesEmail && !matchesId) {
           continue;
         }
       }
 
       all.push({
         rider: { ...rider },
-        phoneE164: user.phoneE164,
         status: user.status,
         totalRides: 0,
         completedRides: 0,
@@ -503,13 +502,20 @@ describe('Riders and Customer Admin API', () => {
       expect(resActive.body.data.total).toBe(1);
       expect(resActive.body.data.riders[0].name).toBe('Aditi Sharma');
 
-      // Search by phone
+      // Search by email / ID works; phone search does not enumerate accounts
       const resSearch = await request(app)
-        .get('/api/v1/admin/riders?search=9999988888')
+        .get('/api/v1/admin/riders?search=sourav@test.com')
         .set('Authorization', `Bearer ${adminToken}`);
       expect(resSearch.status).toBe(200);
       expect(resSearch.body.data.total).toBe(1);
       expect(resSearch.body.data.riders[0].name).toBe('Sourav Roy');
+      expect(resSearch.body.data.riders[0]).not.toHaveProperty('phoneE164');
+
+      const resPhoneSearch = await request(app)
+        .get('/api/v1/admin/riders?search=9999988888')
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(resPhoneSearch.status).toBe(200);
+      expect(resPhoneSearch.body.data.total).toBe(0);
     });
 
     it('returns customer details dossier with trip statistics', async () => {
@@ -595,7 +601,7 @@ describe('Riders and Customer Admin API', () => {
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
       expect(res.body.data.id).toBe(riderProfileId);
-      expect(res.body.data.phoneE164).toBe('+919876543210');
+      expect(res.body.data).not.toHaveProperty('phoneE164');
       expect(res.body.data.totalRides).toBe(2);
       expect(res.body.data.completedRides).toBe(1);
       expect(res.body.data.cancelledRides).toBe(1);
@@ -636,7 +642,18 @@ describe('Riders and Customer Admin API', () => {
       expect(resReactivate.body.data.status).toBe('ACTIVE');
     });
 
-    it('allows admin to edit customer profile', async () => {
+    it('allows admin to edit non-phone customer profile fields while keeping emergency numbers private', async () => {
+      await request(app)
+        .patch('/api/v1/riders/me')
+        .set('Authorization', `Bearer ${riderToken}`)
+        .send({
+          emergencyContact: {
+            name: 'Vikram Banerjee',
+            phoneE164: '+919888877777',
+          },
+        })
+        .expect(200);
+
       const res = await request(app)
         .patch(`/api/v1/admin/riders/${riderProfileId}`)
         .set('Authorization', `Bearer ${adminToken}`)
@@ -644,10 +661,6 @@ describe('Riders and Customer Admin API', () => {
           name: 'Aditi Sharma Banerjee',
           email: 'aditi.banerjee@example.com',
           preferredLanguage: 'hi',
-          emergencyContact: {
-            name: 'Vikram Banerjee',
-            phoneE164: '+919888877777',
-          },
         });
 
       expect(res.status).toBe(200);
@@ -655,8 +668,8 @@ describe('Riders and Customer Admin API', () => {
       expect(res.body.data.name).toBe('Aditi Sharma Banerjee');
       expect(res.body.data.email).toBe('aditi.banerjee@example.com');
       expect(res.body.data.preferredLanguage).toBe('hi');
-      expect(res.body.data.emergencyContact?.name).toBe('Vikram Banerjee');
-      expect(res.body.data.emergencyContact?.phoneE164).toBe('+919888877777');
+      expect(res.body.data.emergencyContact).toEqual({ name: 'Vikram Banerjee' });
+      expect(res.body.data).not.toHaveProperty('phoneE164');
     });
   });
 });

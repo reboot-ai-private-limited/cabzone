@@ -79,12 +79,13 @@ function harness(initialDuty = 'ONLINE') {
   }
 
   let offerCalls = 0;
+  const pushCalls = [];
   const dispatchApi = {
     listOffers: async () => {
       offerCalls += 1;
       return [];
     },
-    registerPushToken: async () => {},
+    registerPushToken: async (...args) => { pushCalls.push(args); },
   };
   const ridesApi = {
     listMyRides: async () => [],
@@ -186,7 +187,8 @@ function harness(initialDuty = 'ONLINE') {
         return {
           notifyCounterResponseLocal: async () => {},
           notifyIncomingOfferLocal: async () => {},
-          registerForPushAsync: async () => null,
+          registerForPushAsync: async () => 'ExponentPushToken[drv-1]',
+          getNativeCallPushTokenAsync: async () => ({ token: 'fcm-drv-1', platform: 'android', transport: 'FCM_CALL' }),
           listenForPushTokenChanges: () => ({ remove: () => {} }),
         };
       }
@@ -220,6 +222,7 @@ function harness(initialDuty = 'ONLINE') {
     timeouts,
     render,
     getOfferCalls: () => offerCalls,
+    pushCalls,
     hasOfferPollInterval: () => [...intervals.values()].some((entry) => entry.ms === 3000),
     async tickOfferPoll() {
       for (const entry of [...intervals.values()]) {
@@ -427,4 +430,70 @@ test('blocks synchronous double-tap across driver ride mutations (acceptOffer & 
   releaseConfirm();
   const settled = await firstConfirm;
   assert.equal(settled?.ride.status, 'SETTLED');
+});
+
+test('tracks unread rider chat messages only on eligible statuses and bumps chatRevision on cancellation', async () => {
+  const h = harness('ONLINE');
+  h.ridesApi.listMyRides = async () => [{ id: 'ride-chat-1', status: 'DRIVER_ASSIGNED' }];
+  h.ridesApi.getRide = async () => ({ id: 'ride-chat-1', status: 'DRIVER_ASSIGNED' });
+
+  h.render();
+  h.sockets[0].ready();
+  await flush();
+  const initialRev = h.render().chatRevision;
+  assert.equal(h.render().socketConnected, true);
+  assert.equal(h.render().unreadChatRideId, null);
+
+  // Own message does not flag unread; rider message flags unread and bumps chatRevision
+  h.sockets[0].emit('ride.chat.message', { rideId: 'ride-chat-1', senderRole: 'DRIVER' });
+  assert.equal(h.render().unreadChatRideId, null);
+  h.sockets[0].emit('ride.chat.message', { rideId: 'ride-chat-1', senderRole: 'RIDER' });
+  assert.equal(h.render().unreadChatRideId, 'ride-chat-1');
+  assert.equal(h.render().chatRevision, initialRev + 2);
+
+  h.render().clearUnreadChat('ride-chat-1');
+  assert.equal(h.render().unreadChatRideId, null);
+
+  // Flag again, then cancel via WebSocket -> bumps chatRevision and clears unread indicator
+  h.sockets[0].emit('ride.chat.message', { rideId: 'ride-chat-1', senderRole: 'RIDER' });
+  assert.equal(h.render().unreadChatRideId, 'ride-chat-1');
+  const beforeCancelRev = h.render().chatRevision;
+  h.ridesApi.listMyRides = async () => [];
+  h.sockets[0].emit('ride.cancelled', { rideId: 'ride-chat-1', status: 'CANCELLED' });
+  await flush();
+  assert.equal(beforeCancelRev + 1, h.render().chatRevision);
+  assert.equal(h.render().unreadChatRideId, null);
+  assert.deepEqual(JSON.parse(JSON.stringify(h.pushCalls.map((c) => c.slice(1)))), [['ExponentPushToken[drv-1]', 'device-1', { platform: 'android', transport: 'EXPO' }], ['fcm-drv-1', 'device-1', { platform: 'android', transport: 'FCM_CALL' }]]);
+});
+
+test('completeTrip moves ride to pendingPaymentRide and unblocks new offers immediately', async () => {
+  const h = harness('ONLINE');
+  h.ridesApi.listMyRides = async () => [{ id: 'ride-p1', status: 'TRIP_STARTED' }];
+  h.ridesApi.completeRide = async () => ({
+    ride: { id: 'ride-p1', status: 'PAYMENT_PENDING' },
+    farePaise: 15000,
+    commissionPaise: 1200,
+    walletBalancePaise: 10000,
+  });
+  h.ridesApi.markRideUnpaid = async () => ({ id: 'ride-p1', status: 'PAYMENT_UNPAID' });
+  h.dispatchApi.listOffers = async () => [makeOffer('ride-next-1')];
+
+  h.render();
+  h.sockets[0].ready();
+  await flush();
+  assert.equal(h.render().activeRide?.id, 'ride-p1');
+  assert.equal(h.render().activeOffer, null);
+
+  await h.render().completeTrip('ride-p1');
+  h.ridesApi.listMyRides = async () => [{ id: 'ride-p1', status: 'PAYMENT_PENDING' }];
+  h.render();
+  await flush();
+  await h.render().refreshOffers();
+  const afterComplete = h.render();
+  assert.equal(afterComplete.activeRide, null);
+  assert.equal(afterComplete.pendingPaymentRide?.id, 'ride-p1');
+  assert.equal(afterComplete.activeOffer?.rideId, 'ride-next-1');
+
+  await afterComplete.markRideUnpaid('ride-p1');
+  assert.equal(h.render().pendingPaymentRide, null);
 });

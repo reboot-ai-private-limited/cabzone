@@ -20,6 +20,7 @@ import {
 import {
   notifyCounterResponseLocal,
   notifyIncomingOfferLocal,
+  getNativeCallPushTokenAsync,
   registerForPushAsync,
   listenForPushTokenChanges,
 } from '@/services/push-notifications';
@@ -32,14 +33,35 @@ export const ACTIVE_RIDE_STATUSES: ReadonlySet<RideStatus> = new Set([
   'DRIVER_EN_ROUTE',
   'DRIVER_ARRIVED',
   'TRIP_STARTED',
+]);
+
+export const PENDING_PAYMENT_STATUSES: ReadonlySet<RideStatus> = new Set([
   'TRIP_COMPLETED',
   'PAYMENT_PENDING',
+  'PAYMENT_CASH_CLAIMED',
+]);
+
+const RECOVERABLE_DRIVER_RIDE_STATUSES: RideStatus[] = [
+  ...ACTIVE_RIDE_STATUSES,
+  ...PENDING_PAYMENT_STATUSES,
+];
+
+const CHAT_ELIGIBLE_STATUSES = new Set<string>([
+  'DRIVER_ASSIGNED',
+  'DRIVER_EN_ROUTE',
+  'DRIVER_ARRIVED',
+  'TRIP_STARTED',
 ]);
 
 interface RideContextType {
+  chatRevision: number;
+  socketConnected: boolean;
+  unreadChatRideId: string | null;
+  clearUnreadChat: (rideId?: string) => void;
   offers: RideOfferDto[];
   activeOffer: RideOfferDto | null;
   activeRide: RideDto | null;
+  pendingPaymentRide: RideDto | null;
   isCheckingActiveRide: boolean;
   isMutatingRide: boolean;
   rideError: string | null;
@@ -58,6 +80,7 @@ interface RideContextType {
   startTripWithOtp: (rideId: string, otp: string) => Promise<RideDto | null>;
   completeTrip: (rideId: string) => Promise<CompleteRideResultDto | null>;
   confirmDirectPayment: (rideId: string) => Promise<CompleteRideResultDto | null>;
+  markRideUnpaid: (rideId: string, reason?: string) => Promise<RideDto | null>;
   cancelTrip: (rideId: string, reason: CancellationReason) => Promise<RideDto | null>;
   fetchRideDetail: (rideId: string) => Promise<{ ride: RideDto; events: RideEventDto[] } | null>;
 }
@@ -73,6 +96,11 @@ export function isRideOfferValid(offer: RideOfferDto): boolean {
 }
 
 export function RideProvider({ children }: { children: React.ReactNode }) {
+  const [chatRevision, setChatRevision] = useState(0);
+  const [unreadChatRideId, setUnreadChatRideId] = useState<string | null>(null);
+  const clearUnreadChat = useCallback((rideId?: string) => {
+    setUnreadChatRideId((prev) => (!rideId || prev === rideId ? null : prev));
+  }, []);
   const {
     token,
     user,
@@ -88,6 +116,7 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
   const [offers, setOffers] = useState<RideOfferDto[]>([]);
   const [ignoredOfferIds, setIgnoredOfferIds] = useState<Set<string>>(() => new Set());
   const [activeRide, setActiveRide] = useState<RideDto | null>(null);
+  const [pendingPaymentRide, setPendingPaymentRide] = useState<RideDto | null>(null);
   const [isCheckingActiveRide, setIsCheckingActiveRide] = useState<boolean>(false);
   const [isMutatingRide, setIsMutatingRide] = useState<boolean>(false);
   const [rideError, setRideError] = useState<string | null>(null);
@@ -127,10 +156,25 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
         });
       });
       const pushToken = await registerForPushAsync();
-      if (!pushToken || cancelled) return;
-      await dispatchApi.registerPushToken(token, pushToken, installationId).catch((error: unknown) => {
-        console.warn('Push registration failed:', error);
-      });
+      if (pushToken && !cancelled) {
+        await dispatchApi
+          .registerPushToken(token, pushToken, installationId, {
+            platform: Platform.OS === 'ios' ? 'ios' : 'android',
+            transport: 'EXPO',
+          })
+          .catch((error: unknown) => {
+            console.warn('Push registration failed:', error);
+          });
+      }
+      const nativeCallToken = await getNativeCallPushTokenAsync();
+      if (nativeCallToken && !cancelled) {
+        await dispatchApi
+          .registerPushToken(token, nativeCallToken.token, installationId, {
+            platform: nativeCallToken.platform,
+            transport: nativeCallToken.transport,
+          })
+          .catch(() => {});
+      }
     });
     return () => {
       cancelled = true;
@@ -150,6 +194,8 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
       queuedOffersRefreshRef.current = 'none';
       eligibleTokenRef.current = null;
       setActiveRide(null);
+      setPendingPaymentRide(null);
+      setUnreadChatRideId(null);
       setIsCheckingActiveRide(false);
       mutatingRideRef.current = false;
       setIsMutatingRide(false);
@@ -171,15 +217,22 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
           } else {
             setActiveRide((prev) => (prev?.id === ride.id ? null : prev));
           }
+          if (PENDING_PAYMENT_STATUSES.has(ride.status)) {
+            setPendingPaymentRide(ride);
+          } else {
+            setPendingPaymentRide((prev) => (prev?.id === ride.id ? null : prev));
+          }
           return ride;
         }
 
         const list = await ridesApi.listMyRides(token, {
-          status: Array.from(ACTIVE_RIDE_STATUSES),
-          limit: 5,
+          status: RECOVERABLE_DRIVER_RIDE_STATUSES,
+          limit: 10,
         });
         const found = list.find((r) => ACTIVE_RIDE_STATUSES.has(r.status)) ?? null;
+        const foundPending = list.find((r) => PENDING_PAYMENT_STATUSES.has(r.status)) ?? null;
         setActiveRide(found);
+        setPendingPaymentRide(foundPending);
         return found;
       } catch {
         return null;
@@ -196,11 +249,13 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsCheckingActiveRide(true);
     ridesApi
-      .listMyRides(token, { status: Array.from(ACTIVE_RIDE_STATUSES), limit: 5 })
+      .listMyRides(token, { status: RECOVERABLE_DRIVER_RIDE_STATUSES, limit: 10 })
       .then((list) => {
         if (cancelled) return;
         const found = list.find((r) => ACTIVE_RIDE_STATUSES.has(r.status)) ?? null;
+        const foundPending = list.find((r) => PENDING_PAYMENT_STATUSES.has(r.status)) ?? null;
         setActiveRide(found);
+        setPendingPaymentRide(foundPending);
       })
       .catch(() => {})
       .finally(() => {
@@ -322,10 +377,18 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
     [token, dutyStatus, activeRide, counters, driver, refreshActiveRide],
   );
 
-  const refreshRef = useRef({ offers: refreshOffers, activeRide: refreshActiveRide });
+  const refreshRef = useRef({
+    offers: refreshOffers,
+    activeRide: refreshActiveRide,
+    summary: refreshSummary,
+  });
   useEffect(() => {
-    refreshRef.current = { offers: refreshOffers, activeRide: refreshActiveRide };
-  }, [refreshOffers, refreshActiveRide]);
+    refreshRef.current = {
+      offers: refreshOffers,
+      activeRide: refreshActiveRide,
+      summary: refreshSummary,
+    };
+  }, [refreshOffers, refreshActiveRide, refreshSummary]);
 
   useEffect(() => {
     const nextExpiryMs = offers.reduce<number | null>((earliest, offer) => {
@@ -398,6 +461,9 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
           setActiveRide(fresh);
         } else {
           setActiveRide(null);
+          if (PENDING_PAYMENT_STATUSES.has(fresh.status)) {
+            setPendingPaymentRide(fresh);
+          }
           void refreshSummary();
         }
       } catch {
@@ -436,12 +502,23 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
         try {
           const frame = JSON.parse(String(message.data)) as {
             event?: string;
-            data?: { rideId?: string; proposedFarePaise?: number; viaCounter?: boolean };
+            data?: {
+              rideId?: string;
+              proposedFarePaise?: number;
+              viaCounter?: boolean;
+              senderRole?: string;
+            };
           };
           if (frame.event === 'connection.ready') {
+            setChatRevision((n) => n + 1);
             retries = 0;
             setSocketConnected(true);
             resync();
+          } else if (frame.event === 'ride.chat.message') {
+            setChatRevision((n) => n + 1);
+            if (frame.data?.senderRole === 'RIDER' && typeof frame.data?.rideId === 'string') {
+              setUnreadChatRideId(frame.data.rideId);
+            }
           } else if (frame.event === 'driver.kyc.expiring' || frame.event === 'driver.kyc.expired') {
             void refreshProfile();
           } else if (frame.event === 'ride.offer.created') {
@@ -491,8 +568,22 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
             const rideId = frame.data?.rideId;
             if (rideId) setOffers((previous) => previous.filter((offer) => offer.rideId !== rideId));
             resync();
+            if (frame.event === 'ride.cancelled') {
+              setChatRevision((n) => n + 1);
+              setUnreadChatRideId((prev) => (!rideId || prev === rideId ? null : prev));
+              void refreshRef.current.summary();
+            }
           } else if (frame.event?.startsWith('ride.')) {
+            setChatRevision((n) => n + 1);
             resync();
+            if (
+              frame.event === 'ride.completed' ||
+              frame.event === 'ride.settled' ||
+              frame.event.includes('payment') ||
+              frame.event.includes('dispute')
+            ) {
+              void refreshRef.current.summary();
+            }
           }
         } catch {
           // A malformed or unknown frame cannot change authoritative ride state.
@@ -673,7 +764,10 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
       setRideError(null);
       try {
         const res = await ridesApi.completeRide(token, rideId);
-        setActiveRide(res.ride);
+        setActiveRide(ACTIVE_RIDE_STATUSES.has(res.ride.status) ? res.ride : null);
+        if (PENDING_PAYMENT_STATUSES.has(res.ride.status)) {
+          setPendingPaymentRide(res.ride);
+        }
         void refreshSummary();
         return res;
       } catch (err: unknown) {
@@ -698,7 +792,12 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
         if (ACTIVE_RIDE_STATUSES.has(res.ride.status)) {
           setActiveRide(res.ride);
         } else {
-          setActiveRide(null);
+          setActiveRide((prev) => (prev?.id === res.ride.id ? null : prev));
+        }
+        if (PENDING_PAYMENT_STATUSES.has(res.ride.status)) {
+          setPendingPaymentRide(res.ride);
+        } else {
+          setPendingPaymentRide((prev) => (prev?.id === res.ride.id ? null : prev));
         }
         await refreshSummary();
         return res;
@@ -707,7 +806,30 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
         return null;
       } finally {
         mutatingRideRef.current = false;
-      setIsMutatingRide(false);
+        setIsMutatingRide(false);
+      }
+    },
+    [token, isMutatingRide, refreshSummary],
+  );
+
+  const markRideUnpaid = useCallback(
+    async (rideId: string, reason?: string): Promise<RideDto | null> => {
+      if (!token || isMutatingRide || mutatingRideRef.current) return null;
+      mutatingRideRef.current = true;
+      setIsMutatingRide(true);
+      setRideError(null);
+      try {
+        const updated = await ridesApi.markRideUnpaid(token, rideId, reason);
+        setActiveRide((prev) => (prev?.id === updated.id ? null : prev));
+        setPendingPaymentRide((prev) => (prev?.id === updated.id ? null : prev));
+        await refreshSummary();
+        return updated;
+      } catch (err: unknown) {
+        setRideError(err instanceof Error ? err.message : 'Failed to report unpaid ride');
+        return null;
+      } finally {
+        mutatingRideRef.current = false;
+        setIsMutatingRide(false);
       }
     },
     [token, isMutatingRide, refreshSummary],
@@ -722,6 +844,7 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
       try {
         const res = await ridesApi.cancelRide(token, rideId, reason);
         setActiveRide(null);
+        setUnreadChatRideId(null);
         await refreshSummary();
         return res.ride;
       } catch (err: unknown) {
@@ -752,12 +875,25 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
     [token],
   );
 
+  const visibleUnreadChatRideId =
+    token &&
+    activeRide &&
+    CHAT_ELIGIBLE_STATUSES.has(activeRide.status) &&
+    unreadChatRideId === activeRide.id
+      ? unreadChatRideId
+      : null;
+
   return (
     <RideContext.Provider
       value={{
+        chatRevision,
+        socketConnected,
+        unreadChatRideId: visibleUnreadChatRideId,
+        clearUnreadChat,
         offers,
         activeOffer,
         activeRide,
+        pendingPaymentRide,
         isCheckingActiveRide,
         isMutatingRide,
         rideError,
@@ -774,6 +910,7 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
         startTripWithOtp,
         completeTrip,
         confirmDirectPayment,
+        markRideUnpaid,
         cancelTrip,
         fetchRideDetail,
       }}>
