@@ -28,6 +28,7 @@ minimumReleaseAgeExclude:
   - 'sharp'
   - '@img/*'
   - 'body-parser'
+  - 'joi'
 
 nodeLinker: hoisted
 
@@ -40,6 +41,7 @@ overrides:
   source-map-js: '>=1.2.2'
   sharp: '>=0.35.5'
   body-parser: '>=1.20.9'
+  joi: '>=17.13.9'
 
 # GHSA-mrhx-c7xc-m3w5 (zod <4.6.6): mitigated by express.json({ limit: '1mb' }) payload cap on API;
 # blind major upgrade to zod@4 would break @asteasolutions/zod-to-openapi@^7.3.4 and @expo/cli.
