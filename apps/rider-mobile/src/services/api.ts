@@ -33,7 +33,7 @@ export type RiderRideViewDto = RideDto & {
 
 function getApiBaseUrl(): string {
   if (process.env.EXPO_PUBLIC_API_URL) {
-    return process.env.EXPO_PUBLIC_API_URL.replace(/\/$/, '');
+    return process.env.EXPO_PUBLIC_API_URL.replace(/\/+$/, '').replace(/\/api$/, '');
   }
 
   if (Platform.OS === 'web') {

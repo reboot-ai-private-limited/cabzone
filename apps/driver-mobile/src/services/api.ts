@@ -39,7 +39,7 @@ export type { DriverProfileDetailDto };
 function getApiBaseUrl(): string {
   // 1. Explicit environment variable
   if (process.env.EXPO_PUBLIC_API_URL) {
-    return process.env.EXPO_PUBLIC_API_URL.replace(/\/$/, '');
+    return process.env.EXPO_PUBLIC_API_URL.replace(/\/+$/, '').replace(/\/api$/, '');
   }
 
   // 2. Web browser: localhost is fine
