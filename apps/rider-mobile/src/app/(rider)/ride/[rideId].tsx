@@ -286,7 +286,7 @@ export default function ActiveRideScreen() {
     if (!ride) return;
     try {
       await Share.share({
-        message: `Cabzone Live Trip (${ride.id.slice(0, 8)})\nStatus: ${getRideStatusMeta(ride.status).label}\nFrom: ${locationLabel(ride.pickup.address, 'Pickup location')}\nTo: ${locationLabel(ride.drop.address, 'Destination')}\nFare: ${formatRupeesFromPaise(ride.agreedFarePaise ?? ride.proposedFarePaise ?? ride.suggestedFarePaise)}`,
+        message: `Cabzone Trip (${ride.id.slice(0, 8)})\nStatus: ${getRideStatusMeta(ride.status).label}\nFrom: ${locationLabel(ride.pickup.address, 'Pickup location')}\nTo: ${locationLabel(ride.drop.address, 'Destination')}\nFare: ${formatRupeesFromPaise(ride.agreedFarePaise ?? ride.proposedFarePaise ?? ride.suggestedFarePaise)}`,
       });
     } catch {
       // ignore share dismissal
@@ -299,15 +299,7 @@ export default function ActiveRideScreen() {
     setBookingDraft({
       mode,
       vehicleCategory: ride.vehicleCategory,
-      preferredFarePaise: Math.min(
-        (ride.proposedFarePaise ?? ride.suggestedFarePaise) + 2000,
-        calculateNegotiationBounds({
-          suggestedFarePaise: ride.suggestedFarePaise,
-          minimumFarePaise: ride.pricingSnapshot.minimumFarePaise,
-          floorPercent: ride.pricingSnapshot.negotiationFloorPercent,
-          ceilingPercent: ride.pricingSnapshot.negotiationCeilingPercent,
-        }).ceilingPaise,
-      ),
+      preferredFarePaise: ride.proposedFarePaise ?? ride.suggestedFarePaise,
       pickup: {
         ...ride.pickup,
         address: locationLabel(ride.pickup.address, 'Pickup location'),
@@ -441,7 +433,7 @@ export default function ActiveRideScreen() {
               {!isRealtimeConnected || syncError ? (
                 <View style={styles.connectionPill}>
                   <View style={[styles.connDot, { backgroundColor: colors.brandBrown }]} />
-                  <Text style={styles.connectionText}>Reconnectingâ€¦</Text>
+                  <Text style={styles.connectionText}>Reconnecting…</Text>
                 </View>
               ) : null}
             </View>
@@ -479,7 +471,7 @@ export default function ActiveRideScreen() {
                   </Text>
                   <Text style={styles.statusSubtitle}>
                     {isSearching && remainingSeconds === 0
-                      ? 'Checking the final responsesâ€¦'
+                      ? 'Checking the final responses…'
                       : statusMeta.subtitle}
                   </Text>
                 </View>
@@ -489,7 +481,7 @@ export default function ActiveRideScreen() {
                     accessibilityLabel={`Search expires in ${remainingSeconds} seconds`}
                   >
                     <Ionicons name="timer-outline" size={16} color={colors.deepBrown} />
-                    <Text style={styles.timerBadgeText}>Searching Â· {remainingSeconds}s</Text>
+                    <Text style={styles.timerBadgeText}>Searching · {remainingSeconds}s</Text>
                   </View>
                 ) : null}
               </View>
@@ -553,7 +545,7 @@ export default function ActiveRideScreen() {
                     <View style={{ flex: 1 }}>
                       <Text style={styles.waitingCountersTitle}>Offers will appear here</Text>
                       <Text style={styles.waitingCountersSub}>
-                        Weâ€™ll let you know when a driver responds.
+                        We’ll let you know when a driver responds.
                       </Text>
                     </View>
                   </View>
@@ -570,7 +562,7 @@ export default function ActiveRideScreen() {
                             <Text style={styles.counterDriverName}>Verified Cabzone Driver</Text>
                             <Text style={styles.counterDriverSub}>
                               {counter.vehicleLabel ||
-                                `Driver #${counter.driverId.slice(0, 6).toUpperCase()} Â· Cab (4 Seats)`}
+                                `Driver #${counter.driverId.slice(0, 6).toUpperCase()} · Cab (4 Seats)`}
                             </Text>
                           </View>
                           <View style={{ alignItems: 'flex-end' }}>
@@ -620,12 +612,12 @@ export default function ActiveRideScreen() {
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.driverCardTitle}>
-                      {`${formatAssignedDriverSummary(ride).driverName} Â· â˜… ${formatAssignedDriverSummary(ride).ratingLabel}`}
+                      {`${formatAssignedDriverSummary(ride).driverName} · ★ ${formatAssignedDriverSummary(ride).ratingLabel}`}
                     </Text>
                     <Text style={styles.driverCardSub}>
                       {formatAssignedDriverSummary(ride).vehicleLabel}
                       {formatAssignedDriverSummary(ride).registrationNumber
-                        ? ` Â· ${formatAssignedDriverSummary(ride).registrationNumber}`
+                        ? ` · ${formatAssignedDriverSummary(ride).registrationNumber}`
                         : ''}
                     </Text>
                     {driverLiveLocation ? (
@@ -695,7 +687,7 @@ export default function ActiveRideScreen() {
                     <Text style={styles.settledTitle}>
                       {ride.status === 'PAYMENT_DISPUTED'
                         ? 'Payment Dispute Under Admin Review'
-                        : `Paid ${formatRupeesFromPaise(totalPayablePaise)} Â· Settled`}
+                        : `Paid ${formatRupeesFromPaise(totalPayablePaise)} · Settled`}
                     </Text>
                     <Text style={styles.settledSub}>
                       {ride.status === 'PAYMENT_DISPUTED'
@@ -775,7 +767,7 @@ export default function ActiveRideScreen() {
               <View style={styles.kvRow}>
                 <Text style={styles.kvKey}>Distance & Zone</Text>
                 <Text style={styles.kvVal}>
-                  {(ride.routeSnapshot.distanceM / 1000).toFixed(1)} km Â·{' '}
+                  {(ride.routeSnapshot.distanceM / 1000).toFixed(1)} km ·{' '}
                   {ride.zoneSnapshot.classification === 'IN_CITY'
                     ? 'In-city'
                     : ride.zoneSnapshot.classification === 'OUTSTATION'
@@ -819,7 +811,7 @@ export default function ActiveRideScreen() {
               ) : null}
               {isSearching ? (
                 <Text style={styles.fareRange}>
-                  You can offer {formatRupeesFromPaise(floorPaise)}â€“
+                  You can offer {formatRupeesFromPaise(floorPaise)}–
                   {formatRupeesFromPaise(ceilingPaise)}
                 </Text>
               ) : null}
@@ -888,9 +880,9 @@ export default function ActiveRideScreen() {
                 ) : (
                   <Text style={styles.raiseFareText}>
                     {ride.status === 'REQUESTED'
-                      ? 'Waiting for searchâ€¦'
+                      ? 'Waiting for search…'
                       : remainingSeconds === 0
-                        ? 'Checking searchâ€¦'
+                        ? 'Checking search…'
                         : canRaiseFare
                           ? `Raise fare +${formatRupeesFromPaise(nextFarePaise - offerPaise)}`
                           : 'Maximum fare reached'}

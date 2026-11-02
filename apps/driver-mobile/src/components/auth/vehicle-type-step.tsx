@@ -11,6 +11,7 @@ import {
 import { VEHICLE_CATEGORY_REGISTRY } from '@cabzone/contracts';
 import { colors, typography } from '@/design-system';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
+import { ERickshawIcon } from '@/components/common/e-rickshaw-icon';
 
 interface VehicleTypeStepProps {
   onSelect: (type: 'CAB' | 'E_RICKSHAW') => void;
@@ -65,7 +66,7 @@ export function VehicleTypeStep({ onSelect, onBack }: VehicleTypeStepProps) {
 
           <VehicleCard
             type="E_RICKSHAW"
-            icon="🛺"
+            icon={<ERickshawIcon size={28} color={selectedType === 'E_RICKSHAW' ? colors.cabzonBlue : colors.darkNavy} />}
             title="E-Rickshaw"
             subtitle="Local city commutes — onboarding opens when E-Rickshaw dispatch launches"
             tag={erickshawActive ? 'Active Launch' : 'Coming Soon'}
@@ -95,7 +96,7 @@ function VehicleCard({
   onPress,
 }: {
   type: 'CAB' | 'E_RICKSHAW';
-  icon: string;
+  icon: React.ReactNode;
   title: string;
   subtitle: string;
   tag: string;
@@ -153,7 +154,7 @@ function VehicleCard({
               { transform: [{ scale: iconScale }] },
             ]}
           >
-            <Text style={styles.vehicleIcon}>{icon}</Text>
+            {typeof icon === 'string' ? <Text style={styles.vehicleIcon}>{icon}</Text> : icon}
           </Animated.View>
           <Text style={[styles.chevron, isSelected && styles.chevronSelected]}>
             {disabled ? '🔒' : '›'}

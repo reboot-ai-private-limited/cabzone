@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
@@ -11,6 +11,8 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  TouchableWithoutFeedback,
+  Keyboard,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -37,6 +39,19 @@ export default function PhoneEntryScreen() {
   ]);
 
   const normalizedPhone = normalizeIndianPhoneE164(phoneDigits);
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const showSub = Keyboard.addListener(showEvent, () => setIsKeyboardVisible(true));
+    const hideSub = Keyboard.addListener(hideEvent, () => setIsKeyboardVisible(false));
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
 
   useFocusEffect(
     useCallback(() => {
@@ -90,11 +105,16 @@ export default function PhoneEntryScreen() {
   };
 
   const handleBack = () => {
+    if (isKeyboardVisible) {
+      Keyboard.dismiss();
+      return;
+    }
     if (isLoading) return;
     animateOut(() => router.back());
   };
 
   const handleSendOtp = async () => {
+    Keyboard.dismiss();
     if (!normalizedPhone) {
       setError('Enter a valid 10-digit Indian mobile number starting with 6–9.');
       return;
@@ -119,7 +139,8 @@ export default function PhoneEntryScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <SafeAreaView style={styles.container}>
-        <View style={styles.inner}>
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+          <View style={styles.inner}>
           <Animated.View
             style={[
               styles.header,
@@ -157,7 +178,7 @@ export default function PhoneEntryScreen() {
           <ScrollView
             style={styles.form}
             contentContainerStyle={styles.formContent}
-            keyboardShouldPersistTaps="handled"
+            keyboardShouldPersistTaps="never"
             showsVerticalScrollIndicator={false}
           >
             <Animated.View
@@ -280,6 +301,7 @@ export default function PhoneEntryScreen() {
             </Pressable>
           </Animated.View>
         </View>
+        </TouchableWithoutFeedback>
       </SafeAreaView>
     </KeyboardAvoidingView>
   );

@@ -21,6 +21,7 @@ import {
   useRide,
 } from '@/context/ride-context';
 import { ridesApi } from '@/services/api';
+import { RoutePointIcon } from '@/components/common/route-point-icon';
 import { colors, typography } from '@/design-system';
 
 type FilterTab = 'ALL' | 'ACTIVE' | 'COMPLETED' | 'CANCELLED' | 'DISPUTED';
@@ -465,13 +466,13 @@ export default function DriverRidesTab() {
 
                   <View style={styles.routeSection}>
                     <View style={styles.pointRow}>
-                      <View style={[styles.dot, { backgroundColor: colors.success }]} />
+                      <RoutePointIcon type="pickup" size={16} />
                       <Text style={styles.pointText} numberOfLines={1}>
                         {locationLabel(offer.pickup.address, 'Pickup location')}
                       </Text>
                     </View>
                     <View style={styles.pointRow}>
-                      <View style={[styles.dot, { backgroundColor: colors.error }]} />
+                      <RoutePointIcon type="drop" size={16} />
                       <Text style={styles.pointText} numberOfLines={1}>
                         {locationLabel(offer.drop.address, 'Destination')}
                       </Text>
@@ -721,13 +722,13 @@ export default function DriverRidesTab() {
 
                   <View style={styles.routeSection}>
                     <View style={styles.pointRow}>
-                      <View style={[styles.dot, { backgroundColor: colors.success }]} />
+                      <RoutePointIcon type="pickup" size={16} />
                       <Text style={styles.pointText} numberOfLines={1}>
                         {locationLabel(ride.pickup.address, 'Pickup location')}
                       </Text>
                     </View>
                     <View style={styles.pointRow}>
-                      <View style={[styles.dot, { backgroundColor: colors.error }]} />
+                      <RoutePointIcon type="drop" size={16} />
                       <Text style={styles.pointText} numberOfLines={1}>
                         {locationLabel(ride.drop.address, 'Destination')}
                       </Text>

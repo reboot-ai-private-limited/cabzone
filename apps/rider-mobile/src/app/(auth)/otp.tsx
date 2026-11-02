@@ -3,15 +3,16 @@ import {
   ActivityIndicator,
   Animated,
   Easing,
-  KeyboardAvoidingView,
+  Keyboard,
   Platform,
   Pressable,
   StyleSheet,
   Text,
   TextInput,
+  TouchableWithoutFeedback,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/context/auth-context';
@@ -20,7 +21,9 @@ import { colors, radii, spacing, typography } from '@/design-system';
 
 export default function OtpVerificationScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { pendingPhoneE164, verifyOtp, requestOtp } = useAuth();
+  const keyboardOffset = useRef(new Animated.Value(0)).current;
   const reducedMotion = useReducedMotion();
   const [otp, setOtp] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
@@ -91,6 +94,32 @@ export default function OtpVerificationScreen() {
   }, [pendingPhoneE164, router]);
 
   useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const showSub = Keyboard.addListener(showEvent, (e) => {
+      const target = Math.max(0, e.endCoordinates.height - (Platform.OS === 'ios' ? insets.bottom : 0) + spacing.md);
+      Animated.timing(keyboardOffset, {
+        toValue: target,
+        duration: Platform.OS === 'ios' ? e.duration || 250 : 200,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: false,
+      }).start();
+    });
+    const hideSub = Keyboard.addListener(hideEvent, (e) => {
+      Animated.timing(keyboardOffset, {
+        toValue: 0,
+        duration: Platform.OS === 'ios' ? (e as any)?.duration || 200 : 200,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: false,
+      }).start();
+    });
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, [insets.bottom, keyboardOffset]);
+
+  useEffect(() => {
     if (cooldown <= 0) return;
     const t = setTimeout(() => setCooldown((c) => c - 1), 1000);
     return () => clearTimeout(t);
@@ -102,6 +131,7 @@ export default function OtpVerificationScreen() {
   };
 
   const handleVerify = async (codeToVerify?: string) => {
+    if (isVerifying) return;
     const cleanOtp = (codeToVerify ?? otp).replace(/\D/g, '');
     if (cleanOtp.length !== 6) {
       setError('Please enter the 6-digit verification code.');
@@ -120,6 +150,7 @@ export default function OtpVerificationScreen() {
       animateOut(() => router.replace(nextRoute));
     } catch (err: unknown) {
       setIsVerifying(false);
+      setOtp('');
       setError(
         err instanceof Error ? err.message : 'Invalid or expired OTP. Please try again.',
       );
@@ -139,10 +170,8 @@ export default function OtpVerificationScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView
-        style={styles.inner}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+        <Animated.View style={[styles.inner, { paddingBottom: keyboardOffset }]}>
         <View style={styles.topSection}>
           <Animated.View
             style={{
@@ -275,7 +304,8 @@ export default function OtpVerificationScreen() {
             )}
           </Pressable>
         </Animated.View>
-      </KeyboardAvoidingView>
+        </Animated.View>
+      </TouchableWithoutFeedback>
     </SafeAreaView>
   );
 }

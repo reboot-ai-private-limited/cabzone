@@ -104,6 +104,8 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
   const [isLoadingMoreRides, setIsLoadingMoreRides] = useState(false);
 
   const activeRideIdRef = useRef<string | null>(null);
+  // Per-ride fetch ordering so a slow, older response never overwrites a newer one.
+  const rideFetchSeq = useRef(new Map<string, { started: number; applied: number }>());
   useEffect(() => {
     activeRideIdRef.current = activeRide?.id ?? null;
   }, [activeRide?.id]);
@@ -120,10 +122,15 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
   const refreshRideById = useCallback(
     async (rideId: string): Promise<{ ride: RiderRideViewDto; events: RideEventDto[] } | null> => {
       if (!token) return null;
+      const seqs = rideFetchSeq.current.get(rideId) ?? { started: 0, applied: 0 };
+      rideFetchSeq.current.set(rideId, seqs);
+      const seq = ++seqs.started;
       const [ride, events] = await Promise.all([
         riderRidesApi.getRide(token, rideId),
         riderRidesApi.getRideEvents(token, rideId).catch(() => [] as RideEventDto[]),
       ]);
+      if (seq < seqs.applied) return { ride, events };
+      seqs.applied = seq;
       setSyncError(null);
       if (isRideActive(ride.status)) {
         if (activeRideIdRef.current !== ride.id) setDriverLiveLocation(null);
@@ -230,6 +237,8 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
         setIsRealtimeConnected(false);
         setDriverLiveLocation(null);
         setUnreadChatRideId(null);
+        setBookingDraft(null);
+        rideFetchSeq.current.clear();
         return;
       }
       void refreshRides();
@@ -350,6 +359,7 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
   }, [handleSyncError, refreshRideById, refreshRides, token]);
 
   // Resync on app foreground resume & poll active ride periodically
+  const hasActiveRide = Boolean(activeRide);
   useEffect(() => {
     if (!token) return;
     const sub = AppState.addEventListener('change', (state: AppStateStatus) => {
@@ -358,7 +368,7 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
       }
     });
 
-    const intervalMs = activeRide ? (isRealtimeConnected ? 8000 : 4000) : 20000;
+    const intervalMs = hasActiveRide ? (isRealtimeConnected ? 8000 : 4000) : 20000;
     const timer = setInterval(() => {
       if (activeRideIdRef.current) {
         void refreshRideById(activeRideIdRef.current).catch(handleSyncError);
@@ -369,7 +379,7 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
       sub.remove();
       clearInterval(timer);
     };
-  }, [activeRide, handleSyncError, isRealtimeConnected, refreshRideById, refreshRides, token]);
+  }, [hasActiveRide, handleSyncError, isRealtimeConnected, refreshRideById, refreshRides, token]);
 
   const createRide = useCallback(
     async (payload: CreateRiderRidePayload): Promise<RiderRideViewDto> => {

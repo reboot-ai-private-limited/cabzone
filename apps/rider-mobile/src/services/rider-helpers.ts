@@ -61,6 +61,9 @@ export interface PlacePreset {
   lat: number;
   lng: number;
   category: 'CITY' | 'AIRPORT' | 'OUTSTATION';
+  placeType?: 'RECENT' | 'SAVED' | 'POPULAR';
+  iconType?: 'clock' | 'star' | 'train' | 'airplane' | 'mountain';
+  isOutstation?: boolean;
 }
 
 export interface SavedRouteTemplate {
@@ -160,6 +163,30 @@ export const PLACE_PRESETS: PlacePreset[] = [
     lat: 27.3314,
     lng: 88.6138,
     category: 'OUTSTATION',
+  },
+  {
+    id: 'siliguri-junction',
+    name: 'Siliguri Junction (SGUJ)',
+    subtitle: 'Pradhan Nagar, Siliguri',
+    city: 'Siliguri',
+    stateCode: 'WB',
+    lat: 26.7305,
+    lng: 88.423,
+    category: 'CITY',
+    placeType: 'SAVED',
+    iconType: 'star',
+  },
+  {
+    id: 'vega-circle',
+    name: 'Vega Circle',
+    subtitle: 'Sevoke Rd, Siliguri',
+    city: 'Siliguri',
+    stateCode: 'WB',
+    lat: 26.7538,
+    lng: 88.4419,
+    category: 'CITY',
+    placeType: 'SAVED',
+    iconType: 'star',
   },
   {
     id: 'kalimpong-bazaar',

@@ -9,9 +9,12 @@ import {
   Text,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { colors, radii, spacing, typography } from '@/design-system';
+import { ERickshawIcon } from '@/components/common/e-rickshaw-icon';
+import { RoutePointIcon } from '@/components/common/route-point-icon';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 import type { SavedRouteTemplate } from '@/services/rider-helpers';
 import BookingMap, { type BookingMapProps } from './booking-map';
@@ -22,6 +25,8 @@ interface BookingHomeProps {
   bookingStarted: boolean;
   onSearch: () => void;
   onEditPickup: () => void;
+  onChooseDropOnMap?: () => void;
+  onChoosePickupOnMap?: () => void;
   onLocate: () => void;
   isLocating: boolean;
   locationError: string | null;
@@ -29,7 +34,10 @@ interface BookingHomeProps {
   onSelectTemplate: (template: SavedRouteTemplate) => void;
   activeRide: { label: string; onPress: () => void } | null;
   passenger: { label: string; onPress: () => void };
-  children: React.ReactNode;
+  onBack?: () => void;
+  topCard?: React.ReactNode;
+  bottomCard?: React.ReactNode;
+  children?: React.ReactNode;
 }
 
 export function BookingHome({
@@ -38,6 +46,8 @@ export function BookingHome({
   bookingStarted,
   onSearch,
   onEditPickup,
+  onChooseDropOnMap,
+  onChoosePickupOnMap,
   onLocate,
   isLocating,
   locationError,
@@ -45,6 +55,9 @@ export function BookingHome({
   onSelectTemplate,
   activeRide,
   passenger,
+  onBack,
+  topCard,
+  bottomCard,
   children,
 }: BookingHomeProps) {
   const router = useRouter();
@@ -98,6 +111,46 @@ export function BookingHome({
     onPanResponderTerminate: () => animateTo(open),
   });
 
+  const isFloatingPage = bookingStarted && (Boolean(topCard) || Boolean(bottomCard));
+
+  if (isFloatingPage) {
+    return (
+      <View style={styles.container}>
+        {/* Full Screen Map */}
+        <BookingMap
+          pickup={pickup}
+          drop={drop}
+          bottomInset={0}
+          onEditPickup={onEditPickup}
+        />
+
+        {/* Top Floating Slot: Pick/Drop component fixed at top */}
+        <View style={styles.floatingTopContainer} pointerEvents="box-none">
+          {topCard}
+        </View>
+
+        {/* Floating Right Controls (Layers + Locate) right above the bottom card */}
+        <View style={styles.floatingLocateWrapper} pointerEvents="box-none">
+          <Pressable
+            style={styles.roundButton}
+            accessibilityRole="button"
+            accessibilityLabel="Use current location for pickup"
+            accessibilityState={{ disabled: isLocating, busy: isLocating }}
+            disabled={isLocating}
+            onPress={onLocate}
+          >
+            <Ionicons name="locate-outline" size={24} color={colors.deepBrown} />
+          </Pressable>
+        </View>
+
+        {/* Bottom Floating Slot: Fare selection / find cab fixed to bottom */}
+        <View style={styles.floatingBottomContainer} pointerEvents="box-none">
+          {bottomCard || children}
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View
       style={styles.container}
@@ -119,6 +172,19 @@ export function BookingHome({
             accessibilityLabel="Cabzone"
           />
         </View>
+
+        <Pressable
+          style={styles.homePassengerPill}
+          onPress={passenger?.onPress}
+          accessibilityRole="button"
+          accessibilityLabel={`Passenger: ${passenger.label}`}
+        >
+          <Ionicons name="person-outline" size={14} color={colors.deepBrown} />
+          <Text style={styles.homePassengerText} numberOfLines={1}>
+            {passenger.label}
+          </Text>
+          <Ionicons name="chevron-down" size={12} color={colors.secondary} />
+        </Pressable>
       </View>
 
       <Animated.View
@@ -180,13 +246,27 @@ export function BookingHome({
           {bookingStarted ? (
             <>
               <View style={styles.bookingHeader}>
-                <Text accessibilityRole="header" style={styles.bookingTitle}>
-                  Your route
-                </Text>
+                <View style={styles.bookingHeaderLeft}>
+                  {onBack ? (
+                    <Pressable
+                      style={styles.backButton}
+                      onPress={onBack}
+                      accessibilityRole="button"
+                      accessibilityLabel="Go back"
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Ionicons name="arrow-back" size={20} color={colors.deepBrown} />
+                    </Pressable>
+                  ) : null}
+                  <Text accessibilityRole="header" style={styles.bookingTitle}>
+                    Your ride
+                  </Text>
+                </View>
                 <Pressable
                   style={styles.passenger}
                   onPress={passenger.onPress}
                   accessibilityRole="button"
+                  accessibilityLabel={`Passenger: ${passenger.label}`}
                 >
                   <Ionicons name="person-outline" size={16} color={colors.deepBrown} />
                   <Text style={styles.passengerText}>{passenger.label}</Text>
@@ -209,21 +289,34 @@ export function BookingHome({
                   <Ionicons name="arrow-forward" size={19} color={colors.deepBrown} />
                 </View>
               </Pressable>
-              <Pressable
-                style={styles.pickup}
-                accessibilityRole="button"
-                accessibilityLabel={`Change pickup: ${pickup.address}`}
-                onPress={onEditPickup}
-              >
-                <View style={styles.pickupDot} />
-                <View style={styles.pickupCopy}>
-                  <Text style={styles.pickupLabel}>Pickup</Text>
-                  <Text style={styles.pickupAddress} numberOfLines={1}>
-                    {pickup.address}
-                  </Text>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color={colors.secondary} />
-              </Pressable>
+            
+              <View style={styles.pickupRowContainer}>
+                <Pressable
+                  style={styles.pickup}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Change pickup: ${pickup.address}`}
+                  onPress={onEditPickup}
+                >
+                  <RoutePointIcon type="pickup" size={20} style={{ marginRight: spacing.md }} />
+                  <View style={styles.pickupCopy}>
+                    <Text style={styles.pickupLabel}>Pickup</Text>
+                    <Text style={styles.pickupAddress} numberOfLines={1}>
+                      {pickup.address}
+                    </Text>
+                      <Pressable
+                  style={styles.pickupMapButton}
+                  accessibilityRole="button"
+                  accessibilityLabel="Choose pickup on map"
+                  onPress={onChoosePickupOnMap || onEditPickup}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Ionicons name="map-outline" size={15} color={colors.brandBrown} />
+                  <Text style={styles.pickupMapButtonText}>Map</Text>
+                </Pressable>
+                  </View>
+                </Pressable>
+              
+              </View>
               {locationError && (
                 <Text accessibilityRole="alert" style={styles.locationError}>
                   {locationError}
@@ -273,7 +366,7 @@ export function BookingHome({
                     accessible
                     accessibilityLabel="E-rickshaw, coming soon"
                   >
-                    <Ionicons name="bicycle-outline" size={22} color={colors.secondary} />
+                    <ERickshawIcon size={22} color={colors.secondary} />
                     <Text style={styles.smallTileTitle}>E-rickshaw</Text>
                     <Text style={styles.soonLabel}>Coming soon</Text>
                   </View>
@@ -296,7 +389,24 @@ const styles = StyleSheet.create({
     right: spacing.lg,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'flex-start',
+    justifyContent: 'space-between',
+  },
+  homePassengerPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: colors.white,
+    borderRadius: radii.pill,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+    boxShadow: '0 2px 8px rgba(58,36,20,0.10)',
+  },
+  homePassengerText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.deepBrown,
   },
   roundButton: {
     width: 48,
@@ -369,6 +479,57 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: colors.amber,
   },
+  chooseMapQuickRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.surfaceMuted,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+    borderRadius: radii.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 10,
+  },
+  chooseMapQuickIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#FEF3C7',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  chooseMapQuickText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.deepBrown,
+  },
+  pickupRowContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.surfaceMuted,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+    borderRadius: radii.md,
+    paddingRight: spacing.sm,
+  },
+  pickupMapButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: radii.pill,
+  },
+  pickupMapButtonText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.brandBrown,
+  },
   pickup: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -430,11 +591,50 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   soonLabel: { ...typography.caption, fontSize: 11, color: colors.secondary },
+  floatingTopContainer: {
+    position: 'absolute',
+    top: 6,
+    left: 0,
+    right: 0,
+    zIndex: 10,
+    paddingHorizontal: 10,
+  },
+  floatingLocateWrapper: {
+    position: 'absolute',
+    right: spacing.md,
+    bottom: 245,
+    zIndex: 9,
+    gap: 12,
+  },
+  floatingBottomContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    zIndex: 10,
+    paddingHorizontal: 0,
+    paddingBottom: 0,
+  },
   bookingHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     gap: spacing.md,
+  },
+  bookingHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  backButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.cream,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   bookingTitle: { ...typography.h1, color: colors.deepBrown },
   passenger: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },

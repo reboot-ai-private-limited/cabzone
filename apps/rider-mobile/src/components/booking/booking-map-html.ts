@@ -43,99 +43,213 @@ export function mapSelection(message: unknown): { lat: number; lng: number } | n
 }
 
 export function bookingMapHtml(pickup: MapPoint, drop?: MapPoint, options: MapOptions = {}) {
+  const apiKey = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ?? '';
   return `<!doctype html>
 <html lang="en">
 <head>
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@6.15.0/dist/maplibre-gl.css">
   <style>
     html,body,#map{margin:0;width:100%;height:100%;overflow:hidden}
     body{background:#fff;font-family:Arial,sans-serif}
-    #status{position:absolute;inset:0;display:grid;place-items:center;padding:32px;text-align:center;color:#5b5149;font-size:15px;pointer-events:none}
-    .pin{width:25px;height:25px;border:4px solid white;border-radius:50%;box-shadow:0 2px 8px #0004;background:#a95713;cursor:pointer}
-    .pin.pickup{background:#2f764c}
-    .pin.driver{width:auto;height:auto;padding:8px 12px;border:2px solid white;border-radius:16px;background:#3a2414;color:white;font-weight:700;font-size:13px;cursor:default}
-    @keyframes pickupPulse{50%{box-shadow:0 0 0 12px #2f764c33,0 2px 8px #0004}}
-    @media (prefers-reduced-motion:no-preference){.pin.pickup{animation:pickupPulse 2s ease-in-out infinite}}
+    #status{position:absolute;inset:0;display:grid;place-items:center;padding:32px;text-align:center;color:#5b5149;font-size:15px;pointer-events:none;z-index:1}
   </style>
 </head>
 <body>
-  <div id="map"></div><div id="status">Loading map…</div>
+  <div id="map"></div><div id="status">Loading map\u2026</div>
   <script>
     let bookingMap = null;
     let nextPoints = ${mapUpdate(pickup, drop, options)};
-    let markers = [];
+    let pickupMarker = null;
+    let dropMarker = null;
+    let driverMarker = null;
+    let routePolyline = null;
     let lastView = '';
-    setTimeout(()=>{
-      if(!bookingMap || !bookingMap.loaded()) document.getElementById('status').textContent='Map could not load. Check your connection.';
+
+    setTimeout(function(){
+      if(!bookingMap) document.getElementById('status').textContent='Map could not load. Check your connection.';
     },12000);
+
     function editPickup(){
       if(window.ReactNativeWebView) window.ReactNativeWebView.postMessage('editPickup');
       else if(window.parent!==window) window.parent.postMessage('editPickup','*');
     }
+
     window.updateBookingMap = function(points){
       nextPoints = points;
-      if(!bookingMap || !bookingMap.loaded()) return;
-      markers.forEach(marker => marker.remove());
-      markers = [];
-      for(const [name,point] of [['pickup',points.pickup],['drop',points.drop],['driver',points.driver]]){
-        if(!point) continue;
-        const pin = document.createElement('button');
-        pin.type = 'button';
-        pin.className = 'pin ' + name;
-        pin.title = name === 'driver' ? 'Driver location' : name === 'pickup' ? (points.readOnly ? 'Pickup' : 'Change pickup') : 'Destination';
-        if(name === 'driver') pin.textContent = 'Driver';
-        pin.setAttribute('aria-label', pin.title);
-        if(name === 'pickup' && !points.readOnly) pin.addEventListener('click',editPickup);
-        markers.push(new maplibregl.Marker({element:pin}).setLngLat([point.lng,point.lat]).addTo(bookingMap));
+      if(!bookingMap) return;
+
+      var gm = window.google.maps;
+
+      function makePinIcon(type) {
+        var isPickup = type === 'pickup';
+        var svg = isPickup
+          ? '<svg xmlns="http://www.w3.org/2000/svg" width="34" height="34" viewBox="0 0 34 34">' +
+            '<circle cx="17" cy="17" r="16" fill="#059669" fill-opacity="0.28"/>' +
+            '<circle cx="17" cy="17" r="11" fill="#059669" stroke="#ffffff" stroke-width="2"/>' +
+            '<circle cx="17" cy="17" r="6" fill="#ffffff"/>' +
+            '<circle cx="17" cy="17" r="3.5" fill="#059669"/>' +
+            '</svg>'
+          : '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="42" viewBox="0 0 32 42">' +
+            '<path fill="#dc2626" stroke="#ffffff" stroke-width="2" d="M16 1C8 1 2 7 2 15c0 10 14 26 14 26s14-16 14-26c0-8-6-14-14-14z"/>' +
+            '<circle fill="#ffffff" cx="16" cy="15" r="5"/>' +
+            '</svg>';
+        var iconObj = {
+          url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg)
+        };
+        var w = isPickup ? 34 : 32;
+        var h = isPickup ? 34 : 42;
+        if(typeof gm.Size === 'function') iconObj.scaledSize = new gm.Size(w, h);
+        if(typeof gm.Point === 'function') iconObj.anchor = new gm.Point(w/2, isPickup ? h/2 : h - 2);
+        return iconObj;
       }
-      const route = {type:'FeatureCollection',features:points.route.length > 1 ? [{type:'Feature',properties:{},geometry:{type:'LineString',coordinates:points.route}}] : []};
-      const source = bookingMap.getSource('trip-route');
-      if(source) source.setData(route);
-      else{
-        bookingMap.addSource('trip-route',{type:'geojson',data:route});
-        bookingMap.addLayer({id:'trip-route',type:'line',source:'trip-route',layout:{'line-join':'round','line-cap':'round'},paint:{'line-color':'#b45309','line-width':5}});
+
+      function makeDriverIcon() {
+        var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="28" viewBox="0 0 64 28">' +
+          '<rect x="2" y="1" width="60" height="24" rx="12" fill="#1e1b18" stroke="#ffffff" stroke-width="2"/>' +
+          '<circle cx="14" cy="13" r="3.5" fill="#f59e0b"/>' +
+          '<text x="36" y="17" font-size="11" font-family="system-ui, -apple-system, sans-serif" font-weight="800" fill="#ffffff" text-anchor="middle">Driver</text>' +
+          '</svg>';
+        var iconObj = {
+          url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg)
+        };
+        if(typeof gm.Size === 'function') iconObj.scaledSize = new gm.Size(64, 28);
+        if(typeof gm.Point === 'function') iconObj.anchor = new gm.Point(32, 14);
+        return iconObj;
       }
-      const view = JSON.stringify([points.pickup,points.drop,Boolean(points.driver),points.cameraVersion]);
-      if(view === lastView) return;
-      lastView = view;
-      const visible = [points.pickup,points.drop,points.driver].filter(Boolean);
-      if(visible.length > 1){
-        const bounds = new maplibregl.LngLatBounds();
-        visible.forEach(point=>bounds.extend([point.lng,point.lat]));
-        bookingMap.fitBounds(bounds,{padding:50,maxZoom:16,duration:450});
-      }else{
-        bookingMap.easeTo({center:[points.pickup.lng,points.pickup.lat],zoom:14,duration:450});
+
+      // Pickup marker
+      if(points.pickup){
+        var pickupPos = {lat:points.pickup.lat,lng:points.pickup.lng};
+        if(!pickupMarker){
+          pickupMarker = new gm.Marker({
+            position:pickupPos,
+            map:bookingMap,
+            title:points.readOnly?'Pickup':'Change pickup',
+            icon:makePinIcon('pickup'),
+            zIndex:10
+          });
+          if(!points.readOnly){
+            pickupMarker.addListener('click',editPickup);
+          }
+        } else {
+          pickupMarker.setPosition(pickupPos);
+        }
+      } else if(pickupMarker){
+        pickupMarker.setMap(null); pickupMarker=null;
+      }
+
+      // Drop marker
+      if(points.drop){
+        var dropPos = {lat:points.drop.lat,lng:points.drop.lng};
+        if(!dropMarker){
+          dropMarker = new gm.Marker({
+            position:dropPos,
+            map:bookingMap,
+            title:'Destination',
+            icon:makePinIcon('drop'),
+            zIndex:10
+          });
+        } else {
+          dropMarker.setPosition(dropPos);
+        }
+      } else if(dropMarker){
+        dropMarker.setMap(null); dropMarker=null;
+      }
+
+      // Driver marker
+      if(points.driver){
+        var driverPos = {lat:points.driver.lat,lng:points.driver.lng};
+        if(!driverMarker){
+          driverMarker = new gm.Marker({
+            position:driverPos,
+            map:bookingMap,
+            title:'Driver location',
+            icon:makeDriverIcon(),
+            zIndex:20
+          });
+        } else {
+          driverMarker.setPosition(driverPos);
+        }
+      } else if(driverMarker){
+        driverMarker.setMap(null); driverMarker=null;
+      }
+
+      // Route polyline — routeCoordinates are [lng, lat] pairs (GeoJSON order)
+      var route = points.route || [];
+      var coords = [];
+      for(var i=0;i<route.length;i++){
+        coords.push({lat:route[i][1],lng:route[i][0]});
+      }
+      if(coords.length>1){
+        if(!routePolyline){
+          routePolyline = new gm.Polyline({
+            path:coords,
+            map:bookingMap,
+            strokeColor:'#b45309',
+            strokeOpacity:0.9,
+            strokeWeight:5,
+            geodesic:true
+          });
+        } else {
+          routePolyline.setPath(coords);
+        }
+      } else if(routePolyline){
+        routePolyline.setMap(null); routePolyline=null;
+      }
+
+      // Camera / bounds
+      var view = JSON.stringify([points.pickup,points.drop,Boolean(points.driver),points.cameraVersion]);
+      if(view===lastView) return;
+      lastView=view;
+      var visible=[points.pickup,points.drop,points.driver].filter(Boolean);
+      if(visible.length>1){
+        var bounds = new gm.LatLngBounds();
+        for(var j=0;j<visible.length;j++){
+          bounds.extend({lat:visible[j].lat,lng:visible[j].lng});
+        }
+        bookingMap.fitBounds(bounds,{top:50,right:50,bottom:50,left:50});
+      } else {
+        bookingMap.panTo({lat:points.pickup.lat,lng:points.pickup.lng});
+        bookingMap.setZoom(14);
       }
     };
-    window.addEventListener('message',event=>{
-      if(event.source === window.parent && event.data?.type === 'booking.map.update') window.updateBookingMap(event.data.points);
+
+    window.addEventListener('message',function(event){
+      if(event.source===window.parent && event.data&&event.data.type==='booking.map.update'){
+        window.updateBookingMap(event.data.points);
+      }
     });
-  </script>
-  <script type="module">
-    import * as maplibregl from 'https://unpkg.com/maplibre-gl@6.15.0/dist/maplibre-gl.mjs';
-    window.maplibregl = maplibregl;
-    bookingMap = new maplibregl.Map({
-      container:'map',
-      style:'https://tiles.openfreemap.org/styles/positron',
-      center:[nextPoints.pickup.lng,nextPoints.pickup.lat],
-      zoom:14,
-      attributionControl:true
-    });
-    bookingMap.on('load',()=>{
+
+    function initMap(){
+      var gm = window.google.maps;
+      bookingMap = new gm.Map(document.getElementById('map'),{
+        center:{lat:nextPoints.pickup.lat,lng:nextPoints.pickup.lng},
+        zoom:14,
+        mapTypeControl:false,
+        streetViewControl:false,
+        fullscreenControl:false,
+        zoomControl:false,
+        gestureHandling:'greedy',
+        clickableIcons:false,
+        styles:[{featureType:'poi',elementType:'labels',stylers:[{visibility:'off'}]}]
+      });
       document.getElementById('status').style.display='none';
       window.updateBookingMap(nextPoints);
-    });
-    bookingMap.on('error',()=>{
-      if(!bookingMap.loaded()) document.getElementById('status').textContent='Map could not load. Check your connection.';
-    });
-    bookingMap.on('click',event=>{
-      if(nextPoints.readOnly) return;
-      const point = JSON.stringify({lat:Number(event.lngLat.lat.toFixed(5)),lng:Number(event.lngLat.lng.toFixed(5))});
-      if(window.ReactNativeWebView) window.ReactNativeWebView.postMessage(point);
-      else if(window.parent!==window) window.parent.postMessage(point,'*');
-    });
+      if(!nextPoints.readOnly){
+        bookingMap.addListener('click',function(event){
+          if(nextPoints.readOnly) return;
+          var point = JSON.stringify({lat:Number(event.latLng.lat().toFixed(5)),lng:Number(event.latLng.lng().toFixed(5))});
+          if(window.ReactNativeWebView) window.ReactNativeWebView.postMessage(point);
+          else if(window.parent!==window) window.parent.postMessage(point,'*');
+        });
+      }
+    }
   </script>
+  <script
+    src="https://maps.googleapis.com/maps/api/js?key=${apiKey}&callback=initMap&loading=async"
+    async defer
+    onerror="document.getElementById('status').textContent='Map could not load. Check your connection.'"
+  ></script>
 </body>
 </html>`;
 }

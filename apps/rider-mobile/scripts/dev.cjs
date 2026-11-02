@@ -5,9 +5,12 @@ const rawArgs = process.argv.slice(2);
 const enablePush = rawArgs.includes('--push');
 const expoArgs = rawArgs.filter((arg) => arg !== '--push');
 
+const hasPort = expoArgs.some((arg) => arg === '--port' || arg === '-p' || arg.startsWith('--port='));
+const portArgs = hasPort ? [] : ['--port', '8082'];
+
 const child = spawn(
   process.platform === 'win32' ? 'npx.cmd' : 'npx',
-  ['expo', 'start', ...(enablePush ? ['--dev-client'] : []), ...expoArgs],
+  ['expo', 'start', ...(enablePush ? ['--dev-client'] : []), ...portArgs, ...expoArgs],
   {
     stdio: 'inherit',
     shell: process.platform === 'win32',
