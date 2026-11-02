@@ -362,6 +362,7 @@ export interface CreateRiderRidePayload {
     lng: number;
     address?: string;
   };
+  stops?: { lat: number; lng: number; address?: string }[];
 }
 
 export const riderRidesApi = {

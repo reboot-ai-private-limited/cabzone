@@ -1,4 +1,9 @@
-import { tollDisclosure, type QuoteDto, type VehicleCategory } from '@cabzone/contracts';
+import {
+  MAX_RIDE_STOPS,
+  tollDisclosure,
+  type QuoteDto,
+  type VehicleCategory,
+} from '@cabzone/contracts';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -15,7 +20,8 @@ import {
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { BookingHome } from './booking-home';
-import BookingMap from './booking-map';
+import { MapLocationPicker } from './map-location-picker';
+import { DropPlacePicker, type PickerField, type PickerPlace } from './drop-place-picker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
@@ -36,6 +42,14 @@ import {
   normalizeIndianPhoneE164,
   type PlacePreset,
 } from '@/services/rider-helpers';
+import { reverseGeocodeLabel } from '@/services/device-geocode';
+import { decodePolyline } from '@/services/polyline';
+import {
+  placeKey,
+  recentPlacesFromRides,
+  type SavedPlace,
+} from '@/services/recent-places';
+import { getSavedPlaces, saveSavedPlaces } from '@/services/storage';
 import {
   fetchPlacePredictions,
   fetchPlaceCoordinates,
@@ -56,7 +70,7 @@ interface RideBookingComposerProps {
 export function RideBookingComposer({ mode }: RideBookingComposerProps) {
   const router = useRouter();
   const { token, user, profile, templates, addTemplate, removeTemplate, preferences } = useAuth();
-  const { activeRide, createRide, bookingDraft, setBookingDraft } = useRide();
+  const { activeRide, createRide, bookingDraft, setBookingDraft, rideHistory } = useRide();
 
   const defaultPickup = useMemo<LocationSelection>(() => {
     const p = PLACE_PRESETS[0];
@@ -81,17 +95,17 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
   const [showPassengerModal, setShowPassengerModal] = useState(false);
 
   // Place Picker Modal
-  const [pickerTarget, setPickerTarget] = useState<'PICKUP' | 'DROP' | null>(null);
+  const [pickerTarget, setPickerTarget] = useState<'PICKUP' | 'DROP' | 'STOP' | null>(null);
+  const [pickerStopIndex, setPickerStopIndex] = useState(0);
+  const [stops, setStops] = useState<LocationSelection[]>([]);
+  const [savedPlaces, setSavedPlaces] = useState<SavedPlace[]>([]);
   const [pickerOnMap, setPickerOnMap] = useState(false);
   const [placeSearchQuery, setPlaceSearchQuery] = useState('');
   const [autocompleteResults, setAutocompleteResults] = useState<PlaceSuggestion[]>([]);
   const [isSearchingPlaces, setIsSearchingPlaces] = useState(false);
   const placesSessionTokenRef = useRef<string | null>(null);
   const searchDebounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [customLat, setCustomLat] = useState('');
-  const [customLng, setCustomLng] = useState('');
   const [isLocatingGps, setIsLocatingGps] = useState(false);
-  const [isResolvingPin, setIsResolvingPin] = useState(false);
 
   // Quote & Fare Negotiation state
   const [selectedCategory, setSelectedCategory] = useState<VehicleCategory>('CAB');
@@ -128,6 +142,7 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
         } catch {
           // keep readable label
         }
+        address = (await reverseGeocodeLabel(lat, lng)) ?? address;
         if (!off) setPickup((prev) => (prev === defaultPickup ? { lat, lng, address } : prev));
       } catch {
         // GPS unavailable: preset pickup stays and the locate button still works
@@ -138,6 +153,17 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
     };
   }, [defaultPickup, token]);
 
+  const placesUserId = user?.id ?? profile?.userId ?? '';
+  useEffect(() => {
+    let off = false;
+    void getSavedPlaces(placesUserId).then((places) => {
+      if (!off) setSavedPlaces(places);
+    });
+    return () => {
+      off = true;
+    };
+  }, [placesUserId]);
+
   const openPlacePicker = (target: 'PICKUP' | 'DROP') => {
     setPickerTarget(target);
     setPickerOnMap(false);
@@ -145,8 +171,6 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
     setAutocompleteResults([]);
     setIsSearchingPlaces(false);
     placesSessionTokenRef.current = createPlacesSessionToken();
-    setCustomLat('');
-    setCustomLng('');
     setSubmitError(null);
   };
 
@@ -190,9 +214,33 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
     setAutocompleteResults([]);
     setIsSearchingPlaces(false);
     placesSessionTokenRef.current = null;
+    setPickerStopIndex(0);
     if (searchDebounceTimerRef.current) {
       clearTimeout(searchDebounceTimerRef.current);
     }
+  };
+
+  // A stop keeps the picker open so the rider can add more or pick the drop; pickup/drop close it.
+  const applyPickedLocation = (loc: LocationSelection) => {
+    if (pickerTarget === 'STOP') {
+      setStops((prev) => {
+        const next = [...prev];
+        next[Math.min(pickerStopIndex, prev.length)] = loc;
+        return next;
+      });
+      setPickerTarget('DROP');
+      setPickerOnMap(false);
+      setPlaceSearchQuery('');
+      setAutocompleteResults([]);
+      return;
+    }
+    if (pickerTarget === 'DROP') {
+      setBookingStarted(true);
+      setDrop(loc);
+    } else {
+      setPickup(loc);
+    }
+    closePlacePicker();
   };
 
   // Debounced Google Places Autocomplete search
@@ -270,6 +318,7 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
       const response = await geoAndPricingApi.createQuote(token, {
         pickup: { lat: pickup.lat, lng: pickup.lng },
         drop: { lat: drop.lat, lng: drop.lng },
+        ...(stops.length ? { stops: stops.map((s) => ({ lat: s.lat, lng: s.lng })) } : {}),
         vehicleCategory: selectedCategory,
       });
       if (seq !== quoteSeqRef.current) return;
@@ -293,7 +342,7 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
     } finally {
       if (seq === quoteSeqRef.current) setIsLoadingQuote(false);
     }
-  }, [drop.lat, drop.lng, pickup.lat, pickup.lng, token, bookingStarted, selectedCategory]);
+  }, [drop.lat, drop.lng, pickup.lat, pickup.lng, stops, token, bookingStarted, selectedCategory]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -358,6 +407,7 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
   const handleSwapLocations = () => {
     setPickup(drop);
     setDrop(pickup);
+    setStops((prev) => [...prev].reverse());
   };
 
   const handleUseCurrentGps = async (target = pickerTarget) => {
@@ -385,6 +435,7 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
       } catch {
         // Keep a readable label when address lookup is unavailable.
       }
+      address = (await reverseGeocodeLabel(lat, lng)) ?? address;
       if (target === 'DROP') {
         setBookingStarted(true);
         setDrop({ lat, lng, address });
@@ -407,13 +458,7 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
         lng: item.lng,
         address: item.name,
       };
-      if (pickerTarget === 'DROP') {
-        setBookingStarted(true);
-        setDrop(loc);
-      } else {
-        setPickup(loc);
-      }
-      closePlacePicker();
+      applyPickedLocation(loc);
       return;
     }
 
@@ -429,13 +474,7 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
           lng: coords.lng,
           address: coords.address || item.name,
         };
-        if (pickerTarget === 'DROP') {
-          setBookingStarted(true);
-          setDrop(loc);
-        } else {
-          setPickup(loc);
-        }
-        closePlacePicker();
+        applyPickedLocation(loc);
       } else {
         setSubmitError('Could not locate the selected place. Try choosing on map.');
       }
@@ -448,46 +487,6 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
 
   const handleSelectPreset = (preset: PlacePreset) => {
     void handleSelectSuggestion(preset);
-  };
-
-  const handleApplyCustomCoords = async () => {
-    const target = pickerTarget;
-    if (!target) return;
-    const lat = Number(customLat);
-    const lng = Number(customLng);
-    if (
-      !Number.isFinite(lat) ||
-      !Number.isFinite(lng) ||
-      lat < -90 ||
-      lat > 90 ||
-      lng < -180 ||
-      lng > 180
-    ) {
-      return;
-    }
-    setIsResolvingPin(true);
-    let address = 'Selected location';
-    try {
-      const resolved = await geoAndPricingApi.reverseGeocode(token, lat, lng);
-      address =
-        resolved.formattedAddress ||
-        [resolved.city, resolved.state].filter(Boolean).join(', ') ||
-        address;
-    } catch {
-      // Keep the selected-location label when lookup is unavailable.
-    } finally {
-      setIsResolvingPin(false);
-    }
-    const loc: LocationSelection = { lat, lng, address };
-    if (target === 'DROP') {
-      setBookingStarted(true);
-      setDrop(loc);
-    } else {
-      setPickup(loc);
-    }
-    closePlacePicker();
-    setCustomLat('');
-    setCustomLng('');
   };
 
   const matchingTemplate = useMemo(() => {
@@ -566,6 +565,7 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
       drop.lat,
       drop.lng,
       drop.address,
+      stops.map((s) => [s.lat, s.lng, s.address]),
     ]);
     if (pendingBookingAttemptRef.current?.fingerprint !== fingerprint) {
       pendingBookingAttemptRef.current = {
@@ -597,6 +597,9 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
           lng: drop.lng,
           address: drop.address,
         },
+        ...(stops.length
+          ? { stops: stops.map((s) => ({ lat: s.lat, lng: s.lng, address: s.address })) }
+          : {}),
       });
       pendingBookingAttemptRef.current = null;
       router.push(`/(rider)/ride/${created.id}`);
@@ -659,14 +662,90 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
     }));
   }, [placeSearchQuery, autocompleteResults, filteredPresets]);
 
-  const pinCandidate: LocationSelection | null =
-    customLat !== '' && customLng !== ''
-      ? {
-          lat: Number(customLat),
-          lng: Number(customLng),
-          address: 'Selected location',
-        }
-      : null;
+
+  const routeCoordinates = useMemo(
+    () => (activeQuote?.routePolyline ? decodePolyline(activeQuote.routePolyline) : undefined),
+    [activeQuote?.routePolyline],
+  );
+  const searchActive = placeSearchQuery.trim().length >= 2;
+  const recentPlaces = useMemo<PickerPlace[]>(
+    () =>
+      recentPlacesFromRides(rideHistory).map((p) => ({
+        id: p.id,
+        name: p.name,
+        subtitle: p.address,
+        lat: p.lat,
+        lng: p.lng,
+      })),
+    [rideHistory],
+  );
+  const savedPickerPlaces = useMemo<PickerPlace[]>(
+    () =>
+      savedPlaces.map((p) => ({ id: p.id, name: p.name, subtitle: p.address, lat: p.lat, lng: p.lng })),
+    [savedPlaces],
+  );
+  const showPopular = searchActive || (recentPlaces.length === 0 && savedPickerPlaces.length === 0);
+  const pickerField: PickerField =
+    pickerTarget === 'STOP'
+      ? { kind: 'STOP', index: pickerStopIndex }
+      : { kind: pickerTarget === 'PICKUP' ? 'PICKUP' : 'DROP' };
+  const pickerStopLabels = [
+    ...stops.map((s) => s.address),
+    ...(pickerTarget === 'STOP' && pickerStopIndex >= stops.length ? [null] : []),
+  ];
+
+  const isPlaceSaved = (place: PickerPlace) =>
+    place.lat !== undefined &&
+    place.lng !== undefined &&
+    savedPlaces.some((p) => p.id === placeKey(place.lat!, place.lng!));
+
+  const toggleSavedPlace = async (place: PickerPlace) => {
+    let { lat, lng } = place;
+    let address = place.subtitle ? `${place.name}, ${place.subtitle}` : place.name;
+    if (lat === undefined || lng === undefined) {
+      const coords = await fetchPlaceCoordinates(place.id, {
+        sessionToken: placesSessionTokenRef.current || undefined,
+      }).catch(() => null);
+      if (!coords) return;
+      ({ lat, lng } = coords);
+      address = coords.address || address;
+    }
+    const id = placeKey(lat, lng);
+    const next = savedPlaces.some((p) => p.id === id)
+      ? savedPlaces.filter((p) => p.id !== id)
+      : [{ id, name: place.name, address: place.subtitle, lat, lng }, ...savedPlaces];
+    setSavedPlaces(next);
+    await saveSavedPlaces(placesUserId, next).catch(() => {});
+  };
+
+  const selectPickerPlace = (place: PickerPlace) => {
+    // Search results and presets keep their short label; saved/recent places carry the full address.
+    const listed = displayItems.find((item) => item.id === place.id);
+    if (listed) {
+      void handleSelectSuggestion(listed);
+      return;
+    }
+    if (place.lat === undefined || place.lng === undefined) return;
+    applyPickedLocation({
+      lat: place.lat,
+      lng: place.lng,
+      address: place.subtitle ? `${place.name}, ${place.subtitle}` : place.name,
+    });
+  };
+
+  const focusPickerField = (field: PickerField) => {
+    setPickerTarget(field.kind);
+    if (field.kind === 'STOP') setPickerStopIndex(field.index);
+    setPlaceSearchQuery('');
+    setAutocompleteResults([]);
+    setSubmitError(null);
+  };
+
+  const removeStop = (index: number) => {
+    setStops((prev) => prev.filter((_, i) => i !== index));
+    setPickerTarget('DROP');
+    setPlaceSearchQuery('');
+  };
 
   const formattedDistance = useMemo(() => {
     if (!activeQuote) return '--';
@@ -724,6 +803,27 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
               {pickup.address}
             </Text>
           </Pressable>
+
+          {stops.map((stop, index) => (
+            <React.Fragment key={`stop-${index}`}>
+              <View style={styles.topConnectorLine} />
+              <Pressable
+                style={styles.topLocationRow}
+                onPress={() => {
+                  openPlacePicker('DROP');
+                  setPickerTarget('STOP');
+                  setPickerStopIndex(index);
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={`Stop ${index + 1}: ${stop.address}`}
+              >
+                <View style={styles.topStopDot} />
+                <Text style={styles.topAddressText} numberOfLines={1}>
+                  {stop.address}
+                </Text>
+              </Pressable>
+            </React.Fragment>
+          ))}
 
           {/* Connector Line */}
           <View style={styles.topConnectorLine} />
@@ -825,7 +925,7 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
             accessibilityRole="button"
             accessibilityLabel="Edit fare amount"
           >
-            <Ionicons name="pencil" size={15} color="#D97706" />
+            <Ionicons name="pencil" size={13} color="#D97706" />
             <Text style={styles.editFareText}>Edit fare</Text>
           </Pressable>
         ) : null}
@@ -974,209 +1074,51 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
 
   const dialogs = (
     <>
-      {/* Place Picker Modal */}
-      <Modal
-        visible={pickerTarget !== null}
-        animationType="slide"
-        onRequestClose={closePlacePicker}
-      >
-        <SafeAreaView style={styles.placePickerScreen} edges={['top', 'bottom']}>
-          <KeyboardAvoidingView
-            style={styles.placePickerContent}
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          >
-            <View style={styles.placePickerHeader}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={pickerOnMap ? 'Back to places' : 'Close place picker'}
-                onPress={() => (pickerOnMap ? setPickerOnMap(false) : closePlacePicker())}
-                style={styles.placePickerBack}
-              >
-                <Ionicons name="arrow-back" size={24} color={colors.deepBrown} />
-              </Pressable>
-              <Text style={styles.placePickerTitle} accessibilityRole="header">
-                {pickerTarget === 'DROP' ? 'Where to?' : 'Pickup point'}
-              </Text>
-            </View>
+      {/* Place picker: pickup / stops / drop */}
+      <DropPlacePicker
+        visible={pickerTarget !== null && !pickerOnMap}
+        field={pickerField}
+        pickupLabel={pickup.address}
+        dropLabel={bookingStarted ? drop.address : null}
+        stopLabels={pickerStopLabels}
+        maxStops={MAX_RIDE_STOPS}
+        query={placeSearchQuery}
+        onQueryChange={setPlaceSearchQuery}
+        isSearching={isSearchingPlaces}
+        isLocating={isLocatingGps}
+        results={showPopular ? displayItems : []}
+        resultsLabel={
+          searchActive
+            ? autocompleteResults.length > 0
+              ? 'SEARCH RESULTS'
+              : 'MATCHING PLACES'
+            : 'POPULAR PLACES'
+        }
+        saved={savedPickerPlaces}
+        recents={recentPlaces}
+        isSaved={isPlaceSaved}
+        errorText={pickerTarget === 'PICKUP' ? submitError : null}
+        onFocusField={focusPickerField}
+        onAddStop={() => focusPickerField({ kind: 'STOP', index: stops.length })}
+        onRemoveStop={removeStop}
+        onSelectPlace={selectPickerPlace}
+        onToggleSaved={(place) => void toggleSavedPlace(place)}
+        onSelectOnMap={() => setPickerOnMap(true)}
+        onUseCurrentLocation={() => void handleUseCurrentGps()}
+        onClose={closePlacePicker}
+      />
 
-            {pickerTarget === 'DROP' && (
-              <Pressable
-                style={styles.placePickupRow}
-                accessibilityRole="button"
-                accessibilityLabel={`Pickup point: ${pickup.address}. Tap to change.`}
-                onPress={() => {
-                  setPickerTarget('PICKUP');
-                  setPlaceSearchQuery('');
-                  setAutocompleteResults([]);
-                }}
-              >
-                <RoutePointIcon type="pickup" size={16} />
-                <View style={styles.placePickupCopy}>
-                  <Text style={styles.placePickupLabel}>PICKUP (TAP TO CHANGE)</Text>
-                  <Text style={styles.placePickupAddress} numberOfLines={1}>
-                    {pickup.address}
-                  </Text>
-                </View>
-                <View style={styles.placePickupChangeBadge}>
-                  <Text style={styles.placePickupChangeText}>Change</Text>
-                </View>
-              </Pressable>
-            )}
-
-            {pickerOnMap ? (
-              <>
-                <View style={styles.pinMapWrap}>
-                  <BookingMap
-                    pickup={pickerTarget === 'PICKUP' && pinCandidate ? pinCandidate : pickup}
-                    drop={pickerTarget === 'DROP' && pinCandidate ? pinCandidate : undefined}
-                    bottomInset={0}
-                    interactivePinMode={true}
-                    onEditPickup={() => {}}
-                    onSelectPoint={(lat, lng) => {
-                      setCustomLat(String(lat));
-                      setCustomLng(String(lng));
-                    }}
-                  />
-                </View>
-                <View style={styles.placePickerFooter}>
-                  <Text style={styles.pinHint}>
-                    {pinCandidate ? pinCandidate.address : 'Tap the map to place your pin.'}
-                  </Text>
-                  <Pressable
-                    style={[
-                      styles.placePrimaryButton,
-                      (!pinCandidate || isResolvingPin) && styles.placePrimaryDisabled,
-                    ]}
-                    accessibilityRole="button"
-                    accessibilityLabel={
-                      pickerTarget === 'DROP' ? 'Set destination pin' : 'Set pickup pin'
-                    }
-                    disabled={!pinCandidate || isResolvingPin}
-                    onPress={() => void handleApplyCustomCoords()}
-                  >
-                    {isResolvingPin ? (
-                      <ActivityIndicator color={colors.deepBrown} />
-                    ) : (
-                      <>
-                        <Text style={styles.placePrimaryText}>
-                          Set {pickerTarget === 'DROP' ? 'destination' : 'pickup'}
-                        </Text>
-                        <Ionicons name="arrow-forward" size={20} color={colors.deepBrown} />
-                      </>
-                    )}
-                  </Pressable>
-                </View>
-              </>
-            ) : (
-              <>
-                <View style={styles.placeSearchBar}>
-                  <Ionicons name="search" size={21} color={colors.secondary} />
-                  <TextInput
-                    style={styles.placeSearchInput}
-                    placeholder="Search address or landmark"
-                    placeholderTextColor={colors.muted}
-                    value={placeSearchQuery}
-                    onChangeText={setPlaceSearchQuery}
-                    autoFocus
-                    returnKeyType="search"
-                    accessibilityLabel="Search places"
-                  />
-                  {isSearchingPlaces && (
-                    <ActivityIndicator size="small" color={colors.brandBrown} />
-                  )}
-                  {placeSearchQuery.length > 0 && !isSearchingPlaces && (
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel="Clear search"
-                      onPress={() => {
-                        setPlaceSearchQuery('');
-                        setAutocompleteResults([]);
-                      }}
-                      hitSlop={8}
-                      style={styles.placeClearBtn}
-                    >
-                      <Ionicons name="close-circle" size={20} color={colors.muted} />
-                    </Pressable>
-                  )}
-                </View>
-                {pickerTarget === 'PICKUP' && (
-                  <Pressable
-                    style={styles.gpsActionRow}
-                    accessibilityRole="button"
-                    onPress={() => void handleUseCurrentGps()}
-                    disabled={isLocatingGps}
-                  >
-                    <Ionicons name="locate" size={20} color={colors.brandBrown} />
-                    <Text style={styles.gpsActionText}>
-                      {isLocatingGps ? 'Finding your location…' : 'Use current location'}
-                    </Text>
-                  </Pressable>
-                )}
-                {pickerTarget === 'PICKUP' && submitError && (
-                  <Text style={styles.placeError} accessibilityRole="alert">
-                    {submitError}
-                  </Text>
-                )}
-                <ScrollView
-                  style={styles.placeResultsScroll}
-                  contentContainerStyle={styles.placeResults}
-                  keyboardShouldPersistTaps="handled"
-                >
-                  <Text style={styles.placeResultsLabel}>
-                    {placeSearchQuery.trim()
-                      ? autocompleteResults.length > 0
-                        ? 'SEARCH RESULTS'
-                        : 'MATCHING PLACES'
-                      : 'POPULAR PLACES'}
-                  </Text>
-                  {displayItems.map((item) => (
-                    <Pressable
-                      key={item.id}
-                      style={styles.presetItem}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Select ${item.name}`}
-                      onPress={() => void handleSelectSuggestion(item)}
-                    >
-                      <Ionicons
-                        name={
-                          'category' in item && item.category === 'AIRPORT'
-                            ? 'airplane-outline'
-                            : 'location-outline'
-                        }
-                        size={22}
-                        color={colors.brandBrown}
-                      />
-                      <View style={styles.placeResultCopy}>
-                        <Text style={styles.presetTitle} numberOfLines={1}>
-                          {item.name}
-                        </Text>
-                        <Text style={styles.presetSub} numberOfLines={1}>
-                          {item.subtitle}
-                        </Text>
-                      </View>
-                      <Ionicons name="chevron-forward" size={18} color={colors.muted} />
-                    </Pressable>
-                  ))}
-                  {displayItems.length === 0 && !isSearchingPlaces && (
-                    <Text style={styles.placeEmpty}>
-                      No matching place. You can choose a point on the map.
-                    </Text>
-                  )}
-                </ScrollView>
-                <Pressable
-                  style={styles.chooseMapButton}
-                  accessibilityRole="button"
-                  onPress={() => setPickerOnMap(true)}
-                >
-                  <Ionicons name="map-outline" size={21} color={colors.deepBrown} />
-                  <Text style={styles.chooseMapText}>Choose on map</Text>
-                  <Ionicons name="arrow-forward" size={18} color={colors.deepBrown} />
-                </Pressable>
-              </>
-            )}
-          </KeyboardAvoidingView>
-        </SafeAreaView>
-      </Modal>
+      {/* Choose on map: fixed centre pin over a moving map */}
+      {pickerTarget !== null && pickerOnMap ? (
+        <MapLocationPicker
+          visible
+          target={pickerTarget === 'PICKUP' ? 'PICKUP' : 'DROP'}
+          token={token}
+          initial={{ lat: pickup.lat, lng: pickup.lng }}
+          onClose={() => setPickerOnMap(false)}
+          onConfirm={applyPickedLocation}
+        />
+      ) : null}
 
       {/* Passenger ("For Me" vs "Someone Else") Modal */}
       <Modal
@@ -1347,6 +1289,8 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
         <BookingHome
           pickup={pickup}
           drop={drop}
+          stops={stops}
+          routeCoordinates={routeCoordinates}
           bookingStarted={bookingStarted}
           onSearch={() => {
             openPlacePicker('DROP');
@@ -1395,6 +1339,8 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
       <BookingHome
         pickup={pickup}
         drop={drop}
+        stops={stops}
+        routeCoordinates={routeCoordinates}
         bookingStarted={bookingStarted}
         onSearch={() => {
           openPlacePicker('DROP');
@@ -1439,6 +1385,7 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
 }
 
 const styles = StyleSheet.create({
+  topStopDot: { width: 12, height: 12, borderRadius: 3, backgroundColor: colors.brandBrown },
   container: {
     flex: 1,
     backgroundColor: colors.background,
@@ -1687,12 +1634,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   bottomSheetContainer: {
-    backgroundColor: '#FAF8F5',
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
-    paddingHorizontal: 20,
-    paddingTop: 10,
-    paddingBottom: Platform.OS === 'ios' ? 20 : 14,
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: Platform.OS === 'ios' ? 14 : 10,
     elevation: 16,
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: -4 },
@@ -1701,61 +1648,60 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   sheetDragHandle: {
-    width: 44,
-    height: 4.5,
-    borderRadius: 2.5,
+    width: 40,
+    height: 4,
+    borderRadius: 2,
     backgroundColor: '#D1D5DB',
     alignSelf: 'center',
-    marginBottom: 12,
+    marginBottom: 6,
   },
   fareHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 2,
-    marginBottom: 4,
   },
   fareTitleText: {
-    fontSize: 22,
-    fontWeight: '800',
+    fontSize: 16,
+    fontWeight: '700',
     color: '#111827',
   },
   editFareRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    paddingVertical: 4,
-    paddingHorizontal: 6,
+    gap: 4,
+    paddingVertical: 2,
+    paddingHorizontal: 4,
   },
   editFareText: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '700',
     color: '#D97706',
   },
   farePillsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    marginTop: 12,
-    marginBottom: 6,
+    gap: 8,
+    marginTop: 6,
+    marginBottom: 2,
   },
   fareAdjustPill: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#FEF3C7',
-    height: 58,
-    paddingHorizontal: 18,
-    borderRadius: 18,
-    gap: 5,
+    height: 44,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    gap: 3,
   },
   fareAdjustSign: {
-    fontSize: 22,
+    fontSize: 18,
     fontWeight: '800',
     color: '#111827',
   },
   fareAdjustAmount: {
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: '700',
     color: '#111827',
   },
@@ -1764,30 +1710,30 @@ const styles = StyleSheet.create({
   },
   fareHeroPill: {
     flex: 1,
-    height: 60,
+    height: 48,
     backgroundColor: '#FBBF24',
-    borderRadius: 20,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },
   fareHeroAmount: {
-    fontSize: 34,
+    fontSize: 26,
     fontWeight: '800',
     color: '#111827',
   },
   tollDisclaimerText: {
     textAlign: 'center',
-    fontSize: 13,
+    fontSize: 12,
     color: '#6B7280',
-    marginTop: 10,
-    marginBottom: 14,
+    marginTop: 4,
+    marginBottom: 8,
     fontWeight: '500',
   },
   findCabHeroButton: {
     width: '100%',
-    height: 54,
+    height: 46,
     backgroundColor: '#FBBF24',
-    borderRadius: 27,
+    borderRadius: 23,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1801,7 +1747,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   findCabHeroText: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '800',
     color: '#111827',
   },

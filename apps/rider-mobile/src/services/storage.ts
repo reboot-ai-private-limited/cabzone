@@ -2,6 +2,7 @@ import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 import type { AuthenticatedUserSummary } from '@cabzone/contracts';
 import type { SavedRouteTemplate } from './rider-helpers';
+import type { SavedPlace } from './recent-places';
 
 const ACCESS_TOKEN_KEY = 'cabzone_rider_access_token';
 const REFRESH_TOKEN_KEY = 'cabzone_rider_refresh_token';
@@ -9,6 +10,7 @@ const DEVICE_ID_KEY = 'cabzone_rider_device_id';
 const AUTH_USER_KEY = 'cabzone_rider_auth_user';
 const SAVED_TEMPLATES_PREFIX = 'cabzone_rider_templates_';
 const PREFS_PREFIX = 'cabzone_rider_prefs_';
+const SAVED_PLACES_PREFIX = 'cabzone_rider_saved_places_';
 
 export interface RiderLocalPreferences {
   operationalCity: string;
@@ -125,6 +127,22 @@ export async function saveRouteTemplates(
 ): Promise<void> {
   if (!userId) return;
   await setItem(`${SAVED_TEMPLATES_PREFIX}${userId}`, JSON.stringify(templates.slice(0, 20)));
+}
+
+export async function getSavedPlaces(userId: string): Promise<SavedPlace[]> {
+  if (!userId) return [];
+  const raw = await getItem(`${SAVED_PLACES_PREFIX}${userId}`);
+  try {
+    const parsed = raw ? (JSON.parse(raw) as SavedPlace[]) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function saveSavedPlaces(userId: string, places: SavedPlace[]): Promise<void> {
+  if (!userId) return;
+  await setItem(`${SAVED_PLACES_PREFIX}${userId}`, JSON.stringify(places.slice(0, 30)));
 }
 
 export async function getRiderPreferences(userId: string): Promise<RiderLocalPreferences> {

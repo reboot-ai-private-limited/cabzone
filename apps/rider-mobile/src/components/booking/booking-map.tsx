@@ -1,92 +1,30 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import * as Location from 'expo-location';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE, type LatLng } from 'react-native-maps';
 
-export const GOOGLE_MAPS_DARK_STYLE = [
-  { elementType: 'geometry', stylers: [{ color: '#0d1829' }] },
-  { elementType: 'labels.text.fill', stylers: [{ color: '#8fa0b5' }] },
-  { elementType: 'labels.text.stroke', stylers: [{ color: '#0d1829' }] },
-  {
-    featureType: 'administrative.locality',
-    elementType: 'labels.text.fill',
-    stylers: [{ color: '#cbd5e1' }],
-  },
-  {
-    featureType: 'poi',
-    elementType: 'labels.text.fill',
-    stylers: [{ color: '#94a3b8' }],
-  },
-  {
-    featureType: 'poi.park',
-    elementType: 'geometry',
-    stylers: [{ color: '#0f233a' }],
-  },
-  {
-    featureType: 'poi.park',
-    elementType: 'labels.text.fill',
-    stylers: [{ color: '#64748b' }],
-  },
-  {
-    featureType: 'road',
-    elementType: 'geometry',
-    stylers: [{ color: '#1e2e42' }],
-  },
-  {
-    featureType: 'road',
-    elementType: 'geometry.stroke',
-    stylers: [{ color: '#162233' }],
-  },
-  {
-    featureType: 'road',
-    elementType: 'labels.text.fill',
-    stylers: [{ color: '#94a3b8' }],
-  },
-  {
-    featureType: 'road.highway',
-    elementType: 'geometry',
-    stylers: [{ color: '#253d5a' }],
-  },
-  {
-    featureType: 'road.highway',
-    elementType: 'geometry.stroke',
-    stylers: [{ color: '#1b2d42' }],
-  },
-  {
-    featureType: 'road.highway',
-    elementType: 'labels.text.fill',
-    stylers: [{ color: '#cbd5e1' }],
-  },
-  {
-    featureType: 'transit',
-    elementType: 'geometry',
-    stylers: [{ color: '#18283b' }],
-  },
-  {
-    featureType: 'transit.station',
-    elementType: 'labels.text.fill',
-    stylers: [{ color: '#cbd5e1' }],
-  },
-  {
-    featureType: 'water',
-    elementType: 'geometry',
-    stylers: [{ color: '#0b2848' }],
-  },
-  {
-    featureType: 'water',
-    elementType: 'labels.text.fill',
-    stylers: [{ color: '#38bdf8' }],
-  },
-  {
-    featureType: 'water',
-    elementType: 'labels.text.stroke',
-    stylers: [{ color: '#0b2848' }],
-  },
+// Explicit light style: Google Maps otherwise follows the phone's dark mode on Android.
+const GOOGLE_MAPS_LIGHT_STYLE = [
+  { elementType: 'geometry', stylers: [{ color: '#f5f5f5' }] },
+  { elementType: 'labels.text.fill', stylers: [{ color: '#616161' }] },
+  { elementType: 'labels.text.stroke', stylers: [{ color: '#f5f5f5' }] },
+  { featureType: 'poi.business', stylers: [{ visibility: 'off' }] },
+  { featureType: 'poi', elementType: 'geometry', stylers: [{ color: '#eeeeee' }] },
+  { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#d8efd3' }] },
+  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#ffffff' }] },
+  { featureType: 'road.arterial', elementType: 'labels.text.fill', stylers: [{ color: '#757575' }] },
+  { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#fde9b0' }] },
+  { featureType: 'transit', elementType: 'geometry', stylers: [{ color: '#e5e5e5' }] },
+  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#c9e4f5' }] },
 ];
 
 export interface BookingMapProps {
   pickup: { lat: number; lng: number; address: string };
   drop?: { lat: number; lng: number; address: string };
+  stops?: { lat: number; lng: number; address: string }[];
   bottomInset: number;
+  /** Space covered by floating cards over the map, so the fitted route stays visible. */
+  fitPadding?: { top: number; bottom: number };
   driverLocation?: { lat: number; lng: number } | null;
   routeCoordinates?: [number, number][];
   readOnly?: boolean;
@@ -99,7 +37,9 @@ export interface BookingMapProps {
 export default function BookingMap({
   pickup,
   drop,
+  stops,
   bottomInset,
+  fitPadding,
   driverLocation,
   routeCoordinates,
   readOnly,
@@ -110,6 +50,20 @@ export default function BookingMap({
 }: BookingMapProps) {
   const mapRef = useRef<MapView | null>(null);
   const [mapReady, setMapReady] = useState(false);
+  const [canShowUser, setCanShowUser] = useState(false);
+
+  // The blue dot only renders once location permission is granted.
+  useEffect(() => {
+    let off = false;
+    void Location.requestForegroundPermissionsAsync()
+      .then((perm) => {
+        if (!off) setCanShowUser(perm.granted);
+      })
+      .catch(() => {});
+    return () => {
+      off = true;
+    };
+  }, []);
 
   // GeoJSON routeCoordinates are [lng, lat] pairs
   const polylineCoords = useMemo<LatLng[]>(() => {
@@ -127,6 +81,12 @@ export default function BookingMap({
     const pointsToFit: LatLng[] = [
       { latitude: pickup.lat, longitude: pickup.lng },
     ];
+    // Fit the drawn road, not just the endpoints, so detours stay on screen (sampled to keep it cheap).
+    const step = Math.max(1, Math.ceil(polylineCoords.length / 150));
+    for (let i = 0; i < polylineCoords.length; i += step) pointsToFit.push(polylineCoords[i]!);
+    for (const stop of stops ?? []) {
+      pointsToFit.push({ latitude: stop.lat, longitude: stop.lng });
+    }
     if (drop) {
       pointsToFit.push({ latitude: drop.lat, longitude: drop.lng });
     }
@@ -137,22 +97,17 @@ export default function BookingMap({
     if (pointsToFit.length > 1) {
       mapRef.current.fitToCoordinates(pointsToFit, {
         edgePadding: {
-          top: 60,
+          top: fitPadding?.top ?? 60,
           right: 50,
-          bottom: Math.max(bottomInset, 40) + 50,
+          bottom: fitPadding?.bottom ?? Math.max(bottomInset, 40) + 50,
           left: 50,
         },
         animated: true,
       });
     } else {
-      mapRef.current.animateToRegion(
-        {
-          latitude: pickup.lat,
-          longitude: pickup.lng,
-          latitudeDelta: 0.015,
-          longitudeDelta: 0.015,
-        },
-        450,
+      mapRef.current.animateCamera(
+        { center: { latitude: pickup.lat, longitude: pickup.lng }, zoom: 16 },
+        { duration: 450 },
       );
     }
   }, [
@@ -161,6 +116,10 @@ export default function BookingMap({
     pickup.lng,
     drop?.lat,
     drop?.lng,
+    stops,
+    polylineCoords,
+    fitPadding?.top,
+    fitPadding?.bottom,
     driverLocation?.lat,
     driverLocation?.lng,
     cameraVersion,
@@ -173,7 +132,8 @@ export default function BookingMap({
       <MapView
         ref={mapRef}
         provider={PROVIDER_GOOGLE}
-        customMapStyle={GOOGLE_MAPS_DARK_STYLE}
+        userInterfaceStyle="light"
+        customMapStyle={GOOGLE_MAPS_LIGHT_STYLE}
         style={styles.map}
         initialRegion={{
           latitude: pickup.lat,
@@ -181,11 +141,13 @@ export default function BookingMap({
           latitudeDelta: 0.02,
           longitudeDelta: 0.02,
         }}
-        onMapReady={() => setMapReady(true)}
+        onMapLoaded={() => setMapReady(true)}
+        // Camera moves before tiles load are dropped on Android; fall back if the loaded event never fires.
+        onMapReady={() => setTimeout(() => setMapReady(true), 3000)}
         toolbarEnabled={false}
         showsCompass={false}
+        showsUserLocation={canShowUser}
         showsMyLocationButton={false}
-        mapPadding={{ top: 0, right: 0, bottom: bottomInset, left: 0 }}
         onPress={(event) => {
           if (readOnly) return;
           const { latitude, longitude } = event.nativeEvent.coordinate;
@@ -217,6 +179,20 @@ export default function BookingMap({
             </View>
           </View>
         </Marker>
+
+        {(stops ?? []).map((stop, index) => (
+          <Marker
+            key={`stop-${index}`}
+            coordinate={{ latitude: stop.lat, longitude: stop.lng }}
+            title={`Stop ${index + 1}`}
+            description={stop.address}
+            anchor={{ x: 0.5, y: 0.5 }}
+          >
+            <View style={styles.stopPin}>
+              <Text style={styles.stopPinText}>{index + 1}</Text>
+            </View>
+          </Marker>
+        ))}
 
         {/* Red Teardrop Destination Pin */}
         {drop && (
@@ -254,8 +230,8 @@ export default function BookingMap({
         {polylineCoords.length > 1 && (
           <Polyline
             coordinates={polylineCoords}
-            strokeColor="#F59E0B"
-            strokeWidth={5.5}
+            strokeColor="#3A2414"
+            strokeWidth={5}
             geodesic
           />
         )}
@@ -265,6 +241,17 @@ export default function BookingMap({
 }
 
 const styles = StyleSheet.create({
+  stopPin: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: '#7C2D12',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stopPinText: { color: '#FFFFFF', fontSize: 12, fontWeight: '700' },
   map: {
     ...StyleSheet.absoluteFill,
   },

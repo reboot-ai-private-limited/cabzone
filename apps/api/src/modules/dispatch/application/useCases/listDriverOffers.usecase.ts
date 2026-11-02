@@ -11,6 +11,7 @@ export function toRideOffer(ride: RideEntity, distanceToPickupM: number): RideOf
     vehicleCategory: ride.vehicleCategory,
     pickup: ride.pickup,
     drop: ride.drop,
+    ...(ride.stops?.length ? { stops: ride.stops } : {}),
     proposedFarePaise: ride.proposedFarePaise ?? ride.suggestedFarePaise,
     tollSnapshot: ride.tollSnapshot ?? null,
     distanceToPickupM: Math.round(distanceToPickupM),

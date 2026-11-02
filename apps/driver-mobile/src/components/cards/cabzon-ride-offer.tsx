@@ -3,6 +3,7 @@ import { locationLabel } from '@/services/location-names';
 
 import React, { useEffect, useState } from 'react';
 import { Animated, Dimensions, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { colors, motion } from '@/design-system';
 import { CabzonButton } from '@/components/buttons/cabzon-button';
 import { RoutePointIcon } from '@/components/common/route-point-icon';
@@ -17,6 +18,7 @@ export interface CabzonRideOfferData {
   farePaise: number;
   pickupAddress: string;
   dropoffAddress: string;
+  stopAddresses?: string[];
   distanceKm: number;
   estimatedDurationMin?: number;
   serviceType: string;
@@ -33,6 +35,9 @@ export function mapRideOfferDtoToCardData(offer: RideOfferDto): CabzonRideOfferD
     farePaise: offer.proposedFarePaise,
     pickupAddress: locationLabel(offer.pickup.address, 'Pickup location'),
     dropoffAddress: locationLabel(offer.drop.address, 'Destination'),
+    ...(offer.stops?.length
+      ? { stopAddresses: offer.stops.map((stop) => locationLabel(stop.address, 'Stop')) }
+      : {}),
     distanceKm,
     serviceType: offer.vehicleCategory,
     expiresAt: offer.expiresAt,
@@ -70,7 +75,9 @@ export function CabzonRideOffer({
   const [slideAnim] = useState(() => new Animated.Value(SCREEN_HEIGHT));
   const [opacityAnim] = useState(() => new Animated.Value(0));
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
+  const [totalSeconds, setTotalSeconds] = useState<number | null>(null);
   const [counterFare, setCounterFare] = useState<number | null>(null);
+  const [liveDot] = useState(() => new Animated.Value(1));
   const reducedMotion = useReducedMotion();
 
   useEffect(() => {
@@ -107,6 +114,7 @@ export function CabzonRideOffer({
       const diffMs = new Date(offer.expiresAt!).getTime() - Date.now();
       const secs = Math.max(0, Math.ceil(diffMs / 1000));
       setSecondsLeft(secs);
+      setTotalSeconds((prev) => prev ?? Math.max(secs, 1));
       if (secs <= 0 && !isAccepting) {
         onDecline(offer.rideId);
       }
@@ -118,6 +126,18 @@ export function CabzonRideOffer({
       clearInterval(timer);
     };
   }, [offer?.rideId, offer?.expiresAt, isAccepting, onDecline]);
+
+  useEffect(() => {
+    if (!offer || reducedMotion) return;
+    const pulse = Animated.loop(
+      Animated.sequence([
+        Animated.timing(liveDot, { toValue: 0.25, duration: 700, useNativeDriver: true }),
+        Animated.timing(liveDot, { toValue: 1, duration: 700, useNativeDriver: true }),
+      ]),
+    );
+    pulse.start();
+    return () => pulse.stop();
+  }, [offer, reducedMotion, liveDot]);
 
   if (!offer) return null;
 
@@ -141,29 +161,50 @@ export function CabzonRideOffer({
     >
       <View style={styles.handle} />
 
-      <View style={styles.headerRow}>
-        <View style={{ flex: 1 }}>
-          <View style={styles.tagRow}>
-            <Text style={styles.serviceTag}>{offer.serviceType.toUpperCase()} RIDE OFFER</Text>
-            {displaySecondsLeft != null ? (
-              <View style={[styles.timerPill, displaySecondsLeft <= 8 && styles.timerPillUrgent]}>
-                <Text style={[styles.timerText, displaySecondsLeft <= 8 && styles.timerTextUrgent]}>
-                  {displaySecondsLeft}s left
-                </Text>
-              </View>
-            ) : null}
+      <View style={styles.liveRow}>
+        <View style={styles.liveLabel}>
+          <Animated.View style={[styles.liveDot, { opacity: liveDot }]} />
+          <Text style={styles.liveText}>New ride request</Text>
+        </View>
+        {displaySecondsLeft != null ? (
+          <View style={[styles.timerPill, displaySecondsLeft <= 8 && styles.timerPillUrgent]}>
+            <Ionicons
+              name="time-outline"
+              size={13}
+              color={displaySecondsLeft <= 8 ? colors.error : colors.deepBrown}
+            />
+            <Text style={[styles.timerText, displaySecondsLeft <= 8 && styles.timerTextUrgent]}>
+              {displaySecondsLeft}s
+            </Text>
           </View>
+        ) : null}
+      </View>
+
+      {displaySecondsLeft != null && totalSeconds ? (
+        <View style={styles.progressTrack} accessibilityElementsHidden>
+          <View
+            style={[
+              styles.progressFill,
+              displaySecondsLeft <= 8 && styles.progressFillUrgent,
+              { width: `${Math.max(0, Math.min(100, (displaySecondsLeft / totalSeconds) * 100))}%` },
+            ]}
+          />
+        </View>
+      ) : null}
+
+      <View style={styles.fareCard}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.serviceTag}>{offer.serviceType.toUpperCase()}</Text>
           <Text style={styles.fareText}>₹{grossRupees}</Text>
           <Text style={styles.netHintText}>
-            Est. net earnings ₹{netRupees} (after 8% platform fee) · Cash / UPI
+            Est. net ₹{netRupees} after 8% fee · Cash / UPI
           </Text>
         </View>
         <View style={styles.metricsBadge}>
+          <Ionicons name="navigate" size={14} color={colors.brandBrown} />
           <Text style={styles.metricsText}>{offer.distanceKm} km away</Text>
         </View>
       </View>
-
-      <View style={styles.divider} />
 
       <View style={styles.routeContainer}>
         <View style={styles.pointRow}>
@@ -175,6 +216,21 @@ export function CabzonRideOffer({
             </Text>
           </View>
         </View>
+
+        {(offer.stopAddresses ?? []).map((address, index) => (
+          <React.Fragment key={`stop-${index}`}>
+            <View style={styles.routeLine} />
+            <View style={styles.pointRow}>
+              <View style={styles.stopMarker} />
+              <View style={styles.pointTextContainer}>
+                <Text style={styles.pointLabel}>STOP {index + 1}</Text>
+                <Text style={styles.pointAddress} numberOfLines={2}>
+                  {address}
+                </Text>
+              </View>
+            </View>
+          </React.Fragment>
+        ))}
 
         <View style={styles.routeLine} />
 
@@ -308,45 +364,62 @@ export function CabzonRideOffer({
 }
 
 const styles = StyleSheet.create({
+  stopMarker: { width: 20, height: 20, borderRadius: 5, backgroundColor: colors.brandBrown, transform: [{ scale: 0.6 }] },
   sheetContainer: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
     backgroundColor: colors.white,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
     paddingHorizontal: 20,
     paddingTop: 12,
     paddingBottom: 32,
-    borderTopWidth: 1,
-    borderColor: colors.border,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 16,
-    elevation: 10,
+    shadowOffset: { width: 0, height: -8 },
+    shadowOpacity: 0.22,
+    shadowRadius: 24,
+    elevation: 16,
     zIndex: 9000,
   },
   handle: {
     width: 36,
     height: 4,
     borderRadius: 2,
-    backgroundColor: '#CBD5E1',
+    backgroundColor: '#E2D9CE',
     alignSelf: 'center',
     marginBottom: 14,
   },
-  headerRow: {
+  liveRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    gap: 10,
+    alignItems: 'center',
+    marginBottom: 10,
   },
-  tagRow: {
+  liveLabel: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  liveDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#22C55E' },
+  liveText: { fontSize: 15, fontWeight: '800', color: colors.deepBrown },
+  progressTrack: {
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: '#F1ECE6',
+    overflow: 'hidden',
+    marginBottom: 14,
+  },
+  progressFill: { height: 5, borderRadius: 3, backgroundColor: colors.amber },
+  progressFillUrgent: { backgroundColor: colors.error },
+  fareCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginBottom: 2,
+    justifyContent: 'space-between',
+    gap: 10,
+    padding: 16,
+    borderRadius: 22,
+    backgroundColor: '#FFF7E6',
+    borderWidth: 1,
+    borderColor: '#FDE7B0',
+    marginBottom: 14,
   },
   serviceTag: {
     fontSize: 12,
@@ -355,19 +428,19 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   timerPill: {
-    backgroundColor: colors.lightCream,
-    borderRadius: 10,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderWidth: 1,
-    borderColor: colors.border,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#F1ECE6',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
   },
   timerPillUrgent: {
     backgroundColor: '#FEE2E2',
-    borderColor: '#FCA5A5',
   },
   timerText: {
-    fontSize: 11,
+    fontSize: 13,
     fontWeight: '800',
     color: colors.deepBrown,
   },
@@ -375,7 +448,7 @@ const styles = StyleSheet.create({
     color: colors.error,
   },
   fareText: {
-    fontSize: 28,
+    fontSize: 38,
     fontWeight: '800',
     color: colors.deepBrown,
   },
@@ -386,26 +459,25 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   metricsBadge: {
-    backgroundColor: colors.softBlue,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: colors.white,
     paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
+    paddingVertical: 8,
+    borderRadius: 999,
   },
   metricsText: {
     fontSize: 13,
     fontWeight: '700',
     color: colors.deepBrown,
   },
-  divider: {
-    height: 1,
-    backgroundColor: '#F1F5F9',
-    marginVertical: 14,
-  },
   routeContainer: {
     gap: 12,
     marginBottom: 16,
+    padding: 16,
+    borderRadius: 22,
+    backgroundColor: '#FAF7F3',
   },
   pointRow: {
     flexDirection: 'row',
@@ -519,10 +591,12 @@ const styles = StyleSheet.create({
   },
   declineBtn: {
     flex: 1,
-    height: 48,
+    height: 56,
+    borderRadius: 18,
   },
   acceptBtn: {
     flex: 1.8,
-    height: 48,
+    height: 56,
+    borderRadius: 18,
   },
 });

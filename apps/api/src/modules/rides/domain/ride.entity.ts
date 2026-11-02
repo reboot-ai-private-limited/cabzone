@@ -52,6 +52,7 @@ export interface RideEntity {
   vehicleCategory: VehicleCategory;
   pickup: LocationPoint;
   drop: LocationPoint;
+  stops?: LocationPoint[];
   routeSnapshot: RouteSnapshot;
   zoneSnapshot: ZoneSnapshot;
   pricingSnapshot: RidePricingSnapshot;

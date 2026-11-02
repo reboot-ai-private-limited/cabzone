@@ -209,6 +209,7 @@ export function makeCreateRideController(
       passengerPhoneE164: body.passenger.phoneE164,
       pickup: body.pickup,
       drop: body.drop,
+      stops: body.stops,
       vehicleCategory: body.vehicleCategory,
       idempotencyKey: headerKey ?? body.idempotencyKey,
       paymentMethod: body.paymentMethod,

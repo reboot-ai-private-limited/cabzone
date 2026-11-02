@@ -31,6 +31,9 @@ export function toRideView(
       lng: ride.drop.lng,
       address: ride.drop.address,
     },
+    ...(ride.stops?.length
+      ? { stops: ride.stops.map((s) => ({ lat: s.lat, lng: s.lng, address: s.address })) }
+      : {}),
     routeSnapshot: ride.routeSnapshot,
     zoneSnapshot: ride.zoneSnapshot,
     pricingSnapshot: ride.pricingSnapshot,

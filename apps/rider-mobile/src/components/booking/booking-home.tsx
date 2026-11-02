@@ -22,6 +22,8 @@ import BookingMap, { type BookingMapProps } from './booking-map';
 interface BookingHomeProps {
   pickup: BookingMapProps['pickup'];
   drop: BookingMapProps['drop'];
+  stops?: BookingMapProps['stops'];
+  routeCoordinates?: BookingMapProps['routeCoordinates'];
   bookingStarted: boolean;
   onSearch: () => void;
   onEditPickup: () => void;
@@ -43,6 +45,8 @@ interface BookingHomeProps {
 export function BookingHome({
   pickup,
   drop,
+  stops,
+  routeCoordinates,
   bookingStarted,
   onSearch,
   onEditPickup,
@@ -71,7 +75,7 @@ export function BookingHome({
   }
   const [progress] = useState(() => new Animated.Value(0));
   const open = expanded;
-  const collapsedHeight = Math.min(390, height * 0.56);
+  const collapsedHeight = Math.min(430, height * 0.6);
   const expandedHeight = height * 0.88;
 
   const animateTo = useCallback(
@@ -120,6 +124,9 @@ export function BookingHome({
         <BookingMap
           pickup={pickup}
           drop={drop}
+          stops={stops}
+          routeCoordinates={routeCoordinates}
+          fitPadding={{ top: 190, bottom: 300 }}
           bottomInset={0}
           onEditPickup={onEditPickup}
         />
@@ -159,6 +166,8 @@ export function BookingHome({
       <BookingMap
         pickup={pickup}
         drop={bookingStarted ? drop : undefined}
+        stops={bookingStarted ? stops : undefined}
+        routeCoordinates={bookingStarted ? routeCoordinates : undefined}
         bottomInset={collapsedHeight}
         onEditPickup={onEditPickup}
       />
@@ -300,22 +309,20 @@ export function BookingHome({
                   <RoutePointIcon type="pickup" size={20} style={{ marginRight: spacing.md }} />
                   <View style={styles.pickupCopy}>
                     <Text style={styles.pickupLabel}>Pickup</Text>
-                    <Text style={styles.pickupAddress} numberOfLines={1}>
+                    <Text style={styles.pickupAddress} numberOfLines={2}>
                       {pickup.address}
                     </Text>
-                      <Pressable
+                  </View>
+                </Pressable>
+                <Pressable
                   style={styles.pickupMapButton}
                   accessibilityRole="button"
                   accessibilityLabel="Choose pickup on map"
                   onPress={onChoosePickupOnMap || onEditPickup}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                 >
-                  <Ionicons name="map-outline" size={15} color={colors.brandBrown} />
-                  <Text style={styles.pickupMapButtonText}>Map</Text>
+                  <Ionicons name="map-outline" size={18} color={colors.brandBrown} />
                 </Pressable>
-                  </View>
-                </Pressable>
-              
               </View>
               {locationError && (
                 <Text accessibilityRole="alert" style={styles.locationError}>
@@ -344,7 +351,7 @@ export function BookingHome({
                   onPress={onSearch}
                 >
                   <Text style={styles.tileTitle}>City rides</Text>
-                  <Text style={styles.tileCaption}>Choose your fare</Text>
+                  <Text style={styles.tileCaption}>Book your cab</Text>
                   <Image
                     source={require('@/assets/images/cab.webp')}
                     style={styles.cityCar}
@@ -366,9 +373,11 @@ export function BookingHome({
                     accessible
                     accessibilityLabel="E-rickshaw, coming soon"
                   >
-                    <ERickshawIcon size={22} color={colors.secondary} />
+                    <View style={styles.soonTop}>
+                      <ERickshawIcon size={22} color={colors.secondary} />
+                      <Text style={styles.soonLabel}>Coming soon</Text>
+                    </View>
                     <Text style={styles.smallTileTitle}>E-rickshaw</Text>
-                    <Text style={styles.soonLabel}>Coming soon</Text>
                   </View>
                 </View>
               </View>
@@ -515,22 +524,18 @@ const styles = StyleSheet.create({
     paddingRight: spacing.sm,
   },
   pickupMapButton: {
-    flexDirection: 'row',
+    width: 40,
+    height: 40,
     alignItems: 'center',
-    gap: 4,
+    justifyContent: 'center',
     backgroundColor: colors.white,
     borderWidth: 1,
     borderColor: colors.border,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
     borderRadius: radii.pill,
   },
-  pickupMapButtonText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.brandBrown,
-  },
   pickup: {
+    flex: 1,
+    paddingVertical: spacing.sm,
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
@@ -550,7 +555,7 @@ const styles = StyleSheet.create({
   locationError: { ...typography.caption, color: colors.error },
   savedRoute: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: 48 },
   savedRouteText: { ...typography.body, flex: 1, color: colors.deepBrown },
-  services: { flexDirection: 'row', gap: spacing.md, minHeight: 166, marginTop: spacing.xs },
+  services: { flexDirection: 'row', gap: spacing.md, minHeight: 136, marginTop: spacing.xs },
   cityTile: {
     flex: 1.2,
     borderRadius: radii.lg,
@@ -559,11 +564,11 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     padding: spacing.md,
     overflow: 'hidden',
-    minHeight: 166,
+    minHeight: 136,
   },
   tileTitle: { ...typography.h2, color: colors.deepBrown },
   tileCaption: { ...typography.caption, color: colors.secondary, marginTop: spacing.xs },
-  cityCar: { position: 'absolute', bottom: -4, right: -24, width: 190, height: 102 },
+  cityCar: { position: 'absolute', bottom: -2, right: -20, width: 160, height: 86 },
   serviceColumn: { flex: 1, gap: spacing.md },
   intercityTile: {
     flex: 1,
@@ -578,11 +583,10 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   smallTileTitle: { ...typography.bodyBold, color: colors.deepBrown, flexShrink: 1 },
+  soonTop: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   soonTile: {
     flex: 1,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
+    justifyContent: 'center',
     gap: spacing.sm,
     borderRadius: radii.lg,
     padding: spacing.md,

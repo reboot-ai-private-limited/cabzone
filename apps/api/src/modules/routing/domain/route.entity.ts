@@ -4,6 +4,8 @@ import type { GeoPoint } from '@cabzone/geo';
 export interface RouteRequest {
   origin: GeoPoint;
   destination: GeoPoint;
+  /** Intermediate stops, visited in order between origin and destination. */
+  waypoints?: GeoPoint[];
   vehicleCategory: VehicleCategory;
 }
 

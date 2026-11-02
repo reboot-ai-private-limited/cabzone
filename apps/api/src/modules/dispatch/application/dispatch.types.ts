@@ -45,6 +45,7 @@ export interface RideOfferDto {
   vehicleCategory: VehicleCategory;
   pickup: { lat: number; lng: number; address: string | null };
   drop: { lat: number; lng: number; address: string | null };
+  stops?: { lat: number; lng: number; address: string | null }[];
   proposedFarePaise: number;
   distanceToPickupM: number;
   expiresAt: string;

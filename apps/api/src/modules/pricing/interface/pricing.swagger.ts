@@ -44,6 +44,10 @@ const pricingConfigDtoSchema = z.object({
 const createQuoteRequestSchema = z.object({
   pickup: z.object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180) }),
   drop: z.object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180) }),
+  stops: z
+    .array(z.object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180) }))
+    .max(3)
+    .optional(),
   vehicleCategory: z.enum(VEHICLE_CATEGORIES).optional(),
   distanceM: z.number().positive().optional(),
   durationSeconds: z.number().positive().optional(),
