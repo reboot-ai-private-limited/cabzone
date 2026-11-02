@@ -36,6 +36,7 @@ import {
   registerVehicleRequestSchema,
   reviewApplicationRequestSchema,
   updateDriverStatusRequestSchema,
+  updateDriverProfileRequestSchema,
   uploadDriverDocumentRequestSchema,
   uploadDriverLicenseFileRequestSchema,
   uploadVehicleDocumentFileRequestSchema,
@@ -551,6 +552,28 @@ export function registerIdentitySwaggerPaths(): void {
         },
       },
       403: { description: 'Forbidden', content: { 'application/json': { schema: errorResponse } } },
+    },
+  });
+
+  // Admin Update Driver Profile
+  registry.registerPath({
+    method: 'patch',
+    path: '/v1/admin/driver-applications/{id}',
+    tags: ['Admin Onboarding'],
+    summary: 'Update driver profile details, phone, address, DL, and vehicle (SUPER_ADMIN)',
+    security: bearerAuth,
+    request: {
+      params: z.object({ id: z.string() }),
+      body: { content: { 'application/json': { schema: updateDriverProfileRequestSchema } } },
+    },
+    responses: {
+      200: {
+        description: 'Driver profile updated',
+        content: { 'application/json': { schema: successResponse(z.any()) } },
+      },
+      400: { description: 'Validation error', content: { 'application/json': { schema: errorResponse } } },
+      403: { description: 'Forbidden', content: { 'application/json': { schema: errorResponse } } },
+      404: { description: 'Not found', content: { 'application/json': { schema: errorResponse } } },
     },
   });
 

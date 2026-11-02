@@ -440,7 +440,7 @@ describe('Admin Users & Roles API', () => {
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
       expect(res.body.data.name).toBe('Ananya City Admin');
-      expect(res.body.data).not.toHaveProperty('phoneE164');
+      expect(res.body.data.phoneE164).toEqual(expect.any(String));
       expect(res.body.data.cityZones).toBeDefined();
       expect(res.body.data.cityZones.length).toBe(1);
       expect(res.body.data.cityZones[0].name).toBe('Patna Central');

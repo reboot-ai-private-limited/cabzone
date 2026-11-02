@@ -793,9 +793,7 @@ export function PricingConfigDialog({
               <span className="font-semibold text-text text-sm font-mono">
                 {formatPaise(sample5km)}
               </span>
-              <span className="text-[11px] text-text-subtle">
-                Allowed range: {formatPaise(floor5km)} – {formatPaise(ceiling5km)}
-              </span>
+            
             </div>
 
             <div className="flex flex-col">

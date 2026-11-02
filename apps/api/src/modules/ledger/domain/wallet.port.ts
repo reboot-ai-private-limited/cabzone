@@ -11,6 +11,7 @@ import type { WalletTransactionEntity } from './walletTransaction.entity.js';
 export interface UserLookupItem {
   id: string;
   name: string | null;
+  phoneE164: string;
   email?: string | null | undefined;
   vehicleNumber?: string | null | undefined;
   zoneName?: string | null | undefined;

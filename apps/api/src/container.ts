@@ -241,6 +241,7 @@ export function buildContainers(overrides?: Partial<AppContainers>): AppContaine
             return {
               id: d._id,
               name,
+              phoneE164: u?.phone_e164 ?? '',
               vehicleNumber: v?.registration_number
                 ? `${vCat}${v.registration_number}`
                 : (v?.vehicle_type ?? null),
@@ -253,6 +254,7 @@ export function buildContainers(overrides?: Partial<AppContainers>): AppContaine
           return res.items.map((item) => ({
             id: item.rider.id,
             name: item.rider.name,
+            phoneE164: item.phoneE164,
             email: item.rider.email,
           }));
         },
@@ -306,11 +308,13 @@ export function buildContainers(overrides?: Partial<AppContainers>): AppContaine
         getDriverInfo: async (driverId) => {
           const driver = await driverRepo.findById(driverId);
           if (!driver) return null;
+          const user = await userRepo.findById(driver.userId);
           const vehicle = driver.currentVehicleId
             ? await vehicleRepo.findById(driver.currentVehicleId)
             : null;
           return {
             name: driver.name?.trim() || `Driver #${driver.id.slice(0, 6)}`,
+            phoneE164: user?.phoneE164 ?? '',
             registrationNumber: vehicle?.registrationNumber ?? undefined,
           };
         },
@@ -455,15 +459,17 @@ export function buildContainers(overrides?: Partial<AppContainers>): AppContaine
       tokenSecret: env.JWT_ACCESS_SECRET,
       resolveRiderId: async (userId) => (await riderRepo.findByUserId(userId))?.id ?? null,
       resolveDriverId,
-      resolveAssignedDriver: async (driverId, vehicleId) => {
+      resolveAssignedDriver: async (driverId, vehicleId, includeContact) => {
         const driver = await driverRepo.findById(driverId);
         if (!driver) return null;
+        const contactUser = includeContact ? await userRepo.findById(driver.userId) : null;
         const targetVehicleId = vehicleId ?? driver.currentVehicleId;
         const vehicle = targetVehicleId ? await vehicleRepo.findById(targetVehicleId) : null;
         const name = driver.name?.trim() || 'Cabzone Driver';
         return {
           driverId: driver.id,
           name,
+          ...(contactUser?.phoneE164 ? { phoneE164: contactUser.phoneE164 } : {}),
           profilePhotoUrl: driver.profilePhotoUrl ?? null,
           ratingAverage: driver.ratingCount > 0 ? driver.ratingAverage : null,
           ratingCount: driver.ratingCount,

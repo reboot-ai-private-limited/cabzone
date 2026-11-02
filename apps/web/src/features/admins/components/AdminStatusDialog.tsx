@@ -98,8 +98,8 @@ export function AdminStatusDialog({
           <div className="space-y-1">
             <h4 className="text-sm font-semibold text-text">
               {isSuspending
-                ? `Suspend ${admin.name ?? admin.email ?? `Admin #${admin.id.slice(0, 8)}`}?`
-                : `Reactivate ${admin.name ?? admin.email ?? `Admin #${admin.id.slice(0, 8)}`}?`}
+                ? `Suspend ${admin.name ?? admin.phoneE164}?`
+                : `Reactivate ${admin.name ?? admin.phoneE164}?`}
             </h4>
             <p className="text-xs text-text-subtle leading-relaxed">
               {isSuspending

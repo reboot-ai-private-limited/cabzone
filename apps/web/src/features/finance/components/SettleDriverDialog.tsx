@@ -128,7 +128,7 @@ export function SettleDriverDialog({
         <div className="flex items-center justify-between p-3.5 bg-surface-sunken border border-border rounded-lg text-xs">
           <div className="flex flex-col gap-0.5">
             <span className="font-semibold text-text text-sm">{wallet.name || 'Driver'}</span>
-            <span className="font-mono text-text-subtle">ID: {wallet.ownerId.slice(0, 8)}</span>
+            <span className="font-mono text-text-subtle">{wallet.phoneE164}</span>
             {wallet.vehicleNumber && (
               <span className="text-[11px] text-text-subtle font-mono mt-0.5">
                 {wallet.vehicleNumber} {wallet.zoneName ? `• ${wallet.zoneName}` : ''}

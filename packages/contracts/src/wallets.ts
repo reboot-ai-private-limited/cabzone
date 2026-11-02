@@ -47,6 +47,7 @@ export interface WalletSummaryDto {
   ownerType: 'DRIVER' | 'RIDER';
   ownerId: string;
   name: string | null;
+  phoneE164: string;
   email?: string | null | undefined;
   // Driver metadata
   vehicleNumber?: string | null | undefined;

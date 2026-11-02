@@ -166,6 +166,31 @@ export const updateDriverStatusRequestSchema = z.object({
   reason: z.string().trim().max(255).nullish(),
 });
 
+
+export const updateDriverProfileRequestSchema = z.object({
+  name: z.string().trim().min(1).max(100).nullable().optional(),
+  phoneE164: z
+    .string()
+    .trim()
+    .regex(/^\+[1-9]\d{7,14}$/, 'Must be a valid E.164 phone number')
+    .nullable()
+    .optional(),
+  alternatePhone: z.string().trim().max(30).nullable().optional(),
+  emergencyContact: z.string().trim().max(255).nullable().optional(),
+  address: z.string().trim().max(500).nullable().optional(),
+  dlNumber: z.string().trim().max(50).nullable().optional(),
+  dlExpiry: z.string().trim().nullable().optional(),
+  status: z.enum(['ACTIVE', 'SUSPENDED'] as const).optional(),
+  vehicle: z
+    .object({
+      vehicleType: z.enum(VEHICLE_CATEGORIES).optional(),
+      make: z.string().trim().max(50).optional(),
+      model: z.string().trim().max(50).optional(),
+      registrationNumber: z.string().trim().max(30).optional(),
+    })
+    .optional(),
+});
+
 export const streamDocumentContentQuerySchema = z.object({
   exp: z.string().min(1).max(32),
   sig: z.string().min(1).max(256),

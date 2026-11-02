@@ -30,9 +30,7 @@ export interface EmergencyContactDto {
   phoneE164: string;
 }
 
-export interface AdminRiderEmergencyContactDto {
-  name: string;
-}
+export type AdminRiderEmergencyContactDto = EmergencyContactDto;
 
 export interface RiderDto {
   id: string;
@@ -76,6 +74,7 @@ export interface TrustScoreBreakdownDto {
 export interface AdminRiderSummaryDto {
   id: string;
   userId: string;
+  phoneE164: string;
   status: UserStatus;
   name: string | null;
   email: string | null;
@@ -121,11 +120,7 @@ export interface UpdateRiderProfileDto {
   emergencyContact?: EmergencyContactDto | null | undefined;
 }
 
-export interface AdminUpdateRiderProfileDto {
-  name?: string | null | undefined;
-  email?: string | null | undefined;
-  preferredLanguage?: string | null | undefined;
-}
+export type AdminUpdateRiderProfileDto = UpdateRiderProfileDto;
 
 export const DRIVER_STATUSES = ['PENDING', 'ACTIVE', 'SUSPENDED', 'REJECTED'] as const;
 export type DriverStatus = (typeof DRIVER_STATUSES)[number];
@@ -198,6 +193,7 @@ export type AdminStatus = (typeof ADMIN_STATUSES)[number];
 export interface AdminUserDto {
   id: string;
   userId: string;
+  phoneE164?: string | undefined;
   name: string | null;
   email: string | null;
   role: AdminRole;
@@ -210,6 +206,7 @@ export interface AdminUserDto {
 export interface AdminUserSummaryDto {
   id: string;
   userId: string;
+  phoneE164: string;
   name: string | null;
   email: string | null;
   role: AdminRole;

@@ -14,6 +14,7 @@ import type {
   StreamAdminDocumentContentUseCase,
   SubmitDriverApplicationUseCase,
   UpdateDriverStatusUseCase,
+  UpdateDriverProfileByAdminUseCase,
   UploadDriverDocumentUseCase,
 } from '../application/useCases/index.js';
 import type {
@@ -31,6 +32,7 @@ import {
   reviewApplicationRequestSchema,
   streamDocumentContentQuerySchema,
   updateDriverStatusRequestSchema,
+  updateDriverProfileRequestSchema,
   uploadDriverLicenseFileRequestSchema,
   uploadVehicleDocumentFileRequestSchema,
   uploadIdentityDocumentFileRequestSchema,
@@ -165,6 +167,33 @@ export function makeListDriverApplicationsController(useCase: ListDriverApplicat
   });
 }
 
+
+export function makeUpdateDriverProfileController(
+  useCase: UpdateDriverProfileByAdminUseCase,
+): RequestHandler {
+  return asyncHandler(async (req: Request, res: Response) => {
+    if (!req.auth) throw AppError.unauthenticated();
+    const id = req.params.id;
+    if (!id) throw AppError.badRequest('Application or Driver ID is required');
+    const parsed = updateDriverProfileRequestSchema.parse(req.body);
+    const result = await useCase.execute({
+      id,
+      name: parsed.name,
+      phoneE164: parsed.phoneE164,
+      alternatePhone: parsed.alternatePhone,
+      emergencyContact: parsed.emergencyContact,
+      address: parsed.address,
+      dlNumber: parsed.dlNumber,
+      dlExpiry: parsed.dlExpiry,
+      status: parsed.status,
+      vehicle: parsed.vehicle,
+      actorUserId: req.auth.userId,
+      actorRole: req.auth.role,
+    });
+    sendSuccess(req, res, result, 'Driver profile updated', 200);
+  });
+}
+
 export function makeUpdateDriverStatusController(useCase: UpdateDriverStatusUseCase): RequestHandler {
   return asyncHandler(async (req: Request, res: Response) => {
     const id = req.params.id;
@@ -191,18 +220,7 @@ export function makeGetDriverApplicationController(useCase: GetDriverApplication
     const applicationId = req.params.id;
     if (!applicationId) throw AppError.badRequest('Application ID is required');
     const detail = await useCase.execute(applicationId);
-    const data =
-      req.auth?.role === 'FINANCE_ADMIN'
-        ? {
-            ...detail,
-            documents: detail.documents.map((doc) => ({
-              ...doc,
-              storageKey: 'REDACTED',
-              fileUrl: null,
-            })),
-          }
-        : detail;
-    sendSuccess(req, res, data, 'Driver application retrieved', 200);
+    sendSuccess(req, res, detail, 'Driver application retrieved', 200);
   });
 }
 

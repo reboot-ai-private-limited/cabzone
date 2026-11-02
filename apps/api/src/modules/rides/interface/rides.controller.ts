@@ -53,7 +53,11 @@ export interface RideHttpContext {
   resolveRiderId: (userId: string) => Promise<string | null>;
   resolveDriverId: (userId: string) => Promise<string | null>;
   resolveAssignedDriver?:
-    | ((driverId: string, vehicleId: string | null) => Promise<RideAssignedDriverDto | null>)
+    | ((
+        driverId: string,
+        vehicleId: string | null,
+        includeContact?: boolean,
+      ) => Promise<RideAssignedDriverDto | null>)
     | undefined;
 }
 
@@ -73,15 +77,28 @@ async function notify(work: Promise<void> | undefined): Promise<void> {
   }
 }
 
-async function toEnrichedRideView(ride: RideEntity, actors?: RideHttpContext): Promise<RideView> {
+/** Admin callers see passenger and driver phone numbers; riders and drivers never do. */
+function isAdminRequest(req: Request): boolean {
+  return ADMIN_ROLES.has(req.auth?.role ?? '');
+}
+
+async function toEnrichedRideView(
+  ride: RideEntity,
+  actors?: RideHttpContext,
+  includeContacts = false,
+): Promise<RideView> {
   if (!ride.driverId || !actors?.resolveAssignedDriver) {
-    return toRideView(ride, null);
+    return toRideView(ride, null, includeContacts);
   }
   try {
-    const assignedDriver = await actors.resolveAssignedDriver(ride.driverId, ride.vehicleId);
-    return toRideView(ride, assignedDriver);
+    const assignedDriver = await actors.resolveAssignedDriver(
+      ride.driverId,
+      ride.vehicleId,
+      includeContacts,
+    );
+    return toRideView(ride, assignedDriver, includeContacts);
   } catch {
-    return toRideView(ride, null);
+    return toRideView(ride, null, includeContacts);
   }
 }
 
@@ -202,7 +219,7 @@ export function makeCreateRideController(
     sendSuccess(
       req,
       res,
-      await toEnrichedRideView(ride, actors),
+      await toEnrichedRideView(ride, actors, isAdminRequest(req)),
       replayed ? 'Ride request replayed' : 'Ride requested successfully',
       replayed ? 200 : 201,
     );
@@ -230,7 +247,7 @@ export function makeGetRideController(
       OTP_VISIBLE.has(ride.status)
         ? derivePickupOtp(actors.pickupOtpSecret, ride.id, ride.passenger.pickupOtpExpiresAt)
         : undefined;
-    const view = await toEnrichedRideView(ride, actors);
+    const view = await toEnrichedRideView(ride, actors, isAdminRequest(req));
     const paymentAudit = paymentEvents ? await paymentEvents.findByRideId(ride.id) : [];
     const paymentCollection = classifyPaymentCollection(paymentAudit);
     const includeDriverSettlement =
@@ -307,7 +324,7 @@ export function makeListRidesController(
       limit: q.limit,
       offset: q.offset,
     });
-    const views = await Promise.all(rides.map((r) => toEnrichedRideView(r, actors)));
+    const views = await Promise.all(rides.map((r) => toEnrichedRideView(r, actors, isAdminRequest(req))));
     sendSuccess(req, res, views, 'Rides retrieved successfully');
   });
 }
@@ -342,7 +359,7 @@ export function makeDriverHistoryController(
       }),
     ]);
     const [views, settlements] = await Promise.all([
-      Promise.all(rides.map((r) => toEnrichedRideView(r, actors))),
+      Promise.all(rides.map((r) => toEnrichedRideView(r, actors, isAdminRequest(req)))),
       useCase.buildSettlementMap(rides),
     ]);
     const items = views.map((v) => {
@@ -393,7 +410,7 @@ export function makeAcceptRideController(
     await notify(
       actors.notifier?.rideUpdated(ride, 'ride.driver.assigned', { pickupOtp: _riderPickupOtp }),
     );
-    const view = await toEnrichedRideView(ride, actors);
+    const view = await toEnrichedRideView(ride, actors, isAdminRequest(req));
     sendSuccess(req, res, view, 'Ride accepted successfully');
   });
 }
@@ -440,7 +457,7 @@ export function makeRaiseFareController(
     const riderId = await requireRiderId(req, actors);
     const ride = await useCase.raise({ rideId: id, riderId, proposedFarePaise });
     await notify(actors.notifier?.rideUpdated(ride, 'ride.fare.raised', { proposedFarePaise }));
-    sendSuccess(req, res, await toEnrichedRideView(ride, actors), 'Fare raised successfully');
+    sendSuccess(req, res, await toEnrichedRideView(ride, actors, isAdminRequest(req)), 'Fare raised successfully');
   });
 }
 
@@ -469,7 +486,7 @@ export function makeRespondCounterController(
     sendSuccess(
       req,
       res,
-      await toEnrichedRideView(result.ride, actors),
+      await toEnrichedRideView(result.ride, actors, isAdminRequest(req)),
       `Counter-offer ${action.toLowerCase()}`,
     );
   });
@@ -484,7 +501,7 @@ export function makeDriverEnRouteController(
     const driverId = await requireDriverId(req, actors);
     const ride = await useCase.execute({ rideId: id, driverId });
     await notify(actors.notifier?.rideUpdated(ride, 'ride.driver.en_route'));
-    sendSuccess(req, res, await toEnrichedRideView(ride, actors), 'Driver is en route');
+    sendSuccess(req, res, await toEnrichedRideView(ride, actors, isAdminRequest(req)), 'Driver is en route');
   });
 }
 
@@ -497,7 +514,7 @@ export function makeDriverArrivedController(
     const driverId = await requireDriverId(req, actors);
     const ride = await useCase.execute({ rideId: id, driverId });
     await notify(actors.notifier?.rideUpdated(ride, 'ride.driver.arrived'));
-    sendSuccess(req, res, await toEnrichedRideView(ride, actors), 'Driver has arrived');
+    sendSuccess(req, res, await toEnrichedRideView(ride, actors, isAdminRequest(req)), 'Driver has arrived');
   });
 }
 
@@ -511,7 +528,7 @@ export function makeStartRideController(
     const driverId = await requireDriverId(req, actors);
     const ride = await useCase.execute({ rideId: id, driverId, otp });
     await notify(actors.notifier?.rideUpdated(ride, 'ride.started'));
-    sendSuccess(req, res, await toEnrichedRideView(ride, actors), 'Trip started');
+    sendSuccess(req, res, await toEnrichedRideView(ride, actors, isAdminRequest(req)), 'Trip started');
   });
 }
 
@@ -539,7 +556,7 @@ export function makeCompleteRideController(
       req,
       res,
       {
-        ride: await toEnrichedRideView(result.ride, actors),
+        ride: await toEnrichedRideView(result.ride, actors, isAdminRequest(req)),
         farePaise: result.farePaise,
         commissionPaise: result.commissionPaise,
         arrearsCollectedPaise,
@@ -570,7 +587,7 @@ export function makeClaimCashPaidController(
     sendSuccess(
       req,
       res,
-      await toEnrichedRideView(ride, actors),
+      await toEnrichedRideView(ride, actors, isAdminRequest(req)),
       'Cash payment claim recorded; awaiting driver confirmation',
     );
   });
@@ -592,7 +609,7 @@ export function makeMarkRideUnpaidController(
           ? 'ride.payment.disputed'
           : 'ride.payment.unpaid';
     await notify(actors.notifier?.rideUpdated(ride, event));
-    sendSuccess(req, res, await toEnrichedRideView(ride, actors), 'Unpaid ride recorded');
+    sendSuccess(req, res, await toEnrichedRideView(ride, actors, isAdminRequest(req)), 'Unpaid ride recorded');
   });
 }
 
@@ -606,7 +623,7 @@ export function makeDisputePaymentController(
     const riderId = await requireRiderId(req, actors);
     const ride = await useCase.disputePayment({ rideId: id, riderId, reason });
     await notify(actors.notifier?.rideUpdated(ride, 'ride.payment.disputed'));
-    sendSuccess(req, res, await toEnrichedRideView(ride, actors), 'Payment dispute filed');
+    sendSuccess(req, res, await toEnrichedRideView(ride, actors, isAdminRequest(req)), 'Payment dispute filed');
   });
 }
 
@@ -625,7 +642,7 @@ export function makeResolvePaymentDisputeController(
       refundReference,
     });
     await notify(actors.notifier?.rideUpdated(ride, 'ride.payment.dispute_resolved', { outcome }));
-    sendSuccess(req, res, await toEnrichedRideView(ride, actors), 'Payment dispute resolved');
+    sendSuccess(req, res, await toEnrichedRideView(ride, actors, isAdminRequest(req)), 'Payment dispute resolved');
   });
 }
 
@@ -807,7 +824,7 @@ export function makeListPaymentDisputesController(
           (confirmedEvent ? `CASH-${ride.id.slice(0, 8).toUpperCase()}` : null);
 
         return {
-          ride: await toEnrichedRideView(ride, actors),
+          ride: await toEnrichedRideView(ride, actors, isAdminRequest(req)),
           ticket,
           resolution,
           evidence: {
@@ -929,7 +946,7 @@ export function makeCancelRideController(
       req,
       res,
       {
-        ride: await toEnrichedRideView(result.ride, actors),
+        ride: await toEnrichedRideView(result.ride, actors, isAdminRequest(req)),
         feeBreakdown: result.feeBreakdown,
         riderArrearsPaise,
       },
@@ -1042,7 +1059,7 @@ export function makeWaiveCancellationFeeController(
       req,
       res,
       {
-        ride: await toEnrichedRideView(result.ride, actors),
+        ride: await toEnrichedRideView(result.ride, actors, isAdminRequest(req)),
         waivedPaise: result.waivedPaise,
         riderWalletBalancePaise: result.riderWallet.balancePaise,
         riderArrearsPaise: Math.max(0, -result.riderWallet.balancePaise),

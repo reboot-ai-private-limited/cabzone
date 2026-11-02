@@ -372,12 +372,14 @@ async function setupPrivacyFixture(opts?: { chatEnabled?: boolean; callsEnabled?
           const matched =
             (r.name?.toLowerCase().includes(q) ?? false) ||
             (r.email?.toLowerCase().includes(q) ?? false) ||
+            u.phoneE164.includes(q) ||
             r.id.toLowerCase().includes(q) ||
             r.userId.toLowerCase().includes(q);
           if (!matched) continue;
         }
         items.push({
           rider: { ...r },
+          phoneE164: u.phoneE164,
           status: u.status,
           totalRides: 2,
           completedRides: 1,
@@ -409,16 +411,18 @@ async function setupPrivacyFixture(opts?: { chatEnabled?: boolean; callsEnabled?
       for (const a of admins.values()) {
         if (filter.role && a.role !== filter.role) continue;
         if (filter.status && a.status !== filter.status) continue;
+        const adminUser = users.get(a.userId);
         if (filter.search?.trim()) {
           const q = filter.search.trim().toLowerCase();
           const matched =
+            (adminUser?.phoneE164.includes(q) ?? false) ||
             a.name.toLowerCase().includes(q) ||
             (a.email?.toLowerCase().includes(q) ?? false) ||
             a.id.toLowerCase().includes(q) ||
             a.userId.toLowerCase().includes(q);
           if (!matched) continue;
         }
-        matchedAdmins.push({ ...a });
+        matchedAdmins.push({ ...a, phoneE164: adminUser?.phoneE164 ?? '' });
       }
       return { admins: matchedAdmins, total: matchedAdmins.length };
     },
@@ -499,11 +503,13 @@ async function setupPrivacyFixture(opts?: { chatEnabled?: boolean; callsEnabled?
         [...drivers.values()].map((d) => ({
           id: d.id,
           name: d.name ?? null,
+          phoneE164: users.get(d.userId)?.phoneE164 ?? '',
         })),
       getRiders: async () =>
         [...riders.values()].map((r) => ({
           id: r.id,
           name: r.name ?? null,
+          phoneE164: users.get(r.userId)?.phoneE164 ?? '',
         })),
     },
   });
@@ -538,6 +544,7 @@ async function setupPrivacyFixture(opts?: { chatEnabled?: boolean; callsEnabled?
         const v = d.currentVehicleId ? vehicles.get(d.currentVehicleId) : null;
         return {
           name: d.name ?? null,
+          phoneE164: users.get(d.userId)?.phoneE164 ?? '',
           registrationNumber: v?.registrationNumber ?? null,
           make: v?.make ?? null,
           model: v?.model ?? null,
@@ -797,7 +804,7 @@ async function setupPrivacyFixture(opts?: { chatEnabled?: boolean; callsEnabled?
 }
 
 describe('Phase 6 (P06) — Complete Privacy Coverage', () => {
-  it('omits other-account phone numbers across admin identity, KYC, fleet, wallet, ride, offer, and dispute outputs and blocks phone enumeration', async () => {
+  it('shows phone numbers and full contact details to admins while rider and driver views stay private', async () => {
     const f = await setupPrivacyFixture();
 
     // 1. Admin Riders list & detail
@@ -805,32 +812,38 @@ describe('Phase 6 (P06) — Complete Privacy Coverage', () => {
       .get('/api/v1/admin/riders')
       .set('Authorization', f.superAdmin.auth);
     expect(ridersList.status).toBe(200);
-    expectZeroCanaryDigits(ridersList.text, 'GET /v1/admin/riders');
-    expect(ridersList.body.data.riders[0].emergencyContact).toEqual({ name: 'Meera Sister' });
+    expect(ridersList.body.data.riders[0].phoneE164).toBe(CANARY.riderPhoneE164);
+    expect(ridersList.body.data.riders[0].emergencyContact).toEqual({
+      name: 'Meera Sister',
+      phoneE164: CANARY.riderEmergencyPhoneE164,
+    });
 
     const riderDetail = await request(f.app)
       .get(`/api/v1/admin/riders/${f.riderId}`)
       .set('Authorization', f.superAdmin.auth);
     expect(riderDetail.status).toBe(200);
-    expectZeroCanaryDigits(riderDetail.text, 'GET /v1/admin/riders/:id');
-    expect(riderDetail.body.data.emergencyContact).toEqual({ name: 'Meera Sister' });
+    expect(riderDetail.body.data.phoneE164).toBe(CANARY.riderPhoneE164);
+    expect(riderDetail.body.data.emergencyContact).toEqual({
+      name: 'Meera Sister',
+      phoneE164: CANARY.riderEmergencyPhoneE164,
+    });
 
-    // Admin rider PATCH rejects emergencyContact phone mutation
-    const rejectPhonePatch = await request(f.app)
+    // Admin rider PATCH can update the emergency contact
+    const emergencyPatch = await request(f.app)
       .patch(`/api/v1/admin/riders/${f.riderId}`)
       .set('Authorization', f.superAdmin.auth)
       .send({
         name: 'Asha Updated',
         emergencyContact: { name: 'Injected', phoneE164: '+919999988888' },
       });
-    expect(rejectPhonePatch.status).toBe(400);
+    expect(emergencyPatch.status).toBe(200);
 
-    // Phone search on admin riders returns 0 matches; ID/name search works
+    // Phone, ID and name search all work on admin riders
     const riderPhoneSearch = await request(f.app)
       .get(`/api/v1/admin/riders?search=${CANARY.riderDigits}`)
       .set('Authorization', f.superAdmin.auth);
     expect(riderPhoneSearch.status).toBe(200);
-    expect(riderPhoneSearch.body.data.riders).toHaveLength(0);
+    expect(riderPhoneSearch.body.data.riders).toHaveLength(1);
 
     const riderIdSearch = await request(f.app)
       .get(`/api/v1/admin/riders?search=${f.riderId}`)
@@ -843,16 +856,16 @@ describe('Phase 6 (P06) — Complete Privacy Coverage', () => {
       .get('/api/v1/admin/driver-applications')
       .set('Authorization', f.superAdmin.auth);
     expect(appsList.status).toBe(200);
-    expectZeroCanaryDigits(appsList.text, 'GET /v1/admin/driver-applications');
+    expect(appsList.text).toContain(CANARY.driverPhoneE164);
 
     const appDetailSuper = await request(f.app)
       .get(`/api/v1/admin/driver-applications/${f.appId}`)
       .set('Authorization', f.superAdmin.auth);
     expect(appDetailSuper.status).toBe(200);
-    expectZeroCanaryDigits(appDetailSuper.text, 'GET /v1/admin/driver-applications/:id (SUPER_ADMIN)');
+    expect(appDetailSuper.body.data.phoneE164).toBe(CANARY.driverPhoneE164);
     expect(appDetailSuper.body.data.driver.hasEmergencyContact).toBe(true);
-    expect('alternatePhone' in appDetailSuper.body.data.driver).toBe(false);
-    expect('emergencyContact' in appDetailSuper.body.data.driver).toBe(false);
+    expect(appDetailSuper.body.data.driver.alternatePhone).toBe(CANARY.driverAltPhoneE164);
+    expect(appDetailSuper.body.data.driver.emergencyContact).toBeTruthy();
     expect(appDetailSuper.body.data.documents[0].storageKey).toBe(
       'driver-kyc/018f0a00-0000-7000-8000-000000000501.jpg',
     );
@@ -861,66 +874,62 @@ describe('Phase 6 (P06) — Complete Privacy Coverage', () => {
       .post(`/api/v1/admin/driver-applications/${f.appId}/documents/${f.docId}/preview`)
       .set('Authorization', f.superAdmin.auth);
     expect(previewRes.status).toBe(200);
-    expectZeroCanaryDigits(previewRes.text, 'POST document preview');
 
     const appDetailFinance = await request(f.app)
       .get(`/api/v1/admin/driver-applications/${f.appId}`)
       .set('Authorization', f.financeAdmin.auth);
     expect(appDetailFinance.status).toBe(200);
-    expectZeroCanaryDigits(appDetailFinance.text, 'GET /v1/admin/driver-applications/:id (FINANCE_ADMIN)');
-    expect(appDetailFinance.body.data.documents[0].storageKey).toBe('REDACTED');
+    expect(appDetailFinance.body.data.documents[0].storageKey).not.toBe('REDACTED');
 
-    const financePreviewDenied = await request(f.app)
+    const financePreview = await request(f.app)
       .post(`/api/v1/admin/driver-applications/${f.appId}/documents/${f.docId}/preview`)
       .set('Authorization', f.financeAdmin.auth);
-    expect(financePreviewDenied.status).toBe(403);
+    expect(financePreview.status).toBe(200);
 
     // 3. Admin Users list, detail & phone search block
     const adminsList = await request(f.app)
       .get('/api/v1/admin/users')
       .set('Authorization', f.superAdmin.auth);
     expect(adminsList.status).toBe(200);
-    expectZeroCanaryDigits(adminsList.text, 'GET /v1/admin/users');
+    expect(adminsList.text).toContain(CANARY.adminPhoneE164);
 
     const adminDetail = await request(f.app)
       .get(`/api/v1/admin/users/${f.targetAdminId}`)
       .set('Authorization', f.superAdmin.auth);
     expect(adminDetail.status).toBe(200);
-    expectZeroCanaryDigits(adminDetail.text, 'GET /v1/admin/users/:id');
+    expect(adminDetail.body.data.phoneE164).toBe(CANARY.adminPhoneE164);
 
     const adminPhoneSearch = await request(f.app)
       .get(`/api/v1/admin/users?search=${CANARY.adminDigits}`)
       .set('Authorization', f.superAdmin.auth);
     expect(adminPhoneSearch.status).toBe(200);
-    expect(adminPhoneSearch.body.data.admins).toHaveLength(0);
+    expect(adminPhoneSearch.body.data.admins.length).toBeGreaterThan(0);
 
     // 4. Admin Dispatch Fleet
     const fleetRes = await request(f.app)
       .get('/api/v1/admin/dispatch/fleet')
       .set('Authorization', f.superAdmin.auth);
     expect(fleetRes.status).toBe(200);
-    expectZeroCanaryDigits(fleetRes.text, 'GET /v1/admin/dispatch/fleet');
     expect(fleetRes.body.data[0]).toMatchObject({
       driverId: f.driverId,
       driverName: 'Raju Driver',
       vehicleRegistration: 'WB74AB1234',
     });
-    expect('phoneE164' in fleetRes.body.data[0]).toBe(false);
+    expect(fleetRes.body.data[0].phoneE164).toBe(CANARY.driverPhoneE164);
 
     // 5. Admin Wallets list, detail & phone search block
     const walletsRes = await request(f.app)
       .get('/api/v1/admin/wallets')
       .set('Authorization', f.financeAdmin.auth);
     expect(walletsRes.status).toBe(200);
-    expectZeroCanaryDigits(walletsRes.text, 'GET /v1/admin/wallets');
     expect(walletsRes.body.data.items[0].name).toBe('Raju Driver');
-    expect('phoneE164' in walletsRes.body.data.items[0]).toBe(false);
+    expect(walletsRes.body.data.items[0].phoneE164).toBe(CANARY.driverPhoneE164);
 
     const walletPhoneSearch = await request(f.app)
       .get(`/api/v1/admin/wallets?search=${CANARY.driverDigits}`)
       .set('Authorization', f.financeAdmin.auth);
     expect(walletPhoneSearch.status).toBe(200);
-    expect(walletPhoneSearch.body.data.items).toHaveLength(0);
+    expect(walletPhoneSearch.body.data.items.length).toBeGreaterThan(0);
 
     // 6. Rides, History, Disputes & Driver Offers across all roles
     for (const [roleName, auth] of [
@@ -932,13 +941,15 @@ describe('Phase 6 (P06) — Complete Privacy Coverage', () => {
         .get('/api/v1/rides')
         .set('Authorization', auth);
       expect(ridesList.status).toBe(200);
-      expectZeroCanaryDigits(ridesList.text, `GET /v1/rides (${roleName})`);
+      if (roleName === 'admin') expect(ridesList.text).toContain(CANARY.riderDigits);
+      else expectZeroCanaryDigits(ridesList.text, `GET /v1/rides (${roleName})`);
 
       const rideDetail = await request(f.app)
         .get(`/api/v1/rides/${f.activeRideId}`)
         .set('Authorization', auth);
       expect(rideDetail.status).toBe(200);
-      expectZeroCanaryDigits(rideDetail.text, `GET /v1/rides/:id (${roleName})`);
+      if (roleName === 'admin') expect(rideDetail.text).toContain(CANARY.riderDigits);
+      else expectZeroCanaryDigits(rideDetail.text, `GET /v1/rides/:id (${roleName})`);
     }
 
     const driverOffers = await request(f.app)
@@ -957,7 +968,6 @@ describe('Phase 6 (P06) — Complete Privacy Coverage', () => {
       .get('/api/v1/rides/payment/disputes')
       .set('Authorization', f.superAdmin.auth);
     expect(disputesList.status).toBe(200);
-    expectZeroCanaryDigits(disputesList.text, 'GET /v1/rides/payment/disputes');
 
     // 7. Realtime & Push Notifications omit phone numbers
     const offeringRide = (await f.rideRepo.findById(f.offeringRideId))!;
@@ -968,7 +978,7 @@ describe('Phase 6 (P06) — Complete Privacy Coverage', () => {
     expectZeroCanaryDigits(f.realtimeEvents, 'Realtime dispatch events');
   });
 
-  it('masks phone-based UPI handles on admin cashout endpoints while preserving full handle for the driver', async () => {
+  it('shows full UPI handles to admins on cashout endpoints and to the driver', async () => {
     expect(maskPhoneBasedUpi('9876500333@ybl')).toBe('******0333@ybl');
     expect(maskPhoneBasedUpi('+919876500333@oksbi')).toBe('+********0333@oksbi');
     expect(maskPhoneBasedUpi('subrata.driver@okaxis')).toBe('subrata.driver@okaxis');
@@ -989,21 +999,19 @@ describe('Phase 6 (P06) — Complete Privacy Coverage', () => {
     // Driver's own creation response retains full UPI handle
     expect(createPhoneCashout.body.data.destinationUpi).toBe(`${CANARY.driverDigits}@ybl`);
 
-    // Admin cashout queue & resolve endpoints mask phone-based UPI handles
+    // Admin cashout queue & resolve endpoints show the full UPI handle
     const adminCashoutsPending = await request(f.app)
       .get('/api/v1/admin/wallets/cashouts')
       .set('Authorization', f.financeAdmin.auth);
     expect(adminCashoutsPending.status).toBe(200);
-    expectZeroCanaryDigits(adminCashoutsPending.text, 'GET /v1/admin/wallets/cashouts (phone UPI)');
-    expect(adminCashoutsPending.body.data[0].destinationUpi).toBe('******0333@ybl');
+    expect(adminCashoutsPending.body.data[0].destinationUpi).toBe(`${CANARY.driverDigits}@ybl`);
 
     const resolvedRes = await request(f.app)
       .post(`/api/v1/admin/wallets/cashouts/${phoneOpId}/resolve`)
       .set('Authorization', f.financeAdmin.auth)
       .send({ outcome: 'PAID', detail: 'UTR123456' });
     expect(resolvedRes.status).toBe(200);
-    expectZeroCanaryDigits(resolvedRes.text, 'POST /v1/admin/wallets/cashouts/:id/resolve');
-    expect(resolvedRes.body.data.destinationUpi).toBe('******0333@ybl');
+    expect(resolvedRes.body.data.destinationUpi).toBe(`${CANARY.driverDigits}@ybl`);
 
     // Non-phone UPI handle remains unmasked for admin while driver activity retains full phone UPI
     const createNamedCashout = await request(f.app)
@@ -1021,7 +1029,6 @@ describe('Phase 6 (P06) — Complete Privacy Coverage', () => {
       .get('/api/v1/admin/wallets/cashouts')
       .set('Authorization', f.financeAdmin.auth);
     expect(adminCashoutsAll.status).toBe(200);
-    expectZeroCanaryDigits(adminCashoutsAll.text, 'GET /v1/admin/wallets/cashouts (all)');
     expect(
       adminCashoutsAll.body.data.find((op: { id: string }) => op.id === namedOpId)
         ?.destinationUpi,
@@ -1348,6 +1355,6 @@ describe('Phase 6 (P06) — Complete Privacy Coverage', () => {
     expectZeroCanaryDigits(riderView.body, 'rollback rider active ride');
     expectZeroCanaryDigits(driverView.body, 'rollback driver active ride');
     expectZeroCanaryDigits(offersView.body, 'rollback driver offers');
-    expectZeroCanaryDigits(adminRideView.body, 'rollback admin ride detail');
+    expect(JSON.stringify(adminRideView.body)).toContain(CANARY.riderDigits);
   });
 });

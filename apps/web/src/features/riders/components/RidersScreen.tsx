@@ -5,8 +5,10 @@ import Link from 'next/link';
 import {
   Calendar,
   Car,
+  Check,
   CheckCircle2,
   Clock,
+  Copy,
   Edit2,
   RefreshCw,
   Shield,
@@ -87,6 +89,40 @@ const formatTimeAgo = (iso: string | null): string => {
   return `${months}mo ago`;
 };
 
+const formatPhone = (phone: string | null): string => {
+  if (!phone) return '—';
+  if (phone.startsWith('+91') && phone.length === 13) {
+    return `+91 ${phone.slice(3, 8)} ${phone.slice(8)}`;
+  }
+  return phone;
+};
+
+function CopyPhoneButton({ phone }: { phone: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    navigator.clipboard.writeText(phone);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={handleCopy}
+      title={copied ? 'Copied phone number' : `Copy ${phone}`}
+      className="p-1.5 rounded-md text-text-subtle hover:text-text hover:bg-surface-muted transition-colors shrink-0"
+      aria-label={`Copy phone ${phone}`}
+    >
+      {copied ? (
+        <Check className="size-3.5 text-emerald-600" />
+      ) : (
+        <Copy className="size-3.5" />
+      )}
+    </button>
+  );
+}
 
 export function RidersScreen() {
   const [segmentView, setSegmentView] = useState<SegmentView>('ALL');
@@ -238,14 +274,17 @@ export function RidersScreen() {
       ),
     },
     {
-      key: 'customerId',
-      header: 'Customer ID & Safety',
+      key: 'number',
+      header: 'Phone Number',
       render: (r) => (
         <div className="flex items-center gap-2 whitespace-nowrap">
           <div className="flex flex-col min-w-0">
-            <span className="font-mono text-xs font-semibold text-text tracking-wide whitespace-nowrap">
-              ID: {r.id.slice(0, 8)}
-            </span>
+            <div className="flex items-center gap-1.5 whitespace-nowrap">
+              <span className="font-mono text-sm font-semibold text-text tracking-wide whitespace-nowrap">
+                {formatPhone(r.phoneE164)}
+              </span>
+              <CopyPhoneButton phone={r.phoneE164} />
+            </div>
             <span className="text-[11px] text-text-subtle flex items-center gap-1 mt-0.5 whitespace-nowrap">
               <Shield className="size-3 text-text-subtle shrink-0" />
               <span>{r.emergencyContact ? 'Safety Contact Set' : 'No SOS Contact'}</span>
@@ -505,7 +544,7 @@ export function RidersScreen() {
               setSearchQuery(val);
               setPage(1);
             }}
-            placeholder="Search by name, email, or customer ID"
+            placeholder="Search by name, phone (+91...), or email"
           />
         </div>
 

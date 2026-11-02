@@ -54,7 +54,7 @@ export function adminWalletOperationView(operation: WalletOperation): WalletOper
     amountPaise: operation.amountPaise,
     rechargePaise: operation.rechargePaise,
     earningsPaise: operation.earningsPaise,
-    destinationUpi: maskPhoneBasedUpi(operation.destinationUpi),
+    destinationUpi: operation.destinationUpi,
     transferReference: operation.transferReference,
     reason: operation.reason,
     testMode: true,

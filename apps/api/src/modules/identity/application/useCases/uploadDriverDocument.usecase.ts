@@ -70,7 +70,8 @@ export class UploadDriverDocumentUseCase {
       if (
         !existing ||
         existing.storageKey.startsWith('mock/') ||
-        existing.documentNumberMasked !== `****${dto.dlNumber.slice(-4)}`
+        (existing.documentNumberMasked !== dto.dlNumber &&
+          existing.documentNumberMasked !== `****${dto.dlNumber.slice(-4)}`)
       ) {
         throw AppError.badRequest('Select the licence file for this licence number.');
       }
@@ -91,7 +92,7 @@ export class UploadDriverDocumentUseCase {
       userId: dto.userId,
       type: 'DRIVING_LICENSE',
       documentHash: file.sha256,
-      documentNumberMasked: `****${dto.dlNumber.slice(-4)}`,
+      documentNumberMasked: dto.dlNumber,
       expiresAt: dto.expiresAt,
     });
   }

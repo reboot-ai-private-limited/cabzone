@@ -55,7 +55,7 @@ export function DriverApplicationDialog({
     <Dialog
       open={applicationId !== null}
       onOpenChange={onOpenChange}
-      title={d?.driver?.name ? `Driver: ${d.driver.name}` : 'Driver Application'}
+      title={d?.phoneE164 ? `Driver: ${d.phoneE164}` : 'Driver Application'}
       description="Verify applicant identity, vehicle registration, and compliance documents."
       className="max-w-3xl"
     >
@@ -123,11 +123,9 @@ export function DriverApplicationDialog({
                 Applicant Details
               </div>
               <DefinitionList>
-                {d.driver?.name ? (
-                  <FieldRow label="Applicant Name">
-                    <span className="font-medium text-text">{d.driver.name}</span>
-                  </FieldRow>
-                ) : null}
+                <FieldRow label="Phone Number">
+                  <span className="font-mono font-medium text-text">{d.phoneE164 ?? '—'}</span>
+                </FieldRow>
                 <FieldRow label="Driver UUID">
                   <span className="font-mono text-xs text-text-subtle truncate max-w-[170px]" title={d.application.driverId}>
                     {d.application.driverId}
@@ -226,6 +224,7 @@ export function DriverApplicationDialog({
                     key={doc.id}
                     applicationId={d.application.id}
                     document={doc}
+                    driverPhone={d.phoneE164}
                   />
                 ))}
               </div>

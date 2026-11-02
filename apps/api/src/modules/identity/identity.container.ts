@@ -40,6 +40,7 @@ import {
   SubmitDriverApplicationUseCase,
   SweepDriverKycExpiryUseCase,
   UpdateDriverStatusUseCase,
+  UpdateDriverProfileByAdminUseCase,
   UpdateAdminUserStatusUseCase,
   UpdateAdminUserUseCase,
   UploadDriverDocumentUseCase,
@@ -88,6 +89,7 @@ import {
   makeStreamAdminDocumentContentController,
   makeSubmitDriverApplicationController,
   makeUpdateDriverStatusController,
+  makeUpdateDriverProfileController,
   makeUploadDriverDocumentController,
   makeUploadDriverLicenseFileController,
   makeUploadVehicleDocumentFileController,
@@ -404,6 +406,9 @@ export function buildIdentityContainer(deps?: IdentityContainerDeps): IdentityCo
         reviewApplication: makeReviewDriverApplicationController(reviewDriverApplicationUseCase),
         updateDriverStatus: makeUpdateDriverStatusController(
           new UpdateDriverStatusUseCase(adminApplicationDeps),
+        ),
+        updateDriverProfile: makeUpdateDriverProfileController(
+          new UpdateDriverProfileByAdminUseCase(adminApplicationDeps),
         ),
         listApplications: makeListDriverApplicationsController(
           new ListDriverApplicationsUseCase(adminApplicationDeps),

@@ -64,7 +64,7 @@ export function DriverBalancesTable({
   const handleExportExcel = () => {
     const headers = [
       'Driver Name',
-      'Driver ID',
+      'Phone',
       'Vehicle',
       'Zone',
       'Owed to Company (Rs)',
@@ -76,7 +76,7 @@ export function DriverBalancesTable({
     ];
     const rows = wallets.map((w) => [
       `"${(w.name || '').replace(/"/g, '""')}"`,
-      `"${w.ownerId}"`,
+      `"${w.phoneE164}"`,
       `"${w.vehicleNumber || ''}"`,
       `"${w.zoneName || ''}"`,
       ((w.owedToCompanyPaise ?? 0) / 100).toFixed(2),
@@ -178,7 +178,7 @@ export function DriverBalancesTable({
                           <ExternalLink className="size-3 text-slate-400 group-hover/name:text-emerald-600 transition-colors" />
                         </Link>
                         <span className="text-xs text-slate-500 font-mono mt-0.5">
-                          {wallet.vehicleNumber || `ID: ${wallet.ownerId.slice(0, 8)}`}
+                          {wallet.phoneE164}
                         </span>
                       </div>
                     </td>
