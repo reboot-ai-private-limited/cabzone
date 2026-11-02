@@ -203,13 +203,17 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
     }
 
     if (q.length < 2) {
-      setAutocompleteResults([]);
-      setIsSearchingPlaces(false);
-      return;
+      const resetTimer = setTimeout(() => {
+        setAutocompleteResults([]);
+        setIsSearchingPlaces(false);
+      }, 0);
+      return () => clearTimeout(resetTimer);
     }
 
-    setIsSearchingPlaces(true);
     let stale = false;
+    const showSpinnerTimer = setTimeout(() => {
+      if (!stale) setIsSearchingPlaces(true);
+    }, 0);
     searchDebounceTimerRef.current = setTimeout(async () => {
       try {
         const results = await fetchPlacePredictions(q, {
@@ -225,6 +229,7 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
 
     return () => {
       stale = true;
+      clearTimeout(showSpinnerTimer);
       if (searchDebounceTimerRef.current) {
         clearTimeout(searchDebounceTimerRef.current);
       }

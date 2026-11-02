@@ -1,6 +1,10 @@
 import { Buffer } from 'node:buffer';
 import { createHmac, timingSafeEqual } from 'node:crypto';
-import type { AdminDocumentPreviewDto, DriverApplicationStatus } from '@cabzone/contracts';
+import type {
+  AdminDocumentPreviewDto,
+  DriverApplicationStatus,
+  VehicleCategory,
+} from '@cabzone/contracts';
 import { newUuid } from '../../../../shared/ids.js';
 import { AppError } from '../../../../shared/errors/AppError.js';
 import type { ZoneRepositoryPort } from '../../../zone/zone.public.js';
@@ -254,7 +258,7 @@ export interface UpdateDriverProfileByAdminInput {
   dlExpiry?: string | null | undefined;
   status?: 'ACTIVE' | 'SUSPENDED' | undefined;
   vehicle?: {
-    vehicleType?: any | undefined;
+    vehicleType?: VehicleCategory | undefined;
     make?: string | undefined;
     model?: string | undefined;
     registrationNumber?: string | undefined;
@@ -360,7 +364,9 @@ export class UpdateDriverProfileByAdminUseCase {
         metadata: {
           previousStatus: driver.status,
           nextStatus,
-          updatedFields: Object.keys(input).filter((k) => (input as any)[k] !== undefined),
+          updatedFields: Object.entries(input)
+            .filter(([, value]) => value !== undefined)
+            .map(([key]) => key),
         },
         createdAt: now,
       });

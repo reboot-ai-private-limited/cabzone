@@ -152,7 +152,7 @@ export function DriverApplicationScreen({ applicationId }: DriverApplicationScre
           <div className="flex flex-col">
             <div className="flex items-center gap-2.5">
               <span className="font-mono text-base font-bold text-text">
-                {d.phoneE164 ?? d.driver?.phoneE164 ?? (d.driver as any)?.alternatePhone ?? 'No phone record'}
+                {d.phoneE164 ?? d.driver?.phoneE164 ?? d.driver?.alternatePhone ?? 'No phone record'}
               </span>
               <StatusBadge status={d.application.status} />
               {d.application.reapplyCount > 0 && (
@@ -248,7 +248,7 @@ export function DriverApplicationScreen({ applicationId }: DriverApplicationScre
                     key={doc.id}
                     applicationId={d.application.id}
                     document={doc}
-                    driverPhone={d.phoneE164 ?? d.driver?.phoneE164 ?? (d.driver as any)?.alternatePhone ?? null}
+                    driverPhone={d.phoneE164 ?? d.driver?.phoneE164 ?? d.driver?.alternatePhone ?? null}
                   />
                 ))}
               </div>
@@ -437,7 +437,7 @@ export function DriverApplicationScreen({ applicationId }: DriverApplicationScre
 
             <DefinitionList>
               <FieldRow label="Phone Number">
-                <span className="font-mono font-semibold text-text text-sm">{d.phoneE164 ?? d.driver?.phoneE164 ?? (d.driver as any)?.alternatePhone ?? '—'}</span>
+                <span className="font-mono font-semibold text-text text-sm">{d.phoneE164 ?? d.driver?.phoneE164 ?? d.driver?.alternatePhone ?? '—'}</span>
               </FieldRow>
               <FieldRow label="Driver UUID">
                 <span className="font-mono text-xs text-text-subtle truncate max-w-[150px]" title={d.application.driverId}>

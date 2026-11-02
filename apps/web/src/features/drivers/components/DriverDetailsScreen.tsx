@@ -320,7 +320,7 @@ export function DriverDetailsScreen({ id }: DriverDetailsScreenProps) {
 
   const driverDisplayName =
     d.driver?.name?.trim() ||
-    d.phoneE164 || d.driver?.phoneE164 || (d.driver as any)?.alternatePhone ||
+    d.phoneE164 || d.driver?.phoneE164 || d.driver?.alternatePhone ||
     (d.vehicle?.make ? `${d.vehicle.make} ${d.vehicle.model}` : 'Unnamed Driver');
   const driverIdDisplay = d.driver?.id ?? d.application.driverId ?? '—';
   const isSuspended = d.driver?.status === 'SUSPENDED';
@@ -507,12 +507,12 @@ export function DriverDetailsScreen({ id }: DriverDetailsScreenProps) {
                   <div className="flex items-center justify-between py-3.5 border-b border-slate-100 text-sm">
                     <span className="text-slate-500">Alternate Phone</span>
                     <span className="font-medium text-slate-900 font-mono">
-                      {d.alternatePhone || (d.driver as any)?.alternatePhone ? (
+                      {d.alternatePhone || d.driver?.alternatePhone ? (
                         <a
-                          href={`tel:${d.alternatePhone || (d.driver as any)?.alternatePhone}`}
+                          href={`tel:${d.alternatePhone || d.driver?.alternatePhone}`}
                           className="hover:text-interactive hover:underline"
                         >
-                          {d.alternatePhone || (d.driver as any)?.alternatePhone}
+                          {d.alternatePhone || d.driver?.alternatePhone}
                         </a>
                       ) : (
                         '—'
@@ -542,12 +542,12 @@ export function DriverDetailsScreen({ id }: DriverDetailsScreenProps) {
                   <div className="flex items-center justify-between py-3.5 border-b border-slate-100 text-sm">
                     <span className="text-slate-500">Emergency Contact</span>
                     <span className="font-medium text-slate-900 font-mono">
-                      {d.emergencyContact || (d.driver as any)?.emergencyContact ? (
+                      {d.emergencyContact || d.driver?.emergencyContact ? (
                         <a
-                          href={`tel:${d.emergencyContact || (d.driver as any)?.emergencyContact}`}
+                          href={`tel:${d.emergencyContact || d.driver?.emergencyContact}`}
                           className="hover:text-interactive hover:underline"
                         >
-                          {d.emergencyContact || (d.driver as any)?.emergencyContact}
+                          {d.emergencyContact || d.driver?.emergencyContact}
                         </a>
                       ) : d.driver?.hasEmergencyContact ? (
                         'Configured'
@@ -1228,7 +1228,7 @@ export function DriverDetailsScreen({ id }: DriverDetailsScreenProps) {
       <DocumentPreviewDialog
         applicationId={d.application.id}
         document={selectedDoc}
-        driverPhone={d.phoneE164 ?? d.driver?.phoneE164 ?? (d.driver as any)?.alternatePhone ?? null}
+        driverPhone={d.phoneE164 ?? d.driver?.phoneE164 ?? d.driver?.alternatePhone ?? null}
         open={selectedDoc !== null}
         onOpenChange={(open) => !open && setSelectedDoc(null)}
       />

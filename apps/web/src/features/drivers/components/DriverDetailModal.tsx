@@ -64,7 +64,7 @@ export function DriverDetailModal({
   if (!driverSummary) return null;
 
   const { driver, application, vehicle } = driverSummary;
-  const phoneE164 = driverSummary.phoneE164 || driver?.phoneE164 || (driver as any)?.alternatePhone || null;
+  const phoneE164 = driverSummary.phoneE164 || driver?.phoneE164 || driver?.alternatePhone || null;
   const isSuspended = driver?.status === 'SUSPENDED';
   const dlExpiryBadge = computeDocumentExpiryBadge(driver?.dlExpiry, driver?.kycStatus);
 
@@ -128,13 +128,13 @@ export function DriverDetailModal({
                 <span className="font-mono font-medium text-text-subtle">—</span>
               )}
             </FieldRow>
-            {Boolean(driverSummary.alternatePhone || (driver as any)?.alternatePhone) && (
+            {Boolean(driverSummary.alternatePhone || driver?.alternatePhone) && (
               <FieldRow label="Alternate Phone">
                 <a
-                  href={`tel:${driverSummary.alternatePhone || (driver as any)?.alternatePhone}`}
+                  href={`tel:${driverSummary.alternatePhone || driver?.alternatePhone}`}
                   className="font-mono font-medium text-text hover:text-interactive hover:underline"
                 >
-                  {formatPhoneDisplay(driverSummary.alternatePhone || (driver as any)?.alternatePhone)}
+                  {formatPhoneDisplay(driverSummary.alternatePhone || driver?.alternatePhone || null)}
                 </a>
               </FieldRow>
             )}

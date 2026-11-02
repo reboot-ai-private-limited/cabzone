@@ -29,7 +29,7 @@ export default function NameOnboardingScreen() {
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
 
   // Animated keyboard bottom clearance
-  const keyboardOffset = useRef(new Animated.Value(0)).current;
+  const [keyboardOffset] = useState(() => new Animated.Value(0));
 
   useEffect(() => {
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';

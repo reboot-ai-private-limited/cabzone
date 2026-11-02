@@ -23,7 +23,7 @@ export default function OtpVerificationScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { pendingPhoneE164, verifyOtp, requestOtp } = useAuth();
-  const keyboardOffset = useRef(new Animated.Value(0)).current;
+  const [keyboardOffset] = useState(() => new Animated.Value(0));
   const reducedMotion = useReducedMotion();
   const [otp, setOtp] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);

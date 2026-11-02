@@ -100,7 +100,7 @@ const formatTimeAgo = (iso: string | null): string => {
 
 export const getDriverPhone = (r: DriverApplicationSummaryDto | null | undefined): string | null => {
   if (!r) return null;
-  return r.phoneE164 || r.driver?.phoneE164 || (r.driver as any)?.alternatePhone || (r as any).phone || (r as any).mobile || null;
+  return r.phoneE164 || r.driver?.phoneE164 || r.driver?.alternatePhone || null;
 };
 
 const formatPhoneDisplay = (phoneE164: string | null): string => {

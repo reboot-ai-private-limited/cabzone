@@ -5,13 +5,10 @@ import {
   AlertTriangle,
   Car,
   CheckCircle2,
-  FileText,
-  Phone,
   Shield,
   User,
 } from 'lucide-react';
 import {
-  Badge,
   Button,
   Dialog,
   Input,
@@ -21,6 +18,12 @@ import { VEHICLE_CATEGORIES, type VehicleCategory } from '@cabzone/contracts';
 import type { DriverApplicationSummaryDto } from '@/lib/api/endpoints/drivers';
 import { useUpdateDriverProfile, useUpdateDriverStatus } from '../hooks/useDriverApplications';
 import { getDriverPhone } from './DriversScreen';
+
+interface ApiErrorLike {
+  message?: string;
+  status?: number;
+  statusCode?: number;
+}
 
 export interface EditDriverDialogProps {
   driverSummary: DriverApplicationSummaryDto | null;
@@ -73,12 +76,12 @@ export function EditDriverDialog({
       setPhone(getDriverPhone(driverSummary) ?? '');
       setAlternatePhone(
         driverSummary.alternatePhone ??
-          (driver as any)?.alternatePhone ??
+          driver?.alternatePhone ??
           ''
       );
       setEmergencyContact(
         driverSummary.emergencyContact ??
-          (driver as any)?.emergencyContact ??
+          driver?.emergencyContact ??
           ''
       );
       setAddress(driver?.address ?? '');
@@ -142,7 +145,8 @@ export function EditDriverDialog({
           },
         },
       });
-    } catch (err: any) {
+    } catch (caught) {
+      const err = caught as ApiErrorLike;
       // Fallback: If backend is older and returns 404 for PATCH /v1/admin/driver-applications/:id,
       // fallback to PATCH /v1/admin/driver-applications/:id/status if status changed.
       const statusChanged = (driver?.status ?? 'ACTIVE') !== status;
@@ -158,7 +162,8 @@ export function EditDriverDialog({
           onOpenChange(false);
           onSuccess?.();
           return;
-        } catch (statusErr: any) {
+        } catch (caughtStatus) {
+          const statusErr = caughtStatus as ApiErrorLike;
           setErrorMessage(
             statusErr?.message || 'Failed to update driver status.'
           );
@@ -210,10 +215,10 @@ export function EditDriverDialog({
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
             <div>
-              <label className="block text-xs font-medium text-text mb-1">
+              <label className="block text-xs font-medium text-text mb-1" htmlFor="edit-driver-driver-full-name">
                 Driver Full Name
               </label>
-              <Input
+              <Input id="edit-driver-driver-full-name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="e.g. Manik Saha"
@@ -221,10 +226,10 @@ export function EditDriverDialog({
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-text mb-1">
+              <label className="block text-xs font-medium text-text mb-1" htmlFor="edit-driver-primary-mobile-e-164">
                 Primary Mobile (E.164)
               </label>
-              <Input
+              <Input id="edit-driver-primary-mobile-e-164"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="+919876543210"
@@ -235,10 +240,10 @@ export function EditDriverDialog({
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-text mb-1">
+              <label className="block text-xs font-medium text-text mb-1" htmlFor="edit-driver-alternate-phone-number">
                 Alternate Phone Number
               </label>
-              <Input
+              <Input id="edit-driver-alternate-phone-number"
                 value={alternatePhone}
                 onChange={(e) => setAlternatePhone(e.target.value)}
                 placeholder="+919876543211"
@@ -246,10 +251,10 @@ export function EditDriverDialog({
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-text mb-1">
+              <label className="block text-xs font-medium text-text mb-1" htmlFor="edit-driver-emergency-contact-number">
                 Emergency Contact Number
               </label>
-              <Input
+              <Input id="edit-driver-emergency-contact-number"
                 value={emergencyContact}
                 onChange={(e) => setEmergencyContact(e.target.value)}
                 placeholder="+919876543212"
@@ -258,10 +263,10 @@ export function EditDriverDialog({
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-text mb-1">
+            <label className="block text-xs font-medium text-text mb-1" htmlFor="edit-driver-residential-address-city">
               Residential Address / City
             </label>
-            <Input
+            <Input id="edit-driver-residential-address-city"
               value={address}
               onChange={(e) => setAddress(e.target.value)}
               placeholder="e.g. 12/A Park Street, Kolkata, West Bengal"
@@ -278,10 +283,10 @@ export function EditDriverDialog({
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
             <div>
-              <label className="block text-xs font-medium text-text mb-1">
+              <label className="block text-xs font-medium text-text mb-1" htmlFor="edit-driver-driving-licence-dl">
                 Driving Licence (DL)
               </label>
-              <Input
+              <Input id="edit-driver-driving-licence-dl"
                 value={dlNumber}
                 onChange={(e) => setDlNumber(e.target.value.toUpperCase())}
                 placeholder="WB0120220001234"
@@ -289,10 +294,10 @@ export function EditDriverDialog({
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-text mb-1">
+              <label className="block text-xs font-medium text-text mb-1" htmlFor="edit-driver-licence-expiry-date">
                 Licence Expiry Date
               </label>
-              <Input
+              <Input id="edit-driver-licence-expiry-date"
                 type="date"
                 value={dlExpiry}
                 onChange={(e) => setDlExpiry(e.target.value)}
@@ -300,10 +305,10 @@ export function EditDriverDialog({
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-text mb-1">
+              <label className="block text-xs font-medium text-text mb-1" htmlFor="edit-driver-account-status">
                 Account Status
               </label>
-              <Select
+              <Select id="edit-driver-account-status"
                 value={status}
                 onValueChange={(val) => setStatus(val as 'ACTIVE' | 'SUSPENDED')}
                 options={STATUS_OPTIONS}
@@ -321,10 +326,10 @@ export function EditDriverDialog({
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
             <div>
-              <label className="block text-xs font-medium text-text mb-1">
+              <label className="block text-xs font-medium text-text mb-1" htmlFor="edit-driver-vehicle-category">
                 Vehicle Category
               </label>
-              <Select
+              <Select id="edit-driver-vehicle-category"
                 value={vehicleType}
                 onValueChange={(val) => setVehicleType(val as VehicleCategory)}
                 options={VEHICLE_TYPE_OPTIONS}
@@ -332,10 +337,10 @@ export function EditDriverDialog({
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-text mb-1">
+              <label className="block text-xs font-medium text-text mb-1" htmlFor="edit-driver-registration-plate-number">
                 Registration Plate Number
               </label>
-              <Input
+              <Input id="edit-driver-registration-plate-number"
                 value={registrationNumber}
                 onChange={(e) =>
                   setRegistrationNumber(e.target.value.toUpperCase())
@@ -345,10 +350,10 @@ export function EditDriverDialog({
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-text mb-1">
+              <label className="block text-xs font-medium text-text mb-1" htmlFor="edit-driver-vehicle-make-brand">
                 Vehicle Make / Brand
               </label>
-              <Input
+              <Input id="edit-driver-vehicle-make-brand"
                 value={vehicleMake}
                 onChange={(e) => setVehicleMake(e.target.value)}
                 placeholder="e.g. Maruti Suzuki, Bajaj, Mahindra"
@@ -356,10 +361,10 @@ export function EditDriverDialog({
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-text mb-1">
+              <label className="block text-xs font-medium text-text mb-1" htmlFor="edit-driver-vehicle-model">
                 Vehicle Model
               </label>
-              <Input
+              <Input id="edit-driver-vehicle-model"
                 value={vehicleModel}
                 onChange={(e) => setVehicleModel(e.target.value)}
                 placeholder="e.g. WagonR, Compact 4S, Treo"
