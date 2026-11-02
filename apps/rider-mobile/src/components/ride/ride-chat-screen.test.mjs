@@ -5,6 +5,10 @@ import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import vm from 'node:vm';
 
+// Chat history is bounded to 24h, so fixture timestamps must be relative to now.
+const FIXTURE_BASE_MS = Date.now() - 60 * 60 * 1000;
+const isoAt = (minute) => new Date(FIXTURE_BASE_MS + minute * 60_000).toISOString();
+
 const require = createRequire(import.meta.url);
 const ts = require('typescript');
 
@@ -74,7 +78,7 @@ function harness(role = 'RIDER', platformOs = 'android') {
         senderRole: role,
         sequence: 10 + sendCalls.length,
         text,
-        createdAt: '2026-10-30T10:00:00.000Z',
+        createdAt: isoAt(0),
       };
     },
   };
@@ -238,7 +242,7 @@ test('loads bounded history, renders quick replies + KeyboardAvoidingView, pagin
                 senderRole: 'DRIVER',
                 sequence: 2,
                 text: 'On the way',
-                createdAt: '2026-10-30T10:01:00.000Z',
+                createdAt: isoAt(1),
               },
             ],
             hasMore: true,
@@ -255,7 +259,7 @@ test('loads bounded history, renders quick replies + KeyboardAvoidingView, pagin
             senderRole: 'DRIVER',
             sequence: 3,
             text: 'Arrived outside',
-            createdAt: '2026-10-30T10:02:00.000Z',
+            createdAt: isoAt(2),
           },
         ],
         hasMore: false,
@@ -271,7 +275,7 @@ test('loads bounded history, renders quick replies + KeyboardAvoidingView, pagin
             senderRole: 'RIDER',
             sequence: 1,
             text: 'Waiting at gate',
-            createdAt: '2026-10-30T10:00:00.000Z',
+            createdAt: isoAt(0),
           },
         ],
         hasMore: false,
@@ -328,7 +332,7 @@ test('retries failed sends with the exact same clientMessageId, survives token r
       senderRole: 'RIDER',
       sequence: 5,
       text,
-      createdAt: '2026-10-30T10:05:00.000Z',
+      createdAt: isoAt(5),
     };
   };
 
