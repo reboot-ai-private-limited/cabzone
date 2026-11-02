@@ -47,6 +47,7 @@ export interface AdminDriverRouterDeps {
   listApplications: RequestHandler;
   getApplication: RequestHandler;
   updateDriverStatus?: RequestHandler | undefined;
+  updateDriverProfile?: RequestHandler | undefined;
   previewDocument?: RequestHandler | undefined;
   streamDocumentContent?: RequestHandler | undefined;
 }
@@ -70,11 +71,19 @@ export function buildAdminDriverRouter(deps: AdminDriverRouterDeps): Router {
       deps.updateDriverStatus,
     );
   }
+  if (deps.updateDriverProfile) {
+    router.patch(
+      '/driver-applications/:id',
+      deps.authenticate,
+      deps.requireAdminRole,
+      deps.updateDriverProfile,
+    );
+  }
   if (deps.previewDocument) {
     router.post(
       '/driver-applications/:id/documents/:documentId/preview',
       deps.authenticate,
-      deps.requireAdminRole,
+      readGuard,
       deps.previewDocument,
     );
   }

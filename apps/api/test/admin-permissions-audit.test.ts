@@ -646,14 +646,14 @@ describe('Step 15 Admin Permissions, City Scope & Operations Audit', () => {
       ).status,
     ).toBe(403);
 
-    // FINANCE_ADMIN can read driver dossier for wallet context, with private KYC URLs redacted
+    // FINANCE_ADMIN can read driver dossier for wallet context, with the original document files and numbers
     const financeDetail = await request(f.app)
       .get(`/api/v1/admin/driver-applications/${f.appId}`)
       .set('Authorization', financeAdmin.auth);
     expect(financeDetail.status).toBe(200);
     expect(financeDetail.body.data.driver.id).toBe(f.driverId);
     expect(financeDetail.body.data.documents[0].fileUrl).toBeNull();
-    expect(financeDetail.body.data.documents[0].storageKey).toBe('REDACTED');
+    expect(financeDetail.body.data.documents[0].storageKey).not.toBe('REDACTED');
     expect(financeDetail.body.data.documents[0].documentNumberMasked).toBe('WB74****2345');
   });
 

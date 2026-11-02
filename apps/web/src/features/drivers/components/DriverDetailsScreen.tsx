@@ -59,6 +59,7 @@ import {
 import { AdjustBalanceDialog } from '../../finance/components/AdjustBalanceDialog';
 import { SettleDriverDialog } from '../../finance/components/SettleDriverDialog';
 import { DOCUMENT_TYPE_LABELS, DocumentPreviewDialog } from './DocumentPreviewDialog';
+import { EditDriverDialog } from './EditDriverDialog';
 import {
   DocumentStatusBadge,
   DriverStatusBadge,
@@ -117,6 +118,7 @@ export function DriverDetailsScreen({ id }: DriverDetailsScreenProps) {
     void detailQuery.refetch();
   });
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
   // Financials filters & pagination
   const [typeFilter, setTypeFilter] = useState<string>('ALL');
@@ -318,7 +320,8 @@ export function DriverDetailsScreen({ id }: DriverDetailsScreenProps) {
 
   const driverDisplayName =
     d.driver?.name?.trim() ||
-    (d.vehicle?.make ? `${d.vehicle.make} ${d.vehicle.model}` : `Driver #${driverId.slice(0, 8)}`);
+    d.phoneE164 || d.driver?.phoneE164 || d.driver?.alternatePhone ||
+    (d.vehicle?.make ? `${d.vehicle.make} ${d.vehicle.model}` : 'Unnamed Driver');
   const driverIdDisplay = d.driver?.id ?? d.application.driverId ?? '—';
   const isSuspended = d.driver?.status === 'SUSPENDED';
 
@@ -331,7 +334,8 @@ export function DriverDetailsScreen({ id }: DriverDetailsScreenProps) {
           ownerType: 'DRIVER',
           ownerId: driverId,
           name: d.driver?.name ?? null,
-          vehicleNumber: d.vehicle?.registrationNumber ?? null,
+          phoneE164: d.phoneE164 ?? '',
+                    vehicleNumber: d.vehicle?.registrationNumber ?? null,
           balancePaise,
           spendableCreditPaise: Math.max(0, balancePaise),
           owedAmountPaise: Math.max(0, -balancePaise),
@@ -374,7 +378,7 @@ export function DriverDetailsScreen({ id }: DriverDetailsScreenProps) {
             size="sm"
             variant="secondary"
             icon={<Edit className="size-3.5" />}
-            onClick={() => setActiveTab('profile')}
+            onClick={() => setIsEditDialogOpen(true)}
           >
             Edit
           </Button>
@@ -486,9 +490,33 @@ export function DriverDetailsScreen({ id }: DriverDetailsScreenProps) {
                 {/* Column 1 */}
                 <div className="flex flex-col">
                   <div className="flex items-center justify-between py-3.5 border-b border-slate-100 text-sm">
-                    <span className="text-slate-500">Driver ID</span>
+                    <span className="text-slate-500">Phone Number</span>
                     <span className="font-medium text-slate-900 font-mono">
-                      {driverIdDisplay}
+                      {d.phoneE164 || d.driver?.phoneE164 ? (
+                        <a
+                          href={`tel:${d.phoneE164 || d.driver?.phoneE164}`}
+                          className="hover:text-interactive hover:underline"
+                        >
+                          {d.phoneE164 || d.driver?.phoneE164}
+                        </a>
+                      ) : (
+                        '—'
+                      )}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between py-3.5 border-b border-slate-100 text-sm">
+                    <span className="text-slate-500">Alternate Phone</span>
+                    <span className="font-medium text-slate-900 font-mono">
+                      {d.alternatePhone || d.driver?.alternatePhone ? (
+                        <a
+                          href={`tel:${d.alternatePhone || d.driver?.alternatePhone}`}
+                          className="hover:text-interactive hover:underline"
+                        >
+                          {d.alternatePhone || d.driver?.alternatePhone}
+                        </a>
+                      ) : (
+                        '—'
+                      )}
                     </span>
                   </div>
                   <div className="flex items-center justify-between py-3.5 border-b border-slate-100 text-sm">
@@ -513,8 +541,19 @@ export function DriverDetailsScreen({ id }: DriverDetailsScreenProps) {
                   </div>
                   <div className="flex items-center justify-between py-3.5 border-b border-slate-100 text-sm">
                     <span className="text-slate-500">Emergency Contact</span>
-                    <span className="font-medium text-slate-900">
-                      {d.driver?.hasEmergencyContact ? 'Configured (private)' : 'Not set'}
+                    <span className="font-medium text-slate-900 font-mono">
+                      {d.emergencyContact || d.driver?.emergencyContact ? (
+                        <a
+                          href={`tel:${d.emergencyContact || d.driver?.emergencyContact}`}
+                          className="hover:text-interactive hover:underline"
+                        >
+                          {d.emergencyContact || d.driver?.emergencyContact}
+                        </a>
+                      ) : d.driver?.hasEmergencyContact ? (
+                        'Configured'
+                      ) : (
+                        '—'
+                      )}
                     </span>
                   </div>
                   <div className="flex items-center justify-between py-3.5 border-b border-slate-100 text-sm">
@@ -645,9 +684,9 @@ export function DriverDetailsScreen({ id }: DriverDetailsScreenProps) {
                           <div className="flex items-start justify-between gap-2">
                             <div className="flex flex-col">
                               <span className="font-semibold text-xs text-text">{docLabel}</span>
-                              {doc.documentNumberMasked && (
+                              {(doc.documentNumber ?? doc.documentNumberMasked) && (
                                 <span className="text-xs font-mono text-text-subtle mt-0.5">
-                                  {doc.documentNumberMasked}
+                                  {doc.documentNumber ?? doc.documentNumberMasked}
                                 </span>
                               )}
                             </div>
@@ -1189,6 +1228,7 @@ export function DriverDetailsScreen({ id }: DriverDetailsScreenProps) {
       <DocumentPreviewDialog
         applicationId={d.application.id}
         document={selectedDoc}
+        driverPhone={d.phoneE164 ?? d.driver?.phoneE164 ?? d.driver?.alternatePhone ?? null}
         open={selectedDoc !== null}
         onOpenChange={(open) => !open && setSelectedDoc(null)}
       />
@@ -1218,7 +1258,7 @@ export function DriverDetailsScreen({ id }: DriverDetailsScreenProps) {
         open={isSuspendConfirmOpen}
         onOpenChange={setIsSuspendConfirmOpen}
         title={isSuspended ? 'Activate Driver Account' : 'Suspend Driver Account'}
-        description={`Are you sure you want to ${isSuspended ? 'restore active dispatch privileges for' : 'suspend'} driver ${driverDisplayName}?`}
+        description={`Are you sure you want to ${isSuspended ? 'restore active dispatch privileges for' : 'suspend'} driver ${d.phoneE164 ?? d.driver?.phoneE164 ?? driverDisplayName}?`}
       >
         {!isSuspended && (
           <div className="flex flex-col gap-1.5 pt-2">
@@ -1277,6 +1317,16 @@ export function DriverDetailsScreen({ id }: DriverDetailsScreenProps) {
           </Button>
         </div>
       </Dialog>
+
+      {/* Edit Driver Dialog */}
+      <EditDriverDialog
+        driverSummary={d}
+        open={isEditDialogOpen}
+        onOpenChange={setIsEditDialogOpen}
+        onSuccess={() => {
+          void detailQuery.refetch();
+        }}
+      />
     </div>
   );
 }

@@ -9,7 +9,9 @@ export interface AdminUserListFilter {
   offset?: number | undefined;
 }
 
-export type AdminUserWithUser = AdminUserEntity;
+export interface AdminUserWithUser extends AdminUserEntity {
+  phoneE164: string;
+}
 
 export interface AdminUserRepositoryPort {
   findByUserId(userId: string): Promise<AdminUserEntity | null>;

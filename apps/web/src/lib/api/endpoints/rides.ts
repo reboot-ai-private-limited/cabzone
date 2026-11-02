@@ -11,7 +11,7 @@ import { request } from '../client.js';
 export interface AdminRideDto {
   id: string;
   bookerRiderId: string;
-  passenger: { riderId: string | null; name: string };
+  passenger: { riderId: string | null; name: string; phoneE164?: string };
   driverId: string | null;
   vehicleCategory: VehicleCategory;
   pickup: { lat: number; lng: number; address: string | null };

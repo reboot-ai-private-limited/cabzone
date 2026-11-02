@@ -20,6 +20,7 @@ import { formatAssignedDriverSummary, formatRupeesFromPaise } from '@/services/r
 import { colors, radii, spacing, typography } from '@/design-system';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 import BookingMap from '@/components/booking/booking-map';
+import { RoutePointIcon } from '@/components/common/route-point-icon';
 
 interface OngoingRideViewProps {
   ride: RiderRideViewDto;
@@ -456,14 +457,14 @@ export function OngoingRideView({
               <View style={styles.route}>
                 <Text style={styles.sectionTitle}>Your ride</Text>
                 <View style={styles.stop}>
-                  <Ionicons name="radio-button-on" size={20} color={colors.success} />
+                  <RoutePointIcon type="pickup" size={22} />
                   <View style={styles.flex}>
                     <Text style={styles.caption}>Pickup</Text>
                     <Text style={styles.address}>{pickup.address}</Text>
                   </View>
                 </View>
                 <View style={styles.stop}>
-                  <Ionicons name="location" size={20} color={colors.brandBrown} />
+                  <RoutePointIcon type="drop" size={22} />
                   <View style={styles.flex}>
                     <Text style={styles.caption}>Destination</Text>
                     <Text style={styles.address}>{drop.address}</Text>

@@ -378,7 +378,7 @@ describe('Rides API', () => {
     expect((await get(s.otherDriverAuth)).status).toBe(200);
   });
 
-  it('omits contact numbers from creation, assignment, detail and list responses without changing storage', async () => {
+  it('omits contact numbers from rider and driver ride responses while admins still see them', async () => {
     const s = await setup();
     const created = (await s.requestRide()).res;
     expect(created.status).toBe(201);
@@ -393,10 +393,16 @@ describe('Rides API', () => {
     for (const auth of [s.riderAuth, s.driverAuth, s.adminAuth]) {
       const detail = await request(s.app).get(`/api/v1/rides/${id}`).set('Authorization', auth);
       expect(detail.status).toBe(200);
-      expect(detail.body.data.passenger).not.toHaveProperty('phoneE164');
-      expect(detail.body.data.assignedDriver).not.toHaveProperty('phoneE164');
       const list = await request(s.app).get('/api/v1/rides').set('Authorization', auth);
       expect(list.status).toBe(200);
+      if (auth === s.adminAuth) {
+        expect(detail.body.data.passenger.phoneE164).toBe('+919876543210');
+        expect(detail.body.data.assignedDriver.phoneE164).toBe('+919000000012');
+        expect(JSON.stringify(list.body)).toContain('+919876543210');
+        continue;
+      }
+      expect(detail.body.data.passenger).not.toHaveProperty('phoneE164');
+      expect(detail.body.data.assignedDriver).not.toHaveProperty('phoneE164');
       expect(JSON.stringify(list.body)).not.toContain('+919876543210');
       expect(JSON.stringify(list.body)).not.toContain('+919000000012');
     }

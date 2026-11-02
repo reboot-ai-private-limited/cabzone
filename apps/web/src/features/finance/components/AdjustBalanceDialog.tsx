@@ -112,7 +112,7 @@ export function AdjustBalanceDialog({
             <span className="font-semibold text-text text-sm">
               {wallet.name || (isCustomer ? 'Unnamed Customer' : 'Driver')}
             </span>
-            <span className="font-mono text-text-subtle">ID: {wallet.ownerId.slice(0, 8)}</span>
+            <span className="font-mono text-text-subtle">{wallet.phoneE164}</span>
             {wallet.vehicleNumber && (
               <span className="text-[11px] text-text-subtle font-mono mt-0.5">
                 {wallet.vehicleNumber} {wallet.zoneName ? `• ${wallet.zoneName}` : ''}

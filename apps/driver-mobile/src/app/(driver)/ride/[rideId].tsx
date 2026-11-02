@@ -10,6 +10,7 @@ import { locationLabel } from '@/services/location-names';
 import React, { useCallback, useEffect, useState } from 'react';
 import { RidePaymentQr } from '@/components/driver/ride-payment-qr';
 import { RideRatingCard } from '@/components/driver/ride-rating-card';
+import { RoutePointIcon } from '@/components/common/route-point-icon';
 import {
   ActivityIndicator,
   Linking,
@@ -559,7 +560,7 @@ export default function ActiveRideScreen() {
           </View>
 
           <View style={styles.pointRow}>
-            <View style={[styles.dot, { backgroundColor: colors.success }]} />
+            <RoutePointIcon type="pickup" size={20} />
             <View style={{ flex: 1 }}>
               <Text style={styles.pointLabel}>PICKUP</Text>
               <Text style={styles.pointAddress}>
@@ -571,7 +572,7 @@ export default function ActiveRideScreen() {
           <View style={styles.routeConnector} />
 
           <View style={styles.pointRow}>
-            <View style={[styles.dot, { backgroundColor: colors.error }]} />
+            <RoutePointIcon type="drop" size={20} />
             <View style={{ flex: 1 }}>
               <Text style={styles.pointLabel}>DESTINATION</Text>
               <Text style={styles.pointAddress}>

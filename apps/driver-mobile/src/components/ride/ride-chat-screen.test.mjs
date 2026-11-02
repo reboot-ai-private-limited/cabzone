@@ -5,6 +5,10 @@ import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import vm from 'node:vm';
 
+// Chat history is bounded to 24h, so fixture timestamps must be relative to now.
+const FIXTURE_BASE_MS = Date.now() - 60 * 60 * 1000;
+const isoAt = (minute) => new Date(FIXTURE_BASE_MS + minute * 60_000).toISOString();
+
 const require = createRequire(import.meta.url);
 const ts = require('typescript');
 
@@ -72,7 +76,7 @@ function harness(platformOs = 'android') {
         senderRole: 'DRIVER',
         sequence: sendCalls.length,
         text,
-        createdAt: '2026-10-30T10:00:00.000Z',
+        createdAt: isoAt(0),
       };
     },
   };

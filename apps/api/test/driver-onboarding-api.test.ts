@@ -514,7 +514,7 @@ describe('Driver Onboarding Endpoints (Supertest)', () => {
     expect(upload.body.data).toMatchObject({
       type: 'DRIVING_LICENSE',
       storageKey: 'driver-kyc/test-license.pdf',
-      documentNumberMasked: '****2345',
+      documentNumberMasked: 'WB7420220012345',
       expiresAt: licenseExpiry,
     });
     expect(upload.body.data.documentHash).toMatch(/^[a-f0-9]{64}$/);
@@ -765,9 +765,9 @@ describe('Driver Onboarding Endpoints (Supertest)', () => {
       application: { id: applicationId, status: 'APPROVED' },
       vehicle: { registrationNumber: 'WB74AB1234' },
     });
-    expect(listRes.body.data[0]).not.toHaveProperty('phoneE164');
-    expect(listRes.body.data[0].driver).not.toHaveProperty('alternatePhone');
-    expect(listRes.body.data[0].driver).not.toHaveProperty('emergencyContact');
+    expect(listRes.body.data[0].phoneE164).toBe('+919800000001');
+    expect(listRes.body.data[0].driver).toHaveProperty('alternatePhone');
+    expect(listRes.body.data[0].driver).toHaveProperty('emergencyContact');
 
     const emptyRes = await request(app)
       .get('/api/v1/admin/driver-applications?status=REJECTED')

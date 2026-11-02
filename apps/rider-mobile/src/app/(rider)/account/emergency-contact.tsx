@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import {
   ActivityIndicator,
+  Keyboard,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
+  TouchableWithoutFeedback,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -75,6 +77,8 @@ export default function EmergencyContactScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+        <View style={{ flex: 1 }}>
       <View style={styles.topBar}>
         <Pressable style={styles.iconBtn} onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={20} color={colors.deepBrown} />
@@ -83,7 +87,7 @@ export default function EmergencyContactScreen() {
         <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <View style={styles.infoBanner}>
           <Ionicons name="shield-checkmark" size={24} color={colors.deepBrown} />
           <Text style={styles.infoText}>
@@ -135,6 +139,8 @@ export default function EmergencyContactScreen() {
           </Pressable>
         ) : null}
       </ScrollView>
+        </View>
+      </TouchableWithoutFeedback>
     </SafeAreaView>
   );
 }

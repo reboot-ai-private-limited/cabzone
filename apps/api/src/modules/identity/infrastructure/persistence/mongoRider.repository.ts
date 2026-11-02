@@ -140,6 +140,7 @@ export class MongoRiderRepository implements RiderRepositoryPort {
         $or: [
           { name: { $regex: regex } },
           { email: { $regex: regex } },
+          { 'user.phone_e164': { $regex: regex } },
           { _id: { $regex: regex } },
           { user_id: { $regex: regex } },
         ],
@@ -166,7 +167,7 @@ export class MongoRiderRepository implements RiderRepositoryPort {
     const [facetResult] = (await RiderModel.aggregate(pipeline).exec()) as [
       | {
           metadata: { total: number }[];
-          data: (RiderDocument & { user?: { status?: string } })[];
+          data: (RiderDocument & { user?: { phone_e164?: string; status?: string } })[];
         }
       | undefined,
     ];
@@ -175,6 +176,7 @@ export class MongoRiderRepository implements RiderRepositoryPort {
 
     const items: RiderWithUser[] = data.map((doc) => ({
       rider: this.toEntity(doc),
+      phoneE164: doc.user?.phone_e164 ?? '',
       status: (doc.user?.status as UserStatus) ?? 'ACTIVE',
       totalRides: 0,
       completedRides: 0,

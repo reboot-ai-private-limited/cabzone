@@ -124,13 +124,12 @@ test('JavaScript map keeps pickup and destination data safe in HTML', () => {
   const htmlCode = ts.transpileModule(htmlSource, {
     compilerOptions: { module: ts.ModuleKind.CommonJS },
   }).outputText;
-  const htmlContext = { exports: {} };
+  const htmlContext = { exports: {}, process: { env: {} } };
   vm.runInNewContext(htmlCode, htmlContext);
   const pickup = { lat: 26.7, lng: 88.4, address: '</script><script>alert(1)</script>' };
   const drop = { lat: 27, lng: 88.6, address: 'Destination' };
   const html = htmlContext.exports.bookingMapHtml(pickup, drop);
-  assert.match(html, /tiles\.openfreemap\.org\/styles\/positron/);
-  assert.match(html, /maplibre-gl@6\.15\.0/);
+  assert.match(html, /maps\.googleapis\.com\/maps\/api\/js/);
   assert.match(html, /fitBounds/);
   assert.ok(!html.includes('</script><script>alert(1)</script>'));
   assert.deepEqual(
@@ -167,42 +166,50 @@ test('JavaScript map keeps pickup and destination data safe in HTML', () => {
   const frame = context.exports.default({ pickup, drop, bottomInset: 300, onEditPickup() {} })
     .children[0];
   assert.equal(frame.type, 'iframe');
-  assert.ok(frame.props.srcDoc.includes('tiles.openfreemap.org'));
+  assert.ok(frame.props.srcDoc.includes('maps.googleapis.com'));
   assert.ok(frame.props.srcDoc.includes('"lng":88.6'));
 
   const markers = [];
-  const sources = new Map();
   let cameraMoves = 0;
-  const mapRuntime = vm.createContext({
-    window: { addEventListener() {} },
-    document: { createElement: () => ({ setAttribute() {}, addEventListener() {} }) },
-    setTimeout() {},
-    maplibregl: {
-      Marker: class {
-        constructor({ element }) {
-          markers.push(element);
-        }
-        setLngLat() {
-          return this;
-        }
-        addTo() {
-          return this;
-        }
-        remove() {}
-      },
-      LngLatBounds: class {
-        extend() {}
-      },
+  const polylinePaths = [];
+  const googleMaps = {
+    Map: class {
+      constructor() {}
+      addListener() {}
     },
+    Marker: class {
+      constructor(opts) {
+        markers.push(opts);
+        this.opts = opts;
+      }
+      setPosition(pos) { this.opts.position = pos; }
+      setMap(map) { this.opts.map = map; }
+      addListener() {}
+    },
+    Polyline: class {
+      constructor(opts) {
+        polylinePaths.push(opts.path);
+      }
+      setPath(path) { polylinePaths.push(path); }
+      setMap() {}
+    },
+    LatLngBounds: class {
+      extend() {}
+    },
+    SymbolPath: { CIRCLE: 0 },
+  };
+  const mapRuntime = vm.createContext({
+    window: {
+      addEventListener() {},
+      google: { maps: googleMaps },
+    },
+    google: { maps: googleMaps },
+    document: { getElementById: () => ({ textContent: '', style: {} }) },
+    setTimeout() {},
     mapStub: {
-      loaded: () => true,
-      getSource: (id) =>
-        sources.has(id) ? { setData: (data) => sources.set(id, data) } : undefined,
-      addSource: (id, source) => sources.set(id, source.data),
-      addLayer() {},
-      fitBounds: () => {
-        cameraMoves++;
-      },
+      fitBounds: () => { cameraMoves++; },
+      panTo: () => {},
+      setZoom: () => {},
     },
   });
   const liveMap = htmlContext.exports.bookingMapHtml(pickup, drop, {
@@ -218,7 +225,7 @@ test('JavaScript map keeps pickup and destination data safe in HTML', () => {
     `${inlineScript};bookingMap=mapStub;window.updateBookingMap(nextPoints);`,
     mapRuntime,
   );
-  assert.equal(sources.get('trip-route').features[0].geometry.coordinates.length, 2);
+  assert.equal(polylinePaths[0].length, 2);
   assert.ok(markers.some((marker) => marker.title === 'Driver location'));
   assert.equal(cameraMoves, 1);
   vm.runInContext(
@@ -228,4 +235,40 @@ test('JavaScript map keeps pickup and destination data safe in HTML', () => {
   assert.equal(cameraMoves, 1);
   vm.runInContext('window.updateBookingMap({...nextPoints,cameraVersion:1})', mapRuntime);
   assert.equal(cameraMoves, 2);
+});
+
+test('back button calls onBack when booking has started', () => {
+  const home = screen();
+  home.props.bookingStarted = true;
+  home.props.onBack = () => home.calls.push('back');
+  const tree = home.render();
+  const back = find(tree, 'Go back');
+  assert.ok(back);
+  back.props.onPress();
+  assert.deepEqual(home.calls, ['back']);
+});
+
+test('renders full screen map with floating top and bottom cards when booking has started with floating cards', () => {
+  const home = screen();
+  home.props.bookingStarted = true;
+  home.props.topCard = { props: { accessibilityLabel: 'Top floating pickup card' } };
+  home.props.bottomCard = { props: { accessibilityLabel: 'Bottom floating fare card' } };
+  const tree = home.render();
+  assert.ok(find(tree, 'Top floating pickup card'));
+  assert.ok(find(tree, 'Bottom floating fare card'));
+  assert.ok(find(tree, 'Use current location for pickup'));
+});
+
+test('renders passenger pill on 1st page and calls passenger onPress', () => {
+  const home = screen();
+  home.props.bookingStarted = false;
+  home.props.passenger = {
+    label: 'For me',
+    onPress: () => home.calls.push('passengerModal'),
+  };
+  const tree = home.render();
+  const passengerBtn = find(tree, 'Passenger: For me');
+  assert.ok(passengerBtn);
+  passengerBtn.props.onPress();
+  assert.deepEqual(home.calls, ['passengerModal']);
 });

@@ -308,6 +308,7 @@ export class MemoryWalletRepository implements WalletRepositoryPort {
         ownerType,
         ownerId,
         name: user?.name ?? null,
+        phoneE164: user?.phoneE164 ?? '',
         email: user?.email ?? null,
         vehicleNumber: user?.vehicleNumber ?? null,
         zoneName: user?.zoneName ?? null,
@@ -362,6 +363,7 @@ export class MemoryWalletRepository implements WalletRepositoryPort {
       summaries = summaries.filter(
         (w) =>
           (w.name && w.name.toLowerCase().includes(s)) ||
+          w.phoneE164.includes(s) ||
           (w.email && w.email.toLowerCase().includes(s)) ||
           (w.vehicleNumber && w.vehicleNumber.toLowerCase().includes(s)) ||
           w.ownerId.toLowerCase().includes(s) ||

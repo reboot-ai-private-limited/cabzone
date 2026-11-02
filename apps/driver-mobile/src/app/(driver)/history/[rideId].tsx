@@ -13,6 +13,7 @@ import {
   resolveDriverArrearsWalletEffect,
 } from '@/services/driver-ride-policy';
 import { RideRatingCard } from '@/components/driver/ride-rating-card';
+import { RoutePointIcon } from '@/components/common/route-point-icon';
 import { colors, typography } from '@/design-system';
 
 export default function RideHistoryDetailScreen() {
@@ -156,7 +157,7 @@ export default function RideHistoryDetailScreen() {
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Route</Text>
           <View style={styles.pointRow}>
-            <View style={[styles.dot, { backgroundColor: colors.success }]} />
+            <RoutePointIcon type="pickup" size={20} />
             <View style={{ flex: 1 }}>
               <Text style={styles.pointLabel}>PICKUP</Text>
               <Text style={styles.pointAddress}>
@@ -165,7 +166,7 @@ export default function RideHistoryDetailScreen() {
             </View>
           </View>
           <View style={styles.pointRow}>
-            <View style={[styles.dot, { backgroundColor: colors.error }]} />
+            <RoutePointIcon type="drop" size={20} />
             <View style={{ flex: 1 }}>
               <Text style={styles.pointLabel}>DESTINATION</Text>
               <Text style={styles.pointAddress}>

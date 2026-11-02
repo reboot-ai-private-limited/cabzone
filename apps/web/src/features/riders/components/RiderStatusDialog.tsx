@@ -27,14 +27,13 @@ export function RiderStatusDialog({
   const isSuspended = rider.status === 'SUSPENDED';
   const targetStatus = isSuspended ? 'ACTIVE' : 'SUSPENDED';
 
-  const riderLabel = rider.name || `Customer #${rider.id.slice(0, 8)}`;
   const consequences = isSuspended
     ? [
-        `Restores account access for ${riderLabel}`,
+        `Restores account access for ${rider.name || rider.phoneE164}`,
         'Allows the customer to log into the mobile app and book rides',
       ]
     : [
-        `Immediately revokes all active login sessions for ${riderLabel}`,
+        `Immediately revokes all active login sessions for ${rider.name || rider.phoneE164}`,
         'Prevents the customer from logging in or requesting new rides',
         'Existing trip records and invoice histories are preserved intact',
       ];

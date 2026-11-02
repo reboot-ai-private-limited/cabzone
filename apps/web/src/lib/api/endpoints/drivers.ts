@@ -23,10 +23,13 @@ export interface DriverApplicationSummaryDto {
   driver: {
     id: string;
     name?: string | null | undefined;
+    phoneE164?: string | null | undefined;
     profilePhotoUrl?: string | null | undefined;
     gender?: string | null | undefined;
     dateOfBirth?: string | null | undefined;
     experience?: string | null | undefined;
+    alternatePhone?: string | null | undefined;
+    emergencyContact?: string | null | undefined;
     hasEmergencyContact?: boolean | undefined;
     address?: string | null | undefined;
     dlNumber?: string | null | undefined;
@@ -37,6 +40,9 @@ export interface DriverApplicationSummaryDto {
     ratingCount: number;
     trustScore?: number | null | undefined;
   } | null;
+  phoneE164: string | null;
+  alternatePhone?: string | null;
+  emergencyContact?: string | null;
   vehicle: {
     id: string;
     vehicleType: VehicleCategory;
@@ -55,12 +61,31 @@ export interface DriverDocumentAdminDto {
   hasFile?: boolean | undefined;
   fileUrl?: string | null | undefined;
   documentNumberMasked: string | null;
+  documentNumber?: string | null;
   expiresAt: string | null;
   verificationStatus: DocumentVerificationStatus;
 }
 
 export interface DriverApplicationDetailDto extends DriverApplicationSummaryDto {
   documents: DriverDocumentAdminDto[];
+}
+
+
+export interface UpdateDriverProfileBody {
+  name?: string | null;
+  phoneE164?: string | null;
+  alternatePhone?: string | null;
+  emergencyContact?: string | null;
+  address?: string | null;
+  dlNumber?: string | null;
+  dlExpiry?: string | null;
+  status?: 'ACTIVE' | 'SUSPENDED';
+  vehicle?: {
+    vehicleType?: VehicleCategory;
+    make?: string;
+    model?: string;
+    registrationNumber?: string;
+  };
 }
 
 export interface ReviewApplicationBody {
@@ -202,6 +227,17 @@ export const driversApi = {
   review: (id: string, body: ReviewApplicationBody, token?: string) =>
     request<unknown>(`/v1/admin/driver-applications/${id}/review`, {
       method: 'POST',
+      body,
+      token,
+    }),
+
+  updateDriverProfile: (
+    id: string,
+    body: UpdateDriverProfileBody,
+    token?: string,
+  ) =>
+    request<DriverApplicationDetailDto>(`/v1/admin/driver-applications/${id}`, {
+      method: 'PATCH',
       body,
       token,
     }),

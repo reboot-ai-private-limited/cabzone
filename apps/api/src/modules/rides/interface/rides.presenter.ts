@@ -1,8 +1,12 @@
 import type { RideAssignedDriverDto } from '@cabzone/contracts';
 import type { RideEntity } from '../domain/index.js';
 
-/** Public rides omit contact numbers, OTP internals and idempotency keys via explicit field selection. */
-export function toRideView(ride: RideEntity, assignedDriver: RideAssignedDriverDto | null = null) {
+/** Public rides omit contact numbers (admins opt in via `includeContacts`), OTP internals and idempotency keys via explicit field selection. */
+export function toRideView(
+  ride: RideEntity,
+  assignedDriver: RideAssignedDriverDto | null = null,
+  includeContacts = false,
+) {
   const arrearsPaise = Math.max(0, ride.arrearsPaise ?? 0);
   const activeFarePaise = ride.agreedFarePaise ?? ride.proposedFarePaise ?? ride.suggestedFarePaise;
   return {
@@ -11,6 +15,7 @@ export function toRideView(ride: RideEntity, assignedDriver: RideAssignedDriverD
     passenger: {
       riderId: ride.passenger.riderId,
       name: ride.passenger.name,
+      ...(includeContacts && ride.passenger.phoneE164 ? { phoneE164: ride.passenger.phoneE164 } : {}),
       pickupOtpExpiresAt: ride.passenger.pickupOtpExpiresAt,
     },
     driverId: ride.driverId,
@@ -52,6 +57,7 @@ export function toRideView(ride: RideEntity, assignedDriver: RideAssignedDriverD
       ? {
           driverId: assignedDriver.driverId,
           name: assignedDriver.name,
+          ...(includeContacts && assignedDriver.phoneE164 ? { phoneE164: assignedDriver.phoneE164 } : {}),
           profilePhotoUrl: assignedDriver.profilePhotoUrl,
           ratingAverage: assignedDriver.ratingAverage,
           ratingCount: assignedDriver.ratingCount,

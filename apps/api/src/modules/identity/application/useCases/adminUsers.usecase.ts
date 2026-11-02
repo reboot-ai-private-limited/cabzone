@@ -174,6 +174,7 @@ export class ListAdminUsersUseCase {
     const dtoList: AdminUserSummaryDto[] = admins.map((a) => ({
       id: a.id,
       userId: a.userId,
+      phoneE164: a.phoneE164,
       name: a.name,
       email: a.email,
       role: a.role,
@@ -222,6 +223,7 @@ export class GetAdminUserDetailUseCase {
     return {
       id: admin.id,
       userId: admin.userId,
+      phoneE164: user.phoneE164,
       name: admin.name,
       email: admin.email,
       role: admin.role,
@@ -301,6 +303,7 @@ export class CreateAdminUserUseCase {
     return {
       id: saved.id,
       userId: saved.userId,
+      phoneE164: user.phoneE164,
       name: saved.name,
       email: saved.email,
       role: saved.role,
@@ -379,6 +382,7 @@ export class UpdateAdminUserUseCase {
     return {
       id: updated.id,
       userId: updated.userId,
+      phoneE164: user.phoneE164,
       name: updated.name,
       email: updated.email,
       role: updated.role,
@@ -419,9 +423,12 @@ export class UpdateAdminUserStatusUseCase {
       await this.deps.sessionRepo.revokeAllForUser(admin.userId);
     }
 
+    const user = await this.deps.userRepo.findById(updated.userId);
+
     return {
       id: updated.id,
       userId: updated.userId,
+      phoneE164: user?.phoneE164 ?? '',
       name: updated.name,
       email: updated.email,
       role: updated.role,

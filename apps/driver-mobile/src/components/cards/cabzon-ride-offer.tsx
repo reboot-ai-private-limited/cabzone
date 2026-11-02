@@ -5,6 +5,7 @@ import React, { useEffect, useState } from 'react';
 import { Animated, Dimensions, Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors, motion } from '@/design-system';
 import { CabzonButton } from '@/components/buttons/cabzon-button';
+import { RoutePointIcon } from '@/components/common/route-point-icon';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 import type { RideOfferDto } from '@/services/api';
 
@@ -166,7 +167,7 @@ export function CabzonRideOffer({
 
       <View style={styles.routeContainer}>
         <View style={styles.pointRow}>
-          <View style={[styles.dot, { backgroundColor: colors.success }]} />
+          <RoutePointIcon type="pickup" size={20} />
           <View style={styles.pointTextContainer}>
             <Text style={styles.pointLabel}>PICKUP</Text>
             <Text style={styles.pointAddress} numberOfLines={2}>
@@ -178,7 +179,7 @@ export function CabzonRideOffer({
         <View style={styles.routeLine} />
 
         <View style={styles.pointRow}>
-          <View style={[styles.dot, { backgroundColor: colors.error }]} />
+          <RoutePointIcon type="drop" size={20} />
           <View style={styles.pointTextContainer}>
             <Text style={styles.pointLabel}>DESTINATION</Text>
             <Text style={styles.pointAddress} numberOfLines={2}>

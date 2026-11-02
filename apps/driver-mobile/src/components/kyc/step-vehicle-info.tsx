@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { ERickshawIcon } from '@/components/common/e-rickshaw-icon';
 import { VEHICLE_CATEGORY_REGISTRY } from '@cabzone/contracts';
 import { CandyButton } from '@/components/buttons/candy-button';
 import { useAuth } from '@/context/auth-context';
@@ -283,11 +284,7 @@ export function StepVehicleInfo({
             selected: vehicleType === 'E_RICKSHAW',
             disabled: !erickshawActive,
           }}>
-          <Ionicons
-            name="bus-outline"
-            size={20}
-            color={vehicleType === 'E_RICKSHAW' ? colors.darkNavy : colors.secondary}
-          />
+          <ERickshawIcon size={20} color={vehicleType === 'E_RICKSHAW' ? colors.darkNavy : colors.secondary} />
           <View>
             <Text style={[styles.typeLabel, vehicleType === 'E_RICKSHAW' && styles.typeLabelActive]}>
               E-Rickshaw

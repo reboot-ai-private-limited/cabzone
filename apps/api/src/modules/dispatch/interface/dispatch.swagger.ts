@@ -27,6 +27,7 @@ const fleetDriverSchema = z.object({
   activeRideId: z.string().nullable(),
   locationUpdatedAt: z.string(),
   driverName: z.string().optional(),
+  phoneE164: z.string().optional(),
   vehicleRegistration: z.string().optional(),
 });
 

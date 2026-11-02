@@ -9,6 +9,7 @@ import {
   Clock,
   CreditCard,
   MapPin,
+  Phone,
   RefreshCw,
   Star,
   UserCheck,
@@ -37,6 +38,7 @@ import { VEHICLE_CATEGORIES, formatPublicRatingLabel } from '@cabzone/contracts'
 import type { DriverApplicationSummaryDto } from '@/lib/api/endpoints/drivers';
 import { useDriverApplications } from '../hooks/useDriverApplications';
 import { DriverDetailModal } from './DriverDetailModal';
+import { EditDriverDialog } from './EditDriverDialog';
 import {
   DriverStatusBadge,
   KycStatusBadge,
@@ -96,7 +98,22 @@ const formatTimeAgo = (iso: string | null): string => {
   return `${days}d ago`;
 };
 
-const getDriverInitials = (name: string | null | undefined, driverId?: string): string => {
+export const getDriverPhone = (r: DriverApplicationSummaryDto | null | undefined): string | null => {
+  if (!r) return null;
+  return r.phoneE164 || r.driver?.phoneE164 || r.driver?.alternatePhone || null;
+};
+
+const formatPhoneDisplay = (phoneE164: string | null): string => {
+  if (!phoneE164) return '—';
+  const cleaned = phoneE164.replace(/\s+/g, '');
+  const match = cleaned.match(/^(\+91)(\d{5})(\d{5})$/);
+  if (match) {
+    return `${match[1]} ${match[2]} ${match[3]}`;
+  }
+  return phoneE164;
+};
+
+const getDriverInitials = (name: string | null | undefined, phone: string | null): string => {
   const trimmed = name?.trim();
   if (trimmed) {
     const parts = trimmed.split(/\s+/).filter(Boolean);
@@ -105,7 +122,8 @@ const getDriverInitials = (name: string | null | undefined, driverId?: string): 
     }
     return trimmed.slice(0, 2).toUpperCase();
   }
-  return (driverId ?? '').slice(0, 2).toUpperCase() || 'DR';
+  const digits = (phone ?? '').replace(/\D/g, '');
+  return digits.slice(-2) || 'DR';
 };
 
 type IndexedDriverRow = DriverApplicationSummaryDto & { sl: number };
@@ -120,6 +138,8 @@ export function DriversScreen() {
 
   // Selected fleet profile modal
   const [selectedFleetDriver, setSelectedFleetDriver] =
+    useState<DriverApplicationSummaryDto | null>(null);
+  const [editingDriver, setEditingDriver] =
     useState<DriverApplicationSummaryDto | null>(null);
 
   // Fetch all applications to power both KPI stats, the review queue, and verified drivers
@@ -175,10 +195,13 @@ export function DriversScreen() {
         if (!REVIEWABLE.has(row.application.status)) return false;
       }
 
-      // Search query (name, DL, address, driverId, registrationNumber, make/model)
+      // Search query (name, phone, DL, address, driverId, registrationNumber, make/model)
       if (searchQuery.trim().length > 0) {
         const q = searchQuery.trim().toLowerCase();
         const name = row.driver?.name?.toLowerCase() ?? '';
+        const rawPhone = getDriverPhone(row);
+        const phone = rawPhone?.toLowerCase() ?? '';
+        const phoneFormatted = formatPhoneDisplay(rawPhone).toLowerCase();
         const dl = row.driver?.dlNumber?.toLowerCase() ?? '';
         const address = row.driver?.address?.toLowerCase() ?? '';
         const driverId = row.application.driverId.toLowerCase();
@@ -187,6 +210,8 @@ export function DriversScreen() {
 
         const matches =
           name.includes(q) ||
+          phone.includes(q) ||
+          phoneFormatted.includes(q) ||
           dl.includes(q) ||
           address.includes(q) ||
           driverId.includes(q) ||
@@ -234,7 +259,7 @@ export function DriversScreen() {
       render: (r) => {
         const driverName = r.driver?.name?.trim() || 'Unnamed Driver';
         const dlNumber = r.driver?.dlNumber?.trim() || 'No DL Number';
-        const initials = getDriverInitials(r.driver?.name, r.application.driverId);
+        const initials = getDriverInitials(r.driver?.name, getDriverPhone(r));
         return (
           <div className="flex items-center gap-3">
             <div className="size-9 rounded-full bg-surface-muted border border-border flex items-center justify-center shrink-0 text-xs font-bold text-text">
@@ -249,13 +274,27 @@ export function DriversScreen() {
       },
     },
     {
-      key: 'driverId',
-      header: 'Driver ID',
-      render: (r) => (
-        <span className="font-mono text-xs font-medium text-text-subtle">
-          {r.application.driverId.slice(0, 8)}
-        </span>
-      ),
+      key: 'mobile',
+      header: 'Mobile',
+      render: (r) => {
+        const phone = getDriverPhone(r);
+        return phone ? (
+          <a
+            href={`tel:${phone}`}
+            onClick={(e) => e.stopPropagation()}
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-text hover:text-interactive hover:underline"
+            title={`Call ${phone}`}
+          >
+            <Phone className="size-3.5 text-text-subtle shrink-0" />
+            <span>{formatPhoneDisplay(phone)}</span>
+          </a>
+        ) : (
+          <div className="inline-flex items-center gap-1.5 text-xs text-text-subtle">
+            <Phone className="size-3.5 text-text-subtle shrink-0 opacity-40" />
+            <span>—</span>
+          </div>
+        );
+      },
     },
     {
       key: 'submitted',
@@ -378,7 +417,7 @@ export function DriversScreen() {
       render: (r) => {
         const driverName = r.driver?.name?.trim() || 'Unnamed Driver';
         const dlNumber = r.driver?.dlNumber?.trim() || 'No DL Number';
-        const initials = getDriverInitials(r.driver?.name, r.application.driverId);
+        const initials = getDriverInitials(r.driver?.name, getDriverPhone(r));
         return (
           <div className="flex items-center gap-3">
             <div className="size-9 rounded-full bg-surface-muted border border-border flex items-center justify-center shrink-0 text-xs font-bold text-text">
@@ -399,13 +438,27 @@ export function DriversScreen() {
       },
     },
     {
-      key: 'driverId',
-      header: 'Driver ID',
-      render: (r) => (
-        <span className="font-mono text-xs font-medium text-text-subtle">
-          {r.application.driverId.slice(0, 8)}
-        </span>
-      ),
+      key: 'mobile',
+      header: 'Mobile',
+      render: (r) => {
+        const phone = getDriverPhone(r);
+        return phone ? (
+          <a
+            href={`tel:${phone}`}
+            onClick={(e) => e.stopPropagation()}
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-text hover:text-interactive hover:underline"
+            title={`Call ${phone}`}
+          >
+            <Phone className="size-3.5 text-text-subtle shrink-0" />
+            <span>{formatPhoneDisplay(phone)}</span>
+          </a>
+        ) : (
+          <div className="inline-flex items-center gap-1.5 text-xs text-text-subtle">
+            <Phone className="size-3.5 text-text-subtle shrink-0 opacity-40" />
+            <span>—</span>
+          </div>
+        );
+      },
     },
     {
       key: 'joinedDate',
@@ -505,7 +558,7 @@ export function DriversScreen() {
             variant="secondary"
             onClick={(e) => {
               e.stopPropagation();
-              setSelectedFleetDriver(r);
+              setEditingDriver(r);
             }}
           >
             Edit
@@ -615,7 +668,7 @@ export function DriversScreen() {
               setSearchQuery(val);
               setPage(1);
             }}
-            placeholder="Search by name, DL, plate, or driver ID..."
+            placeholder="Search by name or phone..."
           />
         </div>
 
@@ -722,6 +775,17 @@ export function DriversScreen() {
         driverSummary={selectedFleetDriver}
         open={selectedFleetDriver !== null}
         onOpenChange={(open) => !open && setSelectedFleetDriver(null)}
+        onEditClick={(d) => setEditingDriver(d)}
+      />
+
+      {/* Edit Driver Dialog */}
+      <EditDriverDialog
+        driverSummary={editingDriver}
+        open={editingDriver !== null}
+        onOpenChange={(open) => !open && setEditingDriver(null)}
+        onSuccess={() => {
+          void appsQuery.refetch();
+        }}
       />
     </div>
   );

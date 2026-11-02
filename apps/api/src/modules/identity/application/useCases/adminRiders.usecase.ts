@@ -24,7 +24,9 @@ export interface AdminRiderDeps {
 }
 
 function toAdminEmergencyContact(rider: RiderEntity) {
-  return rider.emergencyContact ? { name: rider.emergencyContact.name } : null;
+  return rider.emergencyContact
+    ? { name: rider.emergencyContact.name, phoneE164: rider.emergencyContact.phoneE164 }
+    : null;
 }
 
 export class ListRidersUseCase {
@@ -78,6 +80,7 @@ export class ListRidersUseCase {
       return {
         id: item.rider.id,
         userId: item.rider.userId,
+        phoneE164: item.phoneE164,
         status: item.status,
         name: item.rider.name,
         email: item.rider.email,
@@ -145,6 +148,7 @@ export class GetRiderDetailUseCase {
     return {
       id: rider.id,
       userId: rider.userId,
+      phoneE164: user.phoneE164,
       status: user.status,
       name: rider.name,
       email: rider.email,
@@ -210,6 +214,7 @@ export class UpdateRiderStatusUseCase {
     return {
       id: rider.id,
       userId: rider.userId,
+      phoneE164: updatedUser.phoneE164,
       status: updatedUser.status,
       name: rider.name,
       email: rider.email,
@@ -245,6 +250,15 @@ export class UpdateRiderProfileUseCase {
       email: data.email !== undefined ? data.email : rider.email,
       preferredLanguage:
         data.preferredLanguage !== undefined ? data.preferredLanguage : rider.preferredLanguage,
+      emergencyContact:
+        data.emergencyContact !== undefined
+          ? data.emergencyContact
+            ? {
+                name: data.emergencyContact.name,
+                phoneE164: data.emergencyContact.phoneE164,
+              }
+            : null
+          : rider.emergencyContact,
       updatedAt: new Date(),
     });
 
@@ -260,6 +274,7 @@ export class UpdateRiderProfileUseCase {
     return {
       id: updatedRider.id,
       userId: updatedRider.userId,
+      phoneE164: user.phoneE164,
       status: user.status,
       name: updatedRider.name,
       email: updatedRider.email,

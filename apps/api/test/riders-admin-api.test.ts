@@ -601,7 +601,7 @@ describe('Riders and Customer Admin API', () => {
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
       expect(res.body.data.id).toBe(riderProfileId);
-      expect(res.body.data).not.toHaveProperty('phoneE164');
+      expect(res.body.data.phoneE164).toEqual(expect.any(String));
       expect(res.body.data.totalRides).toBe(2);
       expect(res.body.data.completedRides).toBe(1);
       expect(res.body.data.cancelledRides).toBe(1);
@@ -642,7 +642,7 @@ describe('Riders and Customer Admin API', () => {
       expect(resReactivate.body.data.status).toBe('ACTIVE');
     });
 
-    it('allows admin to edit non-phone customer profile fields while keeping emergency numbers private', async () => {
+    it('allows admin to edit customer profile fields and see emergency contact numbers', async () => {
       await request(app)
         .patch('/api/v1/riders/me')
         .set('Authorization', `Bearer ${riderToken}`)
@@ -668,8 +668,11 @@ describe('Riders and Customer Admin API', () => {
       expect(res.body.data.name).toBe('Aditi Sharma Banerjee');
       expect(res.body.data.email).toBe('aditi.banerjee@example.com');
       expect(res.body.data.preferredLanguage).toBe('hi');
-      expect(res.body.data.emergencyContact).toEqual({ name: 'Vikram Banerjee' });
-      expect(res.body.data).not.toHaveProperty('phoneE164');
+      expect(res.body.data.emergencyContact).toEqual({
+        name: 'Vikram Banerjee',
+        phoneE164: '+919888877777',
+      });
+      expect(res.body.data.phoneE164).toEqual(expect.any(String));
     });
   });
 });

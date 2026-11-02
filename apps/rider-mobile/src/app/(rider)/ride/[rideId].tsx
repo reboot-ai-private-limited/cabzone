@@ -286,7 +286,7 @@ export default function ActiveRideScreen() {
     if (!ride) return;
     try {
       await Share.share({
-        message: `Cabzone Live Trip (${ride.id.slice(0, 8)})\nStatus: ${getRideStatusMeta(ride.status).label}\nFrom: ${locationLabel(ride.pickup.address, 'Pickup location')}\nTo: ${locationLabel(ride.drop.address, 'Destination')}\nFare: ${formatRupeesFromPaise(ride.agreedFarePaise ?? ride.proposedFarePaise ?? ride.suggestedFarePaise)}`,
+        message: `Cabzone Trip (${ride.id.slice(0, 8)})\nStatus: ${getRideStatusMeta(ride.status).label}\nFrom: ${locationLabel(ride.pickup.address, 'Pickup location')}\nTo: ${locationLabel(ride.drop.address, 'Destination')}\nFare: ${formatRupeesFromPaise(ride.agreedFarePaise ?? ride.proposedFarePaise ?? ride.suggestedFarePaise)}`,
       });
     } catch {
       // ignore share dismissal
@@ -299,15 +299,7 @@ export default function ActiveRideScreen() {
     setBookingDraft({
       mode,
       vehicleCategory: ride.vehicleCategory,
-      preferredFarePaise: Math.min(
-        (ride.proposedFarePaise ?? ride.suggestedFarePaise) + 2000,
-        calculateNegotiationBounds({
-          suggestedFarePaise: ride.suggestedFarePaise,
-          minimumFarePaise: ride.pricingSnapshot.minimumFarePaise,
-          floorPercent: ride.pricingSnapshot.negotiationFloorPercent,
-          ceilingPercent: ride.pricingSnapshot.negotiationCeilingPercent,
-        }).ceilingPaise,
-      ),
+      preferredFarePaise: ride.proposedFarePaise ?? ride.suggestedFarePaise,
       pickup: {
         ...ride.pickup,
         address: locationLabel(ride.pickup.address, 'Pickup location'),

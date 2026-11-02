@@ -360,6 +360,7 @@ export class MongoWalletRepository implements WalletRepositoryPort {
         ownerType,
         ownerId,
         name: user?.name ?? null,
+        phoneE164: user?.phoneE164 ?? '',
         email: user?.email ?? null,
         vehicleNumber: user?.vehicleNumber ?? null,
         zoneName: user?.zoneName ?? null,
@@ -391,6 +392,7 @@ export class MongoWalletRepository implements WalletRepositoryPort {
             ownerType,
             ownerId: userId,
             name: user.name,
+            phoneE164: user.phoneE164,
             email: user.email ?? null,
             vehicleNumber: user.vehicleNumber ?? null,
             zoneName: user.zoneName ?? null,
@@ -432,12 +434,13 @@ export class MongoWalletRepository implements WalletRepositoryPort {
       }
     }
 
-    // Apply search filter on name / email / vehicle / IDs (never phone numbers)
+    // Apply search filter on name / phone / email / vehicle / IDs
     if (query.search && query.search.trim()) {
       const s = query.search.trim().toLowerCase();
       summaries = summaries.filter(
         (w) =>
           (w.name && w.name.toLowerCase().includes(s)) ||
+          w.phoneE164.includes(s) ||
           (w.email && w.email.toLowerCase().includes(s)) ||
           (w.vehicleNumber && w.vehicleNumber.toLowerCase().includes(s)) ||
           w.ownerId.toLowerCase().includes(s) ||

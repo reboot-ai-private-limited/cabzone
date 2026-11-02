@@ -55,6 +55,7 @@ export function FleetSimulatorSection() {
     return fleet.filter(
       (d) =>
         (d.driverName?.toLowerCase() ?? '').includes(q) ||
+        (d.phoneE164 ?? '').includes(q) ||
         (d.vehicleRegistration?.toLowerCase() ?? '').includes(q) ||
         d.driverId.toLowerCase().includes(q),
     );
@@ -167,7 +168,7 @@ export function FleetSimulatorSection() {
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-4 rounded-xl border border-border bg-surface">
         <div className="w-full sm:w-72">
           <Input
-            placeholder="Search driver, ID, reg..."
+            placeholder="Search driver, phone, reg..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full h-9 text-xs"
@@ -237,7 +238,7 @@ export function FleetSimulatorSection() {
                             {driver.driverName ?? driver.driverId}
                           </span>
                           <span className="font-mono text-[11px] text-text-subtle">
-                            {driver.driverId.slice(0, 12)}
+                            {driver.phoneE164 ?? '—'}
                           </span>
                         </div>
                       </td>

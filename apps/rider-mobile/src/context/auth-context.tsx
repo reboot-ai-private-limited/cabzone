@@ -212,7 +212,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(verified.user);
       await loadUserScopedStorage(verified.user.id);
 
-      const riderProfile = await riderProfileApi.getProfile(verified.accessToken);
+      // OTP is already consumed and tokens saved: a failed profile fetch must not read as a failed login.
+      const riderProfile = await riderProfileApi
+        .getProfile(verified.accessToken)
+        .catch(() => null);
       setProfile(riderProfile);
       return riderProfile;
     },

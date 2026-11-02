@@ -20,12 +20,16 @@ export function RiderEditDialog({
 }: RiderEditDialogProps) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [emergencyName, setEmergencyName] = useState('');
+  const [emergencyPhone, setEmergencyPhone] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
 
   useEffect(() => {
     if (rider) {
       setName(rider.name ?? '');
       setEmail(rider.email ?? '');
+      setEmergencyName(rider.emergencyContact?.name ?? '');
+      setEmergencyPhone(rider.emergencyContact?.phoneE164 ?? '');
       setFormError(null);
     }
   }, [rider, open]);
@@ -41,11 +45,28 @@ export function RiderEditDialog({
     e.preventDefault();
     setFormError(null);
 
+    let emergencyContact: { name: string; phoneE164: string } | null = null;
+    if (emergencyName.trim() || emergencyPhone.trim()) {
+      if (!emergencyName.trim()) {
+        setFormError('Emergency contact name is required if contact is provided.');
+        return;
+      }
+      if (!emergencyPhone.trim().startsWith('+')) {
+        setFormError('Emergency contact phone must be in E.164 format (e.g. +919876543210).');
+        return;
+      }
+      emergencyContact = {
+        name: emergencyName.trim(),
+        phoneE164: emergencyPhone.trim(),
+      };
+    }
+
     updateMutation.mutate({
       id: rider.id,
       body: {
         name: name.trim() || null,
         email: email.trim() || null,
+        emergencyContact,
       },
     });
   };
@@ -55,7 +76,7 @@ export function RiderEditDialog({
       open={open}
       onOpenChange={onOpenChange}
       title="Edit Customer Profile"
-      description={`Update account details for ${rider.name || `Customer #${rider.id.slice(0, 8)}`}.`}
+      description={`Update account details and safety preferences for ${rider.phoneE164}.`}
       footer={
         <>
           <Button size="sm" variant="secondary" onClick={() => onOpenChange(false)}>
@@ -106,7 +127,54 @@ export function RiderEditDialog({
           </FormField>
         </div>
 
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <FormField label="Registered Phone Number" hint="Primary login credential (read-only)">
+            {({ id }) => (
+              <Input
+                id={id}
+                disabled
+                value={rider.phoneE164}
+                className="bg-surface-muted text-text-subtle font-mono"
+              />
+            )}
+          </FormField>
 
+        </div>
+
+        <div className="mt-2 pt-3 border-t border-border flex flex-col gap-3">
+          <div className="flex flex-col">
+            <span className="text-xs font-semibold text-text">Emergency Contact (Safety)</span>
+            <span className="text-[11px] text-text-subtle">
+              Used for SOS alerts and critical ride notifications.
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <FormField label="Contact Person Name">
+              {({ id, invalid }) => (
+                <Input
+                  id={id}
+                  invalid={invalid}
+                  value={emergencyName}
+                  onChange={(e) => setEmergencyName(e.target.value)}
+                  placeholder="e.g. Rahul Sharma"
+                />
+              )}
+            </FormField>
+
+            <FormField label="Contact Phone (E.164)" hint="Includes country code (+91...)">
+              {({ id, invalid }) => (
+                <Input
+                  id={id}
+                  invalid={invalid}
+                  value={emergencyPhone}
+                  onChange={(e) => setEmergencyPhone(e.target.value)}
+                  placeholder="+919876543210"
+                />
+              )}
+            </FormField>
+          </div>
+        </div>
       </form>
     </Dialog>
   );

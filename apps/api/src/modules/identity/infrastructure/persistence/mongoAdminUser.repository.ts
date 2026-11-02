@@ -77,7 +77,17 @@ export class MongoAdminUserRepository implements AdminUserRepositoryPort {
     const limit = Math.min(Math.max(filter.limit ?? 20, 1), 100);
     const offset = Math.max(filter.offset ?? 0, 0);
 
-    const pipeline: PipelineStage[] = [];
+    const pipeline: PipelineStage[] = [
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'user_id',
+          foreignField: '_id',
+          as: 'user',
+        },
+      },
+      { $unwind: { path: '$user', preserveNullAndEmptyArrays: true } },
+    ];
     const matchConditions: Record<string, unknown>[] = [];
 
     if (filter.status) {
@@ -100,6 +110,7 @@ export class MongoAdminUserRepository implements AdminUserRepositoryPort {
         $or: [
           { name: { $regex: regex } },
           { email: { $regex: regex } },
+          { 'user.phone_e164': { $regex: regex } },
           { _id: { $regex: regex } },
           { user_id: { $regex: regex } },
         ],
@@ -120,14 +131,17 @@ export class MongoAdminUserRepository implements AdminUserRepositoryPort {
     });
 
     const [facetResult] = (await AdminUserModel.aggregate(pipeline).exec()) as [
-      | { metadata: { total: number }[]; data: AdminUserDocument[] }
+      | { metadata: { total: number }[]; data: (AdminUserDocument & { user?: { phone_e164?: string } })[] }
       | undefined,
     ];
 
     const total = facetResult?.metadata?.[0]?.total ?? 0;
     const data = facetResult?.data ?? [];
 
-    const admins: AdminUserWithUser[] = data.map((doc) => this.toEntity(doc));
+    const admins: AdminUserWithUser[] = data.map((doc) => ({
+      ...this.toEntity(doc),
+      phoneE164: doc.user?.phone_e164 ?? '',
+    }));
 
     return { admins, total };
   }

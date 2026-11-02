@@ -2,6 +2,7 @@ import { tollDisclosure, type QuoteDto, type VehicleCategory } from '@cabzone/co
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  BackHandler,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -12,7 +13,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { BookingHome } from './booking-home';
 import BookingMap from './booking-map';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -20,6 +21,8 @@ import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
 
 import { colors, radii, spacing, typography } from '@/design-system';
+import { ERickshawIcon } from '@/components/common/e-rickshaw-icon';
+import { RoutePointIcon } from '@/components/common/route-point-icon';
 import { useAuth } from '@/context/auth-context';
 import { useRide } from '@/context/ride-context';
 import { geoAndPricingApi, isApiError } from '@/services/api';
@@ -33,6 +36,12 @@ import {
   normalizeIndianPhoneE164,
   type PlacePreset,
 } from '@/services/rider-helpers';
+import {
+  fetchPlacePredictions,
+  fetchPlaceCoordinates,
+  createPlacesSessionToken,
+  type PlaceSuggestion,
+} from '@/services/places-autocomplete';
 
 interface LocationSelection {
   lat: number;
@@ -46,7 +55,7 @@ interface RideBookingComposerProps {
 
 export function RideBookingComposer({ mode }: RideBookingComposerProps) {
   const router = useRouter();
-  const { token, user, profile, templates, addTemplate, preferences } = useAuth();
+  const { token, user, profile, templates, addTemplate, removeTemplate, preferences } = useAuth();
   const { activeRide, createRide, bookingDraft, setBookingDraft } = useRide();
 
   const defaultPickup = useMemo<LocationSelection>(() => {
@@ -61,6 +70,7 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
 
   const [pickup, setPickup] = useState<LocationSelection>(defaultPickup);
   const [bookingStarted, setBookingStarted] = useState(false);
+  const [isRideSelected, setIsRideSelected] = useState(false);
   const [drop, setDrop] = useState<LocationSelection>(defaultDrop);
   const [locationNote, setLocationNote] = useState('');
 
@@ -74,6 +84,10 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
   const [pickerTarget, setPickerTarget] = useState<'PICKUP' | 'DROP' | null>(null);
   const [pickerOnMap, setPickerOnMap] = useState(false);
   const [placeSearchQuery, setPlaceSearchQuery] = useState('');
+  const [autocompleteResults, setAutocompleteResults] = useState<PlaceSuggestion[]>([]);
+  const [isSearchingPlaces, setIsSearchingPlaces] = useState(false);
+  const placesSessionTokenRef = useRef<string | null>(null);
+  const searchDebounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [customLat, setCustomLat] = useState('');
   const [customLng, setCustomLng] = useState('');
   const [isLocatingGps, setIsLocatingGps] = useState(false);
@@ -86,8 +100,9 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
   const [quoteError, setQuoteError] = useState<string | null>(null);
   const [proposedFarePaise, setProposedFarePaise] = useState<number>(0);
   const preferredFareRef = useRef<number | null>(null);
-  const [customFareInput, setCustomFareInput] = useState<string>('');
-  const [isEditingFare, setIsEditingFare] = useState(false);
+  const [showEditFareModal, setShowEditFareModal] = useState(false);
+  const [editFareInput, setEditFareInput] = useState<string>('');
+  const [editFareError, setEditFareError] = useState<string | null>(null);
 
   // Submitting ride
   const [isSubmittingRide, setIsSubmittingRide] = useState(false);
@@ -96,19 +111,130 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
   const pendingBookingAttemptRef = useRef<{ fingerprint: string; key: string } | null>(null);
   const submittingRideRef = useRef(false);
 
+  // Start from the rider's real position; the preset stays only if GPS is unavailable or the rider already chose.
+  useEffect(() => {
+    let off = false;
+    void (async () => {
+      try {
+        const perm = await Location.requestForegroundPermissionsAsync();
+        if (!perm.granted || off) return;
+        const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        const lat = Number(pos.coords.latitude.toFixed(5));
+        const lng = Number(pos.coords.longitude.toFixed(5));
+        let address = 'Current location';
+        try {
+          const r = await geoAndPricingApi.reverseGeocode(token, lat, lng);
+          address = r.formattedAddress || r.city || address;
+        } catch {
+          // keep readable label
+        }
+        if (!off) setPickup((prev) => (prev === defaultPickup ? { lat, lng, address } : prev));
+      } catch {
+        // GPS unavailable: preset pickup stays and the locate button still works
+      }
+    })();
+    return () => {
+      off = true;
+    };
+  }, [defaultPickup, token]);
+
   const openPlacePicker = (target: 'PICKUP' | 'DROP') => {
     setPickerTarget(target);
     setPickerOnMap(false);
     setPlaceSearchQuery('');
+    setAutocompleteResults([]);
+    setIsSearchingPlaces(false);
+    placesSessionTokenRef.current = createPlacesSessionToken();
     setCustomLat('');
     setCustomLng('');
     setSubmitError(null);
   };
 
+  const handleBack = useCallback(() => {
+    if (isRideSelected) {
+      setIsRideSelected(false);
+      return;
+    }
+    if (bookingStarted) {
+      setBookingStarted(false);
+      return;
+    }
+    if (router.canGoBack()) {
+      router.back();
+    }
+  }, [isRideSelected, bookingStarted, router]);
+
+  useFocusEffect(
+    useCallback(() => {
+    const onHardwareBack = () => {
+      if (isRideSelected) {
+        setIsRideSelected(false);
+        return true;
+      }
+      if (bookingStarted) {
+        setBookingStarted(false);
+        return true;
+      }
+      return false;
+    };
+
+    const sub = BackHandler.addEventListener('hardwareBackPress', onHardwareBack);
+    return () => sub.remove();
+    }, [isRideSelected, bookingStarted]),
+  );
+
   const closePlacePicker = () => {
     setPickerTarget(null);
     setPickerOnMap(false);
+    setPlaceSearchQuery('');
+    setAutocompleteResults([]);
+    setIsSearchingPlaces(false);
+    placesSessionTokenRef.current = null;
+    if (searchDebounceTimerRef.current) {
+      clearTimeout(searchDebounceTimerRef.current);
+    }
   };
+
+  // Debounced Google Places Autocomplete search
+  useEffect(() => {
+    const q = placeSearchQuery.trim();
+    if (searchDebounceTimerRef.current) {
+      clearTimeout(searchDebounceTimerRef.current);
+    }
+
+    if (q.length < 2) {
+      const resetTimer = setTimeout(() => {
+        setAutocompleteResults([]);
+        setIsSearchingPlaces(false);
+      }, 0);
+      return () => clearTimeout(resetTimer);
+    }
+
+    let stale = false;
+    const showSpinnerTimer = setTimeout(() => {
+      if (!stale) setIsSearchingPlaces(true);
+    }, 0);
+    searchDebounceTimerRef.current = setTimeout(async () => {
+      try {
+        const results = await fetchPlacePredictions(q, {
+          sessionToken: placesSessionTokenRef.current || undefined,
+        });
+        if (!stale) setAutocompleteResults(results);
+      } catch {
+        if (!stale) setAutocompleteResults([]);
+      } finally {
+        if (!stale) setIsSearchingPlaces(false);
+      }
+    }, 280);
+
+    return () => {
+      stale = true;
+      clearTimeout(showSpinnerTimer);
+      if (searchDebounceTimerRef.current) {
+        clearTimeout(searchDebounceTimerRef.current);
+      }
+    };
+  }, [placeSearchQuery]);
 
   // Apply bookingDraft when navigated from Activity ("Repeat Ride" / "Return Trip") or Saved Templates
   useEffect(() => {
@@ -126,8 +252,10 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
   }, [bookingDraft, mode, setBookingDraft]);
 
   // Fetch quote whenever pickup or drop changes
+  const quoteSeqRef = useRef(0);
   const fetchQuotes = useCallback(async () => {
-    if (mode === 'IN_CITY' && !bookingStarted) return;
+    if (!bookingStarted) return;
+    const seq = ++quoteSeqRef.current;
     if (Math.abs(pickup.lat - drop.lat) < 0.0001 && Math.abs(pickup.lng - drop.lng) < 0.0001) {
       setQuoteError('Pickup and drop locations must be different.');
       setQuotes([]);
@@ -137,12 +265,14 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
     setIsLoadingQuote(true);
     setQuoteError(null);
     setSubmitError(null);
+    setQuotes([]);
     try {
       const response = await geoAndPricingApi.createQuote(token, {
         pickup: { lat: pickup.lat, lng: pickup.lng },
         drop: { lat: drop.lat, lng: drop.lng },
         vehicleCategory: selectedCategory,
       });
+      if (seq !== quoteSeqRef.current) return;
       setQuotes([response]);
       const fare =
         preferredFareRef.current === null
@@ -154,16 +284,16 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
             );
       preferredFareRef.current = null;
       setProposedFarePaise(fare);
-      setCustomFareInput(String(Math.round(fare / 100)));
     } catch (err: unknown) {
+      if (seq !== quoteSeqRef.current) return;
       setQuotes([]);
       setQuoteError(
         err instanceof Error ? err.message : 'Unable to calculate fare quote for this route.',
       );
     } finally {
-      setIsLoadingQuote(false);
+      if (seq === quoteSeqRef.current) setIsLoadingQuote(false);
     }
-  }, [drop.lat, drop.lng, pickup.lat, pickup.lng, token, mode, bookingStarted, selectedCategory]);
+  }, [drop.lat, drop.lng, pickup.lat, pickup.lng, token, bookingStarted, selectedCategory]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -185,24 +315,44 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
       activeQuote.negotiation.ceilingPaise,
     );
     setProposedFarePaise(next);
-    setCustomFareInput(String(Math.round(next / 100)));
   };
 
-  const handleCommitCustomFare = () => {
-    setIsEditingFare(false);
+  const handleOpenEditFare = () => {
+    setEditFareInput(String(Math.round(proposedFarePaise / 100)));
+    setEditFareError(null);
+    setShowEditFareModal(true);
+  };
+
+  const handleFareInputChange = (text: string) => {
+    const cleaned = text.replace(/[^0-9]/g, '');
+    setEditFareInput(cleaned);
     if (!activeQuote) return;
-    const rupees = Number(customFareInput.replace(/[^0-9]/g, ''));
-    if (!Number.isFinite(rupees) || rupees <= 0) {
-      setCustomFareInput(String(Math.round(proposedFarePaise / 100)));
+    if (!cleaned) {
+      setEditFareError('Enter a fare amount');
       return;
     }
-    const clamped = clampProposedFarePaise(
-      rupees * 100,
-      activeQuote.negotiation.floorPaise,
-      activeQuote.negotiation.ceilingPaise,
-    );
-    setProposedFarePaise(clamped);
-    setCustomFareInput(String(Math.round(clamped / 100)));
+    const val = Number(cleaned);
+    const floorRupees = Math.round(activeQuote.negotiation.floorPaise / 100);
+    const ceilingRupees = Math.round(activeQuote.negotiation.ceilingPaise / 100);
+    if (val < floorRupees) {
+      setEditFareError(`Minimum fare is ₹${floorRupees}`);
+    } else if (val > ceilingRupees) {
+      setEditFareError(`Maximum fare is ₹${ceilingRupees}`);
+    } else {
+      setEditFareError(null);
+    }
+  };
+
+  const handleApplyCustomFare = () => {
+    if (!activeQuote) return;
+    const val = Number(editFareInput.replace(/[^0-9]/g, ''));
+    const floorRupees = Math.round(activeQuote.negotiation.floorPaise / 100);
+    const ceilingRupees = Math.round(activeQuote.negotiation.ceilingPaise / 100);
+    if (!val || val < floorRupees || val > ceilingRupees) {
+      return;
+    }
+    setProposedFarePaise(val * 100);
+    setShowEditFareModal(false);
   };
 
   const handleSwapLocations = () => {
@@ -218,9 +368,10 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
         setSubmitError('Location permission denied. Choose a place or pick a point on the map.');
         return;
       }
-      const pos = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      });
+      const pos = await Promise.race([
+        Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('gps timeout')), 12000)),
+      ]);
       const lat = Number(pos.coords.latitude.toFixed(5));
       const lng = Number(pos.coords.longitude.toFixed(5));
       let address = 'Current location';
@@ -248,20 +399,55 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
     }
   };
 
-  const handleSelectPreset = (preset: PlacePreset) => {
-    const loc: LocationSelection = {
-      lat: preset.lat,
-      lng: preset.lng,
-      address: preset.name,
-    };
-    if (pickerTarget === 'DROP') {
-      setBookingStarted(true);
-      setDrop(loc);
-    } else {
-      setPickup(loc);
+  const handleSelectSuggestion = async (item: PlaceSuggestion | PlacePreset) => {
+    // If it's a preset or already has coordinates:
+    if ('lat' in item && typeof item.lat === 'number' && typeof item.lng === 'number') {
+      const loc: LocationSelection = {
+        lat: item.lat,
+        lng: item.lng,
+        address: item.name,
+      };
+      if (pickerTarget === 'DROP') {
+        setBookingStarted(true);
+        setDrop(loc);
+      } else {
+        setPickup(loc);
+      }
+      closePlacePicker();
+      return;
     }
-    closePlacePicker();
-    setPlaceSearchQuery('');
+
+    // Google Place suggestion: fetch coordinates
+    try {
+      setIsSearchingPlaces(true);
+      const coords = await fetchPlaceCoordinates(item.id, {
+        sessionToken: placesSessionTokenRef.current || undefined,
+      });
+      if (coords) {
+        const loc: LocationSelection = {
+          lat: coords.lat,
+          lng: coords.lng,
+          address: coords.address || item.name,
+        };
+        if (pickerTarget === 'DROP') {
+          setBookingStarted(true);
+          setDrop(loc);
+        } else {
+          setPickup(loc);
+        }
+        closePlacePicker();
+      } else {
+        setSubmitError('Could not locate the selected place. Try choosing on map.');
+      }
+    } catch {
+      setSubmitError('Could not reach Google Places. Please try again.');
+    } finally {
+      setIsSearchingPlaces(false);
+    }
+  };
+
+  const handleSelectPreset = (preset: PlacePreset) => {
+    void handleSelectSuggestion(preset);
   };
 
   const handleApplyCustomCoords = async () => {
@@ -304,16 +490,40 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
     setCustomLng('');
   };
 
-  const handleSaveCurrentAsTemplate = async () => {
-    const label = `${pickup.address.split(',')[0]} → ${drop.address.split(',')[0]}`;
-    await addTemplate({
-      label,
-      mode,
-      pickup,
-      drop,
+  const matchingTemplate = useMemo(() => {
+    return templates.find((t) => {
+      if (t.mode !== mode) return false;
+      const samePickup =
+        (Math.abs(t.pickup.lat - pickup.lat) < 0.0002 && Math.abs(t.pickup.lng - pickup.lng) < 0.0002) ||
+        t.pickup.address.trim().toLowerCase() === pickup.address.trim().toLowerCase();
+      const sameDrop =
+        (Math.abs(t.drop.lat - drop.lat) < 0.0002 && Math.abs(t.drop.lng - drop.lng) < 0.0002) ||
+        t.drop.address.trim().toLowerCase() === drop.address.trim().toLowerCase();
+      return samePickup && sameDrop;
     });
-    setTemplateSavedToast('Saved to your Route Templates');
-    setTimeout(() => setTemplateSavedToast(null), 2600);
+  }, [templates, mode, pickup, drop]);
+
+  const isRouteSaved = Boolean(matchingTemplate);
+
+  const handleToggleSaveRoute = async () => {
+    try {
+      if (matchingTemplate) {
+        await removeTemplate(matchingTemplate.id);
+        setTemplateSavedToast('Removed from saved routes');
+      } else {
+        const label = `${pickup.address.split(',')[0]} → ${drop.address.split(',')[0]}`;
+        await addTemplate({
+          label,
+          mode,
+          pickup,
+          drop,
+        });
+        setTemplateSavedToast('Route saved to favorites');
+      }
+    } catch {
+      setTemplateSavedToast('Could not update saved routes');
+    }
+    setTimeout(() => setTemplateSavedToast(null), 2500);
   };
 
   const handleBookRide = async () => {
@@ -321,7 +531,11 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
     setSubmitError(null);
 
     let passengerName = profile?.name?.trim() || 'Cabzone Rider';
-    let passengerPhone = user?.phoneE164 || '+919876543210';
+    let passengerPhone = user?.phoneE164 ?? '';
+    if (!forSomeoneElse && !passengerPhone) {
+      setSubmitError('Your phone number is missing. Please sign in again.');
+      return;
+    }
 
     if (forSomeoneElse) {
       const trimmedName = guestName.trim();
@@ -416,6 +630,35 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
     });
   }, [placeSearchQuery]);
 
+  const displayItems = useMemo(() => {
+    const q = placeSearchQuery.trim();
+    if (!q) {
+      return PLACE_PRESETS.map((p) => ({
+        id: p.id,
+        name: p.name,
+        subtitle: p.subtitle,
+        isPreset: true,
+        lat: p.lat,
+        lng: p.lng,
+        category: p.category,
+      }));
+    }
+
+    if (autocompleteResults.length > 0) {
+      return autocompleteResults;
+    }
+
+    return filteredPresets.map((p) => ({
+      id: p.id,
+      name: p.name,
+      subtitle: p.subtitle,
+      isPreset: true,
+      lat: p.lat,
+      lng: p.lng,
+      category: p.category,
+    }));
+  }, [placeSearchQuery, autocompleteResults, filteredPresets]);
+
   const pinCandidate: LocationSelection | null =
     customLat !== '' && customLng !== ''
       ? {
@@ -450,281 +693,97 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
     [mode, templates],
   );
 
-  const bookingForm = (
-    <>
-      {/* Pickup & Drop Selector Card */}
-      <View style={styles.routeCard}>
-        <View style={styles.routeInputsCol}>
-          <Pressable
-            style={styles.locationRow}
-            onPress={() => {
-              openPlacePicker('PICKUP');
-            }}
-          >
-            <View style={[styles.dotIndicator, { backgroundColor: colors.success }]} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.locationLabel}>PICKUP LOCATION</Text>
-              <Text style={styles.locationValue} numberOfLines={1}>
-                {pickup.address}
-              </Text>
-            </View>
-            <Ionicons name="search-outline" size={18} color={colors.secondary} />
-          </Pressable>
+  const isMinFare = activeQuote ? proposedFarePaise <= activeQuote.negotiation.floorPaise : false;
+  const isMaxFare = activeQuote ? proposedFarePaise >= activeQuote.negotiation.ceilingPaise : false;
 
-          <View style={styles.routeDivider} />
-
-          <Pressable
-            style={styles.locationRow}
-            onPress={() => {
-              openPlacePicker('DROP');
-            }}
-          >
-            <View style={[styles.dotIndicator, { backgroundColor: colors.brandBrown }]} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.locationLabel}>DROP-OFF DESTINATION</Text>
-              <Text style={styles.locationValue} numberOfLines={1}>
-                {drop.address}
-              </Text>
-            </View>
-            <Ionicons name="search-outline" size={18} color={colors.secondary} />
-          </Pressable>
-        </View>
-
+  const topCard = (
+    <View style={styles.topCardWrapper}>
+      <View style={styles.topFloatingCard}>
+        {/* Back Button */}
         <Pressable
-          style={styles.swapButton}
-          onPress={handleSwapLocations}
-          accessibilityLabel="Swap pickup and drop locations"
+          style={styles.topBackBtn}
+          onPress={handleBack}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          <Ionicons name="swap-vertical" size={20} color={colors.deepBrown} />
-        </Pressable>
-      </View>
-
-      {/* Gate / Landmark Note + Save Route Template Row */}
-      <View style={styles.noteAndTemplateRow}>
-        <View style={styles.noteInputWrap}>
-          <Ionicons name="location-outline" size={16} color={colors.secondary} />
-          <TextInput
-            style={styles.noteInput}
-            placeholder="Gate, apartment, or landmark note (optional)"
-            placeholderTextColor={colors.muted}
-            value={locationNote}
-            onChangeText={setLocationNote}
-          />
-        </View>
-        <Pressable style={styles.saveTemplateBtn} onPress={handleSaveCurrentAsTemplate}>
-          <Ionicons name="bookmark-outline" size={16} color={colors.deepBrown} />
-          <Text style={styles.saveTemplateBtnText}>Save</Text>
-        </Pressable>
-      </View>
-
-      {templateSavedToast ? <Text style={styles.toastText}>✓ {templateSavedToast}</Text> : null}
-
-      {/* Saved Templates Quick Bar */}
-      {modeTemplates.length > 0 ? (
-        <View style={styles.templatesStrip}>
-          <Text style={styles.sectionMiniLabel}>Saved routes</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            {modeTemplates.map((tpl) => (
-              <Pressable
-                key={tpl.id}
-                style={styles.templateChip}
-                onPress={() => {
-                  setPickup(tpl.pickup);
-                  setDrop(tpl.drop);
-                  setBookingStarted(true);
-                }}
-              >
-                <Ionicons name="flash-outline" size={13} color={colors.brandBrown} />
-                <Text style={styles.templateChipText} numberOfLines={1}>
-                  {tpl.label}
-                </Text>
-              </Pressable>
-            ))}
-          </ScrollView>
-        </View>
-      ) : null}
-
-      {/* Vehicle Class Selector (CAB Active, E_RICKSHAW Coming soon) */}
-      <Text style={styles.sectionTitle}>Choose a ride</Text>
-      <View style={styles.vehicleRow}>
-        <Pressable
-          style={[styles.vehicleCard, selectedCategory === 'CAB' && styles.vehicleCardActive]}
-          onPress={() => setSelectedCategory('CAB')}
-        >
-          <View style={styles.vehicleCardHeader}>
-            <Ionicons name="car-sport" size={24} color={colors.deepBrown} />
-            <View style={styles.activePill}>
-              <Text style={styles.activePillText}>4 Seats</Text>
-            </View>
-          </View>
-          <Text style={styles.vehicleTitle}>Cabzone Cab</Text>
-          <Text style={styles.vehicleSubtitle}>
-            {mode === 'OUTSTATION' ? 'AC Highway & Hills Cab' : 'AC Hatchback / Sedan'}
-          </Text>
-          <Text style={styles.vehicleFareText}>
-            {activeQuote
-              ? formatRupeesFromPaise(activeQuote.suggestedFarePaise)
-              : isLoadingQuote
-                ? 'Calculating...'
-                : '--'}
-          </Text>
+          <Ionicons name="arrow-back" size={24} color="#111827" />
         </Pressable>
 
-        <View style={[styles.vehicleCard, styles.vehicleCardDisabled]}>
-          <View style={styles.vehicleCardHeader}>
-            <Ionicons name="bicycle" size={24} color={colors.muted} />
-            <View style={styles.comingSoonPill}>
-              <Text style={styles.comingSoonPillText}>SOON</Text>
-            </View>
-          </View>
-          <Text style={[styles.vehicleTitle, { color: colors.secondary }]}>E-Rickshaw</Text>
-          <Text style={styles.vehicleSubtitle}>Short city hops only</Text>
-          <Text style={[styles.vehicleFareText, { color: colors.muted }]}>Coming soon</Text>
-        </View>
-      </View>
-
-      {/* Negotiable Fare Card */}
-      <View style={styles.fareCard}>
-        <View style={styles.fareHeaderRow}>
-          <View>
-            <Text style={styles.fareCardLabel}>Your fare</Text>
-            <Text style={styles.fareCardSub}>
-              {activeQuote
-                ? `Allowed range: ${formatRupeesFromPaise(activeQuote.negotiation.floorPaise)} – ${formatRupeesFromPaise(activeQuote.negotiation.ceilingPaise)}`
-                : 'Choose pickup and destination'}
+        {/* Route Points & Addresses */}
+        <View style={styles.topRouteContent}>
+          {/* Pickup Row */}
+          <Pressable
+            style={styles.topLocationRow}
+            onPress={() => openPlacePicker('PICKUP')}
+            accessibilityRole="button"
+            accessibilityLabel={`Pickup location: ${pickup.address}`}
+          >
+            <RoutePointIcon type="pickup" size={16} />
+            <Text style={styles.topAddressText} numberOfLines={1}>
+              {pickup.address}
             </Text>
-          </View>
-          {activeQuote && proposedFarePaise !== activeQuote.suggestedFarePaise ? (
-            <Pressable
-              style={styles.resetSuggestedChip}
-              onPress={() => {
-                setProposedFarePaise(activeQuote.suggestedFarePaise);
-                setCustomFareInput(String(Math.round(activeQuote.suggestedFarePaise / 100)));
-              }}
-            >
-              <Text style={styles.resetSuggestedText}>
-                Reset ({formatRupeesFromPaise(activeQuote.suggestedFarePaise)})
-              </Text>
-            </Pressable>
-          ) : null}
+          </Pressable>
+
+          {/* Connector Line */}
+          <View style={styles.topConnectorLine} />
+
+          {/* Drop Row */}
+          <Pressable
+            style={styles.topLocationRow}
+            onPress={() => openPlacePicker('DROP')}
+            accessibilityRole="button"
+            accessibilityLabel={`Drop-off destination: ${drop.address}`}
+          >
+            <RoutePointIcon type="drop" size={16} />
+            <Text style={styles.topAddressText} numberOfLines={1}>
+              {drop.address}
+            </Text>
+          </Pressable>
         </View>
 
-        {isLoadingQuote ? (
-          <View style={styles.loadingBox}>
-            <ActivityIndicator color={colors.deepBrown} />
-            <Text style={styles.loadingText}>Getting your fare...</Text>
-          </View>
-        ) : quoteError ? (
-          <View style={styles.errorBox}>
-            <Ionicons name="alert-circle" size={18} color={colors.error} />
-            <Text style={styles.errorText}>{quoteError}</Text>
-            <Pressable style={styles.retryChip} onPress={() => void fetchQuotes()}>
-              <Text style={styles.retryChipText}>Retry</Text>
-            </Pressable>
-          </View>
-        ) : activeQuote ? (
-          <>
-            <View style={styles.stepperRow}>
-              <Pressable
-                style={[
-                  styles.stepperBtn,
-                  proposedFarePaise <= activeQuote.negotiation.floorPaise &&
-                    styles.stepperBtnDisabled,
-                ]}
-                onPress={() => handleAdjustFare(-1000)}
-                disabled={proposedFarePaise <= activeQuote.negotiation.floorPaise}
-                accessibilityRole="button"
-                accessibilityLabel="Decrease fare offer by 10 rupees"
-                accessibilityState={{
-                  disabled: proposedFarePaise <= activeQuote.negotiation.floorPaise,
-                }}
-              >
-                <Text style={styles.stepperBtnText}>− ₹10</Text>
-              </Pressable>
+        {/* Actions Column (Star + Swap) */}
+        <View style={styles.topActionsCol}>
+          <Pressable
+            style={styles.topActionIconBtn}
+            onPress={() => void handleToggleSaveRoute()}
+            accessibilityRole="button"
+            accessibilityLabel={isRouteSaved ? 'Unsave this route' : 'Save route to favorites'}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons
+              name={isRouteSaved ? 'star' : 'star-outline'}
+              size={22}
+              color={isRouteSaved ? '#D97706' : '#111827'}
+            />
+          </Pressable>
 
-              <Pressable
-                style={styles.fareDisplayCenter}
-                onPress={() => setIsEditingFare(true)}
-                accessibilityRole="button"
-                accessibilityLabel={`Proposed fare ${formatRupeesFromPaise(proposedFarePaise)}, tap to edit`}
-              >
-                {isEditingFare ? (
-                  <TextInput
-                    style={styles.fareNumericInput}
-                    value={customFareInput}
-                    onChangeText={setCustomFareInput}
-                    keyboardType="numeric"
-                    autoFocus
-                    onBlur={handleCommitCustomFare}
-                    onSubmitEditing={handleCommitCustomFare}
-                  />
-                ) : (
-                  <>
-                    <Text style={styles.proposedFareBig}>
-                      {formatRupeesFromPaise(proposedFarePaise)}
-                    </Text>
-                    <Text style={styles.tapToEditHint}>Edit fare</Text>
-                  </>
-                )}
-              </Pressable>
-
-              <Pressable
-                style={[
-                  styles.stepperBtn,
-                  proposedFarePaise >= activeQuote.negotiation.ceilingPaise &&
-                    styles.stepperBtnDisabled,
-                ]}
-                onPress={() => handleAdjustFare(1000)}
-                disabled={proposedFarePaise >= activeQuote.negotiation.ceilingPaise}
-                accessibilityRole="button"
-                accessibilityLabel="Increase fare offer by 10 rupees"
-                accessibilityState={{
-                  disabled: proposedFarePaise >= activeQuote.negotiation.ceilingPaise,
-                }}
-              >
-                <Text style={styles.stepperBtnText}>+ ₹10</Text>
-              </Pressable>
-            </View>
-
-            {activeQuote ? (
-              <Text style={{ fontSize: 12, color: colors.secondary }}>
-                {tollDisclosure(activeQuote.tollSnapshot)}
-              </Text>
-            ) : null}
-            {(activeQuote.arrearsPaise ?? 0) > 0 ? (
-              <View style={styles.bufferNotice}>
-                <Ionicons name="information-circle-outline" size={15} color={colors.brandBrown} />
-                <Text style={styles.bufferNoticeText}>
-                  {`Ride offer ${formatRupeesFromPaise(proposedFarePaise)} + ${formatRupeesFromPaise(activeQuote.arrearsPaise ?? 0)} previous cancellation fee = ${formatRupeesFromPaise(proposedFarePaise + (activeQuote.arrearsPaise ?? 0))} estimated total. Payable via Cash or UPI after your trip.`}
-                </Text>
-              </View>
-            ) : null}
-            {activeQuote.bufferApplied ? (
-              <View style={styles.bufferNotice}>
-                <Ionicons name="information-circle-outline" size={15} color={colors.brandBrown} />
-                <Text style={styles.bufferNoticeText}>
-                  Includes buffer zone surcharge ({activeQuote.cityName || 'City boundary'})
-                </Text>
-              </View>
-            ) : null}
-          </>
-        ) : null}
+          <Pressable
+            style={styles.topActionIconBtn}
+            onPress={handleSwapLocations}
+            accessibilityRole="button"
+            accessibilityLabel="Swap pickup and drop-off locations"
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="swap-vertical" size={22} color="#111827" />
+          </Pressable>
+        </View>
       </View>
 
-      {submitError ? (
-        <View style={styles.errorBox}>
-          <Ionicons name="warning-outline" size={18} color={colors.error} />
-          <Text style={styles.errorText}>{submitError}</Text>
+      {templateSavedToast ? (
+        <View style={styles.toastPill}>
+          <Text style={styles.toastText}>✓ {templateSavedToast}</Text>
         </View>
       ) : null}
+    </View>
+  );
 
-      {activeQuote ? (
-        <Text style={styles.fareCardSub}>
-          Free cancellation while searching or within grace period after assignment; standard fee
-          applies later or after driver arrival.
-        </Text>
-      ) : null}
+  const bottomCard = (
+    <View style={styles.bottomSheetContainer}>
+      {/* Top Drag Handle */}
+      <View style={styles.sheetDragHandle} />
 
+      {/* Active Ride Recovery Banner if active */}
       {activeRide ? (
         <Pressable
           style={styles.activeRideBanner}
@@ -756,39 +815,161 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
         </Pressable>
       ) : null}
 
-      {/* Primary Book Ride CTA */}
-      <Pressable
-        style={[
-          styles.bookButton,
-          (!activeQuote || activeRide || isLoadingQuote || isSubmittingRide) &&
-            styles.bookButtonDisabled,
-        ]}
-        onPress={() => void handleBookRide()}
-        disabled={!activeQuote || !!activeRide || isLoadingQuote || isSubmittingRide}
-        accessibilityRole="button"
-        accessibilityLabel={
-          activeQuote
-            ? `Find ${selectedCategory === 'CAB' ? 'Cab' : 'Ride'} for ${formatRupeesFromPaise(proposedFarePaise)}`
-            : 'Find Ride'
-        }
-        accessibilityState={{
-          disabled: !activeQuote || !!activeRide || isLoadingQuote || isSubmittingRide,
-          busy: isSubmittingRide,
-        }}
-      >
-        {isSubmittingRide ? (
-          <ActivityIndicator color={colors.deepBrown} />
-        ) : (
-          <>
-            <Text style={styles.bookButtonText}>
-              Find {selectedCategory === 'CAB' ? 'Cab' : 'Ride'} ·{' '}
-              {activeQuote ? formatRupeesFromPaise(proposedFarePaise) : '--'}
-            </Text>
-            <Ionicons name="arrow-forward" size={20} color={colors.deepBrown} />
-          </>
-        )}
-      </Pressable>
-    </>
+      {/* Fare Section Header: Your fare | Edit fare */}
+      <View style={styles.fareHeaderRow}>
+        <Text style={styles.fareTitleText}>Your fare</Text>
+        {activeQuote ? (
+          <Pressable
+            style={styles.editFareRow}
+            onPress={handleOpenEditFare}
+            accessibilityRole="button"
+            accessibilityLabel="Edit fare amount"
+          >
+            <Ionicons name="pencil" size={15} color="#D97706" />
+            <Text style={styles.editFareText}>Edit fare</Text>
+          </Pressable>
+        ) : null}
+      </View>
+
+      {quoteError ? (
+        <View style={styles.errorBox}>
+          <Ionicons name="alert-circle" size={18} color={colors.error} />
+          <Text style={styles.errorText}>{quoteError}</Text>
+          <Pressable style={styles.retryChip} onPress={() => void fetchQuotes()}>
+            <Text style={styles.retryChipText}>Retry</Text>
+          </Pressable>
+        </View>
+      ) : (
+        <>
+          {/* Fare Counter Row (3 pills) */}
+          <View style={styles.farePillsRow}>
+            {/* Left Pill: Decrease fare by ₹10 */}
+            <Pressable
+              style={[
+                styles.fareAdjustPill,
+                (isMinFare || !activeQuote || isLoadingQuote || isSubmittingRide) &&
+                  styles.farePillDisabled,
+              ]}
+              onPress={() => handleAdjustFare(-1000)}
+              disabled={isMinFare || !activeQuote || isLoadingQuote || isSubmittingRide}
+              accessibilityRole="button"
+              accessibilityLabel="Decrease fare by 10 rupees"
+              accessibilityState={{ disabled: isMinFare || !activeQuote }}
+            >
+              <Text style={styles.fareAdjustSign}>—</Text>
+              <Text style={styles.fareAdjustAmount}>₹10</Text>
+            </Pressable>
+
+            {/* Center Pill: Hero Proposed Fare */}
+            <View style={styles.fareHeroPill}>
+              {isLoadingQuote ? (
+                <ActivityIndicator color="#111827" size="small" />
+              ) : (
+                <Text style={styles.fareHeroAmount}>
+                  {activeQuote ? formatRupeesFromPaise(proposedFarePaise) : '--'}
+                </Text>
+              )}
+            </View>
+
+            {/* Right Pill: Increase fare by ₹10 */}
+            <Pressable
+              style={[
+                styles.fareAdjustPill,
+                (isMaxFare || !activeQuote || isLoadingQuote || isSubmittingRide) &&
+                  styles.farePillDisabled,
+              ]}
+              onPress={() => handleAdjustFare(1000)}
+              disabled={isMaxFare || !activeQuote || isLoadingQuote || isSubmittingRide}
+              accessibilityRole="button"
+              accessibilityLabel="Increase fare by 10 rupees"
+              accessibilityState={{ disabled: isMaxFare || !activeQuote }}
+            >
+              <Text style={styles.fareAdjustSign}>+</Text>
+              <Text style={styles.fareAdjustAmount}>₹10</Text>
+            </Pressable>
+          </View>
+
+          {/* Toll disclosure subtext */}
+          <Text style={styles.tollDisclaimerText}>Toll/permit extra (at actuals).</Text>
+
+          {/* Hero CTA Button: Find Cab -> */}
+          <Pressable
+            style={[
+              styles.findCabHeroButton,
+              (!activeQuote || !!activeRide || isLoadingQuote || isSubmittingRide) &&
+                styles.findCabHeroDisabled,
+            ]}
+            onPress={() => void handleBookRide()}
+            disabled={!activeQuote || !!activeRide || isLoadingQuote || isSubmittingRide}
+            accessibilityRole="button"
+            accessibilityLabel={
+              activeQuote
+                ? `Find ${selectedCategory === 'CAB' ? 'Cab' : 'Ride'} for ${formatRupeesFromPaise(proposedFarePaise)}`
+                : 'Find Cab'
+            }
+            accessibilityState={{
+              disabled: !activeQuote || !!activeRide || isLoadingQuote || isSubmittingRide,
+              busy: isSubmittingRide,
+            }}
+          >
+            {isSubmittingRide ? (
+              <View style={styles.submittingContent}>
+                <ActivityIndicator color="#111827" size="small" />
+                <Text style={styles.findCabHeroText}>Finding cab...</Text>
+              </View>
+            ) : (
+              <View style={styles.findCabRow}>
+                <Text style={styles.findCabHeroText}>Find Cab</Text>
+                <Ionicons name="arrow-forward" size={20} color="#111827" />
+              </View>
+            )}
+          </Pressable>
+        </>
+      )}
+
+      {submitError ? (
+        <View style={styles.errorBox}>
+          <Ionicons name="warning-outline" size={18} color={colors.error} />
+          <Text style={styles.errorText}>{submitError}</Text>
+        </View>
+      ) : null}
+
+      {(activeQuote?.arrearsPaise ?? 0) > 0 ? (
+        <View style={styles.bufferNotice}>
+          <Ionicons name="information-circle-outline" size={15} color={colors.brandBrown} />
+          <Text style={styles.bufferNoticeText}>
+            {`Ride offer ${formatRupeesFromPaise(proposedFarePaise)} + ${formatRupeesFromPaise(activeQuote?.arrearsPaise ?? 0)} previous cancellation fee = ${formatRupeesFromPaise(proposedFarePaise + (activeQuote?.arrearsPaise ?? 0))} estimated total. Payable via Cash or UPI after your trip.`}
+          </Text>
+        </View>
+      ) : null}
+
+      {activeQuote?.bufferApplied ? (
+        <View style={styles.bufferNotice}>
+          <Ionicons name="information-circle-outline" size={15} color={colors.brandBrown} />
+          <Text style={styles.bufferNoticeText}>
+            Includes buffer zone surcharge ({activeQuote.cityName || 'City boundary'})
+          </Text>
+        </View>
+      ) : null}
+
+      {activeQuote?.stateBreakdown && activeQuote.stateBreakdown.length > 1 ? (
+        <View style={styles.stateBreakdownBox}>
+          <Text style={styles.stateBreakdownTitle}>Fare by state</Text>
+          {activeQuote.stateBreakdown.map((seg) => (
+            <View key={seg.stateCode} style={styles.stateSegmentRow}>
+              <Text style={styles.stateSegmentText}>
+                {seg.stateName || seg.stateCode} ({seg.distanceKm.toFixed(1)} km)
+              </Text>
+              {seg.distanceFarePaise ? (
+                <Text style={styles.stateSegmentFare}>
+                  {formatRupeesFromPaise(seg.distanceFarePaise)}
+                </Text>
+              ) : null}
+            </View>
+          ))}
+        </View>
+      ) : null}
+    </View>
   );
 
   const dialogs = (
@@ -802,7 +983,7 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
         <SafeAreaView style={styles.placePickerScreen} edges={['top', 'bottom']}>
           <KeyboardAvoidingView
             style={styles.placePickerContent}
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           >
             <View style={styles.placePickerHeader}>
               <Pressable
@@ -819,15 +1000,27 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
             </View>
 
             {pickerTarget === 'DROP' && (
-              <View style={styles.placePickupRow}>
-                <Ionicons name="ellipse" size={13} color={colors.success} />
+              <Pressable
+                style={styles.placePickupRow}
+                accessibilityRole="button"
+                accessibilityLabel={`Pickup point: ${pickup.address}. Tap to change.`}
+                onPress={() => {
+                  setPickerTarget('PICKUP');
+                  setPlaceSearchQuery('');
+                  setAutocompleteResults([]);
+                }}
+              >
+                <RoutePointIcon type="pickup" size={16} />
                 <View style={styles.placePickupCopy}>
-                  <Text style={styles.placePickupLabel}>PICKUP</Text>
+                  <Text style={styles.placePickupLabel}>PICKUP (TAP TO CHANGE)</Text>
                   <Text style={styles.placePickupAddress} numberOfLines={1}>
                     {pickup.address}
                   </Text>
                 </View>
-              </View>
+                <View style={styles.placePickupChangeBadge}>
+                  <Text style={styles.placePickupChangeText}>Change</Text>
+                </View>
+              </Pressable>
             )}
 
             {pickerOnMap ? (
@@ -837,6 +1030,7 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
                     pickup={pickerTarget === 'PICKUP' && pinCandidate ? pinCandidate : pickup}
                     drop={pickerTarget === 'DROP' && pinCandidate ? pinCandidate : undefined}
                     bottomInset={0}
+                    interactivePinMode={true}
                     onEditPickup={() => {}}
                     onSelectPoint={(lat, lng) => {
                       setCustomLat(String(lat));
@@ -879,13 +1073,31 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
                   <Ionicons name="search" size={21} color={colors.secondary} />
                   <TextInput
                     style={styles.placeSearchInput}
-                    placeholder="Search popular places"
+                    placeholder="Search address or landmark"
                     placeholderTextColor={colors.muted}
                     value={placeSearchQuery}
                     onChangeText={setPlaceSearchQuery}
                     autoFocus
                     returnKeyType="search"
+                    accessibilityLabel="Search places"
                   />
+                  {isSearchingPlaces && (
+                    <ActivityIndicator size="small" color={colors.brandBrown} />
+                  )}
+                  {placeSearchQuery.length > 0 && !isSearchingPlaces && (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Clear search"
+                      onPress={() => {
+                        setPlaceSearchQuery('');
+                        setAutocompleteResults([]);
+                      }}
+                      hitSlop={8}
+                      style={styles.placeClearBtn}
+                    >
+                      <Ionicons name="close-circle" size={20} color={colors.muted} />
+                    </Pressable>
+                  )}
                 </View>
                 {pickerTarget === 'PICKUP' && (
                   <Pressable
@@ -911,17 +1123,26 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
                   keyboardShouldPersistTaps="handled"
                 >
                   <Text style={styles.placeResultsLabel}>
-                    {placeSearchQuery.trim() ? 'MATCHING PLACES' : 'POPULAR PLACES'}
+                    {placeSearchQuery.trim()
+                      ? autocompleteResults.length > 0
+                        ? 'SEARCH RESULTS'
+                        : 'MATCHING PLACES'
+                      : 'POPULAR PLACES'}
                   </Text>
-                  {filteredPresets.map((item) => (
+                  {displayItems.map((item) => (
                     <Pressable
                       key={item.id}
                       style={styles.presetItem}
                       accessibilityRole="button"
-                      onPress={() => handleSelectPreset(item)}
+                      accessibilityLabel={`Select ${item.name}`}
+                      onPress={() => void handleSelectSuggestion(item)}
                     >
                       <Ionicons
-                        name={item.category === 'AIRPORT' ? 'airplane-outline' : 'location-outline'}
+                        name={
+                          'category' in item && item.category === 'AIRPORT'
+                            ? 'airplane-outline'
+                            : 'location-outline'
+                        }
                         size={22}
                         color={colors.brandBrown}
                       />
@@ -936,7 +1157,7 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
                       <Ionicons name="chevron-forward" size={18} color={colors.muted} />
                     </Pressable>
                   ))}
-                  {filteredPresets.length === 0 && (
+                  {displayItems.length === 0 && !isSearchingPlaces && (
                     <Text style={styles.placeEmpty}>
                       No matching place. You can choose a point on the map.
                     </Text>
@@ -1035,6 +1256,88 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
           </View>
         </View>
       </Modal>
+      {/* Edit Fare Modal */}
+      <Modal
+        visible={showEditFareModal}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setShowEditFareModal(false)}
+      >
+        <KeyboardAvoidingView
+          style={styles.modalBackdrop}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Set your fare</Text>
+              <Pressable
+                onPress={() => setShowEditFareModal(false)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Ionicons name="close-circle" size={26} color={colors.secondary} />
+              </Pressable>
+            </View>
+
+         
+
+            <View style={styles.fareInputWrapper}>
+              <Text style={styles.fareInputCurrency}>₹</Text>
+              <TextInput
+                style={styles.fareInputField}
+                value={editFareInput}
+                onChangeText={handleFareInputChange}
+                keyboardType="numeric"
+                autoFocus
+                maxLength={6}
+                placeholder="0"
+                placeholderTextColor={colors.muted}
+                selectionColor={colors.deepBrown}
+              />
+            </View>
+
+            {editFareError ? (
+              <Text style={styles.fareInlineError}>{editFareError}</Text>
+            ) : null}
+
+            {activeQuote &&
+            Math.round(proposedFarePaise / 100) !==
+              Math.round(activeQuote.suggestedFarePaise / 100) ? (
+              <Pressable
+                style={styles.resetFareChip}
+                onPress={() => {
+                  const suggested = String(Math.round(activeQuote.suggestedFarePaise / 100));
+                  setEditFareInput(suggested);
+                  setEditFareError(null);
+                }}
+              >
+                <Ionicons name="refresh" size={13} color={colors.brandBrown} />
+                <Text style={styles.resetFareChipText}>
+                  Reset to suggested ({formatRupeesFromPaise(activeQuote.suggestedFarePaise)})
+                </Text>
+              </Pressable>
+            ) : null}
+
+            <View style={styles.modalButtonsRow}>
+              <Pressable
+                style={styles.modalCancelBtn}
+                onPress={() => setShowEditFareModal(false)}
+              >
+                <Text style={styles.modalCancelBtnText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={[
+                  styles.modalApplyBtn,
+                  (Boolean(editFareError) || !editFareInput) && styles.modalApplyBtnDisabled,
+                ]}
+                onPress={handleApplyCustomFare}
+                disabled={Boolean(editFareError) || !editFareInput}
+              >
+                <Text style={styles.modalApplyBtnText}>Apply Fare</Text>
+              </Pressable>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </>
   );
 
@@ -1078,143 +1381,60 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
             label: forSomeoneElse && guestName.trim() ? guestName.trim() : 'For me',
             onPress: () => setShowPassengerModal(true),
           }}
-        >
-          {bookingForm}
-        </BookingHome>
+          onBack={handleBack}
+          topCard={topCard}
+          bottomCard={bottomCard}
+        />
         {dialogs}
       </>
     );
   }
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
-      keyboardShouldPersistTaps="handled"
-    >
-      {/* Active Ride Recovery Banner */}
-      {activeRide ? (
-        <Pressable
-          style={styles.activeRideBanner}
-          onPress={() => router.push(`/(rider)/ride/${activeRide.id}`)}
-        >
-          <View style={styles.activeRideBannerLeft}>
-            <View style={styles.pulseDot} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.activeRideBannerTitle}>
-                Active Ride · {getRideStatusMeta(activeRide.status).label}
-              </Text>
-              <Text style={styles.activeRideBannerSub} numberOfLines={1}>
-                {activeRide.status === 'PAYMENT_PENDING' ||
-                activeRide.status === 'TRIP_COMPLETED' ||
-                activeRide.status === 'PAYMENT_UNPAID'
-                  ? 'Pay via UPI or confirm cash paid to unlock your next booking'
-                  : activeRide.pickupOtp
-                    ? `Pickup OTP: ${activeRide.pickupOtp} · Tap to open live trip`
-                    : 'Tap to view live driver status & counter-offers'}
-              </Text>
-            </View>
-          </View>
-          <Ionicons name="chevron-forward" size={20} color={colors.deepBrown} />
-        </Pressable>
-      ) : null}
-
-      {/* Header & Passenger Selector Pill */}
-      <View style={styles.headerRow}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.eyebrow}>
-            {mode === 'OUTSTATION'
-              ? 'INTERCITY · OUTSTATION'
-              : `${preferences.operationalCity.toUpperCase()} · IN-CITY`}
-          </Text>
-          <Text style={styles.headerTitle}>
-            {mode === 'OUTSTATION' ? 'City-to-City Rides' : 'Where are you going?'}
-          </Text>
-        </View>
-
-        <Pressable style={styles.passengerPill} onPress={() => setShowPassengerModal(true)}>
-          <Ionicons name="person-circle-outline" size={18} color={colors.deepBrown} />
-          <Text style={styles.passengerPillText} numberOfLines={1}>
-            {forSomeoneElse && guestName.trim() ? guestName.trim() : 'For Me'}
-          </Text>
-          <Ionicons name="chevron-down" size={14} color={colors.secondary} />
-        </Pressable>
-      </View>
-
-      {/* Visual Route Canvas Card */}
-      <View style={styles.mapCanvasCard}>
-        <View style={styles.mapCanvasTopRow}>
-          <View style={styles.classificationBadge}>
-            <Ionicons
-              name={mode === 'OUTSTATION' ? 'trail-sign-outline' : 'navigate-circle-outline'}
-              size={14}
-              color={colors.deepBrown}
-            />
-            <Text style={styles.classificationBadgeText}>
-              {activeQuote
-                ? `${activeQuote.serviceType}${activeQuote.routeScope === 'INTERSTATE' ? ' · INTERSTATE' : ''}`
-                : mode === 'OUTSTATION'
-                  ? 'OUTSTATION'
-                  : 'IN-CITY'}
-            </Text>
-          </View>
-          {activeQuote ? (
-            <Text style={styles.mapMetricsText}>
-              {formattedDistance} · ~{formattedDuration}
-            </Text>
-          ) : null}
-        </View>
-
-        {/* Visual Route Line between Pickup and Drop */}
-        <View style={styles.visualRouteTrack}>
-          <View style={styles.visualNode}>
-            <View style={[styles.visualPin, { backgroundColor: colors.success }]} />
-            <Text style={styles.visualNodeName} numberOfLines={1}>
-              {pickup.address.split(',')[0]}
-            </Text>
-            <Text style={styles.visualNodeCoord}>{pickup.address}</Text>
-          </View>
-
-          <View style={styles.visualRouteConnector}>
-            <View style={styles.visualDashedLine} />
-            <View style={styles.visualCarBadge}>
-              <Ionicons name="car-sport" size={16} color={colors.deepBrown} />
-            </View>
-            <View style={styles.visualDashedLine} />
-          </View>
-
-          <View style={[styles.visualNode, { alignItems: 'flex-end' }]}>
-            <View style={[styles.visualPin, { backgroundColor: colors.brandBrown }]} />
-            <Text style={styles.visualNodeName} numberOfLines={1}>
-              {drop.address.split(',')[0]}
-            </Text>
-            <Text style={styles.visualNodeCoord}>{drop.address}</Text>
-          </View>
-        </View>
-
-        {/* Interstate Segment Breakdown if applicable */}
-        {activeQuote?.stateBreakdown && activeQuote.stateBreakdown.length > 1 ? (
-          <View style={styles.stateBreakdownBox}>
-            <Text style={styles.stateBreakdownTitle}>Fare by state</Text>
-            {activeQuote.stateBreakdown.map((seg) => (
-              <View key={seg.stateCode} style={styles.stateSegmentRow}>
-                <Text style={styles.stateSegmentText}>
-                  {seg.stateName || seg.stateCode} ({seg.distanceKm.toFixed(1)} km)
-                </Text>
-                {seg.distanceFarePaise ? (
-                  <Text style={styles.stateSegmentFare}>
-                    {formatRupeesFromPaise(seg.distanceFarePaise)}
-                  </Text>
-                ) : null}
-              </View>
-            ))}
-          </View>
-        ) : null}
-      </View>
-
-      {bookingForm}
+    <>
+      <BookingHome
+        pickup={pickup}
+        drop={drop}
+        bookingStarted={bookingStarted}
+        onSearch={() => {
+          openPlacePicker('DROP');
+        }}
+        onEditPickup={() => {
+          openPlacePicker('PICKUP');
+        }}
+        onLocate={() => void handleUseCurrentGps('PICKUP')}
+        isLocating={isLocatingGps}
+        locationError={submitError}
+        templates={modeTemplates}
+        onSelectTemplate={(template) => {
+          setPickup(template.pickup);
+          setDrop(template.drop);
+          setBookingStarted(true);
+        }}
+        activeRide={
+          activeRide
+            ? {
+                label:
+                  activeRide.status === 'PAYMENT_PENDING' ||
+                  activeRide.status === 'TRIP_COMPLETED'
+                    ? `Pending payment (${formatRupeesFromPaise((activeRide.agreedFarePaise ?? activeRide.proposedFarePaise ?? activeRide.suggestedFarePaise) + (activeRide.arrearsPaise ?? 0))}) · Pay UPI or Confirm Cash`
+                    : activeRide.status === 'PAYMENT_UNPAID'
+                      ? `Unpaid fare due (${formatRupeesFromPaise((activeRide.agreedFarePaise ?? activeRide.proposedFarePaise ?? activeRide.suggestedFarePaise) + (activeRide.arrearsPaise ?? 0))}) · Tap to resolve`
+                      : getRideStatusMeta(activeRide.status).label + ' - View ride',
+                onPress: () => router.push(`/(rider)/ride/${activeRide.id}`),
+              }
+            : null
+        }
+        passenger={{
+          label: forSomeoneElse && guestName.trim() ? guestName.trim() : 'For me',
+          onPress: () => setShowPassengerModal(true),
+        }}
+        onBack={handleBack}
+        topCard={topCard}
+        bottomCard={bottomCard}
+      />
       {dialogs}
-    </ScrollView>
+    </>
   );
 }
 
@@ -1258,6 +1478,96 @@ const styles = StyleSheet.create({
     ...typography.caption,
     color: colors.deepBrown,
   },
+  headerLeftGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    flex: 1,
+  },
+  backButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.cream,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  selectRideBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.amber,
+    borderRadius: 18,
+    height: 58,
+    marginTop: spacing.xs,
+  },
+  selectRideBtnDisabled: {
+    opacity: 0.5,
+  },
+  selectRideBtnText: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: colors.deepBrown,
+  },
+  selectedRideBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.white,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 12,
+  },
+  selectedRideBadgeLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    flex: 1,
+  },
+  selectedRideIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: colors.warmBeige,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  selectedRideBadgeInfo: {
+    flex: 1,
+    gap: 2,
+  },
+  selectedRideBadgeTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  selectedRideTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.deepBrown,
+  },
+  selectedRideSubtitle: {
+    fontSize: 12,
+    color: colors.secondary,
+  },
+  changeRideButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: radii.pill,
+    backgroundColor: colors.cream,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  changeRideButtonText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.brandBrown,
+  },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1289,79 +1599,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.deepBrown,
   },
-  mapCanvasCard: {
-    backgroundColor: colors.cream,
-    borderRadius: radii.lg,
-    padding: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    gap: spacing.md,
-  },
-  mapCanvasTopRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  classificationBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    backgroundColor: colors.warmBeige,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: radii.pill,
-  },
-  classificationBadgeText: {
-    ...typography.label,
-    color: colors.deepBrown,
-  },
-  mapMetricsText: {
-    ...typography.bodyBold,
-    color: colors.deepBrown,
-  },
-  visualRouteTrack: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: spacing.xs,
-  },
-  visualNode: {
-    flex: 1,
-    gap: 2,
-  },
-  visualPin: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    marginBottom: 2,
-  },
-  visualNodeName: {
-    ...typography.caption,
-    fontWeight: '700',
-    color: colors.deepBrown,
-  },
-  visualNodeCoord: {
-    fontSize: 11,
-    color: colors.secondary,
-  },
-  visualRouteConnector: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.sm,
-  },
-  visualDashedLine: {
-    width: 24,
-    height: 2,
-    backgroundColor: colors.softAmber,
-  },
-  visualCarBadge: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: colors.amber,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   stateBreakdownBox: {
     backgroundColor: colors.white,
     borderRadius: radii.md,
@@ -1387,92 +1624,197 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.deepBrown,
   },
-  routeCard: {
+  topCardWrapper: {
+    width: '100%',
+    paddingHorizontal: 0,
+    paddingTop: 0,
+    alignItems: 'center',
+  },
+  topFloatingCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.white,
-    borderRadius: radii.lg,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    padding: spacing.md,
-    gap: spacing.sm,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    elevation: 8,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.14,
+    shadowRadius: 8,
+    width: '100%',
   },
-  routeInputsCol: {
+  topBackBtn: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 6,
+  },
+  topRouteContent: {
     flex: 1,
-    gap: spacing.sm,
+    paddingHorizontal: 4,
   },
-  locationRow: {
+  topLocationRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
+    gap: 10,
+    height: 26,
   },
-  dotIndicator: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-  },
-  locationLabel: {
-    fontSize: 11,
+  topAddressText: {
+    flex: 1,
+    fontSize: 15,
     fontWeight: '700',
-    color: colors.secondary,
-    letterSpacing: 0.4,
+    color: '#111827',
   },
-  locationValue: {
-    ...typography.bodyBold,
-    color: colors.deepBrown,
+  topConnectorLine: {
+    width: 2,
+    height: 12,
+    backgroundColor: '#059669',
+    marginLeft: 7,
+    marginVertical: 2,
   },
-  routeDivider: {
-    height: 1,
-    backgroundColor: colors.borderSubtle,
-    marginLeft: 18,
+  topActionsCol: {
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    height: 60,
+    paddingLeft: 8,
   },
-  swapButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.cream,
-    borderWidth: 1,
-    borderColor: colors.border,
+  topActionIconBtn: {
+    width: 32,
+    height: 28,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  noteAndTemplateRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
+  bottomSheetContainer: {
+    backgroundColor: '#FAF8F5',
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: Platform.OS === 'ios' ? 20 : 14,
+    elevation: 16,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    width: '100%',
   },
-  noteInputWrap: {
-    flex: 1,
+  sheetDragHandle: {
+    width: 44,
+    height: 4.5,
+    borderRadius: 2.5,
+    backgroundColor: '#D1D5DB',
+    alignSelf: 'center',
+    marginBottom: 12,
+  },
+  fareHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    backgroundColor: colors.surfaceMuted,
-    borderRadius: radii.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 10,
+    justifyContent: 'space-between',
+    paddingHorizontal: 2,
+    marginBottom: 4,
+  },
+  fareTitleText: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#111827',
+  },
+  editFareRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+  },
+  editFareText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#D97706',
+  },
+  farePillsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 12,
+    marginBottom: 6,
+  },
+  fareAdjustPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FEF3C7',
+    height: 58,
+    paddingHorizontal: 18,
+    borderRadius: 18,
+    gap: 5,
+  },
+  fareAdjustSign: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#111827',
+  },
+  fareAdjustAmount: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  farePillDisabled: {
+    opacity: 0.45,
+  },
+  fareHeroPill: {
+    flex: 1,
+    height: 60,
+    backgroundColor: '#FBBF24',
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fareHeroAmount: {
+    fontSize: 34,
+    fontWeight: '800',
+    color: '#111827',
+  },
+  tollDisclaimerText: {
+    textAlign: 'center',
+    fontSize: 13,
+    color: '#6B7280',
+    marginTop: 10,
+    marginBottom: 14,
+    fontWeight: '500',
+  },
+  findCabHeroButton: {
+    width: '100%',
+    height: 54,
+    backgroundColor: '#FBBF24',
+    borderRadius: 27,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  findCabHeroDisabled: {
+    opacity: 0.6,
+  },
+  findCabRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  findCabHeroText: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#111827',
+  },
+  toastPill: {
+    marginTop: 6,
+    backgroundColor: colors.white,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: radii.pill,
     borderWidth: 1,
     borderColor: colors.borderSubtle,
-  },
-  noteInput: {
-    flex: 1,
-    fontSize: 13,
-    color: colors.deepBrown,
-  },
-  saveTemplateBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: colors.cream,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 10,
-    borderRadius: radii.md,
-  },
-  saveTemplateBtnText: {
-    ...typography.caption,
-    fontWeight: '700',
-    color: colors.deepBrown,
+    boxShadow: '0 2px 8px rgba(38, 25, 17, 0.10)',
+    elevation: 4,
   },
   toastText: {
     ...typography.caption,
@@ -1569,83 +1911,6 @@ const styles = StyleSheet.create({
     color: colors.deepBrown,
     marginTop: 2,
   },
-  fareCard: {
-    backgroundColor: colors.cream,
-    borderRadius: radii.lg,
-    padding: spacing.md,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    gap: spacing.md,
-  },
-  fareHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    gap: spacing.sm,
-  },
-  fareCardLabel: {
-    ...typography.label,
-    color: colors.brandBrown,
-  },
-  fareCardSub: {
-    ...typography.caption,
-    color: colors.secondary,
-  },
-  resetSuggestedChip: {
-    backgroundColor: colors.warmBeige,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: radii.pill,
-  },
-  resetSuggestedText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.deepBrown,
-  },
-  stepperRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.md,
-  },
-  stepperBtn: {
-    backgroundColor: colors.white,
-    borderWidth: 1.5,
-    borderColor: colors.deepBrown,
-    borderRadius: radii.md,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: 12,
-  },
-  stepperBtnDisabled: {
-    opacity: 0.35,
-  },
-  stepperBtnText: {
-    ...typography.bodyBold,
-    color: colors.deepBrown,
-  },
-  fareDisplayCenter: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  proposedFareBig: {
-    fontSize: 30,
-    fontWeight: '800',
-    color: colors.deepBrown,
-  },
-  tapToEditHint: {
-    fontSize: 11,
-    color: colors.secondary,
-  },
-  fareNumericInput: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: colors.deepBrown,
-    borderBottomWidth: 2,
-    borderBottomColor: colors.deepBrown,
-    minWidth: 100,
-    textAlign: 'center',
-  },
   bufferNotice: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1712,6 +1977,198 @@ const styles = StyleSheet.create({
     ...typography.h2,
     color: colors.deepBrown,
   },
+
+  fareSectionWrap: {
+    gap: spacing.sm,
+  },
+  fareSectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 2,
+  },
+  fareSectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.deepBrown,
+  },
+  editFareButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+  },
+  editFareButtonText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.brandBrown,
+  },
+  unifiedActionBar: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    backgroundColor: colors.amber,
+    borderRadius: 18,
+    height: 76,
+    overflow: 'hidden',
+  },
+  unifiedActionBarDisabled: {
+    opacity: 0.85,
+  },
+  actionSectionSide: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  actionSectionDisabled: {
+    opacity: 0.35,
+  },
+  actionStepLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.deepBrown,
+    marginTop: 2,
+  },
+  actionBarDivider: {
+    width: 1,
+    backgroundColor: 'rgba(38, 25, 17, 0.15)',
+    marginVertical: 14,
+  },
+  actionSectionCenter: {
+    flex: 1.65,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: spacing.xs,
+  },
+  findCabContent: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  findCabTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  findCabTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: colors.deepBrown,
+    letterSpacing: -0.2,
+  },
+  findCabFare: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: colors.deepBrown,
+    marginTop: 1,
+  },
+  submittingContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  submittingText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.deepBrown,
+  },
+  supportingInfoBox: {
+    gap: 4,
+    marginTop: 2,
+    paddingHorizontal: 2,
+  },
+  supportingTollText: {
+    fontSize: 12,
+    color: colors.secondary,
+    lineHeight: 16,
+  },
+  supportingPolicyText: {
+    fontSize: 11,
+    color: colors.secondary,
+    lineHeight: 15,
+  },
+  fareRangeSubtitle: {
+    fontSize: 13,
+    color: colors.secondary,
+  },
+  fareInputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: radii.md,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+  },
+  fareInputCurrency: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: colors.deepBrown,
+    marginRight: 6,
+  },
+  fareInputField: {
+    fontSize: 32,
+    fontWeight: '800',
+    color: colors.deepBrown,
+    minWidth: 120,
+    textAlign: 'center',
+  },
+  fareInlineError: {
+    fontSize: 12,
+    color: colors.error,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  resetFareChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'center',
+    gap: 5,
+    backgroundColor: colors.warmBeige,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: radii.pill,
+  },
+  resetFareChipText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.deepBrown,
+  },
+  modalButtonsRow: {
+    flexDirection: 'row',
+    gap: spacing.md,
+    marginTop: spacing.xs,
+  },
+  modalCancelBtn: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.white,
+  },
+  modalCancelBtnText: {
+    ...typography.bodyBold,
+    color: colors.secondary,
+  },
+  modalApplyBtn: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    borderRadius: radii.md,
+    backgroundColor: colors.amber,
+  },
+  modalApplyBtnDisabled: {
+    opacity: 0.45,
+  },
+  modalApplyBtnText: {
+    ...typography.bodyBold,
+    color: colors.deepBrown,
+  },
   placePickerScreen: { flex: 1, backgroundColor: colors.white },
   placePickerContent: { flex: 1, paddingTop: spacing.sm },
   placePickerHeader: {
@@ -1743,6 +2200,16 @@ const styles = StyleSheet.create({
   placePickupCopy: { flex: 1, gap: 2 },
   placePickupLabel: { ...typography.label, color: colors.secondary },
   placePickupAddress: { ...typography.bodyBold, color: colors.deepBrown },
+  placePickupChangeBadge: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: radii.pill,
+    backgroundColor: colors.warningBg,
+  },
+  placePickupChangeText: {
+    ...typography.label,
+    color: colors.brandBrown,
+  },
   placeSearchBar: {
     minHeight: 60,
     flexDirection: 'row',
@@ -1756,6 +2223,11 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   placeSearchInput: { flex: 1, fontSize: 17, color: colors.deepBrown },
+  placeClearBtn: {
+    padding: spacing.xs,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   placeResultsScroll: { flex: 1 },
   placeResults: {
     paddingHorizontal: spacing.lg,
