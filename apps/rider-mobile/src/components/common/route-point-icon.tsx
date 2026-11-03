@@ -1,5 +1,6 @@
 import React from 'react';
-import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { View, type StyleProp, type ViewStyle } from 'react-native';
+import { createStyles } from '@/design-system';
 
 export interface RoutePointIconProps {
   type: 'pickup' | 'drop';
@@ -52,7 +53,7 @@ export function RouteConnector({ height = 24, style }: { height?: number; style?
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createStyles(() => ({
   outerContainer: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -70,4 +71,4 @@ const styles = StyleSheet.create({
     borderRadius: 1.5,
     backgroundColor: '#d1d5db',
   },
-});
+}));

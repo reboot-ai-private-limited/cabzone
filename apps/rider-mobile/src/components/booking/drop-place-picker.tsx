@@ -6,7 +6,6 @@ import {
   Platform,
   Pressable,
   ScrollView,
-  StyleSheet,
   Text,
   TextInput,
   View,
@@ -14,7 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { RoutePointIcon } from '@/components/common/route-point-icon';
-import { colors, radii, spacing, typography } from '@/design-system';
+import { colors, radii, spacing, typography, createStyles } from '@/design-system';
 
 export type PickerField = { kind: 'PICKUP' } | { kind: 'DROP' } | { kind: 'STOP'; index: number };
 
@@ -293,7 +292,7 @@ export function DropPlacePicker(props: DropPlacePickerProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createStyles(() => ({
   flex: { flex: 1 },
   screen: { flex: 1, backgroundColor: colors.white },
   header: {
@@ -375,4 +374,4 @@ const styles = StyleSheet.create({
   rowName: { ...typography.bodyBold, color: colors.deepBrown },
   rowAddress: { ...typography.caption, color: colors.secondary },
   empty: { ...typography.body, color: colors.secondary, paddingVertical: spacing.lg },
-});
+}));

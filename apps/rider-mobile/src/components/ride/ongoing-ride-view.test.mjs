@@ -114,7 +114,7 @@ function screen(clock = Date.now()) {
         };
       if (name.includes('use-reduced-motion')) return { useReducedMotion: () => true };
       if (name.includes('design-system'))
-        return { colors: {}, radii: {}, spacing: {}, typography: {} };
+        return { createStyles: (factory) => factory(), colors: {}, radii: {}, spacing: {}, typography: {} };
       if (name.includes('booking-map')) return { __esModule: true, default: 'BookingMap' };
       return {};
     },

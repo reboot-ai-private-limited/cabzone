@@ -4,13 +4,13 @@ import {
   ActivityIndicator,
   Pressable,
   ScrollView,
-  StyleSheet,
   Text,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { RideRouteStrip } from '@/components/ride/ride-route-strip';
 import { useRide } from '@/context/ride-context';
 import type { RiderRideViewDto } from '@/services/api';
 import {
@@ -19,7 +19,7 @@ import {
   isRideActive,
   isRideWithinRatingWindow,
 } from '@/services/rider-helpers';
-import { colors, radii, spacing, typography } from '@/design-system';
+import { colors, radii, spacing, typography, createStyles } from '@/design-system';
 
 type FilterTab = 'ALL' | 'COMPLETED' | 'CANCELLED';
 
@@ -257,14 +257,10 @@ export default function ActivityScreen() {
                     ) : null}
 
                     <View style={styles.historyRouteBlock}>
-                      <Text style={styles.historyAddress} numberOfLines={1}>
-                        🟢{' '}
-                        {locationLabel(ride.pickup.address, 'Pickup location')}
-                      </Text>
-                      <Text style={styles.historyAddress} numberOfLines={1}>
-                        🟤{' '}
-                        {locationLabel(ride.drop.address, 'Destination')}
-                      </Text>
+                      <RideRouteStrip
+                        pickup={locationLabel(ride.pickup.address, 'Pickup location')}
+                        drop={locationLabel(ride.drop.address, 'Destination')}
+                      />
                     </View>
                   </Pressable>
 
@@ -344,7 +340,7 @@ export default function ActivityScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createStyles(() => ({
   syncError: { ...typography.caption, color: colors.error },
   container: {
     flex: 1,
@@ -542,14 +538,7 @@ const styles = StyleSheet.create({
     color: colors.brandBrown,
   },
   historyRouteBlock: {
-    gap: 4,
-    backgroundColor: colors.surfaceMuted,
-    padding: spacing.sm,
-    borderRadius: radii.md,
-  },
-  historyAddress: {
-    fontSize: 13,
-    color: colors.deepBrown,
+    paddingVertical: spacing.sm,
   },
   historyActionsRow: {
     flexDirection: 'row',
@@ -577,4 +566,4 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.deepBrown,
   },
-});
+}));

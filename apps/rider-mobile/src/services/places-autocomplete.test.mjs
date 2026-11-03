@@ -107,3 +107,22 @@ test('fetchPlacePredictions and fetchPlaceCoordinates gracefully handle network 
     globalThis.fetch = originalFetch;
   }
 });
+
+test('fetchPlacePredictions drops the local bias when radiusMeters is 0 (city-to-city)', async () => {
+  const originalFetch = globalThis.fetch;
+  const urls = [];
+  try {
+    globalThis.fetch = async (url) => {
+      urls.push(String(url));
+      return { ok: true, json: async () => ({ status: 'OK', predictions: [] }) };
+    };
+    await fetchPlacePredictions('Gangtok', { apiKey: 'test-key', radiusMeters: 0 });
+    await fetchPlacePredictions('Mall', { apiKey: 'test-key', latitude: 22.5, longitude: 88.3 });
+    assert.ok(!urls[0].includes('location=') && !urls[0].includes('radius='));
+    assert.ok(urls[0].includes('components=country%3Ain'));
+    assert.ok(urls[1].includes('location=22.5%2C88.3'));
+    assert.ok(urls[1].includes('radius=50000'));
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

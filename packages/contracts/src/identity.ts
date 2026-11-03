@@ -53,6 +53,13 @@ export interface RiderRideStatsDto {
 }
 
 export type TrustTier = 'EXCELLENT' | 'GOOD' | 'FAIR' | 'POOR' | 'UNRATED';
+/** Tier shown to the other party. Never UNRATED: it is simply absent until the score is public. */
+export type PublicTrustTier = Exclude<TrustTier, 'UNRATED'>;
+
+export const TRUST_RISK_FLAGS = ['EARLY_CANCEL_PATTERN', 'EARLY_UNPAID', 'EARLY_DISPUTE'] as const;
+export type TrustRiskFlag = (typeof TRUST_RISK_FLAGS)[number];
+
+export type TrustRole = 'RIDER' | 'DRIVER';
 
 export interface TrustScoreBreakdownDto {
   score: number | null;
@@ -67,7 +74,16 @@ export interface TrustScoreBreakdownDto {
     ratingCount: number;
     disputesCount: number;
     noShowsCount?: number | undefined;
+    /** v2: cancellations this user caused, decayed (half-life 90 days). */
+    responsibleCancellations?: number | undefined;
+    /** v2: rides left unpaid by this rider. */
+    unpaidRides?: number | undefined;
   };
+  /** v2: PROVISIONAL until 5 revealed ratings exist. */
+  confidence?: 'PROVISIONAL' | 'VERIFIED' | undefined;
+  /** v2: signals for admins, also set while the score itself is still hidden. */
+  riskFlags?: TrustRiskFlag[] | undefined;
+  version?: 1 | 2 | undefined;
   summary: string;
 }
 

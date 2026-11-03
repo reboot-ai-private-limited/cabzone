@@ -2,21 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import * as Location from 'expo-location';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE, type LatLng } from 'react-native-maps';
-
-// Explicit light style: Google Maps otherwise follows the phone's dark mode on Android.
-const GOOGLE_MAPS_LIGHT_STYLE = [
-  { elementType: 'geometry', stylers: [{ color: '#f5f5f5' }] },
-  { elementType: 'labels.text.fill', stylers: [{ color: '#616161' }] },
-  { elementType: 'labels.text.stroke', stylers: [{ color: '#f5f5f5' }] },
-  { featureType: 'poi.business', stylers: [{ visibility: 'off' }] },
-  { featureType: 'poi', elementType: 'geometry', stylers: [{ color: '#eeeeee' }] },
-  { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#d8efd3' }] },
-  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#ffffff' }] },
-  { featureType: 'road.arterial', elementType: 'labels.text.fill', stylers: [{ color: '#757575' }] },
-  { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#fde9b0' }] },
-  { featureType: 'transit', elementType: 'geometry', stylers: [{ color: '#e5e5e5' }] },
-  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#c9e4f5' }] },
-];
+import { useMapTheme } from '@/hooks/use-map-theme';
+import { createStyles } from '@/design-system';
 
 export interface BookingMapProps {
   pickup: { lat: number; lng: number; address: string };
@@ -49,6 +36,7 @@ export default function BookingMap({
   onSelectPoint,
 }: BookingMapProps) {
   const mapRef = useRef<MapView | null>(null);
+  const mapTheme = useMapTheme();
   const [mapReady, setMapReady] = useState(false);
   const [canShowUser, setCanShowUser] = useState(false);
 
@@ -132,8 +120,9 @@ export default function BookingMap({
       <MapView
         ref={mapRef}
         provider={PROVIDER_GOOGLE}
-        userInterfaceStyle="light"
-        customMapStyle={GOOGLE_MAPS_LIGHT_STYLE}
+        mapType={mapTheme.mapType}
+        userInterfaceStyle={mapTheme.userInterfaceStyle}
+        customMapStyle={mapTheme.customMapStyle}
         style={styles.map}
         initialRegion={{
           latitude: pickup.lat,
@@ -240,7 +229,7 @@ export default function BookingMap({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createStyles(() => ({
   stopPin: {
     width: 26,
     height: 26,
@@ -373,4 +362,4 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: 0.2,
   },
-});
+}));

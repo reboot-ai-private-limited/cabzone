@@ -16,6 +16,12 @@ vm.runInNewContext(contractsRidesCode, {
   require: () => ({}),
 });
 
+const trustTierCode = ts.transpileModule(readFileSync(new URL('./trust-tier.ts', import.meta.url), 'utf8'), {
+  compilerOptions: { module: ts.ModuleKind.CommonJS },
+}).outputText;
+const trustTierModule = { exports: {} };
+vm.runInNewContext(trustTierCode, { exports: trustTierModule.exports, require: () => ({}) });
+
 const source = readFileSync(new URL('./rider-helpers.ts', import.meta.url), 'utf8');
 const code = ts.transpileModule(source, {
   compilerOptions: { module: ts.ModuleKind.CommonJS },
@@ -46,6 +52,7 @@ vm.runInNewContext(code, {
         },
       };
     }
+    if (name === './trust-tier') return trustTierModule.exports;
     return {};
   },
 });
@@ -164,6 +171,7 @@ test('formatAssignedDriverSummary returns enriched driver, vehicle, and >=5 rati
   assert.equal(enriched.vehicleLabel, 'Silver Hyundai Aura');
   assert.equal(enriched.registrationNumber, 'WB74CD5678');
   assert.equal(enriched.ratingLabel, '4.8');
+  assert.equal(enriched.trustLabel, null); // no public tier yet
 
   const belowSampleThreshold = formatAssignedDriverSummary({
     driverId: '0195f100-0000-7000-8000-000000000012',
@@ -179,6 +187,30 @@ test('formatAssignedDriverSummary returns enriched driver, vehicle, and >=5 rati
   });
   assert.equal(belowSampleThreshold.ratingLabel, 'New');
 
+  // A public tier is shown as wording only, never as a number (D-048)
+  const withTier = formatAssignedDriverSummary({
+    driverId: '0195f100-0000-7000-8000-000000000012',
+    vehicleCategory: 'CAB',
+    assignedDriver: {
+      driverId: '0195f100-0000-7000-8000-000000000012',
+      name: 'Rajesh Barman',
+      profilePhotoUrl: null,
+      ratingAverage: 4.9,
+      ratingCount: 12,
+      trustTier: 'EXCELLENT',
+      vehicle: null,
+    },
+  });
+  assert.equal(withTier.trustLabel, 'Excellent');
+  for (const [tier, label] of [['GOOD', 'Good'], ['FAIR', 'Fair'], ['POOR', 'Low']]) {
+    const r = formatAssignedDriverSummary({
+      driverId: 'd',
+      vehicleCategory: 'CAB',
+      assignedDriver: { driverId: 'd', name: 'A', profilePhotoUrl: null, trustTier: tier, vehicle: null },
+    });
+    assert.equal(r.trustLabel, label);
+  }
+
   const fallback = formatAssignedDriverSummary({
     driverId: '0195f100-0000-7000-8000-000000000012',
     vehicleCategory: 'CAB',
@@ -188,6 +220,7 @@ test('formatAssignedDriverSummary returns enriched driver, vehicle, and >=5 rati
   assert.equal(fallback.vehicleLabel, 'Cab (4 Seats)');
   assert.equal(fallback.registrationNumber, null);
   assert.equal(fallback.ratingLabel, 'New');
+  assert.equal(fallback.trustLabel, null);
 });
 
 test('isRideActive blocks the 9 active statuses plus PAYMENT_UNPAID, and unblocks PAYMENT_CASH_CLAIMED', () => {

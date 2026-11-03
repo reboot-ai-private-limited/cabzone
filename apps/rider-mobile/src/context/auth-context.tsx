@@ -7,6 +7,7 @@ import React, {
   useState,
 } from 'react';
 import { Platform } from 'react-native';
+import { DEFAULT_MAP_THEME } from '@/services/map-theme';
 import type {
   AuthenticatedUserSummary,
   RiderDto,
@@ -77,6 +78,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     operationalCity: 'Siliguri',
     distanceUnit: 'km',
     language: 'en',
+    mapTheme: DEFAULT_MAP_THEME,
   });
 
   const loadUserScopedStorage = useCallback(async (userId: string) => {

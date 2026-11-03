@@ -1,9 +1,9 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { type ColorValue, Platform, Pressable, StyleSheet, View } from 'react-native';
+import { type ColorValue, Platform, Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors } from '@/design-system';
+import { colors, createStyles } from '@/design-system';
 
 function TabIcon({
   name,
@@ -37,8 +37,8 @@ export default function RiderTabsLayout() {
         ),
         tabBarIconStyle: { width: 56, height: 30 },
         tabBarStyle: {
-          backgroundColor: '#FAF8F5',
-          borderTopColor: '#E5E7EB',
+          backgroundColor: colors.surface,
+          borderTopColor: colors.border,
           borderTopWidth: 1,
           height: 60 + bottomInset,
           paddingBottom: 4 + bottomInset,
@@ -93,7 +93,7 @@ export default function RiderTabsLayout() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createStyles(() => ({
   icon: { width: 52, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   activeIcon: { backgroundColor: '#FDE68A' },
-});
+}));

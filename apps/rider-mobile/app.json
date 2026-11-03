@@ -6,7 +6,7 @@
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "cabzonerider",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "ios": {
       "icon": "./assets/images/icon.png",
       "bundleIdentifier": "com.cabzone.rider"
@@ -52,7 +52,7 @@
           "icon": "./assets/images/android-icon-monochrome.png",
           "color": "#3A2414",
           "defaultChannel": "ride-updates",
-          "sounds": []
+          "sounds": ["./assets/sfx/ring_long.wav"]
         }
       ]
     ],

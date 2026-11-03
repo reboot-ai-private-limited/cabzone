@@ -16,7 +16,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/context/auth-context';
-import { colors, radii, spacing, typography } from '@/design-system';
+import { colors, radii, spacing, typography, createStyles } from '@/design-system';
 
 export default function NameOnboardingScreen() {
   const router = useRouter();
@@ -217,7 +217,7 @@ export default function NameOnboardingScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createStyles(() => ({
   container: {
     flex: 1,
     backgroundColor: colors.background,
@@ -388,4 +388,4 @@ const styles = StyleSheet.create({
     color: colors.deepBrown,
     letterSpacing: 0.2,
   },
-});
+}));

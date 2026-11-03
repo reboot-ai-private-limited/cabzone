@@ -177,7 +177,8 @@ function harness(role = 'RIDER', platformOs = 'android') {
       if (name === '@cabzone/contracts') return communicationExports;
       if (name === '@/services/api') return { rideChatApi: api };
       if (name === '@/services/ride-chat') return chatHelperExports;
-      if (name === '@/design-system') return { colors: {} };
+      if (name === '@/design-system') return { colors: {}, createStyles: (factory) => factory() };
+      if (name === '@expo/vector-icons') return { Ionicons: 'Ionicons' };
       throw new Error(`Unexpected module: ${name}`);
     },
   });

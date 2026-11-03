@@ -9,6 +9,7 @@ import {
   type RideEventDto,
   type RideStatus,
 } from '@cabzone/contracts';
+import { trustTierLabel } from './trust-tier';
 
 export interface PendingDriverCounter {
   driverId: string;
@@ -26,6 +27,8 @@ export function formatAssignedDriverSummary(
   vehicleLabel: string;
   registrationNumber: string | null;
   ratingLabel: string;
+  /** Public trust tier wording, or null while the driver's score is not public. */
+  trustLabel: string | null;
 } {
   const assigned = ride.assignedDriver;
   const driverName =
@@ -49,6 +52,7 @@ export function formatAssignedDriverSummary(
     vehicleLabel,
     registrationNumber,
     ratingLabel,
+    trustLabel: trustTierLabel(assigned?.trustTier),
   };
 }
 

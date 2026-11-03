@@ -6,7 +6,6 @@ import {
   Modal,
   Platform,
   Pressable,
-  StyleSheet,
   Text,
   View,
 } from 'react-native';
@@ -16,7 +15,7 @@ import type { RideStatus, RideUpiCheckoutDto } from '@cabzone/contracts';
 import { useAuth } from '@/context/auth-context';
 import { riderRidesApi } from '@/services/api';
 import { formatRupeesFromPaise } from '@/services/rider-helpers';
-import { colors, radii, spacing, typography } from '@/design-system';
+import { colors, radii, spacing, typography, createStyles } from '@/design-system';
 import { checkoutMessage, upiCheckoutHtml } from './upi-checkout-html';
 import { upiPaymentUrl } from './upi-intent';
 
@@ -378,7 +377,7 @@ export function UpiPaymentPanel({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createStyles(() => ({
   shade: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'flex-end' },
   sheet: {
     backgroundColor: colors.white,
@@ -431,4 +430,4 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   error: { ...typography.caption, color: colors.error },
-});
+}));

@@ -5,21 +5,26 @@ import {
   PanResponder,
   Pressable,
   ScrollView,
-  StyleSheet,
   Text,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { colors, radii, spacing, typography } from '@/design-system';
-import { ERickshawIcon } from '@/components/common/e-rickshaw-icon';
-import { RoutePointIcon } from '@/components/common/route-point-icon';
+import { colors, radii, spacing, typography, createStyles } from '@/design-system';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 import type { SavedRouteTemplate } from '@/services/rider-helpers';
 import BookingMap, { type BookingMapProps } from './booking-map';
+import { ERickshawIcon } from '@/components/common/e-rickshaw-icon';
+import { IntercityHomeContent } from './intercity-home';
+import type { IntercityDestination } from './intercity-routes';
 
 interface BookingHomeProps {
+  /** Selects the Home (city rides) or Intercity (city to city) copy of the shared sheet. */
+  mode?: 'IN_CITY' | 'OUTSTATION';
+  /** Popular places (city rides) or cities (city to city) shown as cards. */
+  destinations?: IntercityDestination[];
+  onSelectDestination?: (destination: IntercityDestination) => void;
   pickup: BookingMapProps['pickup'];
   drop: BookingMapProps['drop'];
   stops?: BookingMapProps['stops'];
@@ -32,6 +37,8 @@ interface BookingHomeProps {
   onLocate: () => void;
   isLocating: boolean;
   locationError: string | null;
+  /** Set when location is blocked at system level: shows an "Open settings" button. */
+  onOpenLocationSettings?: (() => void) | undefined;
   templates: SavedRouteTemplate[];
   onSelectTemplate: (template: SavedRouteTemplate) => void;
   activeRide: { label: string; onPress: () => void } | null;
@@ -43,6 +50,9 @@ interface BookingHomeProps {
 }
 
 export function BookingHome({
+  mode = 'IN_CITY',
+  destinations = [],
+  onSelectDestination,
   pickup,
   drop,
   stops,
@@ -55,6 +65,7 @@ export function BookingHome({
   onLocate,
   isLocating,
   locationError,
+  onOpenLocationSettings,
   templates,
   onSelectTemplate,
   activeRide,
@@ -65,6 +76,43 @@ export function BookingHome({
   children,
 }: BookingHomeProps) {
   const router = useRouter();
+  const cards = (
+    <View style={styles.services}>
+      <Pressable
+        style={styles.cityTile}
+        accessibilityRole="button"
+        accessibilityLabel="Book a city ride"
+        onPress={onSearch}
+      >
+        <Text style={styles.tileTitle}>City rides</Text>
+        <Text style={styles.tileCaption}>Book your cab</Text>
+        <Image
+          source={require('@/assets/images/cab.webp')}
+          style={styles.cityCar}
+          resizeMode="contain"
+        />
+      </Pressable>
+      <View style={styles.serviceColumn}>
+        <Pressable
+          style={styles.intercityTile}
+          accessibilityRole="button"
+          accessibilityLabel="City to city rides"
+          onPress={() => router.navigate('/(rider)/(tabs)/intercity')}
+        >
+          <Ionicons name="trail-sign-outline" size={23} color={colors.brandBrown} />
+          <Text style={styles.smallTileTitle}>City to city</Text>
+          <Ionicons name="arrow-forward" size={18} color={colors.deepBrown} />
+        </Pressable>
+        <View style={styles.soonTile} accessible accessibilityLabel="E-rickshaw, coming soon">
+          <View style={styles.soonTop}>
+            <ERickshawIcon size={22} color={colors.secondary} />
+            <Text style={styles.soonLabel}>Coming soon</Text>
+          </View>
+          <Text style={styles.smallTileTitle}>E-rickshaw</Text>
+        </View>
+      </View>
+    </View>
+  );
   const reducedMotion = useReducedMotion();
   const [height, setHeight] = useState(700);
   const [expanded, setExpanded] = useState(bookingStarted);
@@ -285,103 +333,26 @@ export function BookingHome({
               {children}
             </>
           ) : (
-            <>
-              <Pressable
-                style={styles.search}
-                accessibilityRole="button"
-                accessibilityLabel="Choose your destination"
-                onPress={onSearch}
-              >
-                <Ionicons name="search" size={24} color={colors.deepBrown} />
-                <Text style={styles.searchText}>Where to?</Text>
-                <View style={styles.searchArrow}>
-                  <Ionicons name="arrow-forward" size={19} color={colors.deepBrown} />
-                </View>
-              </Pressable>
-            
-              <View style={styles.pickupRowContainer}>
-                <Pressable
-                  style={styles.pickup}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Change pickup: ${pickup.address}`}
-                  onPress={onEditPickup}
-                >
-                  <RoutePointIcon type="pickup" size={20} style={{ marginRight: spacing.md }} />
-                  <View style={styles.pickupCopy}>
-                    <Text style={styles.pickupLabel}>Pickup</Text>
-                    <Text style={styles.pickupAddress} numberOfLines={2}>
-                      {pickup.address}
-                    </Text>
-                  </View>
-                </Pressable>
-                <Pressable
-                  style={styles.pickupMapButton}
-                  accessibilityRole="button"
-                  accessibilityLabel="Choose pickup on map"
-                  onPress={onChoosePickupOnMap || onEditPickup}
-                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                >
-                  <Ionicons name="map-outline" size={18} color={colors.brandBrown} />
-                </Pressable>
-              </View>
-              {locationError && (
-                <Text accessibilityRole="alert" style={styles.locationError}>
-                  {locationError}
-                </Text>
-              )}
-              {templates.slice(0, 2).map((template) => (
-                <Pressable
-                  key={template.id}
-                  style={styles.savedRoute}
-                  accessibilityRole="button"
-                  onPress={() => onSelectTemplate(template)}
-                >
-                  <Ionicons name="bookmark-outline" size={18} color={colors.brandBrown} />
-                  <Text style={styles.savedRouteText} numberOfLines={1}>
-                    {template.label}
-                  </Text>
-                  <Ionicons name="arrow-forward" size={16} color={colors.secondary} />
-                </Pressable>
-              ))}
-              <View style={styles.services}>
-                <Pressable
-                  style={styles.cityTile}
-                  accessibilityRole="button"
-                  accessibilityLabel="Book a city ride"
-                  onPress={onSearch}
-                >
-                  <Text style={styles.tileTitle}>City rides</Text>
-                  <Text style={styles.tileCaption}>Book your cab</Text>
-                  <Image
-                    source={require('@/assets/images/cab.webp')}
-                    style={styles.cityCar}
-                    resizeMode="contain"
-                  />
-                </Pressable>
-                <View style={styles.serviceColumn}>
-                  <Pressable
-                    style={styles.intercityTile}
-                    accessibilityRole="button"
-                    onPress={() => router.navigate('/(rider)/(tabs)/intercity')}
-                  >
-                    <Ionicons name="trail-sign-outline" size={23} color={colors.brandBrown} />
-                    <Text style={styles.smallTileTitle}>City to city</Text>
-                    <Ionicons name="arrow-forward" size={18} color={colors.deepBrown} />
-                  </Pressable>
-                  <View
-                    style={styles.soonTile}
-                    accessible
-                    accessibilityLabel="E-rickshaw, coming soon"
-                  >
-                    <View style={styles.soonTop}>
-                      <ERickshawIcon size={22} color={colors.secondary} />
-                      <Text style={styles.soonLabel}>Coming soon</Text>
-                    </View>
-                    <Text style={styles.smallTileTitle}>E-rickshaw</Text>
-                  </View>
-                </View>
-              </View>
-            </>
+            <IntercityHomeContent
+              variant={mode === 'OUTSTATION' ? 'INTERCITY' : 'CITY'}
+              pickup={pickup}
+              destinations={mode === 'OUTSTATION' ? destinations : []}
+              middle={mode === 'IN_CITY' ? cards : undefined}
+              showSwitch={mode === 'OUTSTATION'}
+              locationError={locationError}
+              onOpenLocationSettings={onOpenLocationSettings}
+              templates={templates}
+              onSearch={onSearch}
+              onEditPickup={onEditPickup}
+              onChoosePickupOnMap={onChoosePickupOnMap}
+              onSelectDestination={(destination) => onSelectDestination?.(destination)}
+              onSelectTemplate={onSelectTemplate}
+              onSwitchMode={() =>
+                router.navigate(
+                  mode === 'OUTSTATION' ? '/(rider)/(tabs)/home' : '/(rider)/(tabs)/intercity',
+                )
+              }
+            />
           )}
         </ScrollView>
       </Animated.View>
@@ -389,7 +360,7 @@ export function BookingHome({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createStyles(() => ({
   container: { flex: 1, backgroundColor: colors.cream },
   topBar: {
     position: 'absolute',
@@ -468,26 +439,6 @@ const styles = StyleSheet.create({
   handleTarget: { minHeight: 48, alignItems: 'center', justifyContent: 'center' },
   handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: colors.borderSubtle },
   sheetContent: { paddingHorizontal: spacing.xl, paddingBottom: spacing.xxl, gap: spacing.md },
-  search: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    backgroundColor: colors.surfaceMuted,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radii.lg,
-    padding: spacing.lg,
-    minHeight: 64,
-  },
-  searchText: { fontSize: 22, fontWeight: '700', color: colors.deepBrown, flex: 1 },
-  searchArrow: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.amber,
-  },
   chooseMapQuickRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -513,48 +464,21 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.deepBrown,
   },
-  pickupRowContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: colors.surfaceMuted,
-    borderWidth: 1,
-    borderColor: colors.borderSubtle,
-    borderRadius: radii.md,
-    paddingRight: spacing.sm,
+  floatingLocateWrapper: {
+    position: 'absolute',
+    right: spacing.md,
+    bottom: 245,
+    zIndex: 9,
+    gap: 12,
   },
-  pickupMapButton: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.white,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radii.pill,
+  floatingTopContainer: {
+    position: 'absolute',
+    top: 6,
+    left: 0,
+    right: 0,
+    zIndex: 10,
+    paddingHorizontal: 10,
   },
-  pickup: {
-    flex: 1,
-    paddingVertical: spacing.sm,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    paddingHorizontal: spacing.sm,
-    minHeight: 48,
-  },
-  pickupDot: {
-    width: 12,
-    height: 12,
-    borderWidth: 3,
-    borderColor: colors.brandBrown,
-    borderRadius: 6,
-  },
-  pickupCopy: { flex: 1, gap: 2 },
-  pickupLabel: { ...typography.caption, color: colors.secondary },
-  pickupAddress: { ...typography.bodyBold, color: colors.deepBrown },
-  locationError: { ...typography.caption, color: colors.error },
-  savedRoute: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: 48 },
-  savedRouteText: { ...typography.body, flex: 1, color: colors.deepBrown },
   services: { flexDirection: 'row', gap: spacing.md, minHeight: 136, marginTop: spacing.xs },
   cityTile: {
     flex: 1.2,
@@ -583,7 +507,6 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   smallTileTitle: { ...typography.bodyBold, color: colors.deepBrown, flexShrink: 1 },
-  soonTop: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   soonTile: {
     flex: 1,
     justifyContent: 'center',
@@ -594,22 +517,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
+  soonTop: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   soonLabel: { ...typography.caption, fontSize: 11, color: colors.secondary },
-  floatingTopContainer: {
-    position: 'absolute',
-    top: 6,
-    left: 0,
-    right: 0,
-    zIndex: 10,
-    paddingHorizontal: 10,
-  },
-  floatingLocateWrapper: {
-    position: 'absolute',
-    right: spacing.md,
-    bottom: 245,
-    zIndex: 9,
-    gap: 12,
-  },
   floatingBottomContainer: {
     position: 'absolute',
     bottom: 0,
@@ -643,4 +552,4 @@ const styles = StyleSheet.create({
   bookingTitle: { ...typography.h1, color: colors.deepBrown },
   passenger: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   passengerText: { ...typography.bodyBold, color: colors.deepBrown },
-});
+}));

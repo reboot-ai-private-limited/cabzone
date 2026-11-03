@@ -9,7 +9,7 @@ import { RideProvider, useRide } from '@/context/ride-context';
 import { RideCallProvider } from '@/context/call-context';
 import { isRideActive } from '@/services/rider-helpers';
 import { RIDE_COMMUNICATION_STATUSES } from '@cabzone/contracts';
-import { colors } from '@/design-system';
+import { ThemeBoundary, ThemeProvider, colors } from '@/design-system';
 
 function NotificationNavigator() {
   const router = useRouter();
@@ -83,25 +83,29 @@ function NotificationNavigator() {
 export default function RootLayout() {
   return (
     <SafeAreaProvider>
-      <AuthProvider>
-        <RideProvider>
-          <RideCallProvider>
-            <StatusBar style="dark" />
-            <NotificationNavigator />
-            <Stack
-              screenOptions={{
-                headerShown: false,
-                contentStyle: { backgroundColor: colors.background },
-              }}
-            >
-              <Stack.Screen name="index" />
-              <Stack.Screen name="(auth)" />
-              <Stack.Screen name="(onboarding)" />
-              <Stack.Screen name="(rider)" />
-            </Stack>
-          </RideCallProvider>
-        </RideProvider>
-      </AuthProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <RideProvider>
+            <RideCallProvider>
+              <StatusBar style="auto" />
+              <NotificationNavigator />
+              <ThemeBoundary>
+                <Stack
+                  screenOptions={{
+                    headerShown: false,
+                    contentStyle: { backgroundColor: colors.background },
+                  }}
+                >
+                  <Stack.Screen name="index" />
+                  <Stack.Screen name="(auth)" />
+                  <Stack.Screen name="(onboarding)" />
+                  <Stack.Screen name="(rider)" />
+                </Stack>
+              </ThemeBoundary>
+            </RideCallProvider>
+          </RideProvider>
+        </AuthProvider>
+      </ThemeProvider>
     </SafeAreaProvider>
   );
 }

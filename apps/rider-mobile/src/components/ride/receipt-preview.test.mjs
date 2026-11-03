@@ -73,7 +73,7 @@ function screen() {
             }
           },
         };
-      if (name.includes('design-system')) return { colors: {}, spacing: {}, typography: {} };
+      if (name.includes('design-system')) return { createStyles: (factory) => factory(), colors: {}, spacing: {}, typography: {} };
       if (name.includes('ride-receipt'))
         return { receiptHtml: (_r, logo) => `<html><img src="${logo}"></html>` };
       if (name.endsWith('.png')) return 42;
