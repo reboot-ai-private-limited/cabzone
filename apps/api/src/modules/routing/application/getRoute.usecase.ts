@@ -54,7 +54,8 @@ export class GetRouteUseCase {
     const oLng = req.origin.lng.toFixed(5);
     const dLat = req.destination.lat.toFixed(5);
     const dLng = req.destination.lng.toFixed(5);
-    return `${oLat},${oLng}->${dLat},${dLng}:${req.vehicleCategory}`;
+    const via = (req.waypoints ?? []).map((w) => `${w.lat.toFixed(5)},${w.lng.toFixed(5)}`).join('|');
+    return `${oLat},${oLng}${via ? `~${via}` : ''}->${dLat},${dLng}:${req.vehicleCategory}`;
   }
 }
 

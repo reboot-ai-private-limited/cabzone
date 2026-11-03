@@ -34,6 +34,7 @@ export interface RideDocument extends Document<string> {
   vehicle_category: VehicleCategory;
   pickup: LocationPoint;
   drop: LocationPoint;
+  stops?: LocationPoint[];
   route_snapshot: RouteSnapshot;
   zone_snapshot: ZoneSnapshot;
   pricing_snapshot: RidePricingSnapshot;
@@ -95,6 +96,7 @@ const rideSchema = new Schema<RideDocument>(
     },
     pickup: { type: pointSchema, required: true },
     drop: { type: pointSchema, required: true },
+    stops: { type: [pointSchema], default: [] },
     route_snapshot: { type: Schema.Types.Mixed, required: true },
     zone_snapshot: { type: Schema.Types.Mixed, required: true },
     pricing_snapshot: { type: Schema.Types.Mixed, required: true },

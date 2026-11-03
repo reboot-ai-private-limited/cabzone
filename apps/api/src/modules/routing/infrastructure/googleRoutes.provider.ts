@@ -66,6 +66,13 @@ export class GoogleRoutesProvider implements RouteProviderPort {
           },
         },
       },
+      ...(req.waypoints?.length
+        ? {
+            intermediates: req.waypoints.map((w) => ({
+              location: { latLng: { latitude: w.lat, longitude: w.lng } },
+            })),
+          }
+        : {}),
       travelMode: 'DRIVE',
       routingPreference: this.trafficAware ? 'TRAFFIC_AWARE' : 'TRAFFIC_UNAWARE',
       units: 'METRIC',

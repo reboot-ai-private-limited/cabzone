@@ -46,6 +46,8 @@ export interface QuoteRequestDto {
     lat: number;
     lng: number;
   };
+  /** Optional intermediate stops, visited in order between pickup and drop. */
+  stops?: { lat: number; lng: number }[];
   vehicleCategory: VehicleCategory;
 }
 
@@ -102,6 +104,8 @@ export interface QuoteDto {
   destinationCityName?: string | null | undefined;
   stateBreakdown?: StateDistanceBreakdown[] | undefined;
   routeProvider?: string | undefined;
+  /** Encoded road polyline for the full route (pickup, stops, drop); null for estimate-only providers. */
+  routePolyline?: string | null | undefined;
   negotiation: {
     floorPaise: number;
     ceilingPaise: number;

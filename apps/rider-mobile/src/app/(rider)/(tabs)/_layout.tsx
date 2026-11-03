@@ -3,6 +3,7 @@ import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { type ColorValue, Platform, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { colors } from '@/design-system';
 
 function TabIcon({
   name,
@@ -27,8 +28,8 @@ export default function RiderTabsLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: '#111827',
-        tabBarInactiveTintColor: '#111827',
+        tabBarActiveTintColor: colors.deepBrown,
+        tabBarInactiveTintColor: colors.secondary,
         tabBarActiveBackgroundColor: 'transparent',
         tabBarInactiveBackgroundColor: 'transparent',
         tabBarButton: ({ ref: _ref, ...props }) => (
@@ -46,7 +47,7 @@ export default function RiderTabsLayout() {
         },
         tabBarLabelStyle: {
           fontSize: 12,
-          fontWeight: '600',
+          fontWeight: '700',
           lineHeight: 14,
           marginTop: 2,
         },

@@ -1,4 +1,5 @@
 import {
+  MAX_RIDE_STOPS,
   type TollSnapshot,
   type GeoPoint,
   type QuoteDto,
@@ -36,6 +37,7 @@ import {
 export interface CreateQuoteInput {
   pickup: GeoPoint;
   drop: GeoPoint;
+  stops?: GeoPoint[] | undefined;
   vehicleCategory: VehicleCategory;
   requestedService?: ServiceClassificationType | undefined;
   riderId?: string | null | undefined;
@@ -46,6 +48,7 @@ export interface QuoteTokenPayload {
   quoteId: string;
   pickup: GeoPoint;
   drop: GeoPoint;
+  stops?: GeoPoint[] | undefined;
   vehicleCategory: VehicleCategory;
   serviceType: ServiceClassificationType;
   cityZoneId: string | null;
@@ -90,6 +93,7 @@ const quotePayloadSchema = z
     tollSnapshot: tollSnapshotSchema.nullish(),
     pickup: pointSchema,
     drop: pointSchema,
+    stops: z.array(pointSchema).max(MAX_RIDE_STOPS).optional(),
     vehicleCategory: z.enum(VEHICLE_CATEGORIES),
     serviceType: z.enum(SERVICE_CLASSIFICATION_TYPES),
     cityZoneId: z.string().nullable(),
@@ -173,6 +177,19 @@ export class CreateQuoteUseCase {
       );
     }
 
+    const stops = input.stops ?? [];
+    if (stops.length > MAX_RIDE_STOPS) {
+      throw AppError.badRequest(`TOO_MANY_STOPS: A ride can have at most ${MAX_RIDE_STOPS} stops.`);
+    }
+    for (const stop of stops) {
+      const stopCheck = isPointInIndia(stop);
+      if (!stopCheck.inside) {
+        throw AppError.badRequest(
+          `OUTSIDE_INDIA: Stops must be within India. ${stopCheck.reason ?? 'Cross-border trips are strictly prohibited.'}`,
+        );
+      }
+    }
+
     // 1. Classify the trip and resolve origin/destination state (display-only). Every
     // destination state is serviceable — the only gate left is "pickup in an active zone".
     const classification = await this.deps.serviceClassificationUseCase.execute({
@@ -188,10 +205,13 @@ export class CreateQuoteUseCase {
       routeResult = await this.deps.routingUseCase.execute({
         origin: input.pickup,
         destination: input.drop,
+        ...(stops.length ? { waypoints: stops } : {}),
         vehicleCategory: input.vehicleCategory,
       });
     } else {
-      const distanceM = haversineDistanceM(input.pickup, input.drop);
+      const path = [input.pickup, ...stops, input.drop];
+      let distanceM = 0;
+      for (let i = 1; i < path.length; i++) distanceM += haversineDistanceM(path[i - 1]!, path[i]!);
       routeResult = {
         provider: 'HAVERSINE_ESTIMATE',
         distanceM,
@@ -298,6 +318,7 @@ export class CreateQuoteUseCase {
       quoteId,
       pickup: { lat: input.pickup.lat, lng: input.pickup.lng },
       drop: { lat: input.drop.lat, lng: input.drop.lng },
+      ...(stops.length ? { stops: stops.map((p) => ({ lat: p.lat, lng: p.lng })) } : {}),
       vehicleCategory: input.vehicleCategory,
       serviceType: classification.type,
       cityZoneId: classification.cityZoneId,
@@ -351,6 +372,7 @@ export class CreateQuoteUseCase {
       destinationCityName: classification.destinationCityName ?? null,
       stateBreakdown,
       routeProvider: routeResult.provider,
+      routePolyline: routeResult.polyline,
       negotiation: {
         floorPaise: bounds.floorPaise,
         ceilingPaise: bounds.ceilingPaise,

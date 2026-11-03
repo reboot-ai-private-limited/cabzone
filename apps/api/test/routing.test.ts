@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { env } from '../src/config/env.js';
 import {
   GoogleRoutesProvider,
   HaversineRouteProvider,
@@ -278,20 +279,29 @@ describe('Routing Module', () => {
 
   describe('buildRoutingContainer', () => {
     it('builds with default haversine in non-production', () => {
-      const container = buildRoutingContainer();
-      expect(container.getRouteUseCase).toBeDefined();
-      expect(container.routeProvider).toBeInstanceOf(HaversineRouteProvider);
+      const prev = env.ROUTING_PROVIDER;
+      try {
+        (env as { ROUTING_PROVIDER: string }).ROUTING_PROVIDER = 'haversine';
+        const container = buildRoutingContainer();
+        expect(container.getRouteUseCase).toBeDefined();
+        expect(container.routeProvider).toBeInstanceOf(HaversineRouteProvider);
+      } finally {
+        (env as { ROUTING_PROVIDER: string }).ROUTING_PROVIDER = prev;
+      }
     });
 
     it('refuses to construct haversine provider when in production', async () => {
       const envModule = await import('../src/config/env.js');
       const originalIsProduction = envModule.isProduction;
+      const prev = env.ROUTING_PROVIDER;
       try {
+        (env as { ROUTING_PROVIDER: string }).ROUTING_PROVIDER = 'haversine';
         Object.defineProperty(envModule, 'isProduction', { value: true, configurable: true });
         expect(() => buildRoutingContainer()).toThrow(
           /Haversine route provider is strictly forbidden in production/,
         );
       } finally {
+        (env as { ROUTING_PROVIDER: string }).ROUTING_PROVIDER = prev;
         Object.defineProperty(envModule, 'isProduction', {
           value: originalIsProduction,
           configurable: true,

@@ -289,6 +289,9 @@ export interface DriverRideSettlementDto {
   settledVia: 'CASH' | 'ONLINE_UPI' | 'UNSETTLED';
 }
 
+/** Maximum intermediate stops a rider can add between pickup and drop. */
+export const MAX_RIDE_STOPS = 3;
+
 export interface RideDto {
   extensionProposal?: RideExtensionProposalDto | null;
   tollSnapshot?: TollSnapshot | null;
@@ -318,6 +321,8 @@ export interface RideDto {
     lng: number;
     address: string | null;
   };
+  /** Intermediate stops in visiting order; absent or empty for direct rides. */
+  stops?: { lat: number; lng: number; address: string | null }[];
   routeSnapshot: {
     provider: string;
     distanceM: number;

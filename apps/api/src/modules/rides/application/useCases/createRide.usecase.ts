@@ -39,6 +39,10 @@ function activeRideConflictError(existing: Pick<RideEntity, 'id' | 'status'>): A
   return AppError.conflict('ACTIVE_RIDE_EXISTS: Rider already has an active ride.', details);
 }
 
+function sameStops(a: GeoPoint[], b: GeoPoint[]): boolean {
+  return a.length === b.length && a.every((p, i) => p.lat === b[i]!.lat && p.lng === b[i]!.lng);
+}
+
 export interface CreateRideInput {
   quoteToken: string;
   proposedFarePaise: number;
@@ -47,6 +51,7 @@ export interface CreateRideInput {
   passengerPhoneE164: string;
   pickup: GeoPoint & { address?: string | null | undefined };
   drop: GeoPoint & { address?: string | null | undefined };
+  stops?: (GeoPoint & { address?: string | null | undefined })[] | undefined;
   vehicleCategory: VehicleCategory;
   idempotencyKey?: string | undefined;
   paymentMethod?: PaymentMethod | undefined;
@@ -117,6 +122,7 @@ export class CreateRideUseCase {
       existing.drop.lat === input.drop.lat &&
       existing.drop.lng === input.drop.lng &&
       (existing.drop.address ?? null) === (input.drop.address ?? null) &&
+      sameStops(existing.stops ?? [], input.stops ?? []) &&
       existing.vehicleCategory === input.vehicleCategory &&
       existing.passenger.name === input.passengerName &&
       existing.passenger.phoneE164 === input.passengerPhoneE164 &&
@@ -158,6 +164,15 @@ export class CreateRideUseCase {
       );
     }
 
+    for (const stop of input.stops ?? []) {
+      const stopCheck = isPointInIndia(stop);
+      if (!stopCheck.inside) {
+        throw AppError.badRequest(
+          `OUTSIDE_INDIA: Stops must be within India. ${stopCheck.reason ?? 'Cross-border trips are strictly prohibited.'}`,
+        );
+      }
+    }
+
     // 1. Verify quote token signature and 5-minute TTL
     const quote = CreateQuoteUseCase.verifyQuoteToken(input.quoteToken, this.deps.tokenSecret);
 
@@ -167,10 +182,11 @@ export class CreateRideUseCase {
       quote.pickup.lng !== input.pickup.lng ||
       quote.drop.lat !== input.drop.lat ||
       quote.drop.lng !== input.drop.lng ||
+      !sameStops(quote.stops ?? [], input.stops ?? []) ||
       quote.vehicleCategory !== input.vehicleCategory
     ) {
       throw AppError.badRequest(
-        'QUOTE_MISMATCH: Ride parameters (pickup, drop, or vehicleCategory) do not match the signed quote.',
+        'QUOTE_MISMATCH: Ride parameters (pickup, drop, stops, or vehicleCategory) do not match the signed quote.',
       );
     }
 
@@ -265,6 +281,11 @@ export class CreateRideUseCase {
         lng: quote.drop.lng,
         address: input.drop.address ?? null,
       },
+      stops: (quote.stops ?? []).map((stop, i) => ({
+        lat: stop.lat,
+        lng: stop.lng,
+        address: input.stops?.[i]?.address ?? null,
+      })),
       routeSnapshot: {
         provider: quote.routeProvider ?? 'GOOGLE_ROUTES',
         distanceM: quote.distanceM,

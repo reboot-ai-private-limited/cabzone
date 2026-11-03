@@ -425,6 +425,7 @@ export interface RideOfferDto {
     lng: number;
     address: string | null;
   };
+  stops?: { lat: number; lng: number; address: string | null }[];
   proposedFarePaise: number;
   distanceToPickupM: number;
   expiresAt: string | null;

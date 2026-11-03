@@ -62,7 +62,7 @@
     "start": "expo start --port 8082",
     "start:push": "node scripts/dev.cjs --push",
     "typecheck": "tsc --noEmit",
-    "test": "node --test src/services/places-autocomplete.test.mjs src/services/api.test.mjs src/services/rider-helpers.test.mjs src/services/ride-receipt.test.mjs src/context/ride-context.test.mjs src/components/booking/booking-home.test.mjs src/components/ride/ongoing-ride-view.test.mjs src/services/ride-call.test.mjs src/components/ride/ride-chat-screen.test.mjs src/components/ride/ride-rating-card.test.mjs src/components/ride/upi-checkout-html.test.mjs src/components/ride/receipt-preview.test.mjs src/components/ride/upi-payment-panel.test.mjs",
+    "test": "node --test src/components/booking/map-location-picker-utils.test.mjs src/services/polyline.test.mjs src/services/recent-places.test.mjs src/services/places-autocomplete.test.mjs src/services/api.test.mjs src/services/rider-helpers.test.mjs src/services/ride-receipt.test.mjs src/context/ride-context.test.mjs src/components/booking/booking-home.test.mjs src/components/ride/ongoing-ride-view.test.mjs src/services/ride-call.test.mjs src/components/ride/ride-chat-screen.test.mjs src/components/ride/ride-rating-card.test.mjs src/components/ride/upi-checkout-html.test.mjs src/components/ride/receipt-preview.test.mjs src/components/ride/upi-payment-panel.test.mjs",
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web --port 8082",

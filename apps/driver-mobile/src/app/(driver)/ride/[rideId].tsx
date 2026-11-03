@@ -289,6 +289,14 @@ export default function ActiveRideScreen() {
 
   const openExternalMaps = (target: 'pickup' | 'drop') => {
     const point = target === 'pickup' ? ride.pickup : ride.drop;
+    if (target === 'drop' && ride.stops?.length) {
+      // The geo: intent cannot carry waypoints, so route through every stop with Google Maps directions.
+      const waypoints = ride.stops.map((stop) => `${stop.lat},${stop.lng}`).join('|');
+      void Linking.openURL(
+        `https://www.google.com/maps/dir/?api=1&destination=${point.lat},${point.lng}&waypoints=${encodeURIComponent(waypoints)}&travelmode=driving`,
+      );
+      return;
+    }
     const label = encodeURIComponent(point.address || (target === 'pickup' ? 'Pickup' : 'Drop'));
     const latLng = `${point.lat},${point.lng}`;
     const url =
@@ -569,6 +577,19 @@ export default function ActiveRideScreen() {
             </View>
           </View>
 
+          {(ride.stops ?? []).map((stop, index) => (
+            <React.Fragment key={`stop-${index}`}>
+              <View style={styles.routeConnector} />
+              <View style={styles.pointRow}>
+                <View style={styles.stopMarker} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.pointLabel}>STOP {index + 1}</Text>
+                  <Text style={styles.pointAddress}>{locationLabel(stop.address, 'Stop')}</Text>
+                </View>
+              </View>
+            </React.Fragment>
+          ))}
+
           <View style={styles.routeConnector} />
 
           <View style={styles.pointRow}>
@@ -833,6 +854,7 @@ export default function ActiveRideScreen() {
 }
 
 const styles = StyleSheet.create({
+  stopMarker: { width: 20, height: 20, borderRadius: 5, backgroundColor: colors.brandBrown, transform: [{ scale: 0.6 }] },
   container: {
     flex: 1,
     backgroundColor: colors.background,

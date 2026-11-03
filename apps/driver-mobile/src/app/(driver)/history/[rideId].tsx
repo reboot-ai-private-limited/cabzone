@@ -165,6 +165,15 @@ export default function RideHistoryDetailScreen() {
               </Text>
             </View>
           </View>
+          {(ride.stops ?? []).map((stop, index) => (
+            <View key={`stop-${index}`} style={styles.pointRow}>
+              <View style={styles.stopMarker} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.pointLabel}>STOP {index + 1}</Text>
+                <Text style={styles.pointAddress}>{locationLabel(stop.address, 'Stop')}</Text>
+              </View>
+            </View>
+          ))}
           <View style={styles.pointRow}>
             <RoutePointIcon type="drop" size={20} />
             <View style={{ flex: 1 }}>
@@ -284,6 +293,7 @@ export default function RideHistoryDetailScreen() {
 }
 
 const styles = StyleSheet.create({
+  stopMarker: { width: 20, height: 20, borderRadius: 5, backgroundColor: colors.brandBrown, transform: [{ scale: 0.6 }] },
   container: {
     flex: 1,
     backgroundColor: colors.background,

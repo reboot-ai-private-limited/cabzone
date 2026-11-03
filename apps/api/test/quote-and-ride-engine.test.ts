@@ -351,6 +351,37 @@ describe('Quote Lifecycle & First-to-Accept Ride Engine', () => {
     });
   });
 
+  it('signs stops into the quote, stores them on the ride, and rejects a mismatched stop list', async () => {
+    const { quoteUseCase, createRideUseCase } = setupEngine();
+    const base = {
+      pickup: { lat: 26.72, lng: 88.42 },
+      drop: { lat: 26.75, lng: 88.45 },
+      vehicleCategory: 'CAB' as const,
+    };
+    const stops = [{ lat: 26.73, lng: 88.43, address: 'Stop A' }];
+
+    const direct = await quoteUseCase.execute(base);
+    const quote = await quoteUseCase.execute({ ...base, stops });
+    expect(CreateQuoteUseCase.verifyQuoteToken(quote.quoteToken, TEST_SECRET).stops).toEqual([
+      { lat: 26.73, lng: 88.43 },
+    ]);
+    expect(quote.suggestedFarePaise).toBeGreaterThanOrEqual(direct.suggestedFarePaise);
+
+    const rideInput = {
+      quoteToken: quote.quoteToken,
+      proposedFarePaise: quote.suggestedFarePaise,
+      riderId: '018f0a00-0000-7000-8000-000000000101',
+      passengerName: 'Jane Rider',
+      passengerPhoneE164: '+919876543210',
+      ...base,
+    };
+    await expect(createRideUseCase.execute({ ...rideInput, stops: [] })).rejects.toThrow(
+      'QUOTE_MISMATCH',
+    );
+    const ride = await createRideUseCase.execute({ ...rideInput, stops });
+    expect(ride.stops).toEqual([{ lat: 26.73, lng: 88.43, address: 'Stop A' }]);
+  });
+
   it('rejects proposed fare below negotiation floor or above ceiling', async () => {
     const { quoteUseCase, createRideUseCase } = setupEngine();
 

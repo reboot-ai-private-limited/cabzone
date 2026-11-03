@@ -114,6 +114,20 @@ export class RideUpiPaymentUseCase {
     };
   }
 
+  // shortcut: a session created under the other gateway mode cannot be verified or closed here, so cash
+  // resolution skips it instead of failing; upgrade to provider-side cleanup before mixing modes in prod.
+  private async sessionMatchesMode(rideId: string): Promise<boolean> {
+    const qr = await this.qrSession(rideId);
+    const orderId = await this.order(rideId);
+    return (!orderId && !qr) || !!qr === this.live;
+  }
+
+  private async reconcileForCash(rideId: string, riderId: string): Promise<RideEntity> {
+    return (await this.sessionMatchesMode(rideId))
+      ? this.reconcile(rideId, riderId)
+      : this.ownedRide(rideId, riderId);
+  }
+
   async switchToCash(
     rideId: string,
     actor: { role: 'RIDER' | 'DRIVER'; id: string },
@@ -128,14 +142,14 @@ export class RideUpiPaymentUseCase {
       ride.status === 'SETTLED';
     if (!canSwitchStatus)
       throw AppError.conflict('This ride is not awaiting payment.');
-    const current = await this.reconcile(rideId, ride.bookerRiderId);
+    const current = await this.reconcileForCash(rideId, ride.bookerRiderId);
     if (current.status === 'SETTLED' || (await this.cashSelected(rideId)))
       return this.paymentState(rideId);
     const qrCollection = await this.deps.closeQrCollectionForCash?.(rideId);
     if (qrCollection?.alreadyPaid) return this.paymentState(rideId);
     const qr = await this.qrSession(rideId);
-    if (qr) await this.deps.gateway.closeQrForCash(qr.qrId);
-    const checked = await this.reconcile(rideId, ride.bookerRiderId);
+    if (qr && this.live) await this.deps.gateway.closeQrForCash(qr.qrId);
+    const checked = await this.reconcileForCash(rideId, ride.bookerRiderId);
     if (checked.status === 'SETTLED') return this.paymentState(rideId);
     await this.deps.unitOfWork.run(async () => {
       const fresh = await this.ownedRide(rideId, ride.bookerRiderId);
@@ -173,15 +187,15 @@ export class RideUpiPaymentUseCase {
   async prepareNonUpiResolution(rideId: string): Promise<RideEntity> {
     const ride = await this.deps.rideRepo.findById(rideId);
     if (!ride) throw AppError.notFound('Ride not found.');
-    const current = await this.reconcile(rideId, ride.bookerRiderId);
+    const current = await this.reconcileForCash(rideId, ride.bookerRiderId);
     if (current.status === 'SETTLED' || current.status === 'PAYMENT_CONFIRMED') return current;
     const qrCollection = await this.deps.closeQrCollectionForCash?.(rideId);
     if (qrCollection?.alreadyPaid) {
       return (await this.deps.rideRepo.findById(rideId)) ?? current;
     }
     const qr = await this.qrSession(rideId);
-    if (qr) await this.deps.gateway.closeQrForCash(qr.qrId);
-    return this.reconcile(rideId, ride.bookerRiderId);
+    if (qr && this.live) await this.deps.gateway.closeQrForCash(qr.qrId);
+    return this.reconcileForCash(rideId, ride.bookerRiderId);
   }
 
   async prepareCashConfirmation(rideId: string, driverId: string): Promise<void> {
