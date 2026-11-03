@@ -266,11 +266,15 @@ export function makeStreamAdminDocumentContentController(
     res.setHeader('Cache-Control', 'private, no-store, no-cache, max-age=0, must-revalidate');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Referrer-Policy', 'no-referrer');
-    res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
+    // Access is gated by the short-lived HMAC signature; the admin web app may be on another origin.
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
     res.setHeader('X-Content-Type-Options', 'nosniff');
+    // Chrome's PDF viewer does not render inside a CSP-sandboxed response.
     res.setHeader(
       'Content-Security-Policy',
-      "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; sandbox",
+      content.mimeType === 'application/pdf'
+        ? "default-src 'none'; object-src 'self'; style-src 'unsafe-inline'"
+        : "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; sandbox",
     );
     res.status(200).send(content.bytes);
   });

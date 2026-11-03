@@ -129,7 +129,12 @@ export function resolvePreviewContentUrl(
 
   let base: URL;
   try {
-    base = new URL(apiBaseUrl);
+    // A relative base (e.g. "/api" behind the Next.js proxy) resolves against the page origin.
+    const origin =
+      typeof window !== 'undefined' && window.location?.origin
+        ? window.location.origin
+        : 'http://localhost:3000';
+    base = new URL(apiBaseUrl, origin);
   } catch {
     return null;
   }
