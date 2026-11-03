@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Animated, StyleSheet, Text, View } from 'react-native';
-import { colors, motion } from '@/design-system';
+import { Animated, Text, View } from 'react-native';
+import { colors, motion, createStyles } from '@/design-system';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 
 export type DriverPresenceStatus = 'OFFLINE' | 'CHECKING' | 'ONLINE';
@@ -105,7 +105,7 @@ export function CabzonStatusIndicator({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createStyles(() => ({
   container: {
     alignItems: 'center',
     gap: 4,
@@ -129,4 +129,4 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.secondary,
   },
-});
+}));

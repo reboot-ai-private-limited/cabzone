@@ -8,7 +8,6 @@ import {
   Platform,
   Pressable,
   ScrollView,
-  StyleSheet,
   Text,
   TextInput,
   View,
@@ -16,7 +15,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { colors } from '@/design-system';
+import { colors, createStyles } from '@/design-system';
 import { useAuth } from '@/context/auth-context';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 
@@ -434,7 +433,7 @@ export function SignupStep({ onBack, onSuccess }: SignupStepProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createStyles(() => ({
   container: { flex: 1, backgroundColor: colors.white },
   inner: {
     flex: 1,
@@ -534,6 +533,6 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   pressed: { opacity: 0.9 },
-});
+}));
 
 export default SignupStep;

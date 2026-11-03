@@ -36,7 +36,15 @@ import {
 } from '../src/modules/identity/interface/rider.routes.js';
 import { JoseTokenAdapter } from '../src/modules/identity/infrastructure/index.js';
 import { makeAuthenticate, requireRole } from '../src/modules/identity/interface/middlewares/index.js';
-import type { RideEntity, RideListFilter, RideRepositoryPort } from '../src/modules/rides/domain/index.js';
+import type {
+  RideEntity,
+  RideListFilter,
+  RideRepositoryPort,
+  TripStats,
+  TripStatsRole,
+} from '../src/modules/rides/domain/index.js';
+import { computeTripStats } from '../src/modules/rides/domain/index.js';
+import { TrustScoreService } from '../src/modules/identity/application/trustScore.service.js';
 import { errorHandler } from '../src/shared/http/error-handler.js';
 
 const TEST_SECRET = 'this-is-a-super-secret-key-that-is-at-least-32-chars-long!';
@@ -226,51 +234,19 @@ class TestMemoryRideRepo implements RideRepositoryPort {
     return 0;
   }
 
-  async getRiderStats(riderId: string): Promise<{
-    totalRides: number;
-    completedRides: number;
-    cancelledRides: number;
-    totalSpentPaise: number;
-  }> {
-    let totalRides = 0;
-    let completedRides = 0;
-    let cancelledRides = 0;
-    let totalSpentPaise = 0;
-
-    for (const r of this.rides.values()) {
-      if (r.bookerRiderId === riderId || r.passenger.riderId === riderId) {
-        totalRides++;
-        if (r.status === 'TRIP_COMPLETED' || r.status === 'SETTLED' || r.status === 'PAYMENT_CONFIRMED') {
-          completedRides++;
-          totalSpentPaise += r.agreedFarePaise ?? r.suggestedFarePaise;
-        } else if (r.status === 'CANCELLED') {
-          cancelledRides++;
-        }
-      }
+  async getTripStats(
+    role: TripStatsRole,
+    ids: string[],
+    now: Date = new Date(),
+  ): Promise<Map<string, TripStats>> {
+    const out = new Map<string, TripStats>();
+    for (const id of ids) {
+      const mine = [...this.rides.values()].filter((r) =>
+        role === 'RIDER' ? r.bookerRiderId === id : r.driverId === id,
+      );
+      out.set(id, computeTripStats(role, mine, now));
     }
-
-    return { totalRides, completedRides, cancelledRides, totalSpentPaise };
-  }
-
-  async getRiderTripCountsBatch(
-    riderIds: string[],
-  ): Promise<Map<string, { totalRides: number; completedRides: number; cancelledRides: number }>> {
-    const map = new Map<string, { totalRides: number; completedRides: number; cancelledRides: number }>();
-    const idSet = new Set(riderIds);
-
-    for (const r of this.rides.values()) {
-      const id = idSet.has(r.bookerRiderId) ? r.bookerRiderId : null;
-      if (!id) continue;
-      const cur = map.get(id) ?? { totalRides: 0, completedRides: 0, cancelledRides: 0 };
-      cur.totalRides++;
-      if (r.status === 'CANCELLED') cur.cancelledRides++;
-      if (r.status === 'TRIP_COMPLETED' || r.status === 'SETTLED' || r.status === 'PAYMENT_CONFIRMED') {
-        cur.completedRides++;
-      }
-      map.set(id, cur);
-    }
-
-    return map;
+    return out;
   }
 }
 
@@ -302,7 +278,7 @@ describe('Riders and Customer Admin API', () => {
       riderRepo,
       userRepo,
       sessionRepo,
-      rideRepo,
+      trustScore: new TrustScoreService({ riderRepo, driverRepo: {} as never, rideRepo, mode: 'on' }),
     };
     const listRidersUseCase = new ListRidersUseCase(adminRiderDeps);
     const getRiderDetailUseCase = new GetRiderDetailUseCase(adminRiderDeps);

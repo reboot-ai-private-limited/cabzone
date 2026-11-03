@@ -3,7 +3,7 @@
  * White surfaces with amber and deep brown accents
  */
 
-export const colors = {
+export const lightColors = {
   deepBrown: '#3A2414',
   amber: '#FBBF24',
   amberStrong: '#F59E0B',
@@ -13,7 +13,7 @@ export const colors = {
   softAmber: '#FFD59A',
   orange: '#FB923C',
   brandBrown: '#B45309',
-  background: '#FFFFFF',
+  background: '#FFFFFE', // 1 unit off white so dark mode can tell the page apart from cards
   white: '#FFFFFF',
   surface: '#FFFFFF',
   surfaceMuted: '#FFFFFF',
@@ -30,4 +30,4 @@ export const colors = {
   errorBg: '#FEE2E2',
 } as const;
 
-export type ColorKey = keyof typeof colors;
+export type ColorKey = keyof typeof lightColors;

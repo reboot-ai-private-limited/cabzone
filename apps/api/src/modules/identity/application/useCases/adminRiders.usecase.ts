@@ -12,14 +12,16 @@ import type {
   SessionRepositoryPort,
   UserRepositoryPort,
 } from '../../domain/index.js';
-import { calculateTrustScore } from '../../domain/trustScore.calculator.js';
-import type { RideRepositoryPort } from '../../../rides/rides.public.js';
+import type { TripStats } from '../../../rides/rides.public.js';
+import { emptyTripStats } from '../../../rides/rides.public.js';
+import type { TrustScoreService } from '../trustScore.service.js';
 
 export interface AdminRiderDeps {
   riderRepo: RiderRepositoryPort;
   userRepo: UserRepositoryPort;
   sessionRepo: SessionRepositoryPort;
-  rideRepo?: RideRepositoryPort | undefined;
+  /** One source of trust numbers for the list, the detail view and the stored score. */
+  trustScore: TrustScoreService;
   onAccountSuspended?: ((userId: string) => Promise<void>) | undefined;
 }
 
@@ -43,39 +45,14 @@ export class ListRidersUseCase {
       offset,
     });
 
-    let tripCounts = new Map<
-      string,
-      {
-        totalRides: number;
-        completedRides: number;
-        cancelledRides: number;
-        noShowsCount?: number | undefined;
-        disputesCount?: number | undefined;
-      }
-    >();
-    if (this.deps.rideRepo && items.length > 0) {
-      try {
-        const riderIds = items.map((i) => i.rider.id);
-        tripCounts = await this.deps.rideRepo.getRiderTripCountsBatch(riderIds);
-      } catch {
-        // Fallback gracefully if rides repository is not configured
-      }
-    }
+    const stats = await this.deps.trustScore.loadStats(
+      'RIDER',
+      items.map((i) => i.rider.id),
+    );
 
     const riders: AdminRiderSummaryDto[] = items.map((item) => {
-      const counts = tripCounts.get(item.rider.id) ?? {
-        totalRides: 0,
-        completedRides: 0,
-        cancelledRides: 0,
-      };
-      const trust = calculateTrustScore({
-        completedRides: counts.completedRides,
-        cancelledRides: counts.cancelledRides,
-        ratingAverage: item.rider.ratingAverage,
-        ratingCount: item.rider.ratingCount,
-        noShowsCount: counts.noShowsCount ?? 0,
-        disputesCount: counts.disputesCount ?? 0,
-      });
+      const counts = stats.get(item.rider.id) ?? emptyTripStats();
+      const trust = this.deps.trustScore.evaluate('RIDER', item.rider, counts).active;
 
       return {
         id: item.rider.id,
@@ -106,6 +83,10 @@ export class ListRidersUseCase {
   }
 }
 
+async function loadRiderStats(deps: AdminRiderDeps, riderId: string): Promise<TripStats> {
+  return (await deps.trustScore.loadStats('RIDER', [riderId])).get(riderId) ?? emptyTripStats();
+}
+
 export class GetRiderDetailUseCase {
   constructor(private readonly deps: AdminRiderDeps) {}
 
@@ -120,30 +101,8 @@ export class GetRiderDetailUseCase {
       throw AppError.notFound('USER_NOT_FOUND: Linked user account not found.');
     }
 
-    let stats: {
-      totalRides: number;
-      completedRides: number;
-      cancelledRides: number;
-      totalSpentPaise: number;
-      noShowsCount?: number | undefined;
-      disputesCount?: number | undefined;
-    } = { totalRides: 0, completedRides: 0, cancelledRides: 0, totalSpentPaise: 0 };
-    if (this.deps.rideRepo) {
-      try {
-        stats = await this.deps.rideRepo.getRiderStats(rider.id);
-      } catch {
-        // Fallback gracefully
-      }
-    }
-
-    const trust = calculateTrustScore({
-      completedRides: stats.completedRides,
-      cancelledRides: stats.cancelledRides,
-      ratingAverage: rider.ratingAverage,
-      ratingCount: rider.ratingCount,
-      noShowsCount: stats.noShowsCount ?? 0,
-      disputesCount: stats.disputesCount ?? 0,
-    });
+    const stats = await loadRiderStats(this.deps, rider.id);
+    const trust = this.deps.trustScore.evaluate('RIDER', rider, stats).active;
 
     return {
       id: rider.id,
@@ -197,19 +156,7 @@ export class UpdateRiderStatusUseCase {
       await this.deps.onAccountSuspended?.(user.id).catch(() => undefined);
     }
 
-    let counts = { totalRides: 0, completedRides: 0, cancelledRides: 0 };
-    if (this.deps.rideRepo) {
-      try {
-        const stats = await this.deps.rideRepo.getRiderStats(rider.id);
-        counts = {
-          totalRides: stats.totalRides,
-          completedRides: stats.completedRides,
-          cancelledRides: stats.cancelledRides,
-        };
-      } catch {
-        // Fallback gracefully
-      }
-    }
+    const stats = await loadRiderStats(this.deps, rider.id);
 
     return {
       id: rider.id,
@@ -222,8 +169,8 @@ export class UpdateRiderStatusUseCase {
       emergencyContact: toAdminEmergencyContact(rider),
       ratingAverage: rider.ratingAverage,
       ratingCount: rider.ratingCount,
-      totalRides: counts.totalRides,
-      completedRides: counts.completedRides,
+      totalRides: stats.totalRides,
+      completedRides: stats.completedRides,
       createdAt: rider.createdAt.toISOString(),
       updatedAt: rider.updatedAt.toISOString(),
     };
@@ -262,14 +209,7 @@ export class UpdateRiderProfileUseCase {
       updatedAt: new Date(),
     });
 
-    let stats = { totalRides: 0, completedRides: 0, cancelledRides: 0, totalSpentPaise: 0 };
-    if (this.deps.rideRepo) {
-      try {
-        stats = await this.deps.rideRepo.getRiderStats(rider.id);
-      } catch {
-        // Fallback
-      }
-    }
+    const stats = await loadRiderStats(this.deps, rider.id);
 
     return {
       id: updatedRider.id,

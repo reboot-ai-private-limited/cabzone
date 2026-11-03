@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
-  StyleSheet,
   Text,
   TextInput,
   View,
@@ -16,7 +15,7 @@ import {
 } from '@cabzone/contracts';
 import { useAuth } from '@/context/auth-context';
 import { ridesApi } from '@/services/api';
-import { colors, typography } from '@/design-system';
+import { colors, typography, createStyles } from '@/design-system';
 
 const STAR_OPTIONS = [1, 2, 3, 4, 5] as const;
 
@@ -347,7 +346,7 @@ export function RideRatingCard({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createStyles(() => ({
   card: {
     backgroundColor: colors.white,
     borderRadius: 18,
@@ -515,4 +514,4 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.error,
   },
-});
+}));

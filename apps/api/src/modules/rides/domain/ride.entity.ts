@@ -2,6 +2,8 @@ import type {
   RideExtensionProposalDto,
   TollSnapshot,
   CancellationReason,
+  DisputeOutcome,
+  RideEventActor,
   RidePricingSnapshot,
   RideStatus,
   VehicleCategory,
@@ -63,6 +65,14 @@ export interface RideEntity {
   arrearsPaise?: number;
   status: RideStatus;
   cancellationReason: CancellationReason | null;
+  /** Who ended the ride (D-048). Optional so older rows and fixtures stay valid. */
+  cancelledBy?: RideEventActor | null;
+  /** When the ride entered PAYMENT_DISPUTED, and how an admin resolved it (D-048). */
+  disputedAt?: Date | null;
+  /** Rider asked to end the trip before the destination; cleared if the driver declines. */
+  earlyDropRequestedAt?: Date | null;
+  disputeOutcome?: DisputeOutcome | null;
+  disputeResolvedAt?: Date | null;
   offeringExpiresAt: Date | null;
   acceptedAt: Date | null;
   arrivedAt: Date | null;

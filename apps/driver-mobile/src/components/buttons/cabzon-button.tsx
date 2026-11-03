@@ -3,12 +3,11 @@ import {
   ActivityIndicator,
   Animated,
   Pressable,
-  StyleSheet,
   Text,
   type TextStyle,
   type ViewStyle,
 } from 'react-native';
-import { colors, motion } from '@/design-system';
+import { colors, motion, createStyles } from '@/design-system';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 
 export interface CabzonButtonProps {
@@ -125,7 +124,7 @@ export function CabzonButton({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createStyles(() => ({
   button: {
     height: 52,
     borderRadius: 8,
@@ -146,4 +145,4 @@ const styles = StyleSheet.create({
     borderColor: colors.deepBrown,
   },
   secondaryBorder: { borderWidth: 1, borderColor: colors.border },
-});
+}));

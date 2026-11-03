@@ -83,6 +83,9 @@ import { RideCommunicationAccessUseCase, type RideCommunicationAccessDeps } from
 import type { RideChatMessageDto } from '@cabzone/contracts';
 import type { RideChatRepositoryPort } from './domain/rideChat.port.js';
 import { MemoryRideChatRepository } from './infrastructure/persistence/memoryRideChat.repository.js';
+import type { DriverLocationPort } from './application/geofence.js';
+import { EarlyDropUseCase } from './application/useCases/earlyDrop.usecase.js';
+import { makeEarlyDropControllers } from './interface/earlyDrop.controller.js';
 import { RideChatUseCase } from './application/useCases/rideChat.usecase.js';
 import { makeChatControllers } from './interface/rideChat.controller.js';
 import { AppError } from '../../shared/errors/AppError.js';
@@ -93,6 +96,8 @@ import { makeRideCallControllers } from './interface/rideCalls.controller.js';
 import { LiveKitVoiceGateway } from './infrastructure/liveKitVoice.gateway.js';
 
 export interface RidesContainerDeps extends RideHttpContext {
+  /** When set, arrive/complete enforce the 200 m / 500 m driver proximity rules. */
+  driverLocation?: DriverLocationPort | undefined;
   chatEnabled?: boolean;
   chatMessages?: RideChatRepositoryPort;
   consumeChatRateLimit?: (userId: string) => Promise<number>;
@@ -226,6 +231,8 @@ export function buildRidesContainer(deps: RidesContainerDeps): RidesContainer {
     walletRepo,
     unitOfWork: deps.unitOfWork,
     gateway: qrGateway,
+    // `upiPayment` is created just below; the callback only runs after construction.
+    closeLegacyQrSession: (rideId: string): Promise<void> => upiPayment.closeLegacySession(rideId),
     onRideSettled: async (ride, event) => {
       await deps.notifier?.rideUpdated(ride, event);
     },
@@ -236,7 +243,11 @@ export function buildRidesContainer(deps: RidesContainerDeps): RidesContainer {
     rideEventRepo,
     unitOfWork: deps.unitOfWork,
     gateway,
-    closeQrCollectionForCash: (rideId) => qrPayment.closeForCash(rideId),
+    closeQrCollectionForCash: (rideId: string): Promise<{ alreadyPaid: boolean }> =>
+      qrPayment.closeForCash(rideId),
+    liveQrSession: (rideId: string, riderId: string) =>
+      qrPayment.liveSessionForRider(rideId, riderId),
+    refreshQrPayment: (rideId: string) => qrPayment.refreshForRider(rideId),
   });
 
   const createRideUseCase = new CreateRideUseCase({
@@ -271,6 +282,7 @@ export function buildRidesContainer(deps: RidesContainerDeps): RidesContainer {
     rideRepo,
     rideEventRepo,
     unitOfWork: deps.unitOfWork,
+    driverLocation: deps.driverLocation,
   });
   const startRideUseCase = new StartRideUseCase({
     unitOfWork: deps.unitOfWork,
@@ -288,6 +300,7 @@ export function buildRidesContainer(deps: RidesContainerDeps): RidesContainer {
     walletRepo,
     rideEventRepo,
     unitOfWork: deps.unitOfWork,
+    driverLocation: deps.driverLocation,
     onRideCompleted: (rideId) => rideCalls.endForRide(rideId, 'ride_completed'),
   });
   const cancelRideUseCase = new CancelRideUseCase({
@@ -341,6 +354,15 @@ export function buildRidesContainer(deps: RidesContainerDeps): RidesContainer {
     actors,
     qrPayment,
   });
+  const earlyDropControllers = makeEarlyDropControllers(
+    new EarlyDropUseCase({
+      rideRepo,
+      rideEventRepo,
+      unitOfWork: deps.unitOfWork,
+      completeRide: (input) => completeRideUseCase.execute(input),
+    }),
+    actors,
+  );
   const extensionControllers = makeExtensionControllers(
     deps.extensions
       ? new RideExtensionsUseCase({
@@ -389,6 +411,8 @@ export function buildRidesContainer(deps: RidesContainerDeps): RidesContainer {
         createRide: makeCreateRideController(createRideUseCase, actors),
         proposeExtension: extensionControllers.propose,
         respondExtension: extensionControllers.respond,
+        requestEarlyDrop: earlyDropControllers.request,
+        respondEarlyDrop: earlyDropControllers.respond,
         listRides: makeListRidesController(rideRepo, actors),
         driverEarnings: makeDriverEarningsSummaryController(driverEarningsUseCase, actors),
         driverHistory: makeDriverHistoryController(rideRepo, driverEarningsUseCase, actors),

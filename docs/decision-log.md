@@ -847,3 +847,41 @@ The PRD does not decide:
 Compare current driver location to the agreed destination with the same current location to the proposed destination. If 8 km remain and the new route is 13 km, charge only 5 km. Use frozen ride tariffs and reject a new state with no frozen tariff. Do not charge base/minimum fare or buffer a second time. Original pricing/cancellation snapshots remain immutable; driver confirmation is required before destination/fare changes.
 
 Implementation and verification: [29 October backend checkpoint](engineering/backend-completion-2026-10-29.md).
+
+## D-048 - Trust Score v2: fault-based, smoothed, decaying, for riders and drivers
+
+**Date:** 2026-11-03. **Status:** Implemented. Amends D-021 (trust score) and D-046 (display threshold). The public threshold of 5 completed rides and the double-blind rating rules from D-046 are unchanged.
+
+**Why:** A review of the first implementation found that the driver score was never calculated, one rating could swing a score from 100 to 12, riders were penalised for cancellations drivers and the system caused, the admin list and detail view could disagree, and nothing decayed.
+
+**Decision:**
+
+1. **Both roles, one engine.** Riders and drivers get a stored score, tier and breakdown, refreshed after a ride is cancelled, settled, left unpaid or disputed, after a rating is revealed, and by a daily sweep.
+2. **Ratings are smoothed.** They are pulled toward 4.5 using a prior of 5 ratings, so a single rating moves a score by a few points. The public rating label still shows "New" until 5 revealed ratings exist.
+3. **No default perfect score.** Until 5 revealed ratings exist the score is capped at 89 (`PROVISIONAL`). A dispute resolved against the user within the last 90 days (weight 0.5 or more) also blocks EXCELLENT.
+4. **Fault-based cancellations.** A ride records `cancelledBy`. A cancellation counts against the user who caused it, per the matrix below. Cancellations before a driver was assigned are free and neutral. A rider's claim about the driver (`DRIVER_DELAYED`, `DRIVER_NO_SHOW`) is unverified and never counts against the driver.
+5. **Reasons must fit the actor.** A rider may use `RIDER_CHANGED_MIND`, `DRIVER_DELAYED`, `DRIVER_NO_SHOW`, `FARE_DISAGREEMENT`. A driver may use `RIDER_NO_SHOW`, `DRIVER_DELAYED`, `FARE_DISAGREEMENT`. Admin and system may use any.
+6. **Disputes count by outcome.** A resolved dispute counts against the party the admin ruled against (`RIDER_WINS` against the driver, `DRIVER_WINS` against the rider) and keeps counting after the ride returns to `SETTLED`. An unresolved dispute counts against nobody.
+7. **Unpaid rides.** `PAYMENT_UNPAID` costs the rider 10 points per ride and does not count as a completed ride for the rider.
+8. **Decay.** Cancellations, no-shows and disputes lose half their weight every 90 days.
+9. **Early flags.** Below 5 completed rides the score stays hidden, but admins see `EARLY_CANCEL_PATTERN` (3 or more caused cancellations), `EARLY_UNPAID` or `EARLY_DISPUTE`.
+10. **Stats are booker-based.** Rider statistics belong to the account that booked the ride; driver statistics to the assigned driver. A single function (`computeTripStats`) produces them for the list, the detail view and the refresher.
+11. **Display.** The other party sees only the tier (Excellent, Good, Fair, Low), never the number, and only when the score is public. Admins see the number, breakdown and flags.
+
+**Attribution matrix (counts against, when a driver was assigned):**
+
+| Reason | by rider | by driver | by admin / system |
+|---|---|---|---|
+| `RIDER_CHANGED_MIND` | rider | neutral | neutral |
+| `RIDER_NO_SHOW` | n/a | rider (no-show) | neutral |
+| `DRIVER_DELAYED` | neutral | driver | neutral |
+| `DRIVER_NO_SHOW` | neutral | driver (no-show) | neutral |
+| `FARE_DISAGREEMENT`, `ADMIN_OVERRIDE`, `TIMEOUT_EXPIRED` | neutral | neutral | neutral |
+
+**Formula (starting weights, all in `TRUST_V2_CONFIG`):** start 100; minus `round((4.5 - effectiveRating) * 25)` when below 4.5; plus 5 for 5 or more ratings averaging 4.8 or higher; minus `round((cancelRate - 5%) * 100)` where cancelRate = caused cancellations / (completed + caused cancellations); minus 10 per no-show, 15 per dispute lost, 10 per unpaid ride; plus 2 (20 completed) or 5 (50 completed) experience, halved while a dispute counts; capped as in point 3; clamped to 10..100. Tiers: 90+ Excellent, 75+ Good, 60+ Fair, below Poor.
+
+**Rollout:** `TRUST_SCORE_V2=off|shadow|on` (default `on`). `shadow` keeps the old formula visible and logs the difference. Run `pnpm --filter @cabzone/api backfill:trust` (steps `cancelled-by`, `disputes`, `rating-sums`, `scores`; `--dry-run` supported) before relying on historic data.
+
+**Known limits:** Older rides cancelled with an ambiguous reason and no event have no actor and are treated as neutral. Disputes still open count for nobody until an admin decides.
+
+**Affected components:** `trustScore.v2.ts`, `trustScore.service.ts`, `tripStats.ts`, `cancellationPolicy.ts`, ride and rider/driver persistence, dispatch offers, admin web, both mobile apps. Plan and traceability: [trust score fix plan](engineering/trust-score-fix-plan.md).

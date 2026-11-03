@@ -12,7 +12,6 @@ import {
   Platform,
   Pressable,
   ScrollView,
-  StyleSheet,
   Text,
   View,
   type LayoutChangeEvent,
@@ -23,7 +22,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, typography } from '@/design-system';
+import { colors, typography, createStyles } from '@/design-system';
 import {
   computeKeyboardBottomPadding,
   computeScrollDeltaForFocusedRect,
@@ -257,7 +256,7 @@ export const OnboardingFormScroll = forwardRef<
   );
 });
 
-const styles = StyleSheet.create({
+const styles = createStyles(() => ({
   container: {
     flex: 1,
     backgroundColor: colors.background,
@@ -298,4 +297,4 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: colors.deepBrown,
   },
-});
+}));

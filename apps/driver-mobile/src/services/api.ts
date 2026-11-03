@@ -62,7 +62,7 @@ function getApiBaseUrl(): string {
   }
 
   // 4. Default to local Wi-Fi IP
-  return 'http://192.168.1.5:4000';
+  return 'http://200.234.38.54:4090';
 }
 
 export const API_BASE_URL = getApiBaseUrl();
@@ -427,6 +427,8 @@ export interface RideOfferDto {
   };
   stops?: { lat: number; lng: number; address: string | null }[];
   proposedFarePaise: number;
+  /** The rider's public trust tier. Absent until their score is public. */
+  riderTrustTier?: 'EXCELLENT' | 'GOOD' | 'FAIR' | 'POOR' | null;
   distanceToPickupM: number;
   expiresAt: string | null;
   negotiation?: { floorPaise: number; ceilingPaise: number };
@@ -704,6 +706,18 @@ export const ridesApi = {
     return request<CompleteRideResultDto>(
       `/api/v1/rides/${encodeURIComponent(rideId)}/complete`,
       { method: 'POST', body: JSON.stringify({}) },
+      token,
+    );
+  },
+
+  async respondEarlyDrop(
+    token: string,
+    rideId: string,
+    decision: 'ACCEPT' | 'DECLINE',
+  ): Promise<RideDto> {
+    return request<RideDto>(
+      `/api/v1/rides/${encodeURIComponent(rideId)}/early-drop/respond`,
+      { method: 'POST', body: JSON.stringify({ decision }) },
       token,
     );
   },

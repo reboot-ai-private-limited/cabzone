@@ -172,7 +172,7 @@ function createHarness(relPath, mocks) {
       if (name === '@expo/vector-icons') return { Ionicons: 'Ionicons' };
       if (name.includes('design-system')) {
         return {
-          colors: {},
+          createStyles: (factory) => factory(), colors: {},
           typography: { sizes: {} },
         };
       }

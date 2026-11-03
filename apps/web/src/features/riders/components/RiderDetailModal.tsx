@@ -172,6 +172,7 @@ export function RiderDetailModal({
                     <TrustScoreBadge
                       score={rider.trustScore}
                       tier={rider.trustScoreBreakdown?.tier}
+                      breakdown={rider.trustScoreBreakdown}
                       size="sm"
                     />
                   </div>

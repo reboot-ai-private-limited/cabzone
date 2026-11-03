@@ -53,7 +53,7 @@ function getApiBaseUrl(): string {
     }
   }
 
-  return 'http://192.168.1.5:4000';
+  return 'http://200.234.38.54:4090';
 }
 
 export const API_BASE_URL = getApiBaseUrl();
@@ -374,6 +374,13 @@ export const riderRidesApi = {
     return request(
       `/api/v1/rides/${rideId}/extensions`,
       { method: 'POST', body: JSON.stringify(input) },
+      token,
+    );
+  },
+  async requestEarlyDrop(token: string, rideId: string): Promise<RiderRideViewDto> {
+    return request(
+      `/api/v1/rides/${encodeURIComponent(rideId)}/early-drop`,
+      { method: 'POST', body: JSON.stringify({}) },
       token,
     );
   },

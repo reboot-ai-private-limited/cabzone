@@ -2,13 +2,14 @@ import { type TollSnapshot, tollDisclosure } from '@cabzone/contracts';
 import { locationLabel } from '@/services/location-names';
 
 import React, { useEffect, useState } from 'react';
-import { Animated, Dimensions, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Dimensions, Pressable, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, motion } from '@/design-system';
+import { colors, motion, createStyles } from '@/design-system';
 import { CabzonButton } from '@/components/buttons/cabzon-button';
 import { RoutePointIcon } from '@/components/common/route-point-icon';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 import type { RideOfferDto } from '@/services/api';
+import { trustTierLabel } from '@/services/trust-tier';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -19,16 +20,21 @@ export interface CabzonRideOfferData {
   pickupAddress: string;
   dropoffAddress: string;
   stopAddresses?: string[];
-  distanceKm: number;
+  distanceKm: number | null;
   estimatedDurationMin?: number;
   serviceType: string;
+  riderTrustTier?: RideOfferDto['riderTrustTier'];
   expiresAt?: string | null;
   floorPaise?: number;
   ceilingPaise?: number;
 }
 
 export function mapRideOfferDtoToCardData(offer: RideOfferDto): CabzonRideOfferData {
-  const distanceKm = Number((offer.distanceToPickupM / 1000).toFixed(1));
+  // FIX-03: guard against 0/missing GPS — server sends 0 when driver GPS hasn't resolved yet
+  const distanceKm =
+    offer.distanceToPickupM > 0
+      ? Number((offer.distanceToPickupM / 1000).toFixed(1))
+      : null; // null = unknown, renders 'Calculating...' instead of '0 km'
   return {
     tollSnapshot: offer.tollSnapshot ?? null,
     rideId: offer.rideId,
@@ -40,6 +46,7 @@ export function mapRideOfferDtoToCardData(offer: RideOfferDto): CabzonRideOfferD
       : {}),
     distanceKm,
     serviceType: offer.vehicleCategory,
+    riderTrustTier: offer.riderTrustTier ?? null,
     expiresAt: offer.expiresAt,
     ...(offer.negotiation && {
       floorPaise: offer.negotiation.floorPaise,
@@ -149,6 +156,16 @@ export function CabzonRideOffer({
   const netPaise = Math.round(offer.farePaise * 0.92);
   const netRupees = (netPaise / 100).toFixed(0);
 
+  // FIX-05: 3-stage timer urgency: normal (gold) -> warning (orange, <=20s) -> critical (red, <=8s)
+  const timerUrgency =
+    displaySecondsLeft != null
+      ? displaySecondsLeft <= 8
+        ? 'critical'
+        : displaySecondsLeft <= 20
+        ? 'warning'
+        : 'normal'
+      : 'normal';
+
   return (
     <Animated.View
       style={[
@@ -167,13 +184,25 @@ export function CabzonRideOffer({
           <Text style={styles.liveText}>New ride request</Text>
         </View>
         {displaySecondsLeft != null ? (
-          <View style={[styles.timerPill, displaySecondsLeft <= 8 && styles.timerPillUrgent]}>
+          <View style={[
+            styles.timerPill,
+            timerUrgency === 'warning' && styles.timerPillWarning,
+            timerUrgency === 'critical' && styles.timerPillUrgent,
+          ]}>
             <Ionicons
               name="time-outline"
               size={13}
-              color={displaySecondsLeft <= 8 ? colors.error : colors.deepBrown}
+              color={
+                timerUrgency === 'critical' ? colors.error
+                : timerUrgency === 'warning' ? '#D97706'
+                : colors.deepBrown
+              }
             />
-            <Text style={[styles.timerText, displaySecondsLeft <= 8 && styles.timerTextUrgent]}>
+            <Text style={[
+              styles.timerText,
+              timerUrgency === 'warning' && styles.timerTextWarning,
+              timerUrgency === 'critical' && styles.timerTextUrgent,
+            ]}>
               {displaySecondsLeft}s
             </Text>
           </View>
@@ -185,7 +214,8 @@ export function CabzonRideOffer({
           <View
             style={[
               styles.progressFill,
-              displaySecondsLeft <= 8 && styles.progressFillUrgent,
+              timerUrgency === 'warning' && styles.progressFillWarning,
+              timerUrgency === 'critical' && styles.progressFillUrgent,
               { width: `${Math.max(0, Math.min(100, (displaySecondsLeft / totalSeconds) * 100))}%` },
             ]}
           />
@@ -195,14 +225,21 @@ export function CabzonRideOffer({
       <View style={styles.fareCard}>
         <View style={{ flex: 1 }}>
           <Text style={styles.serviceTag}>{offer.serviceType.toUpperCase()}</Text>
-          <Text style={styles.fareText}>₹{grossRupees}</Text>
+          {trustTierLabel(offer.riderTrustTier) ? (
+            <Text style={styles.riderTrust} accessibilityLabel={`Rider trust: ${trustTierLabel(offer.riderTrustTier)}`}>
+              Rider trust · {trustTierLabel(offer.riderTrustTier)}
+            </Text>
+          ) : null}
+          <Text style={styles.fareText} numberOfLines={1} adjustsFontSizeToFit>₹{grossRupees}</Text>
           <Text style={styles.netHintText}>
             Est. net ₹{netRupees} after 8% fee · Cash / UPI
           </Text>
         </View>
         <View style={styles.metricsBadge}>
           <Ionicons name="navigate" size={14} color={colors.brandBrown} />
-          <Text style={styles.metricsText}>{offer.distanceKm} km away</Text>
+          <Text style={styles.metricsText}>
+            {offer.distanceKm != null ? `${offer.distanceKm} km away` : 'Calculating...'}
+          </Text>
         </View>
       </View>
 
@@ -354,7 +391,7 @@ export function CabzonRideOffer({
               variant="primary"
               onPress={() => onAccept(offer.rideId)}
               loading={isAccepting}
-              style={styles.acceptBtn}
+              style={onCounter ? styles.acceptBtnNarrow : styles.acceptBtn}
             />
           </>
         )}
@@ -363,7 +400,7 @@ export function CabzonRideOffer({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createStyles(() => ({
   stopMarker: { width: 20, height: 20, borderRadius: 5, backgroundColor: colors.brandBrown, transform: [{ scale: 0.6 }] },
   sheetContainer: {
     position: 'absolute',
@@ -426,6 +463,12 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: colors.brandBrown,
     letterSpacing: 0.5,
+  },
+  riderTrust: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.secondary,
+    marginTop: 2,
   },
   timerPill: {
     flexDirection: 'row',
@@ -585,9 +628,11 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: colors.deepBrown,
   },
+  // FIX-01: flexWrap prevents overflow clip; reduced gap fits 3 buttons on narrow screens
   buttonRow: {
     flexDirection: 'row',
-    gap: 10,
+    gap: 8,
+    flexWrap: 'wrap',
   },
   declineBtn: {
     flex: 1,
@@ -599,4 +644,20 @@ const styles = StyleSheet.create({
     height: 56,
     borderRadius: 18,
   },
-});
+  // FIX-01: narrower accept when Counter button is also visible (3-button row)
+  acceptBtnNarrow: {
+    flex: 1.4,
+    height: 56,
+    borderRadius: 18,
+  },
+  // FIX-05: orange warning state (20s-9s remaining)
+  timerPillWarning: {
+    backgroundColor: '#FEF3C7',
+  },
+  timerTextWarning: {
+    color: '#D97706',
+  },
+  progressFillWarning: {
+    backgroundColor: '#F59E0B',
+  },
+}));

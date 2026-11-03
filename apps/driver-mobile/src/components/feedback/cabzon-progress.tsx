@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Animated, StyleSheet, View } from 'react-native';
-import { colors, motion } from '@/design-system';
+import { Animated, View } from 'react-native';
+import { colors, motion, createStyles } from '@/design-system';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 
 export interface CabzonProgressProps {
@@ -80,7 +80,7 @@ function ProgressSegment({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createStyles(() => ({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -99,4 +99,4 @@ const styles = StyleSheet.create({
     height: '100%',
     borderRadius: 2,
   },
-});
+}));

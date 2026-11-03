@@ -115,7 +115,7 @@ function screen(file, exported) {
         };
       if (name === '@/context/auth-context') return { useAuth: () => auth };
       if (name === '@/design-system')
-        return { colors: { white: '#FFFFFF', amber: '#FBBF24', deepBrown: '#3A2414' } };
+        return { createStyles: (factory) => factory(), colors: { white: '#FFFFFF', amber: '#FBBF24', deepBrown: '#3A2414' } };
       if (name.includes('use-reduced-motion')) return { useReducedMotion: () => true };
       if (name === './blob-background') return { BlobBackground: 'BlobBackground' };
       if (name === './entry-step') return { EntryStep: 'EntryStep' };

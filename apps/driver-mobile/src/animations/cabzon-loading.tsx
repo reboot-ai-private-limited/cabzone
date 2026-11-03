@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Animated, StyleSheet, View } from 'react-native';
-import { colors, motion } from '@/design-system';
+import { Animated, View } from 'react-native';
+import { colors, motion, createStyles } from '@/design-system';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 
 export interface CabzonLoadingProps {
@@ -55,7 +55,7 @@ export function CabzonLoading({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createStyles(() => ({
   container: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -63,4 +63,4 @@ const styles = StyleSheet.create({
   spinner: {
     borderWidth: 2.5,
   },
-});
+}));

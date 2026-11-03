@@ -9,11 +9,11 @@ import {
   ActivityIndicator,
   BackHandler,
   KeyboardAvoidingView,
+  Linking,
   Modal,
   Platform,
   Pressable,
   ScrollView,
-  StyleSheet,
   Text,
   TextInput,
   View,
@@ -21,12 +21,13 @@ import {
 import { useFocusEffect, useRouter } from 'expo-router';
 import { BookingHome } from './booking-home';
 import { MapLocationPicker } from './map-location-picker';
+import { popularIntercityDestinations } from './intercity-routes';
 import { DropPlacePicker, type PickerField, type PickerPlace } from './drop-place-picker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
 
-import { colors, radii, spacing, typography } from '@/design-system';
+import { colors, radii, spacing, typography, createStyles } from '@/design-system';
 import { ERickshawIcon } from '@/components/common/e-rickshaw-icon';
 import { RoutePointIcon } from '@/components/common/route-point-icon';
 import { useAuth } from '@/context/auth-context';
@@ -43,6 +44,12 @@ import {
   type PlacePreset,
 } from '@/services/rider-helpers';
 import { reverseGeocodeLabel } from '@/services/device-geocode';
+import {
+  LOCATION_BLOCKED_MESSAGE,
+  getDeviceCoordinates,
+  locationPermissionState,
+  withTimeout,
+} from '@/services/device-location';
 import { decodePolyline } from '@/services/polyline';
 import {
   placeKey,
@@ -106,6 +113,7 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
   const placesSessionTokenRef = useRef<string | null>(null);
   const searchDebounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isLocatingGps, setIsLocatingGps] = useState(false);
+  const [locationBlocked, setLocationBlocked] = useState(false);
 
   // Quote & Fare Negotiation state
   const [selectedCategory, setSelectedCategory] = useState<VehicleCategory>('CAB');
@@ -130,20 +138,29 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
     let off = false;
     void (async () => {
       try {
-        const perm = await Location.requestForegroundPermissionsAsync();
-        if (!perm.granted || off) return;
-        const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-        const lat = Number(pos.coords.latitude.toFixed(5));
-        const lng = Number(pos.coords.longitude.toFixed(5));
-        let address = 'Current location';
-        try {
-          const r = await geoAndPricingApi.reverseGeocode(token, lat, lng);
-          address = r.formattedAddress || r.city || address;
-        } catch {
-          // keep readable label
+        const permission = await Location.getForegroundPermissionsAsync();
+        if (locationPermissionState(permission) === 'blocked') {
+          // Android will not prompt again; say so instead of silently showing the preset place.
+          if (!off) {
+            setLocationBlocked(true);
+            setSubmitError(LOCATION_BLOCKED_MESSAGE);
+          }
+          return;
         }
-        address = (await reverseGeocodeLabel(lat, lng)) ?? address;
-        if (!off) setPickup((prev) => (prev === defaultPickup ? { lat, lng, address } : prev));
+        const here = await getDeviceCoordinates(Location, { highAccuracy: Location.Accuracy.High });
+        if (!here || off) return;
+        setLocationBlocked(false);
+        const { lat, lng } = here;
+        // Show the real position immediately; the street address is refined below.
+        const provisional: LocationSelection = { lat, lng, address: 'Current location' };
+        setPickup((prev) => (prev === defaultPickup ? provisional : prev));
+        let address = 'Current location';
+        const resolved = await withTimeout(geoAndPricingApi.reverseGeocode(token, lat, lng), 5000, null);
+        if (resolved) address = resolved.formattedAddress || resolved.city || address;
+        address = (await withTimeout(reverseGeocodeLabel(lat, lng), 4000, null)) ?? address;
+        if (!off && address !== provisional.address) {
+          setPickup((prev) => (prev === provisional ? { lat, lng, address } : prev));
+        }
       } catch {
         // GPS unavailable: preset pickup stays and the locate button still works
       }
@@ -266,6 +283,10 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
       try {
         const results = await fetchPlacePredictions(q, {
           sessionToken: placesSessionTokenRef.current || undefined,
+          // City rides rank results near the rider's pickup; city-to-city searches the whole country.
+          ...(mode === 'OUTSTATION'
+            ? { radiusMeters: 0 }
+            : { latitude: pickup.lat, longitude: pickup.lng }),
         });
         if (!stale) setAutocompleteResults(results);
       } catch {
@@ -282,7 +303,7 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
         clearTimeout(searchDebounceTimerRef.current);
       }
     };
-  }, [placeSearchQuery]);
+  }, [placeSearchQuery, mode, pickup.lat, pickup.lng]);
 
   // Apply bookingDraft when navigated from Activity ("Repeat Ride" / "Return Trip") or Saved Templates
   useEffect(() => {
@@ -413,29 +434,32 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
   const handleUseCurrentGps = async (target = pickerTarget) => {
     setIsLocatingGps(true);
     try {
-      const perm = await Location.requestForegroundPermissionsAsync();
-      if (!perm.granted) {
-        setSubmitError('Location permission denied. Choose a place or pick a point on the map.');
+      let perm = await Location.getForegroundPermissionsAsync();
+      if (locationPermissionState(perm) === 'ask') {
+        perm = await Location.requestForegroundPermissionsAsync();
+      }
+      const state = locationPermissionState(perm);
+      if (state !== 'granted') {
+        setLocationBlocked(state === 'blocked');
+        setSubmitError(
+          state === 'blocked'
+            ? LOCATION_BLOCKED_MESSAGE
+            : 'Location permission denied. Choose a place or pick a point on the map.',
+        );
         return;
       }
-      const pos = await Promise.race([
-        Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
-        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('gps timeout')), 12000)),
-      ]);
-      const lat = Number(pos.coords.latitude.toFixed(5));
-      const lng = Number(pos.coords.longitude.toFixed(5));
+      setLocationBlocked(false);
+      const here = await getDeviceCoordinates(Location, { highAccuracy: Location.Accuracy.High });
+      if (!here) throw new Error('no position');
+      const { lat, lng } = here;
       let address = 'Current location';
-      try {
-        const resolved = await geoAndPricingApi.reverseGeocode(token, lat, lng);
-        if (resolved.formattedAddress) {
-          address = resolved.formattedAddress;
-        } else if (resolved.city) {
-          address = `${resolved.city}${resolved.state ? `, ${resolved.state}` : ''}`;
-        }
-      } catch {
-        // Keep a readable label when address lookup is unavailable.
+      const resolved = await withTimeout(geoAndPricingApi.reverseGeocode(token, lat, lng), 5000, null);
+      if (resolved?.formattedAddress) {
+        address = resolved.formattedAddress;
+      } else if (resolved?.city) {
+        address = `${resolved.city}${resolved.state ? `, ${resolved.state}` : ''}`;
       }
-      address = (await reverseGeocodeLabel(lat, lng)) ?? address;
+      address = (await withTimeout(reverseGeocodeLabel(lat, lng), 4000, null)) ?? address;
       if (target === 'DROP') {
         setBookingStarted(true);
         setDrop({ lat, lng, address });
@@ -663,9 +687,17 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
   }, [placeSearchQuery, autocompleteResults, filteredPresets]);
 
 
+  const intercityDestinations = useMemo(
+    () =>
+      mode === 'OUTSTATION'
+        ? popularIntercityDestinations(PLACE_PRESETS, { lat: pickup.lat, lng: pickup.lng })
+        : [],
+    [mode, pickup.lat, pickup.lng],
+  );
+  const routePolyline = activeQuote?.routePolyline;
   const routeCoordinates = useMemo(
-    () => (activeQuote?.routePolyline ? decodePolyline(activeQuote.routePolyline) : undefined),
-    [activeQuote?.routePolyline],
+    () => (routePolyline ? decodePolyline(routePolyline) : undefined),
+    [routePolyline],
   );
   const searchActive = placeSearchQuery.trim().length >= 2;
   const recentPlaces = useMemo<PickerPlace[]>(
@@ -925,7 +957,7 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
             accessibilityRole="button"
             accessibilityLabel="Edit fare amount"
           >
-            <Ionicons name="pencil" size={13} color="#D97706" />
+            <Ionicons name="pencil" size={13} color="#B97611" />
             <Text style={styles.editFareText}>Edit fare</Text>
           </Pressable>
         ) : null}
@@ -1115,6 +1147,7 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
           target={pickerTarget === 'PICKUP' ? 'PICKUP' : 'DROP'}
           token={token}
           initial={{ lat: pickup.lat, lng: pickup.lng }}
+          wideSearch={mode === 'OUTSTATION'}
           onClose={() => setPickerOnMap(false)}
           onConfirm={applyPickedLocation}
         />
@@ -1287,6 +1320,7 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
     return (
       <>
         <BookingHome
+          mode={mode}
           pickup={pickup}
           drop={drop}
           stops={stops}
@@ -1301,6 +1335,7 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
           onLocate={() => void handleUseCurrentGps('PICKUP')}
           isLocating={isLocatingGps}
           locationError={submitError}
+          onOpenLocationSettings={locationBlocked ? () => void Linking.openSettings() : undefined}
           templates={modeTemplates}
           onSelectTemplate={(template) => {
             setPickup(template.pickup);
@@ -1337,6 +1372,12 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
   return (
     <>
       <BookingHome
+        mode={mode}
+        destinations={intercityDestinations}
+        onSelectDestination={(destination) => {
+          setDrop({ lat: destination.lat, lng: destination.lng, address: destination.name });
+          setBookingStarted(true);
+        }}
         pickup={pickup}
         drop={drop}
         stops={stops}
@@ -1351,6 +1392,7 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
         onLocate={() => void handleUseCurrentGps('PICKUP')}
         isLocating={isLocatingGps}
         locationError={submitError}
+        onOpenLocationSettings={locationBlocked ? () => void Linking.openSettings() : undefined}
         templates={modeTemplates}
         onSelectTemplate={(template) => {
           setPickup(template.pickup);
@@ -1384,7 +1426,7 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createStyles(() => ({
   topStopDot: { width: 12, height: 12, borderRadius: 3, backgroundColor: colors.brandBrown },
   container: {
     flex: 1,
@@ -1651,7 +1693,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 4,
     borderRadius: 2,
-    backgroundColor: '#D1D5DB',
+    backgroundColor: '#CECFD4',
     alignSelf: 'center',
     marginBottom: 6,
   },
@@ -1664,7 +1706,7 @@ const styles = StyleSheet.create({
   fareTitleText: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#111827',
+    color: '#000000',
   },
   editFareRow: {
     flexDirection: 'row',
@@ -1676,7 +1718,7 @@ const styles = StyleSheet.create({
   editFareText: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#D97706',
+    color: '#B97611',
   },
   farePillsRow: {
     flexDirection: 'row',
@@ -1689,21 +1731,23 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FEF3C7',
+    backgroundColor: '#F0F1F3',
+    borderWidth: 1,
+    borderColor: '#DCDDE1',
     height: 44,
     paddingHorizontal: 12,
-    borderRadius: 14,
+    borderRadius: 16,
     gap: 3,
   },
   fareAdjustSign: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#111827',
+    color: '#42474B',
   },
   fareAdjustAmount: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#111827',
+    color: '#42474B',
   },
   farePillDisabled: {
     opacity: 0.45,
@@ -1711,20 +1755,22 @@ const styles = StyleSheet.create({
   fareHeroPill: {
     flex: 1,
     height: 48,
-    backgroundColor: '#FBBF24',
-    borderRadius: 16,
+    backgroundColor: '#F1F2F4',
+    borderWidth: 1,
+    borderColor: '#C4C5C7',
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
   },
   fareHeroAmount: {
     fontSize: 26,
     fontWeight: '800',
-    color: '#111827',
+    color: '#000000',
   },
   tollDisclaimerText: {
     textAlign: 'center',
     fontSize: 12,
-    color: '#6B7280',
+    color: '#73767D',
     marginTop: 4,
     marginBottom: 8,
     fontWeight: '500',
@@ -2302,4 +2348,4 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: colors.deepBrown,
   },
-});
+}));

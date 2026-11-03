@@ -9,7 +9,22 @@ const EXPO_RECEIPTS_URL = 'https://exp.host/--/api/v2/push/getReceipts';
 const EXPO_TOKEN = /^Expo(nent)?PushToken\[[^\]]+\]$/;
 const NATIVE_DEVICE_TOKEN = /^[^\s]{16,512}$/;
 
-export type PushNotificationChannel = 'ride-offers' | 'ride-updates' | 'ride-calls';
+export type PushNotificationChannel =
+  | 'ride-offers'
+  | 'ride-updates'
+  | 'ride-calls'
+  /** Channels whose sound is the 29s ring: a closed app keeps ringing like an incoming call. */
+  | 'ride-offers-ring'
+  | 'ride-calls-ring';
+
+/** Bundled by the mobile apps (expo-notifications `sounds`); must stay under 30s for iOS. */
+export const RING_PUSH_SOUND = 'ring_long.wav';
+
+function pushSoundFor(channelId: PushNotificationChannel): string {
+  return channelId === 'ride-offers-ring' || channelId === 'ride-calls-ring'
+    ? RING_PUSH_SOUND
+    : 'default';
+}
 
 interface ExpoResult {
   status: 'ok' | 'error';
@@ -121,7 +136,7 @@ export class ExpoPushService {
       const { expiresAt, channelId = 'ride-offers', ...content } = message;
       const messages = (await this.tokens.list(userIds, 'EXPO')).map((to) => ({
         to,
-        sound: 'default',
+        sound: pushSoundFor(channelId),
         priority: 'high',
         channelId,
         ...(expiresAt

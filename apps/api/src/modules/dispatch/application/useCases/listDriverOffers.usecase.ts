@@ -1,13 +1,18 @@
-import { calculateNegotiationBounds } from '@cabzone/contracts';
+import { calculateNegotiationBounds, type PublicTrustTier } from '@cabzone/contracts';
 import { AppError } from '../../../../shared/errors/AppError.js';
 import type { RideEntity, RideRepositoryPort } from '../../../rides/rides.public.js';
 import { haversineDistanceM, type DriverPresencePort } from '../../domain/presence.port.js';
 import type { DispatchConfig, DispatchLookups, RideOfferDto } from '../dispatch.types.js';
 import type { DriverOfferEligibility } from './driverOfferEligibility.js';
 
-export function toRideOffer(ride: RideEntity, distanceToPickupM: number): RideOfferDto {
+export function toRideOffer(
+  ride: RideEntity,
+  distanceToPickupM: number,
+  riderTrustTier: PublicTrustTier | null = null,
+): RideOfferDto {
   return {
     rideId: ride.id,
+    riderTrustTier,
     vehicleCategory: ride.vehicleCategory,
     pickup: ride.pickup,
     drop: ride.drop,
@@ -78,12 +83,16 @@ export class ListDriverOffersUseCase {
       offset: 0,
     });
 
+    const tiers = await this.riderTiers(open);
+    const toOffer = (ride: RideEntity, distance: number) =>
+      toRideOffer(ride, distance, tiers.get(ride.bookerRiderId) ?? null);
+
     const matched = open
       .filter((ride) => ride.vehicleCategory === here.vehicleCategory)
       .map((ride) => ({ ride, distance: haversineDistanceM(here, ride.pickup) }))
       .filter(({ distance }) => distance <= this.config.offerRadiusM)
       .sort((a, b) => a.distance - b.distance)
-      .map(({ ride, distance }) => toRideOffer(ride, distance));
+      .map(({ ride, distance }) => toOffer(ride, distance));
 
     if (matched.length > 0 || !this.isDevMode) {
       return matched;
@@ -93,6 +102,16 @@ export class ListDriverOffersUseCase {
     return open
       .map((ride) => ({ ride, distance: haversineDistanceM(here, ride.pickup) }))
       .sort((a, b) => a.distance - b.distance)
-      .map(({ ride, distance }) => toRideOffer(ride, distance));
+      .map(({ ride, distance }) => toOffer(ride, distance));
+  }
+
+  /** A trust lookup that fails must never hide offers, so errors fall back to "no tier". */
+  private async riderTiers(rides: readonly RideEntity[]): Promise<Map<string, PublicTrustTier>> {
+    if (!this.lookups.getRiderTrustTier || rides.length === 0) return new Map();
+    try {
+      return await this.lookups.getRiderTrustTier([...new Set(rides.map((r) => r.bookerRiderId))]);
+    } catch {
+      return new Map();
+    }
   }
 }

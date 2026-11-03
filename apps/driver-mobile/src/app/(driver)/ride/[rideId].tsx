@@ -18,7 +18,6 @@ import {
   Platform,
   Pressable,
   ScrollView,
-  StyleSheet,
   Text,
   TextInput,
   View,
@@ -30,7 +29,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRide } from '@/context/ride-context';
 import { useRideCall } from '@/context/call-context';
 import { computeRideEarningsBreakdown } from '@/context/duty-context';
-import { colors, typography } from '@/design-system';
+import { colors, typography, createStyles } from '@/design-system';
 import {
   resolveDriverArrearsWalletEffect,
   resolveDriverCashAvailability,
@@ -164,6 +163,7 @@ export default function ActiveRideScreen() {
     markArrived,
     startTripWithOtp,
     completeTrip,
+    respondEarlyDrop,
     confirmDirectPayment,
     markRideUnpaid,
     cancelTrip,
@@ -340,6 +340,11 @@ export default function ActiveRideScreen() {
     }
   };
 
+  const handleEarlyDrop = async (decision: 'ACCEPT' | 'DECLINE') => {
+    const updated = await respondEarlyDrop(ride.id, decision);
+    if (updated) setRide(updated);
+  };
+
   const handleConfirmCancel = async () => {
     if (selectedCancelReason === 'RIDER_NO_SHOW' && !noShowStatus.canMarkNoShow) return;
     const cancelled = await cancelTrip(ride.id, selectedCancelReason);
@@ -353,6 +358,74 @@ export default function ActiveRideScreen() {
     ride.status === 'DRIVER_ASSIGNED' ||
     ride.status === 'DRIVER_EN_ROUTE' ||
     ride.status === 'DRIVER_ARRIVED';
+
+  // FIX-06: computed sticky CTA — DRIVER_ARRIVED uses in-scroll OTP card, not this bar
+  const primaryCtaNode =
+    ride.status === 'DRIVER_ASSIGNED' ? (
+      <Pressable
+        style={[styles.primaryCta, isMutatingRide && styles.disabledBtn]}
+        disabled={isMutatingRide}
+        onPress={handleEnRoute}
+      >
+        {isMutatingRide ? (
+          <ActivityIndicator color={colors.deepBrown} />
+        ) : (
+          <Text style={styles.primaryCtaText}>Start Driving to Pickup →</Text>
+        )}
+      </Pressable>
+    ) : ride.status === 'DRIVER_EN_ROUTE' ? (
+      <Pressable
+        style={[styles.primaryCta, isMutatingRide && styles.disabledBtn]}
+        disabled={isMutatingRide}
+        onPress={handleArrived}
+      >
+        {isMutatingRide ? (
+          <ActivityIndicator color={colors.deepBrown} />
+        ) : (
+          <Text style={styles.primaryCtaText}>I Have Arrived at Pickup →</Text>
+        )}
+      </Pressable>
+    ) : ride.status === 'TRIP_STARTED' ? (
+      <View style={{ width: '100%', gap: 10 }}>
+        {ride.earlyDropRequestedAt ? (
+          <View style={styles.earlyDropCard} accessibilityLiveRegion="polite">
+            <Text style={styles.earlyDropTitle}>Rider wants to end the trip early</Text>
+            <Text style={styles.earlyDropBody}>
+              Confirming ends the trip here. The full agreed fare still applies.
+            </Text>
+            <View style={styles.earlyDropRow}>
+              <Pressable
+                style={[styles.earlyDropBtn, styles.earlyDropDecline, isMutatingRide && styles.disabledBtn]}
+                disabled={isMutatingRide}
+                accessibilityRole="button"
+                onPress={() => void handleEarlyDrop('DECLINE')}
+              >
+                <Text style={styles.earlyDropDeclineText}>Decline</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.earlyDropBtn, styles.earlyDropConfirm, isMutatingRide && styles.disabledBtn]}
+                disabled={isMutatingRide}
+                accessibilityRole="button"
+                onPress={() => void handleEarlyDrop('ACCEPT')}
+              >
+                <Text style={styles.primaryCtaText}>Confirm drop</Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : null}
+        <Pressable
+          style={[styles.primaryCta, isMutatingRide && styles.disabledBtn]}
+          disabled={isMutatingRide}
+          onPress={handleCompleteTrip}
+        >
+          {isMutatingRide ? (
+            <ActivityIndicator color={colors.deepBrown} />
+          ) : (
+            <Text style={styles.primaryCtaText}>Complete Trip at Destination →</Text>
+          )}
+        </Pressable>
+      </View>
+    ) : null;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -393,7 +466,8 @@ export default function ActiveRideScreen() {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+      {/* FIX-06: extra padding-bottom so last card is never hidden behind the sticky CTA */}
+      <ScrollView contentContainerStyle={[styles.scrollContent, primaryCtaNode != null && { paddingBottom: 88 }]} keyboardShouldPersistTaps="handled">
         {/* Error Notice */}
         {rideError ? (
           <View style={styles.errorBanner}>
@@ -463,44 +537,50 @@ export default function ActiveRideScreen() {
           </Text>
           <Text style={styles.heroSubtitle}>{meta.subtitle}</Text>
 
-          {/* Passenger & Call Row */}
+          {/* Passenger & Call Row — FIX-02: name on top row, action buttons below to prevent char-wrap */}
           <View style={styles.passengerBox}>
-            <View style={styles.passengerAvatar}>
-              <Ionicons name="person" size={20} color={colors.deepBrown} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.passengerName}>{ride.passenger?.name || 'Passenger'}</Text>
-              <Text style={styles.passengerSub}>
-                {ride.vehicleCategory} · {distanceKm} km · ~{durationMin} mins
-              </Text>
-            </View>
-            {RIDE_COMMUNICATION_STATUSES.includes(ride.status) ? (
-              <Pressable
-                style={styles.callBtn}
-                onPress={() =>
-                  router.push({ pathname: '/(driver)/chat/[rideId]', params: { rideId: ride.id } })
-                }
-                accessibilityRole="button"
-                accessibilityLabel={
-                  unreadChatRideId === ride.id ? 'Chat with rider, new message' : 'Chat with rider'
-                }
-              >
-                <Ionicons name="chatbubble-outline" size={18} color={colors.deepBrown} />
-                <Text style={styles.callBtnText}>
-                  {unreadChatRideId === ride.id ? 'Chat •' : 'Chat'}
+            {/* Top: avatar + name/subtitle */}
+            <View style={styles.passengerTopRow}>
+              <View style={styles.passengerAvatar}>
+                <Ionicons name="person" size={20} color={colors.deepBrown} />
+              </View>
+              <View style={styles.passengerInfo}>
+                <Text style={styles.passengerName} numberOfLines={1} ellipsizeMode="tail">
+                  {ride.passenger?.name || 'Passenger'}
                 </Text>
-              </Pressable>
-            ) : null}
+                <Text style={styles.passengerSub}>
+                  {ride.vehicleCategory} · {distanceKm} km · ~{durationMin} mins
+                </Text>
+              </View>
+            </View>
+            {/* Bottom: Chat + Call buttons full-width */}
             {RIDE_COMMUNICATION_STATUSES.includes(ride.status) ? (
-              <Pressable
-                style={styles.callBtn}
-                onPress={callPassenger}
-                accessibilityRole="button"
-                accessibilityLabel="Call passenger"
-              >
-                <Ionicons name="call" size={18} color={colors.deepBrown} />
-                <Text style={styles.callBtnText}>Call</Text>
-              </Pressable>
+              <View style={styles.passengerActionsRow}>
+                <Pressable
+                  style={styles.callBtn}
+                  onPress={() =>
+                    router.push({ pathname: '/(driver)/chat/[rideId]', params: { rideId: ride.id } })
+                  }
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    unreadChatRideId === ride.id ? 'Chat with rider, new message' : 'Chat with rider'
+                  }
+                >
+                  <Ionicons name="chatbubble-outline" size={18} color={colors.deepBrown} />
+                  <Text style={styles.callBtnText}>
+                    {unreadChatRideId === ride.id ? 'Chat •' : 'Chat'}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  style={styles.callBtn}
+                  onPress={callPassenger}
+                  accessibilityRole="button"
+                  accessibilityLabel="Call passenger"
+                >
+                  <Ionicons name="call" size={18} color={colors.deepBrown} />
+                  <Text style={styles.callBtnText}>Call</Text>
+                </Pressable>
+              </View>
             ) : null}
           </View>
         </View>
@@ -654,7 +734,13 @@ export default function ActiveRideScreen() {
           </View>
           <View style={styles.breakdownRow}>
             <Text style={styles.breakdownLabel}>Agreed Passenger Fare (Gross)</Text>
-            <Text style={styles.breakdownValue}>₹{(breakdown.grossPaise / 100).toFixed(2)}</Text>
+            {/* FIX-04: show exact paise value; rounding note if offer display differed */}
+            <Text style={styles.breakdownValue}>
+              ₹{(breakdown.grossPaise / 100).toFixed(2)}
+              {Math.round(breakdown.grossPaise / 100) !== breakdown.grossPaise / 100 ? (
+                <Text style={styles.roundingNote}> (agreed)</Text>
+              ) : null}
+            </Text>
           </View>
           <View style={styles.breakdownRow}>
             <Text style={styles.breakdownLabel}>
@@ -698,48 +784,7 @@ export default function ActiveRideScreen() {
           ) : null}
         </View>
 
-        {/* Primary Action Buttons for Assigned / En Route / Started / Terminal */}
-        {ride.status === 'DRIVER_ASSIGNED' ? (
-          <Pressable
-            style={[styles.primaryCta, isMutatingRide && styles.disabledBtn]}
-            disabled={isMutatingRide}
-            onPress={handleEnRoute}
-          >
-            {isMutatingRide ? (
-              <ActivityIndicator color={colors.deepBrown} />
-            ) : (
-              <Text style={styles.primaryCtaText}>Start Driving to Pickup →</Text>
-            )}
-          </Pressable>
-        ) : null}
-
-        {ride.status === 'DRIVER_EN_ROUTE' ? (
-          <Pressable
-            style={[styles.primaryCta, isMutatingRide && styles.disabledBtn]}
-            disabled={isMutatingRide}
-            onPress={handleArrived}
-          >
-            {isMutatingRide ? (
-              <ActivityIndicator color={colors.deepBrown} />
-            ) : (
-              <Text style={styles.primaryCtaText}>I Have Arrived at Pickup →</Text>
-            )}
-          </Pressable>
-        ) : null}
-
-        {ride.status === 'TRIP_STARTED' ? (
-          <Pressable
-            style={[styles.primaryCta, isMutatingRide && styles.disabledBtn]}
-            disabled={isMutatingRide}
-            onPress={handleCompleteTrip}
-          >
-            {isMutatingRide ? (
-              <ActivityIndicator color={colors.deepBrown} />
-            ) : (
-              <Text style={styles.primaryCtaText}>Complete Trip at Destination →</Text>
-            )}
-          </Pressable>
-        ) : null}
+        {/* FIX-06: Primary CTAs moved to sticky bottom bar — see stickyCtaBar below */}
 
         {ride.status === 'SETTLED' ? (
           <RideRatingCard rideId={ride.id} passengerName={ride.passenger?.name || 'Passenger'} />
@@ -777,6 +822,13 @@ export default function ActiveRideScreen() {
           </Pressable>
         ) : null}
       </ScrollView>
+
+      {/* FIX-06: Sticky primary CTA bar — always visible, no scrolling needed */}
+      {primaryCtaNode != null ? (
+        <View style={styles.stickyCtaBar}>
+          {primaryCtaNode}
+        </View>
+      ) : null}
 
       {/* Cancellation Reason Modal */}
       <Modal
@@ -853,7 +905,7 @@ export default function ActiveRideScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createStyles(() => ({
   stopMarker: { width: 20, height: 20, borderRadius: 5, backgroundColor: colors.brandBrown, transform: [{ scale: 0.6 }] },
   container: {
     flex: 1,
@@ -1027,15 +1079,27 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     marginBottom: 16,
   },
+  // FIX-02: vertical layout — top row (avatar+name), bottom row (action buttons)
   passengerBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
     backgroundColor: colors.white,
     borderRadius: 14,
     padding: 12,
     borderWidth: 1,
     borderColor: colors.border,
+    gap: 10,
+  },
+  passengerTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 12,
+  },
+  passengerInfo: {
+    flex: 1,
+    minWidth: 0, // critical: allows text to shrink and ellipsize properly
+  },
+  passengerActionsRow: {
+    flexDirection: 'row',
+    gap: 10,
   },
   passengerAvatar: {
     width: 42,
@@ -1055,10 +1119,13 @@ const styles = StyleSheet.create({
     color: colors.secondary,
     marginTop: 2,
   },
+  // FIX-02: flex:1 so Chat and Call share equal width in passengerActionsRow
   callBtn: {
+    flex: 1,
     minHeight: 44,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 6,
     backgroundColor: colors.amber,
     paddingHorizontal: 14,
@@ -1345,6 +1412,62 @@ const styles = StyleSheet.create({
   disabledBtn: {
     opacity: 0.5,
   },
+  earlyDropCard: {
+    width: '100%',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.amber,
+    padding: 14,
+    gap: 8,
+  },
+  earlyDropTitle: {
+    fontSize: typography.sizes.base,
+    fontWeight: '800',
+    color: colors.deepBrown,
+  },
+  earlyDropBody: {
+    fontSize: typography.sizes.sm,
+    color: colors.deepBrown,
+  },
+  earlyDropRow: { flexDirection: 'row', gap: 10 },
+  earlyDropBtn: {
+    flex: 1,
+    height: 46,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  earlyDropConfirm: { backgroundColor: colors.amber },
+  earlyDropDecline: { borderWidth: 1, borderColor: colors.deepBrown },
+  earlyDropDeclineText: {
+    fontSize: typography.sizes.base,
+    fontWeight: '700',
+    color: colors.deepBrown,
+  },
+  // FIX-06: sticky bottom bar — always visible regardless of scroll position
+  stickyCtaBar: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 20,
+    paddingBottom: 24,
+    paddingTop: 12,
+    backgroundColor: colors.white,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  // FIX-04: small note when exact paise value differs from rounded display
+  roundingNote: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: colors.secondary,
+  },
   cancelTriggerBtn: {
     minHeight: 48,
     justifyContent: 'center',
@@ -1464,4 +1587,4 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: colors.white,
   },
-});
+}));

@@ -4,12 +4,11 @@ import {
   ActivityIndicator,
   Modal,
   Pressable,
-  StyleSheet,
   Text,
   View,
 } from 'react-native';
 import { useAuth } from '@/context/auth-context';
-import { colors } from '@/design-system';
+import { colors, createStyles } from '@/design-system';
 import { ridesApi } from '@/services/api';
 import { RidePaymentQrSheet } from './ride-payment-qr-sheet';
 
@@ -334,7 +333,7 @@ export function RidePaymentQr({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createStyles(() => ({
   shade: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'flex-end' },
   sheet: {
     backgroundColor: colors.white,
@@ -426,4 +425,4 @@ const styles = StyleSheet.create({
   unpaidText: { fontSize: 14, lineHeight: 20, fontWeight: '700', color: colors.error },
   secondary: { minHeight: 48, alignItems: 'center', justifyContent: 'center' },
   error: { fontSize: 13, lineHeight: 19, color: colors.error },
-});
+}));

@@ -53,7 +53,11 @@ export function makeGetDriverProfileController(useCase: GetDriverProfileUseCase)
   return asyncHandler(async (req: Request, res: Response) => {
     if (!req.auth) throw AppError.unauthenticated();
     const result = await useCase.execute(req.auth.userId);
-    sendSuccess(req, res, result, 'Driver profile retrieved', 200);
+    // The driver sees their own score and tier. Admin risk flags and rating internals stay server side.
+    const driver = result.driver
+      ? (({ trustBreakdown: _breakdown, ratingSum: _sum, ...own }) => own)(result.driver)
+      : null;
+    sendSuccess(req, res, { ...result, driver }, 'Driver profile retrieved', 200);
   });
 }
 

@@ -1,6 +1,8 @@
 import type { RideEntity } from './ride.entity.js';
 
 export type RideLifecycleEvent =
+  | 'ride.early_drop.requested'
+  | 'ride.early_drop.declined'
   | 'ride.extension.requested'
   | 'ride.extension.rejected'
   | 'ride.extended'

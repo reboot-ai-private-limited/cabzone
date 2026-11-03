@@ -1,13 +1,13 @@
 import type { ProposeRideExtensionRequestDto, RideDto } from '@cabzone/contracts';
 import React, { useEffect, useRef, useState } from 'react';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import BookingMap from '@/components/booking/booking-map';
 import { useAuth } from '@/context/auth-context';
 import { geoAndPricingApi, riderRidesApi } from '@/services/api';
 import { createBookingIdempotencyKey, formatRupeesFromPaise } from '@/services/rider-helpers';
-import { colors, spacing, typography } from '@/design-system';
+import { colors, spacing, typography, createStyles } from '@/design-system';
 
 export function RideExtensionPanel({
   ride,
@@ -153,7 +153,7 @@ export function RideExtensionPanel({
     </View>
   );
 }
-const styles = StyleSheet.create({
+const styles = createStyles(() => ({
   panel: { gap: spacing.sm },
   screen: { flex: 1, backgroundColor: colors.white, padding: spacing.lg, gap: spacing.md },
   title: { ...typography.h2, color: colors.deepBrown },
@@ -170,4 +170,4 @@ const styles = StyleSheet.create({
   buttonText: { ...typography.bodyBold, color: colors.deepBrown, textAlign: 'center' },
   disabled: { opacity: 0.45 },
   error: { ...typography.caption, color: colors.error },
-});
+}));

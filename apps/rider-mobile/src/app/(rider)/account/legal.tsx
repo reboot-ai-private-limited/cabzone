@@ -2,14 +2,13 @@ import React from 'react';
 import {
   Pressable,
   ScrollView,
-  StyleSheet,
   Text,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, radii, spacing, typography } from '@/design-system';
+import { colors, radii, spacing, typography, createStyles } from '@/design-system';
 
 export default function LegalScreen() {
   const router = useRouter();
@@ -57,7 +56,7 @@ export default function LegalScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createStyles(() => ({
   container: {
     flex: 1,
     backgroundColor: colors.background,
@@ -105,4 +104,4 @@ const styles = StyleSheet.create({
     ...typography.caption,
     color: colors.secondary,
   },
-});
+}));

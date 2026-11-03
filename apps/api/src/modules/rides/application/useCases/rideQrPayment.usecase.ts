@@ -4,10 +4,13 @@ import type {
   RidePaymentQrLineDto,
   RidePaymentQrViewDto,
   RideStatus,
+  RideUpiIntentDto,
 } from '@cabzone/contracts';
 import { AppError } from '../../../../shared/errors/AppError.js';
 import { newUuid } from '../../../../shared/ids.js';
 import { logger } from '../../../../shared/logging/logger.js';
+import { emitOperationalAlert } from '../../../../shared/monitoring/alerting.js';
+import { collectableArrearsPaise } from '../collectableArrears.js';
 import type { UnitOfWorkPort } from '../../../../shared/db/unitOfWork.port.js';
 import { saveRideTransition } from '../rideTransition.js';
 import {
@@ -55,6 +58,8 @@ export interface RideQrPaymentResult {
   qr: RidePaymentQrViewDto;
 }
 
+type QrActor = { role: 'DRIVER'; id: string } | { role: 'RIDER' };
+
 export class RideQrPaymentUseCase {
   private readonly inFlightCreates = new Map<string, Promise<PaymentEntity>>();
   private readonly inFlightCaptureEffects = new Map<string, Promise<RideEntity>>();
@@ -68,6 +73,8 @@ export class RideQrPaymentUseCase {
       unitOfWork: UnitOfWorkPort;
       gateway: QrPaymentGatewayPort;
       clock?: () => Date;
+      /** Closes the rider-side (legacy) QR at the provider once a driver QR settles the ride. */
+      closeLegacyQrSession?: (rideId: string) => Promise<void>;
       onRideSettled?: (
         ride: RideEntity,
         event: 'ride.payment.confirmed' | 'ride.payment.disputed',
@@ -79,18 +86,20 @@ export class RideQrPaymentUseCase {
     return this.deps.clock ? this.deps.clock() : new Date();
   }
 
-  private computeRideBreakdown(ride: RideEntity): {
+  private async computeRideBreakdown(ride: RideEntity): Promise<{
     farePaise: number;
     arrearsPaise: number;
     amountPaise: number;
     lines: RidePaymentQrLineDto[];
-  } {
+  }> {
     const farePaise = ride.agreedFarePaise ?? ride.proposedFarePaise ?? ride.suggestedFarePaise;
     if (!Number.isSafeInteger(farePaise) || farePaise < 100) {
       throw AppError.badRequest('Ride fare must be at least ₹1 (100 paise).');
     }
-    const rawArrears = ride.arrearsPaise ?? 0;
-    const arrearsPaise = Number.isSafeInteger(rawArrears) && rawArrears > 0 ? rawArrears : 0;
+    const arrearsPaise = collectableArrearsPaise(
+      ride,
+      await this.deps.walletRepo.findByRiderId(ride.bookerRiderId),
+    );
     const amountPaise = farePaise + arrearsPaise;
     if (!Number.isSafeInteger(amountPaise)) {
       throw AppError.badRequest('Ride payment amount is invalid.');
@@ -207,8 +216,57 @@ export class RideQrPaymentUseCase {
    * Creates or returns an existing live single-use UPI QR for the assigned driver.
    */
   async createOrGet(rideId: string, driverId: string): Promise<RideQrPaymentResult> {
-    let ride = await this.requireAssignedDriverRide(rideId, driverId);
-    const breakdown = this.computeRideBreakdown(ride);
+    const ride = await this.requireAssignedDriverRide(rideId, driverId);
+    const { payment: _payment, ...result } = await this.createOrGetForRide(ride, {
+      role: 'DRIVER',
+      id: driverId,
+    });
+    void _payment;
+    return result;
+  }
+
+  /**
+   * The rider's live UPI session. It uses the same QR rows as the driver's "Show QR", so a ride
+   * never has two live QRs that could both be paid.
+   */
+  async liveSessionForRider(rideId: string, riderId: string): Promise<RideUpiIntentDto> {
+    const ride = await this.deps.rideRepo.findById(rideId);
+    if (!ride) throw AppError.notFound('Ride not found.');
+    if (ride.bookerRiderId !== riderId) {
+      throw AppError.forbidden('Only the booking customer can pay for this ride.');
+    }
+    const { qr, payment } = await this.createOrGetForRide(ride, { role: 'RIDER' });
+    if (qr.state !== 'PENDING' || !payment?.gatewayRef || !qr.upiUri || !qr.expiresAt) {
+      throw AppError.badRequest('UPI QR payment is unavailable on the server.');
+    }
+    return {
+      kind: 'intent',
+      qrId: payment.gatewayRef,
+      upiUrl: qr.upiUri,
+      imageDataUrl: qr.imageUrl ?? '',
+      amountPaise: qr.amountPaise,
+      expiresAt: qr.expiresAt,
+      testMode: false,
+    };
+  }
+
+  /** Checks this ride's QR with the provider on behalf of the rider; never throws. */
+  async refreshForRider(rideId: string): Promise<void> {
+    try {
+      const ride = await this.deps.rideRepo.findById(rideId);
+      if (ride) await this.pollRide(ride);
+    } catch (error) {
+      logger.warn({ rideId, err: String(error) }, 'rider qr status refresh failed');
+    }
+  }
+
+  private async createOrGetForRide(
+    initial: RideEntity,
+    actor: QrActor,
+  ): Promise<RideQrPaymentResult & { payment: PaymentEntity | null }> {
+    let ride = initial;
+    const rideId = ride.id;
+    const breakdown = await this.computeRideBreakdown(ride);
     const now = this.now();
 
     const existingRows = await this.deps.paymentRepo.listQrByRideId(rideId);
@@ -221,6 +279,7 @@ export class RideQrPaymentUseCase {
       return {
         ride: latestRide,
         qr: this.toQrView(capturedRow, breakdown.amountPaise, breakdown.lines, now, 'PAID'),
+        payment: capturedRow,
       };
     }
 
@@ -235,6 +294,7 @@ export class RideQrPaymentUseCase {
           now,
           cashWasCollected ? 'NONE' : 'PAID',
         ),
+        payment: null,
       };
     }
 
@@ -242,8 +302,12 @@ export class RideQrPaymentUseCase {
       throw AppError.conflict('This ride is not awaiting payment.');
     }
 
-    // If driver previously toggled cash and now taps "Collect payment" / "Generate new QR", switch back to UPI.
-    ride = await this.clearCashSelectionForQr(ride, driverId);
+    if (actor.role === 'DRIVER') {
+      // If driver previously toggled cash and now taps "Collect payment" / "Generate new QR", switch back to UPI.
+      ride = await this.clearCashSelectionForQr(ride, actor.id);
+    } else if (await this.cashSelected(rideId)) {
+      throw AppError.conflict('This ride now uses cash. Ask the driver to confirm receipt.');
+    }
 
     // Inspect existing open rows: reuse live matching PENDING QR; close stale/expired/mismatched ones.
     for (const row of existingRows) {
@@ -253,6 +317,7 @@ export class RideQrPaymentUseCase {
           return {
             ride,
             qr: this.toQrView(row, breakdown.amountPaise, breakdown.lines, now),
+            payment: row,
           };
         }
         // Before closing a stale/expired QR, check if customer already paid it in time.
@@ -275,6 +340,7 @@ export class RideQrPaymentUseCase {
                   this.now(),
                   'PAID',
                 ),
+                payment: captureResult.payment,
               };
             }
           }
@@ -308,6 +374,7 @@ export class RideQrPaymentUseCase {
     return {
       ride: latestRide,
       qr: this.toQrView(payment, breakdown.amountPaise, breakdown.lines, this.now()),
+      payment,
     };
   }
 
@@ -447,7 +514,12 @@ export class RideQrPaymentUseCase {
    */
   async poll(rideId: string, driverId: string): Promise<RideQrPaymentResult> {
     const ride = await this.requireAssignedDriverRide(rideId, driverId);
-    const breakdown = this.computeRideBreakdown(ride);
+    return this.pollRide(ride);
+  }
+
+  private async pollRide(ride: RideEntity): Promise<RideQrPaymentResult> {
+    const rideId = ride.id;
+    const breakdown = await this.computeRideBreakdown(ride);
     const rows = await this.deps.paymentRepo.listQrByRideId(rideId);
 
     // Keep earlier expired attempts recoverable after a replacement QR was issued.
@@ -641,19 +713,34 @@ export class RideQrPaymentUseCase {
   async handleWebhookCredited(input: {
     gatewayRef: string;
     providerPaymentId: string;
-    creditedAmountPaise: number;
-  }): Promise<{ handled: boolean; captured: boolean; ride: RideEntity | null }> {
+    /** Omit when the notification carried no amount: the provider is then asked directly. */
+    creditedAmountPaise?: number | undefined;
+  }): Promise<{
+    handled: boolean;
+    captured: boolean;
+    /** A credit arrived for the wrong amount. Retrying cannot fix it; it is alerted for review. */
+    mismatch: boolean;
+    ride: RideEntity | null;
+  }> {
     const payment = await this.deps.paymentRepo.findByGatewayRef(input.gatewayRef);
     if (!payment) {
-      return { handled: false, captured: false, ride: null };
+      return { handled: false, captured: false, mismatch: false, ride: null };
     }
-    const result = await this.tryCaptureAndSettle(
-      payment,
-      input.providerPaymentId,
-      input.creditedAmountPaise,
-    );
+    let providerPaymentId = input.providerPaymentId;
+    let creditedAmountPaise = input.creditedAmountPaise;
+    if (typeof creditedAmountPaise !== 'number' || !Number.isSafeInteger(creditedAmountPaise)) {
+      // Never guess an amount: read the authoritative credit from the provider.
+      const credit = await this.deps.gateway.fetchQrCredit(input.gatewayRef);
+      if (!credit) {
+        const ride = await this.deps.rideRepo.findById(payment.rideId);
+        return { handled: true, captured: false, mismatch: false, ride };
+      }
+      providerPaymentId = credit.providerPaymentId;
+      creditedAmountPaise = credit.amountPaise;
+    }
+    const result = await this.tryCaptureAndSettle(payment, providerPaymentId, creditedAmountPaise);
     const ride = await this.deps.rideRepo.findById(payment.rideId);
-    return { handled: true, captured: result.captured, ride };
+    return { handled: true, captured: result.captured, mismatch: result.mismatch, ride };
   }
 
   /**
@@ -691,7 +778,12 @@ export class RideQrPaymentUseCase {
     payment: PaymentEntity,
     providerPaymentId: string,
     creditedAmountPaise: number,
-  ): Promise<{ payment: PaymentEntity | null; captured: boolean; justCaptured: boolean }> {
+  ): Promise<{
+    payment: PaymentEntity | null;
+    captured: boolean;
+    justCaptured: boolean;
+    mismatch: boolean;
+  }> {
     if (creditedAmountPaise !== payment.amountPaise) {
       logger.error(
         {
@@ -704,7 +796,20 @@ export class RideQrPaymentUseCase {
         },
         'qr payment credited amount mismatch; refusing to mark ride paid',
       );
-      return { payment, captured: false, justCaptured: false };
+      void emitOperationalAlert({
+        category: 'PAYMENT_RECONCILIATION',
+        severity: 'critical',
+        dedupeKey: `PAYMENT_RECONCILIATION:amount-mismatch:${payment.id}`,
+        summary: 'UPI QR credited an amount that does not match the ride; review for refund.',
+        metadata: {
+          paymentId: payment.id,
+          rideId: payment.rideId,
+          providerPaymentId,
+          expectedAmountPaise: payment.amountPaise,
+          creditedAmountPaise,
+        },
+      });
+      return { payment, captured: false, justCaptured: false, mismatch: true };
     }
 
     const result = await this.deps.unitOfWork.run(async () => {
@@ -715,7 +820,7 @@ export class RideQrPaymentUseCase {
       );
 
       if (!afterCas) {
-        return { payment: null, captured: false, justCaptured: false };
+        return { payment: null, captured: false, justCaptured: false, mismatch: false };
       }
 
       if (justCaptured) {
@@ -732,9 +837,15 @@ export class RideQrPaymentUseCase {
         payment: afterCas,
         captured: afterCas.status === 'CAPTURED' || afterCas.status === 'CONFIRMED',
         justCaptured,
+        mismatch: false,
       };
     });
 
+    if (result.justCaptured) {
+      // Single-use QRs close themselves when paid, but the rider's own QR for this ride must not
+      // stay payable once this one has settled the ride.
+      await this.deps.closeLegacyQrSession?.(payment.rideId).catch(() => undefined);
+    }
     if (result.justCaptured && this.deps.onRideSettled) {
       const settledRide = await this.deps.rideRepo.findById(payment.rideId);
       if (settledRide) {
@@ -777,12 +888,18 @@ export class RideQrPaymentUseCase {
     const now = this.now();
 
     if (current.status === 'SETTLED') {
-      if (!(await this.cashCollected(current.id))) {
-        return current;
-      }
+      // This payment was captured just now, so the ride was already settled by something else:
+      // cash, or another UPI payment. Either way the rider has paid twice.
+      const afterCash = await this.cashCollected(current.id);
       const disputed = await saveRideTransition(
         this.deps.rideRepo,
-        { ...current, status: 'PAYMENT_DISPUTED', version: current.version + 1, updatedAt: now },
+        {
+          ...current,
+          status: 'PAYMENT_DISPUTED',
+          disputedAt: now,
+          version: current.version + 1,
+          updatedAt: now,
+        },
         current.version,
       );
       await this.deps.rideEventRepo.save({
@@ -794,7 +911,11 @@ export class RideQrPaymentUseCase {
         previousStatus: current.status,
         newStatus: 'PAYMENT_DISPUTED',
         metadata: {
-          reason: 'UPI QR payment received after cash confirmation; refund review required',
+          reason: afterCash
+            ? 'UPI QR payment received after cash confirmation; refund review required'
+            : 'Duplicate UPI payment received after the ride was settled; refund review required',
+          duplicate: true,
+          duplicateOf: afterCash ? 'CASH' : 'UPI',
           paymentId: payment.providerPaymentId,
           qrPaymentRecordId: payment.id,
           qrId: payment.gatewayRef,
@@ -868,8 +989,26 @@ export class RideQrPaymentUseCase {
       });
     }
 
-    if (breakdown.arrearsPaise > 0) {
-      const existingRiderWallet = await this.deps.walletRepo.findByRiderId(current.bookerRiderId);
+    // The fee may have been waived since the QR was issued. Credit only what is still owed, and
+    // flag the difference: the rider paid it and needs a refund review.
+    const riderWalletNow = await this.deps.walletRepo.findByRiderId(current.bookerRiderId);
+    const creditableArrearsPaise = collectableArrearsPaise(
+      { arrearsPaise: breakdown.arrearsPaise },
+      riderWalletNow,
+    );
+    const arrearsOverpaidPaise = breakdown.arrearsPaise - creditableArrearsPaise;
+    if (arrearsOverpaidPaise > 0) {
+      void emitOperationalAlert({
+        category: 'PAYMENT_RECONCILIATION',
+        severity: 'warning',
+        dedupeKey: `PAYMENT_RECONCILIATION:arrears-overpaid:${current.id}`,
+        summary: 'A rider paid a cancellation fee that was waived while the QR was open.',
+        metadata: { rideId: current.id, arrearsOverpaidPaise },
+      });
+    }
+
+    if (creditableArrearsPaise > 0) {
+      const existingRiderWallet = riderWalletNow;
       const riderWalletBase: WalletEntity = existingRiderWallet ?? {
         id: `rider:${current.bookerRiderId}`,
         ownerType: 'RIDER',
@@ -885,7 +1024,7 @@ export class RideQrPaymentUseCase {
       const riderBalanceBefore = riderWalletBase.balancePaise;
       const riderBalanceAfter = calculateNewBalance(
         riderBalanceBefore,
-        breakdown.arrearsPaise,
+        creditableArrearsPaise,
         'CREDIT',
       );
       await this.deps.walletRepo.recordTransaction({
@@ -895,7 +1034,7 @@ export class RideQrPaymentUseCase {
         driverId: null,
         riderId: current.bookerRiderId,
         type: 'CREDIT',
-        amountPaise: breakdown.arrearsPaise,
+        amountPaise: creditableArrearsPaise,
         referenceType: 'ARREARS_PAYMENT',
         referenceId: current.id,
         idempotencyKey: `rider_arrears_paid_${current.id}`,
@@ -930,6 +1069,7 @@ export class RideQrPaymentUseCase {
       commissionPaise,
       driverId: current.driverId,
       driverPayablePaise,
+      ...(arrearsOverpaidPaise > 0 ? { arrearsOverpaidPaise } : {}),
       confirmedAt: now.toISOString(),
     };
 

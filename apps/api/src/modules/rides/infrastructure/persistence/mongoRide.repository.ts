@@ -4,8 +4,11 @@ import type {
   RideEntity,
   RideListFilter,
   RideRepositoryPort,
-  RiderTripCountsSummary,
+  TripStats,
+  TripStatsRide,
+  TripStatsRole,
 } from '../../domain/index.js';
+import { computeTripStats, TRUST_RELEVANT_STATUSES } from '../../domain/index.js';
 import { RideModel, type RideDocument } from './ride.model.js';
 import { AppError } from '../../../../shared/errors/AppError.js';
 
@@ -62,7 +65,21 @@ export class MongoRideRepository implements RideRepositoryPort {
     )
       .lean<RideDocument | null>()
       .exec();
-    return doc ? this.toEntity(doc) : null;
+    if (!doc) return null;
+    const entity = this.toEntity(doc);
+    this.notifyTerminal(entity);
+    return entity;
+  }
+
+  onTerminalTransition?: ((ride: RideEntity) => void) | undefined;
+
+  private notifyTerminal(ride: RideEntity): void {
+    if (!this.onTerminalTransition || !TRUST_RELEVANT_STATUSES.has(ride.status)) return;
+    try {
+      this.onTerminalTransition(ride);
+    } catch {
+      // never let a trust hook break a ride transition
+    }
   }
 
   async save(ride: RideEntity): Promise<RideEntity> {
@@ -74,7 +91,9 @@ export class MongoRideRepository implements RideRepositoryPort {
       .lean<RideDocument>()
       .exec();
 
-    return this.toEntity(doc);
+    const entity = this.toEntity(doc);
+    this.notifyTerminal(entity);
+    return entity;
   }
 
   async findById(id: string): Promise<RideEntity | null> {
@@ -207,184 +226,43 @@ export class MongoRideRepository implements RideRepositoryPort {
     }).exec();
   }
 
-  async getRiderStats(riderId: string): Promise<{
-    totalRides: number;
-    completedRides: number;
-    cancelledRides: number;
-    totalSpentPaise: number;
-    noShowsCount: number;
-    disputesCount: number;
-  }> {
-    const results = await RideModel.aggregate([
-      {
-        $match: {
-          $or: [{ booker_rider_id: riderId }, { 'passenger.rider_id': riderId }],
-        },
-      },
-      {
-        $group: {
-          _id: null,
-          totalRides: { $sum: 1 },
-          completedRides: {
-            $sum: {
-              $cond: [
-                {
-                  $in: [
-                    '$status',
-                    [
-                      'TRIP_COMPLETED',
-                      'PAYMENT_PENDING',
-                      'PAYMENT_CASH_CLAIMED',
-                      'PAYMENT_UNPAID',
-                      'PAYMENT_DISPUTED',
-                      'SETTLED',
-                      'PAYMENT_CONFIRMED',
-                    ],
-                  ],
-                },
-                1,
-                0,
-              ],
-            },
-          },
-          cancelledRides: {
-            $sum: { $cond: [{ $eq: ['$status', 'CANCELLED'] }, 1, 0] },
-          },
-          noShowsCount: {
-            $sum: {
-              $cond: [
-                {
-                  $and: [
-                    { $eq: ['$status', 'CANCELLED'] },
-                    { $eq: ['$cancellation_reason', 'RIDER_NO_SHOW'] },
-                  ],
-                },
-                1,
-                0,
-              ],
-            },
-          },
-          disputesCount: {
-            $sum: { $cond: [{ $eq: ['$status', 'PAYMENT_DISPUTED'] }, 1, 0] },
-          },
-          totalSpentPaise: {
-            $sum: {
-              $cond: [
-                {
-                  $in: [
-                    '$status',
-                    [
-                      'TRIP_COMPLETED',
-                      'PAYMENT_PENDING',
-                      'PAYMENT_CASH_CLAIMED',
-                      'PAYMENT_UNPAID',
-                      'PAYMENT_DISPUTED',
-                      'SETTLED',
-                      'PAYMENT_CONFIRMED',
-                    ],
-                  ],
-                },
-                { $ifNull: ['$agreed_fare_paise', '$suggested_fare_paise'] },
-                0,
-              ],
-            },
-          },
-        },
-      },
-    ]).exec();
+  async getTripStats(
+    role: TripStatsRole,
+    ids: string[],
+    now: Date = new Date(),
+  ): Promise<Map<string, TripStats>> {
+    const result = new Map<string, TripStats>();
+    if (ids.length === 0) return result;
+    const field = role === 'RIDER' ? 'booker_rider_id' : 'driver_id';
+    const docs = await RideModel.find({ [field]: { $in: ids } })
+      .select(
+        'booker_rider_id driver_id status cancellation_reason cancelled_by cancelled_at dispute_outcome dispute_resolved_at agreed_fare_paise suggested_fare_paise updated_at',
+      )
+      .lean<RideDocument[]>()
+      .exec();
 
-    if (!results || results.length === 0) {
-      return {
-        totalRides: 0,
-        completedRides: 0,
-        cancelledRides: 0,
-        totalSpentPaise: 0,
-        noShowsCount: 0,
-        disputesCount: 0,
-      };
-    }
-    const r = results[0];
-    return {
-      totalRides: r.totalRides ?? 0,
-      completedRides: r.completedRides ?? 0,
-      cancelledRides: r.cancelledRides ?? 0,
-      totalSpentPaise: r.totalSpentPaise ?? 0,
-      noShowsCount: r.noShowsCount ?? 0,
-      disputesCount: r.disputesCount ?? 0,
-    };
-  }
-
-  async getRiderTripCountsBatch(riderIds: string[]): Promise<Map<string, RiderTripCountsSummary>> {
-    const map = new Map<string, RiderTripCountsSummary>();
-    if (riderIds.length === 0) return map;
-
-    const results = await RideModel.aggregate([
-      {
-        $match: {
-          $or: [
-            { booker_rider_id: { $in: riderIds } },
-            { 'passenger.rider_id': { $in: riderIds } },
-          ],
-        },
-      },
-      {
-        $group: {
-          _id: '$booker_rider_id',
-          cancelledRides: { $sum: { $cond: [{ $eq: ['$status', 'CANCELLED'] }, 1, 0] } },
-          noShowsCount: {
-            $sum: {
-              $cond: [
-                {
-                  $and: [
-                    { $eq: ['$status', 'CANCELLED'] },
-                    { $eq: ['$cancellation_reason', 'RIDER_NO_SHOW'] },
-                  ],
-                },
-                1,
-                0,
-              ],
-            },
-          },
-          disputesCount: {
-            $sum: { $cond: [{ $eq: ['$status', 'PAYMENT_DISPUTED'] }, 1, 0] },
-          },
-          totalRides: { $sum: 1 },
-          completedRides: {
-            $sum: {
-              $cond: [
-                {
-                  $in: [
-                    '$status',
-                    [
-                      'TRIP_COMPLETED',
-                      'PAYMENT_PENDING',
-                      'PAYMENT_CASH_CLAIMED',
-                      'PAYMENT_UNPAID',
-                      'PAYMENT_DISPUTED',
-                      'SETTLED',
-                      'PAYMENT_CONFIRMED',
-                    ],
-                  ],
-                },
-                1,
-                0,
-              ],
-            },
-          },
-        },
-      },
-    ]).exec();
-
-    for (const r of results) {
-      map.set(r._id, {
-        totalRides: r.totalRides ?? 0,
-        completedRides: r.completedRides ?? 0,
-        cancelledRides: r.cancelledRides ?? 0,
-        noShowsCount: r.noShowsCount ?? 0,
-        disputesCount: r.disputesCount ?? 0,
+    const byId = new Map<string, TripStatsRide[]>();
+    for (const doc of docs) {
+      const owner = role === 'RIDER' ? doc.booker_rider_id : doc.driver_id;
+      if (!owner) continue;
+      const list = byId.get(owner) ?? [];
+      list.push({
+        status: doc.status,
+        driverId: doc.driver_id,
+        bookerRiderId: doc.booker_rider_id,
+        cancellationReason: doc.cancellation_reason,
+        cancelledBy: doc.cancelled_by ?? null,
+        cancelledAt: doc.cancelled_at,
+        disputeOutcome: doc.dispute_outcome ?? null,
+        disputeResolvedAt: doc.dispute_resolved_at ?? null,
+        agreedFarePaise: doc.agreed_fare_paise,
+        suggestedFarePaise: doc.suggested_fare_paise,
+        updatedAt: doc.updated_at,
       });
+      byId.set(owner, list);
     }
-    return map;
+    for (const id of ids) result.set(id, computeTripStats(role, byId.get(id) ?? [], now));
+    return result;
   }
 
   private toPersistence(ride: RideEntity): Record<string, unknown> {
@@ -426,6 +304,11 @@ export class MongoRideRepository implements RideRepositoryPort {
       arrears_paise: ride.arrearsPaise ?? 0,
       status: ride.status,
       cancellation_reason: ride.cancellationReason,
+      cancelled_by: ride.cancelledBy ?? null,
+      disputed_at: ride.disputedAt ?? null,
+      early_drop_requested_at: ride.earlyDropRequestedAt ?? null,
+      dispute_outcome: ride.disputeOutcome ?? null,
+      dispute_resolved_at: ride.disputeResolvedAt ?? null,
       offering_expires_at: ride.offeringExpiresAt,
       accepted_at: ride.acceptedAt,
       arrived_at: ride.arrivedAt,
@@ -476,6 +359,11 @@ export class MongoRideRepository implements RideRepositoryPort {
       arrearsPaise: doc.arrears_paise ?? 0,
       status: doc.status,
       cancellationReason: doc.cancellation_reason,
+      cancelledBy: doc.cancelled_by ?? null,
+      disputedAt: doc.disputed_at ?? null,
+      earlyDropRequestedAt: doc.early_drop_requested_at ?? null,
+      disputeOutcome: doc.dispute_outcome ?? null,
+      disputeResolvedAt: doc.dispute_resolved_at ?? null,
       offeringExpiresAt: doc.offering_expires_at,
       acceptedAt: doc.accepted_at,
       arrivedAt: doc.arrived_at,

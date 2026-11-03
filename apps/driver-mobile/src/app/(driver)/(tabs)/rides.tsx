@@ -5,7 +5,6 @@ import {
   Pressable,
   RefreshControl,
   ScrollView,
-  StyleSheet,
   Text,
   View,
 } from 'react-native';
@@ -22,7 +21,9 @@ import {
 } from '@/context/ride-context';
 import { ridesApi } from '@/services/api';
 import { RoutePointIcon } from '@/components/common/route-point-icon';
-import { colors, typography } from '@/design-system';
+import { RideRouteStrip } from '@/components/ride/ride-route-strip';
+import { trustTierLabel } from '@/services/trust-tier';
+import { colors, typography, createStyles } from '@/design-system';
 
 type FilterTab = 'ALL' | 'ACTIVE' | 'COMPLETED' | 'CANCELLED' | 'DISPUTED';
 
@@ -307,10 +308,8 @@ export default function DriverRidesTab() {
       {/* Header */}
       <View style={styles.header}>
         <View>
-          <Text style={styles.title}>Rides & Dispatch</Text>
-          <Text style={styles.subtitle}>
-            Live incoming offers, active trips & full ride history
-          </Text>
+          <Text style={styles.eyebrow}>RIDES & EARNINGS</Text>
+          <Text style={styles.title}>Your Rides</Text>
         </View>
         <Pressable
           style={styles.refreshBtn}
@@ -399,26 +398,31 @@ export default function DriverRidesTab() {
               })
             }
           >
-            <View style={{ flex: 1 }}>
-              <Text style={styles.activeBannerTag}>
-                ACTIVE TRIP · {activeRide.status.replace(/_/g, ' ')}
-              </Text>
-              <Text style={styles.activeBannerRoute} numberOfLines={1}>
-                {locationLabel(activeRide.pickup.address, 'Pickup location')} →{' '}
-                {locationLabel(activeRide.drop.address, 'Destination')}
-              </Text>
-              <Text style={styles.activeBannerSub}>
-                Agreed Fare ₹
+            <View style={styles.activeTopRow}>
+              <View style={styles.liveTag}>
+                <Text style={styles.liveTagText}>LIVE TRIP</Text>
+              </View>
+              <Text style={styles.activeFare}>
+                ₹
                 {(
                   (activeRide.agreedFarePaise ??
                     activeRide.proposedFarePaise ??
                     activeRide.suggestedFarePaise) / 100
-                ).toFixed(0)}{' '}
-                · Passenger: {activeRide.passenger?.name || 'Rider'}
+                ).toFixed(0)}
               </Text>
             </View>
-            <View style={styles.activeBannerBtn}>
-              <Text style={styles.activeBannerBtnText}>Resume →</Text>
+            <Text style={styles.activeStatusTitle}>
+              {activeRide.status.replace(/_/g, ' ')}
+            </Text>
+            <Text style={styles.activeBannerRoute} numberOfLines={1}>
+              {locationLabel(activeRide.pickup.address, 'Pickup location')} →{' '}
+              {locationLabel(activeRide.drop.address, 'Destination')}
+            </Text>
+            <View style={styles.openTripRow}>
+              <Text style={styles.openTripText}>
+                Passenger: {activeRide.passenger?.name || 'Rider'} · Tap to resume trip
+              </Text>
+              <Ionicons name="arrow-forward" size={16} color={colors.deepBrown} />
             </View>
           </Pressable>
         ) : null}
@@ -449,6 +453,9 @@ export default function DriverRidesTab() {
                     <View>
                       <Text style={styles.offerCategoryTag}>
                         {offer.vehicleCategory} · {distKm} km to pickup
+                        {trustTierLabel(offer.riderTrustTier)
+                          ? ` · Rider: ${trustTierLabel(offer.riderTrustTier)}`
+                          : ''}
                       </Text>
                       <Text style={styles.offerFareText}>₹{grossRupees}</Text>
                       <Text style={styles.offerNetSub}>
@@ -669,6 +676,11 @@ export default function DriverRidesTab() {
                 : ride.status === 'SETTLED' || ride.status === 'PAYMENT_CONFIRMED';
               const wasNegotiated =
                 ride.suggestedFarePaise > 0 && breakdown.grossPaise !== ride.suggestedFarePaise;
+              const canRate =
+                ride.status === 'SETTLED' &&
+                ratingWindowNowMs -
+                  Date.parse(ride.settledAt || ride.completedAt || ride.createdAt) <=
+                  7 * 24 * 60 * 60 * 1000;
               const dateStr = new Date(
                 ride.settledAt || ride.completedAt || ride.createdAt,
               ).toLocaleString('en-IN', {
@@ -679,34 +691,23 @@ export default function DriverRidesTab() {
               });
 
               return (
-                <Pressable
-                  key={ride.id}
-                  style={styles.rideCard}
-                  accessibilityRole="button"
-                  onPress={() => handlePressRide(ride)}
-                >
-                  <View style={styles.rideCardTop}>
-                    <View>
-                      <Text style={styles.rideDate}>{dateStr}</Text>
-                      <Text style={styles.rideCategory}>
-                        {ride.vehicleCategory} · {(ride.routeSnapshot.distanceM / 1000).toFixed(1)}{' '}
-                        km
+                <View key={ride.id} style={styles.rideCard}>
+                  <Pressable
+                    style={styles.rideCardMain}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${pill.label}, ${dateStr}`}
+                    onPress={() => handlePressRide(ride)}
+                  >
+                    <View style={styles.rideCardTop}>
+                      <View style={styles.categoryBadge}>
+                        <Text style={styles.categoryBadgeText}>{ride.vehicleCategory}</Text>
+                      </View>
+                      <Text style={styles.rideDate}>
+                        {dateStr} · {(ride.routeSnapshot.distanceM / 1000).toFixed(1)} km
                       </Text>
                     </View>
-                    <View style={styles.badgeGroup}>
-                      {ride.status === 'SETTLED' &&
-                      ratingWindowNowMs -
-                        Date.parse(ride.settledAt || ride.completedAt || ride.createdAt) <=
-                        7 * 24 * 60 * 60 * 1000 ? (
-                        <View style={styles.negotiatedPill}>
-                          <Text style={styles.negotiatedPillText}>Rate Rider</Text>
-                        </View>
-                      ) : null}
-                      {wasNegotiated ? (
-                        <View style={styles.negotiatedPill}>
-                          <Text style={styles.negotiatedPillText}>Negotiated</Text>
-                        </View>
-                      ) : null}
+
+                    <View style={styles.statusFareRow}>
                       <View
                         style={[
                           styles.statusBadge,
@@ -717,43 +718,50 @@ export default function DriverRidesTab() {
                           {pill.label}
                         </Text>
                       </View>
+                      <View style={styles.fareCol}>
+                        <Text style={styles.fareMetaLabel}>
+                          {wasNegotiated ? 'Fare · Negotiated' : 'Fare'}
+                        </Text>
+                        <Text style={styles.fareGrossValue}>
+                          ₹{(breakdown.grossPaise / 100).toFixed(0)}
+                        </Text>
+                      </View>
+                      <View style={[styles.fareCol, { alignItems: 'flex-end' }]}>
+                        <Text style={styles.fareMetaLabel}>{isSettled ? 'Net earned' : 'Earnings'}</Text>
+                        <Text
+                          style={[styles.fareNetValue, !isSettled && { color: colors.secondary }]}
+                        >
+                          {isSettled ? `₹${(breakdown.netPaise / 100).toFixed(0)}` : 'Pending'}
+                        </Text>
+                      </View>
                     </View>
-                  </View>
 
-                  <View style={styles.routeSection}>
-                    <View style={styles.pointRow}>
-                      <RoutePointIcon type="pickup" size={16} />
-                      <Text style={styles.pointText} numberOfLines={1}>
-                        {locationLabel(ride.pickup.address, 'Pickup location')}
-                      </Text>
+                    <View style={styles.routeBlock}>
+                      <RideRouteStrip
+                        pickup={locationLabel(ride.pickup.address, 'Pickup location')}
+                        drop={locationLabel(ride.drop.address, 'Destination')}
+                      />
                     </View>
-                    <View style={styles.pointRow}>
-                      <RoutePointIcon type="drop" size={16} />
-                      <Text style={styles.pointText} numberOfLines={1}>
-                        {locationLabel(ride.drop.address, 'Destination')}
-                      </Text>
-                    </View>
-                  </View>
+                  </Pressable>
 
-                  <View style={styles.rideCardFooter}>
-                    <View>
-                      <Text style={styles.fareMetaLabel}>Passenger Fare</Text>
-                      <Text style={styles.fareGrossValue}>
-                        ₹{(breakdown.grossPaise / 100).toFixed(0)}
+                  <View style={styles.rideActionsRow}>
+                    <Pressable
+                      style={styles.rideActionBtn}
+                      accessibilityRole="button"
+                      accessibilityLabel={canRate ? 'View trip and rate rider' : 'View trip details'}
+                      onPress={() => handlePressRide(ride)}
+                    >
+                      <Ionicons
+                        name={canRate ? 'star-outline' : 'document-text-outline'}
+                        size={15}
+                        color={colors.deepBrown}
+                      />
+                      <Text style={styles.rideActionText}>
+                        {canRate ? 'Details & Rate Rider' : 'Trip Details'}
                       </Text>
-                    </View>
-                    <View style={{ alignItems: 'flex-end' }}>
-                      <Text style={styles.fareMetaLabel}>
-                        {isSettled ? 'Net Driver Earnings' : 'Settled Earnings'}
-                      </Text>
-                      <Text
-                        style={[styles.fareNetValue, !isSettled && { color: colors.secondary }]}
-                      >
-                        {isSettled ? `₹${(breakdown.netPaise / 100).toFixed(0)}` : 'Pending / ₹0'}
-                      </Text>
-                    </View>
+                    </Pressable>
                   </View>
-                </Pressable>
+                </View>
               );
             })}
 
@@ -779,7 +787,7 @@ export default function DriverRidesTab() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createStyles(() => ({
   container: {
     flex: 1,
     backgroundColor: colors.background,
@@ -797,10 +805,11 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: colors.deepBrown,
   },
-  subtitle: {
-    fontSize: typography.sizes.xs,
-    color: colors.secondary,
-    marginTop: 2,
+  eyebrow: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    color: colors.brandBrown,
   },
   refreshBtn: {
     minWidth: 44,
@@ -864,16 +873,16 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   filterPillActive: {
-    backgroundColor: colors.amber,
-    borderColor: colors.amber,
+    backgroundColor: colors.deepBrown,
+    borderColor: colors.deepBrown,
   },
   filterPillText: {
     fontSize: typography.sizes.xs,
     fontWeight: '700',
-    color: colors.secondary,
+    color: colors.deepBrown,
   },
   filterPillTextActive: {
-    color: colors.deepBrown,
+    color: colors.amber,
     fontWeight: '800',
   },
   listContent: {
@@ -882,41 +891,56 @@ const styles = StyleSheet.create({
     gap: 14,
   },
   activeBanner: {
+    backgroundColor: colors.amber,
+    borderRadius: 18,
+    padding: 16,
+    borderWidth: 1.5,
+    borderColor: colors.deepBrown,
+    gap: 6,
+  },
+  activeTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  liveTag: {
+    backgroundColor: colors.deepBrown,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 999,
+  },
+  liveTagText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: colors.amber,
+  },
+  activeFare: {
+    fontSize: typography.sizes.xl,
+    fontWeight: '800',
+    color: colors.deepBrown,
+  },
+  activeStatusTitle: {
+    fontSize: typography.sizes.lg,
+    fontWeight: '800',
+    color: colors.deepBrown,
+    textTransform: 'capitalize',
+  },
+  activeBannerRoute: {
+    fontSize: typography.sizes.xs,
+    color: colors.deepBrown,
+  },
+  openTripRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: colors.deepBrown,
-    borderRadius: 18,
-    padding: 16,
-    gap: 12,
+    marginTop: 4,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(58,36,20,0.2)',
   },
-  activeBannerTag: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: colors.amber,
-    letterSpacing: 0.5,
-  },
-  activeBannerRoute: {
-    fontSize: typography.sizes.sm,
-    fontWeight: '800',
-    color: colors.white,
-    marginTop: 3,
-  },
-  activeBannerSub: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#E2E8F0',
-    marginTop: 2,
-  },
-  activeBannerBtn: {
-    backgroundColor: colors.amber,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 12,
-  },
-  activeBannerBtnText: {
+  openTripText: {
     fontSize: typography.sizes.xs,
-    fontWeight: '800',
+    fontWeight: '700',
     color: colors.deepBrown,
   },
   offersSection: {
@@ -1157,43 +1181,67 @@ const styles = StyleSheet.create({
   rideCard: {
     backgroundColor: colors.white,
     borderRadius: 18,
-    padding: 16,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: colors.border,
-    gap: 12,
+    overflow: 'hidden',
+  },
+  rideCardMain: {
+    padding: 16,
+    gap: 8,
   },
   rideCardTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
   },
   rideDate: {
-    fontSize: typography.sizes.xs,
-    fontWeight: '700',
-    color: colors.deepBrown,
-  },
-  rideCategory: {
-    fontSize: 11,
+    fontSize: 12,
     color: colors.secondary,
-    marginTop: 2,
   },
-  badgeGroup: {
+  categoryBadge: {
+    backgroundColor: colors.cream,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  categoryBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: colors.brandBrown,
+  },
+  statusFareRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 12,
+  },
+  fareCol: {
+    flexShrink: 1,
+  },
+  routeBlock: {
+    paddingVertical: 8,
+  },
+  rideActionsRow: {
+    flexDirection: 'row',
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    backgroundColor: colors.cream,
+  },
+  rideActionBtn: {
+    flex: 1,
+    minHeight: 44,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 6,
+    paddingVertical: 10,
   },
-  negotiatedPill: {
-    backgroundColor: colors.lightCream,
-    borderColor: colors.border,
-    borderWidth: 1,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 10,
-  },
-  negotiatedPillText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: colors.brandBrown,
+  rideActionText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.deepBrown,
   },
   statusBadge: {
     paddingHorizontal: 10,
@@ -1264,4 +1312,4 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: colors.deepBrown,
   },
-});
+}));

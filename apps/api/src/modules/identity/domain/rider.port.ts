@@ -1,5 +1,6 @@
 import type { UserStatus } from '@cabzone/contracts';
 import type { RiderEntity } from './rider.entity.js';
+import type { TrustSnapshot } from './trustSnapshot.js';
 
 export interface RiderListFilter {
   search?: string | undefined;
@@ -34,4 +35,9 @@ export interface RiderRepositoryPort {
     riderId: string,
     stars: number,
   ): Promise<{ ratingAverage: number; ratingCount: number }>;
+  findManyByIds?(ids: string[]): Promise<RiderEntity[]>;
+  /** Stores a refreshed trust score without touching the profile version. */
+  saveTrust?(id: string, trust: TrustSnapshot): Promise<void>;
+  /** Cursor pagination over profile ids, used by the nightly refresh and backfills. */
+  listIds?(afterId: string | null, limit: number): Promise<string[]>;
 }

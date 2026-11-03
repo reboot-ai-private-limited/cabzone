@@ -1,11 +1,10 @@
-import { colors, typography } from '@/design-system';
+import { colors, typography, createStyles } from '@/design-system';
 import React, { useState } from 'react';
 import {
   KeyboardAvoidingView,
   Image,
   Platform,
   Pressable,
-  StyleSheet,
   Text,
   TextInput,
   View,
@@ -151,7 +150,7 @@ export function PhoneStep({ onBack }: PhoneStepProps = {}) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createStyles(() => ({
   container: {
     flex: 1,
     justifyContent: 'center',
@@ -350,4 +349,4 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.text,
   },
-});
+}));

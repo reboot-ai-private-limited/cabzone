@@ -111,7 +111,7 @@ function screen(extraProps = {}) {
       if (name.includes('upi-intent')) return helper.exports;
       if (name.includes('upi-checkout-html')) return { upiCheckoutHtml: () => '<html></html>' };
       if (name.includes('design-system'))
-        return { colors: {}, radii: {}, spacing: {}, typography: {} };
+        return { createStyles: (factory) => factory(), colors: {}, radii: {}, spacing: {}, typography: {} };
       return {};
     },
   });

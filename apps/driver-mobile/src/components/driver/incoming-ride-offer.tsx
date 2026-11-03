@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo } from 'react';
-import { Modal, StyleSheet, View } from 'react-native';
+import { Modal, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { CabzonRideOffer, mapRideOfferDtoToCardData } from '@/components/cards/cabzon-ride-offer';
 import { useRide } from '@/context/ride-context';
 import { startOfferRing } from '@/services/ringtone';
+import { createStyles } from '@/design-system';
 
 export function IncomingRideOffer() {
   const router = useRouter();
@@ -56,6 +57,6 @@ export function IncomingRideOffer() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createStyles(() => ({
   overlay: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.28)' },
-});
+}));

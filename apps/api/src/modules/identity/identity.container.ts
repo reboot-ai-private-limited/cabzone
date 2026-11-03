@@ -6,6 +6,7 @@ import { MongoOtpStoreAdapter } from './infrastructure/mongoOtpStore.adapter.js'
 import { CloudinaryDriverPhotoAdapter } from './infrastructure/cloudinaryDriverPhoto.adapter.js';
 import { CloudinaryDriverLicenseAdapter } from './infrastructure/cloudinaryDriverLicense.adapter.js';
 import { MongoUnitOfWork } from '@/shared/db/unitOfWork.js';
+import { TrustScoreService } from './application/trustScore.service.js';
 import type { UnitOfWorkPort } from '@/shared/db/unitOfWork.port.js';
 import { makeRequireAdminScope } from './interface/middlewares/requireAdminScope.middleware.js';
 import type {
@@ -133,6 +134,7 @@ export interface IdentityContainer {
   buildAdminRiderRouter?: () => Router;
   buildAdminUserRouter?: () => Router;
   sweepKycExpiry?: SweepDriverKycExpiryUseCase;
+  trustScore: TrustScoreService;
   authenticate: ReturnType<typeof makeAuthenticate>;
   /** Token check for non-HTTP transports (WebSocket upgrade). */
   verifyToken?: ReturnType<typeof makeTokenVerifier>;
@@ -142,6 +144,7 @@ export interface IdentityContainer {
 }
 
 export interface IdentityContainerDeps {
+  trustScore?: TrustScoreService;
   unitOfWork?: UnitOfWorkPort;
   userRepo?: UserRepositoryPort;
   riderRepo?: RiderRepositoryPort;
@@ -307,11 +310,20 @@ export function buildIdentityContainer(deps?: IdentityContainerDeps): IdentityCo
     removeDriverPresence: deps?.removeDriverPresence,
   };
 
+  const trustScore =
+    deps?.trustScore ??
+    new TrustScoreService({
+      riderRepo,
+      driverRepo,
+      rideRepo: deps?.rideRepo,
+      mode: env.TRUST_SCORE_V2,
+    });
+
   const adminRiderDeps = {
     riderRepo,
     userRepo,
     sessionRepo,
-    rideRepo: deps?.rideRepo,
+    trustScore,
     onAccountSuspended: deps?.onAccountSuspended,
   };
 
@@ -357,6 +369,7 @@ export function buildIdentityContainer(deps?: IdentityContainerDeps): IdentityCo
   });
 
   return {
+    trustScore,
     buildAuthRouter: () =>
       buildAuthRouter({
         requestOtp: makeRequestOtpController(requestOtpUseCase),

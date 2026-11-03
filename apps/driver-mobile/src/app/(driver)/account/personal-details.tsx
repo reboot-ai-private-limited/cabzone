@@ -3,7 +3,6 @@ import {
   ActivityIndicator,
   Keyboard,
   Pressable,
-  StyleSheet,
   Text,
   TextInput,
   View,
@@ -17,7 +16,7 @@ import {
 } from '@/components/kyc/onboarding-form-scroll';
 import { useAuth } from '@/context/auth-context';
 import { driverApi } from '@/services/api';
-import { colors, typography } from '@/design-system';
+import { colors, typography, createStyles } from '@/design-system';
 
 type PersonalField = 'name' | 'city' | 'altPhone' | 'emergency' | null;
 
@@ -222,7 +221,7 @@ export default function PersonalDetailsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createStyles(() => ({
   container: { flex: 1, backgroundColor: colors.background },
   topBar: {
     flexDirection: 'row',
@@ -287,4 +286,4 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   saveBtnText: { fontSize: typography.sizes.base, fontWeight: '800', color: colors.deepBrown },
-});
+}));

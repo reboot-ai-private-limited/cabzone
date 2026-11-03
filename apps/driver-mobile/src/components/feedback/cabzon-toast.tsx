@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Animated, Pressable, StyleSheet, Text } from 'react-native';
-import { colors, motion } from '@/design-system';
+import { Animated, Pressable, Text } from 'react-native';
+import { colors, motion, createStyles } from '@/design-system';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 
 export interface CabzonToastProps {
@@ -102,7 +102,7 @@ export function CabzonToast({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createStyles(() => ({
   toastContainer: {
     position: 'absolute',
     top: 50,
@@ -137,4 +137,4 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.secondary,
   },
-});
+}));

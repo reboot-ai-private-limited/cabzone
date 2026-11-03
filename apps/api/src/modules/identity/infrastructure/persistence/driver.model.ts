@@ -27,6 +27,10 @@ export interface DriverDocument extends Document<string> {
   rating_average: number | null;
   rating_count: number;
   trust_score: number | null;
+  trust_tier?: string | null;
+  trust_breakdown?: Record<string, unknown> | null;
+  trust_updated_at?: Date | null;
+  rating_sum?: number;
   current_vehicle_id: string | null;
   wallet_id: string;
   version: number;
@@ -66,6 +70,10 @@ const driverSchema = new Schema<DriverDocument>(
     rating_average: { type: Number, default: null },
     rating_count: { type: Number, default: 0 },
     trust_score: { type: Number, default: null },
+    trust_tier: { type: String, default: null },
+    trust_breakdown: { type: Schema.Types.Mixed, default: null },
+    trust_updated_at: { type: Date, default: null },
+    rating_sum: { type: Number, default: 0, min: 0 },
     current_vehicle_id: { type: String, default: null },
     wallet_id: { type: String, required: true },
     version: { type: Number, default: 1 },

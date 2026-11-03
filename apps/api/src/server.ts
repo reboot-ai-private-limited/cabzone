@@ -12,6 +12,8 @@ const OFFER_SWEEP_MS = 15_000;
 const PUSH_RECEIPT_SWEEP_MS = 60_000;
 const KYC_EXPIRY_SWEEP_MS = 5 * 60_000;
 const RATING_REVEAL_SWEEP_MS = 60_000;
+const TRUST_SCORE_SWEEP_MS = 24 * 60 * 60_000;
+const TRUST_SCORE_FIRST_SWEEP_DELAY_MS = 5 * 60_000;
 const RIDE_CALL_SWEEP_MS = 5_000;
 
 async function main(): Promise<void> {
@@ -62,6 +64,18 @@ async function main(): Promise<void> {
       .catch((err: unknown) => logger.warn({ err: String(err) }, 'rating reveal sweep failed'));
   }, RATING_REVEAL_SWEEP_MS);
   ratingRevealSweep.unref();
+
+  // D-048: old cancellations and disputes fade over time, so scores are recomputed daily.
+  if (env.TRUST_SCORE_V2 !== 'off') {
+    const runTrustScoreSweep = () => {
+      containers.identity.trustScore
+        .refreshAll()
+        .then((count) => logger.info({ count }, 'trust score sweep finished'))
+        .catch((err: unknown) => logger.warn({ err: String(err) }, 'trust score sweep failed'));
+    };
+    setTimeout(runTrustScoreSweep, TRUST_SCORE_FIRST_SWEEP_DELAY_MS).unref();
+    setInterval(runTrustScoreSweep, TRUST_SCORE_SWEEP_MS).unref();
+  }
 
   const runKycExpirySweep = () => {
     containers.identity.sweepKycExpiry

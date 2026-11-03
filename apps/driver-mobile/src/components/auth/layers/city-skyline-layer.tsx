@@ -1,5 +1,6 @@
 import React from 'react';
-import { Animated, Image, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Animated, Image, useWindowDimensions, View } from 'react-native';
+import { createStyles } from '@/design-system';
 
 export interface CitySkylineLayerProps {
   anim: Animated.Value;
@@ -43,7 +44,7 @@ export function CitySkylineLayer({ anim }: CitySkylineLayerProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createStyles(() => ({
   bottomBackdropContainer: {
     position: 'absolute',
     bottom: 0,
@@ -58,4 +59,4 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'flex-end',
   },
-});
+}));

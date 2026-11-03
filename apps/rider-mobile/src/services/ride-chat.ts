@@ -24,3 +24,10 @@ export function isChatAccessError(error: unknown): boolean {
   if ([401, 403, 404].includes(status)) return true;
   return (status === 409 || status === 503) && message.startsWith('COMMUNICATION_CLOSED');
 }
+
+/** Up to two letters for the avatar: first and last word of the name. */
+export function contactInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  return (parts[0]![0]! + (parts.length > 1 ? parts[parts.length - 1]![0]! : '')).toUpperCase();
+}

@@ -1,9 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import type { RideDto } from '@cabzone/contracts';
 import { useAuth } from '@/context/auth-context';
 import { ridesApi } from '@/services/api';
-import { colors, spacing, typography } from '@/design-system';
+import { colors, spacing, typography, createStyles } from '@/design-system';
 
 export function RideExtensionPanel({
   ride,
@@ -103,7 +103,7 @@ export function RideExtensionPanel({
     </View>
   );
 }
-const styles = StyleSheet.create({
+const styles = createStyles(() => ({
   panel: {
     padding: spacing.md,
     gap: spacing.sm,
@@ -139,4 +139,4 @@ const styles = StyleSheet.create({
     fontWeight: typography.weights.bold,
     color: colors.deepBrown,
   },
-});
+}));

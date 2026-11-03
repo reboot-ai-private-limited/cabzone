@@ -1,7 +1,8 @@
 import React, { memo, useEffect, useState } from 'react';
-import { StyleProp, StyleSheet, View, ViewStyle } from 'react-native';
+import { StyleProp, View, ViewStyle } from 'react-native';
 import Svg, { Circle, Defs, Path, RadialGradient, Stop } from 'react-native-svg';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
+import { createStyles } from '@/design-system';
 
 const SIZE = 400;
 const CENTER = SIZE / 2;
@@ -142,9 +143,9 @@ function BlobBackgroundBase({
 
 export const BlobBackground = memo(BlobBackgroundBase);
 
-const styles = StyleSheet.create({
+const styles = createStyles(() => ({
   wrap: {
     alignItems: 'center',
     justifyContent: 'center',
   },
-});
+}));

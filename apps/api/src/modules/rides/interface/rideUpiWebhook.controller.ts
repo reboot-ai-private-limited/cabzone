@@ -107,12 +107,17 @@ export function makeRideUpiWebhook(
             ? paymentEntity.amount
             : typeof qrEntity?.payments_amount_received === 'number'
               ? qrEntity.payments_amount_received
-              : -1;
-        await qrPayment.handleWebhookCredited({
+              : undefined;
+        const credited = await qrPayment.handleWebhookCredited({
           gatewayRef: qrId,
           providerPaymentId,
           creditedAmountPaise,
         });
+        // A credit that did not settle the ride must be retried, not acknowledged. A wrong-amount
+        // credit is the exception: retrying cannot fix it, so it is alerted for refund review.
+        if (!credited.captured && !credited.mismatch) {
+          throw AppError.conflict('Payment verification is pending. Retry this notification.');
+        }
         await acknowledge();
         return;
       }

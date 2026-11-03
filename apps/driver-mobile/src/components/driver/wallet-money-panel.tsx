@@ -8,7 +8,6 @@ import {
   Platform,
   Pressable,
   ScrollView,
-  StyleSheet,
   Text,
   TextInput,
   View,
@@ -17,7 +16,7 @@ import type { DriverWalletActivityDto, WalletOperationDto } from '@cabzone/contr
 import { useAuth } from '@/context/auth-context';
 import { useDuty } from '@/context/duty-context';
 import { walletApi } from '@/services/api';
-import { colors } from '@/design-system';
+import { colors, createStyles } from '@/design-system';
 import { walletAmountPaise, walletRequestKey } from './wallet-money-helpers';
 
 const money = (paise: number) => `₹${(paise / 100).toFixed(2)}`;
@@ -355,7 +354,7 @@ export function WalletMoneyPanel({ refreshVersion = 0 }: { refreshVersion?: numb
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createStyles(() => ({
   panel: {
     padding: 18,
     gap: 14,
@@ -408,4 +407,4 @@ const styles = StyleSheet.create({
     color: colors.deepBrown,
     fontSize: 17,
   },
-});
+}));

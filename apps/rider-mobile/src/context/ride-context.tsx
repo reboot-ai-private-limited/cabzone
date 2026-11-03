@@ -79,6 +79,7 @@ interface RideContextValue {
   raiseFare: (rideId: string, proposedFarePaise: number) => Promise<RiderRideViewDto>;
   cancelRide: (rideId: string, reason: CancellationReason) => Promise<RiderRideViewDto>;
   claimCashPaid: (rideId: string) => Promise<RiderRideViewDto>;
+  requestEarlyDrop: (rideId: string) => Promise<RiderRideViewDto>;
   disputePayment: (rideId: string, reason: string) => Promise<RiderRideViewDto>;
 }
 
@@ -438,6 +439,14 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
     [refreshRideById, token],
   );
 
+  const requestEarlyDrop = useCallback(
+    async (rideId: string): Promise<RiderRideViewDto> => {
+      if (!token) throw new Error('Authentication required');
+      return riderRidesApi.requestEarlyDrop(token, rideId);
+    },
+    [token],
+  );
+
   const claimCashPaid = useCallback(
     async (rideId: string): Promise<RiderRideViewDto> => {
       if (!token) throw new Error('Authentication required');
@@ -514,6 +523,7 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
       raiseFare,
       cancelRide,
       claimCashPaid,
+      requestEarlyDrop,
       disputePayment,
     }),
     [
@@ -539,6 +549,7 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
       raiseFare,
       cancelRide,
       claimCashPaid,
+      requestEarlyDrop,
       disputePayment,
     ],
   );

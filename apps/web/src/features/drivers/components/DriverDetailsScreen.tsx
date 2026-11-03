@@ -626,7 +626,12 @@ export function DriverDetailsScreen({ id }: DriverDetailsScreenProps) {
 
                 <DefinitionList>
                   <FieldRow label="Trust Score">
-                    <TrustScoreBadge score={d.driver?.trustScore} size="sm" />
+                    <TrustScoreBadge
+                      score={d.driver?.trustScore}
+                      tier={d.driver?.trustTier ?? undefined}
+                      breakdown={d.driver?.trustScoreBreakdown}
+                      size="sm"
+                    />
                   </FieldRow>
                   <FieldRow label="Rating">
                     <div className="flex items-center gap-1 text-amber-500 font-semibold text-xs">

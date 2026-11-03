@@ -25,7 +25,7 @@ const verifiedRefund: RefundEvidence = {
 };
 
 async function disputedPayment(
-  method: 'UPI' | 'CASH',
+  method: 'UPI' | 'CASH' | 'UPI_DUPLICATE',
   refundVerifier?: { fetchRefund: (refundId: string) => Promise<RefundEvidence> },
 ) {
   const now = new Date('2026-10-29T10:00:00Z');
@@ -146,8 +146,8 @@ async function disputedPayment(
     previousStatus: 'PAYMENT_PENDING',
     newStatus: 'SETTLED',
     metadata: {
-      method,
-      paymentId: method === 'UPI' ? 'pay_original' : undefined,
+      method: method === 'CASH' ? 'CASH' : 'UPI',
+      paymentId: method === 'CASH' ? undefined : 'pay_original',
       farePaise: 20000,
       arrearsPaise: 3000,
       totalPayablePaise: 23000,
@@ -169,7 +169,15 @@ async function disputedPayment(
             paymentId: 'pay_late_capture',
             amountPaise: 23000,
           }
-        : { reason: 'Payment disputed' },
+        : method === 'UPI_DUPLICATE'
+          ? {
+              reason: 'Duplicate UPI payment received after the ride was settled',
+              duplicate: true,
+              duplicateOf: 'UPI',
+              paymentId: 'pay_duplicate',
+              totalPayablePaise: 23000,
+            }
+          : { reason: 'Payment disputed' },
     createdAt: new Date(now.getTime() + 1),
   });
   return {
@@ -363,5 +371,45 @@ describe('Dispute provider refund evidence', () => {
         (event) => event.eventType === 'PAYMENT_DISPUTE_RESOLVED',
       ),
     ).toHaveLength(1);
+  });
+
+  it('rejects a refund of the original payment when the dispute is a duplicate UPI payment', async () => {
+    const fetchRefund = vi.fn(async () => verifiedRefund); // refunds pay_original, not the duplicate
+    const h = await disputedPayment('UPI_DUPLICATE', { fetchRefund });
+    await expect(
+      h.completeRide.resolveDispute({
+        rideId: h.ride.id,
+        adminId: 'admin-1',
+        outcome: 'RIDER_WINS',
+        reason: 'Refund reviewed',
+        refundReference: verifiedRefund.id,
+      }),
+    ).rejects.toThrow();
+    expect((await h.rideRepo.findById(h.ride.id))?.status).toBe('PAYMENT_DISPUTED');
+  });
+
+  it('refunds only the duplicate UPI payment and leaves the original earnings untouched', async () => {
+    const fetchRefund = vi.fn(async () => ({ ...verifiedRefund, paymentId: 'pay_duplicate' }));
+    const h = await disputedPayment('UPI_DUPLICATE', { fetchRefund });
+    const resolved = await h.completeRide.resolveDispute({
+      rideId: h.ride.id,
+      adminId: 'admin-1',
+      outcome: 'RIDER_WINS',
+      reason: 'Duplicate payment refunded',
+      refundReference: verifiedRefund.id,
+    });
+    expect(resolved.status).toBe('SETTLED');
+    const driver = await h.walletRepo.findByDriverId('driver-1');
+    expect(driver?.earningsBalancePaise).toBe(18400);
+    expect(driver?.balancePaise).toBe(5000);
+    expect((await h.walletRepo.findByRiderId('rider-1'))?.balancePaise).toBe(0);
+    const event = (await h.rideEventRepo.findByRideId(h.ride.id)).find(
+      (e) => e.eventType === 'PAYMENT_DISPUTE_RESOLVED',
+    );
+    expect(event?.metadata).toMatchObject({
+      duplicatePayment: true,
+      reversedOnlineEarningsPaise: 0,
+      refundedCollectedArrearsPaise: 0,
+    });
   });
 });

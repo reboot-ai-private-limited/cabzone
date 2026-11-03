@@ -1,9 +1,9 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { type ColorValue, Platform, Pressable, StyleSheet, View } from 'react-native';
+import { type ColorValue, Platform, Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors } from '@/design-system';
+import { colors, createStyles } from '@/design-system';
 
 function TabIcon({
   name,
@@ -30,15 +30,15 @@ export default function DriverTabsLayout() {
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: colors.deepBrown,
-        tabBarActiveBackgroundColor: colors.white,
-        tabBarInactiveBackgroundColor: colors.white,
+        tabBarActiveBackgroundColor: colors.surface,
+        tabBarInactiveBackgroundColor: colors.surface,
         tabBarInactiveTintColor: colors.secondary,
         tabBarButton: ({ ref: _ref, ...props }) => (
           <Pressable {...props} android_ripple={{ color: 'transparent' }} />
         ),
         tabBarIconStyle: { width: 56, height: 30 },
         tabBarStyle: {
-          backgroundColor: colors.white,
+          backgroundColor: colors.surface,
           borderTopColor: colors.border,
           borderTopWidth: 1,
           height: 68 + bottomInset,
@@ -93,7 +93,7 @@ export default function DriverTabsLayout() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createStyles(() => ({
   icon: { width: 56, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
   activeIcon: { backgroundColor: colors.amber },
-});
+}));

@@ -4,7 +4,6 @@ import {
   Pressable,
   RefreshControl,
   ScrollView,
-  StyleSheet,
   Text,
   View,
 } from 'react-native';
@@ -15,7 +14,7 @@ import type { DriverEarningsPeriod, DriverEarningsSummaryDto } from '@cabzone/co
 import { useAuth } from '@/context/auth-context';
 import { useDuty } from '@/context/duty-context';
 import { ridesApi } from '@/services/api';
-import { colors, typography } from '@/design-system';
+import { colors, typography, createStyles } from '@/design-system';
 
 const PERIOD_TABS: { key: DriverEarningsPeriod; label: string }[] = [
   { key: 'TODAY', label: 'Today' },
@@ -371,7 +370,7 @@ export default function DriverEarningsTab() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createStyles(() => ({
   container: {
     flex: 1,
     backgroundColor: colors.background,
@@ -690,4 +689,4 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.sm,
     fontWeight: '800',
   },
-});
+}));

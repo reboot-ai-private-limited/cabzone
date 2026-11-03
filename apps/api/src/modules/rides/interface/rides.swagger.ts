@@ -4,6 +4,7 @@ import {
   extensionResponseSchema,
   extensionParamsSchema,
 } from './rideExtensions.controller.js';
+import { earlyDropRespondSchema } from './earlyDrop.controller.js';
 import { DRIVER_EARNINGS_PERIODS } from '@cabzone/contracts';
 import { chatSendSchema, chatQuerySchema } from './rideChat.controller.js';
 import { callStartSchema, callInstallationSchema } from './rideCalls.controller.js';
@@ -136,6 +137,9 @@ export const rideViewSchema = z.object({
   arrearsPaise: z.number().int(),
   totalPayablePaise: z.number().int().nullable(),
   cancellationReason: z.string().nullable(),
+  cancelledBy: z.string().nullable().optional(),
+  disputeOutcome: z.string().nullable().optional(),
+  earlyDropRequestedAt: z.string().nullable().optional(),
   offeringExpiresAt: z.string().nullable(),
   acceptedAt: z.string().nullable(),
   arrivedAt: z.string().nullable(),
@@ -312,6 +316,34 @@ export function registerRidesSwaggerPaths(): void {
       409: { description: 'COMMUNICATION_CLOSED: ride is not assigned or communication has closed', content: { 'application/json': { schema: errorResponse } } },
     },
   });
+  for (const action of ['request', 'respond'] as const) {
+    registry.registerPath({
+      method: 'post',
+      path: action === 'request' ? '/v1/rides/{id}/early-drop' : '/v1/rides/{id}/early-drop/respond',
+      tags: ['Rides'],
+      security: bearerAuth,
+      summary:
+        action === 'request'
+          ? 'Rider asks to end the trip before the destination (driver must confirm)'
+          : 'Assigned driver confirms (completes at the full agreed fare) or declines an early drop',
+      request: {
+        params: rideIdParamSchema,
+        ...(action === 'respond'
+          ? { body: { content: { 'application/json': { schema: earlyDropRespondSchema } } } }
+          : {}),
+      },
+      responses: {
+        200: {
+          description: 'Authoritative ride after the early drop request or response',
+          content: { 'application/json': { schema: successResponse(rideViewSchema) } },
+        },
+        400: { description: 'Invalid state or no pending request', content: { 'application/json': { schema: errorResponse } } },
+        401: { description: 'Authentication required', content: { 'application/json': { schema: errorResponse } } },
+        403: { description: 'Participant role required', content: { 'application/json': { schema: errorResponse } } },
+        404: { description: 'Ride unavailable to this participant', content: { 'application/json': { schema: errorResponse } } },
+      },
+    });
+  }
   for (const action of ['propose', 'respond'] as const) {
     registry.registerPath({
       method: 'post',
@@ -1135,7 +1167,7 @@ export function registerRidesSwaggerPaths(): void {
     method: 'post',
     path: '/v1/rides/{id}/arrived',
     tags: ['Rides'],
-    summary: 'Mark driver arrived at pickup location (Driver only)',
+    summary: 'Mark driver arrived at pickup location (Driver only; must be within 200 m of pickup)',
     security: bearerAuth,
     request: {
       params: rideIdParamSchema,

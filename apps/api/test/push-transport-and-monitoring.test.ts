@@ -197,6 +197,48 @@ describe('C05: Shared push-token router and rider background push delivery', () 
   });
 });
 
+describe('ringing push notifications for a closed app', () => {
+  it('uses the long ring sound on ring channels and the default sound elsewhere', async () => {
+    const pushTokens = new MemoryPushTokenRepository();
+    await pushTokens.put('driver-user-1', 'driver-phone-1', 'ExponentPushToken[driver-token-ring]');
+    const sent: Array<Array<Record<string, unknown>>> = [];
+    const push = new ExpoPushService(
+      pushTokens,
+      new MemoryPushReceiptRepository(),
+      async (batch) => {
+        sent.push(batch);
+        return batch.map((_, idx) => ({ status: 'ok' as const, id: `ring-ticket-${sent.length}-${idx}` }));
+      },
+    );
+
+    await push.notify(['driver-user-1'], {
+      title: 'New ride request',
+      body: 'Rs 120 offered.',
+      channelId: 'ride-offers-ring',
+      expiresAt: new Date(Date.now() + 30_000),
+    });
+    await push.notify(['driver-user-1'], {
+      title: 'Incoming ride call',
+      body: 'Tap to answer.',
+      channelId: 'ride-calls-ring',
+    });
+    await push.notify(['driver-user-1'], {
+      title: 'Ride update',
+      body: 'Status changed.',
+      channelId: 'ride-updates',
+    });
+
+    expect(sent).toHaveLength(3);
+    expect(sent[0]![0]).toMatchObject({
+      channelId: 'ride-offers-ring',
+      sound: 'ring_long.wav',
+      priority: 'high',
+    });
+    expect(sent[1]![0]).toMatchObject({ channelId: 'ride-calls-ring', sound: 'ring_long.wav' });
+    expect(sent[2]![0]).toMatchObject({ channelId: 'ride-updates', sound: 'default' });
+  });
+});
+
 describe('C06 & C07: Encrypted backup/restore guards, realtime readiness, and redacted alerting', () => {
   it('checks actual Mongo snake-case financial records after restoration', () => {
     const report = verifyRestoredDataInvariants({

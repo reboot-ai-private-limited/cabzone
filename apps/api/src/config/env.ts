@@ -87,6 +87,12 @@ const schema = z.object({
     .regex(/^\d{6}$/, 'DEV_FIXED_OTP must be exactly 6 digits')
     .optional(),
 
+  /**
+   * Trust score rollout (D-048). off: old formula only. shadow: old formula is shown, the new one is
+   * computed and the difference logged. on: the new formula is shown.
+   */
+  TRUST_SCORE_V2: z.enum(['off', 'shadow', 'on']).default('on'),
+
   /** Transactional SMS gateway configuration (Step 16 / C03) */
   SMS_PROVIDER: z.enum(['console', 'msg91', 'twilio', 'webhook']).default('console'),
   SMS_SENDER_ID: z.string().min(1).optional(),
@@ -110,6 +116,12 @@ const schema = z.object({
   ALLOW_LOCAL_REALTIME_FALLBACK: z
     .enum(['true', 'false'])
     .default('false')
+    .transform((v) => v === 'true'),
+
+  /** Driver must be within 200 m of pickup to arrive and 500 m of drop to complete (unless early drop is approved). */
+  RIDE_GEOFENCE_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
     .transform((v) => v === 'true'),
 
   /** Routing module configuration */

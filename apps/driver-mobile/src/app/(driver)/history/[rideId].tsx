@@ -1,7 +1,7 @@
 import { tollDisclosure, type RideDto, type RideEventDto } from '@cabzone/contracts';
 import { locationLabel } from '@/services/location-names';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -14,7 +14,7 @@ import {
 } from '@/services/driver-ride-policy';
 import { RideRatingCard } from '@/components/driver/ride-rating-card';
 import { RoutePointIcon } from '@/components/common/route-point-icon';
-import { colors, typography } from '@/design-system';
+import { colors, typography, createStyles } from '@/design-system';
 
 export default function RideHistoryDetailScreen() {
   const router = useRouter();
@@ -292,7 +292,7 @@ export default function RideHistoryDetailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createStyles(() => ({
   stopMarker: { width: 20, height: 20, borderRadius: 5, backgroundColor: colors.brandBrown, transform: [{ scale: 0.6 }] },
   container: {
     flex: 1,
@@ -525,4 +525,4 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: colors.deepBrown,
   },
-});
+}));

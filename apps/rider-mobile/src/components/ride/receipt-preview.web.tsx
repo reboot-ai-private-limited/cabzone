@@ -1,9 +1,9 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { Asset } from 'expo-asset';
-import { Modal, Pressable, Share, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, Share, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { receiptHtml, type rideReceipt } from '@/services/ride-receipt';
-import { colors, spacing, typography } from '@/design-system';
+import { colors, spacing, typography, createStyles } from '@/design-system';
 
 export function ReceiptPreview({
   receipt,
@@ -70,7 +70,7 @@ export function ReceiptPreview({
     </Modal>
   );
 }
-const styles = StyleSheet.create({
+const styles = createStyles(() => ({
   container: { flex: 1, backgroundColor: colors.white },
   header: {
     flexDirection: 'row',
@@ -94,4 +94,4 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   error: { ...typography.caption, color: colors.error, paddingHorizontal: spacing.xl },
-});
+}));

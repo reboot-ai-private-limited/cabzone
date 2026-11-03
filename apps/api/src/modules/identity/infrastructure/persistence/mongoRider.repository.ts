@@ -1,13 +1,21 @@
 import type { PipelineStage } from 'mongoose';
-import type { UserStatus } from '@cabzone/contracts';
+import type { TrustScoreBreakdownDto, TrustTier, UserStatus } from '@cabzone/contracts';
 import type {
   RiderEntity,
   RiderListFilter,
   RiderRepositoryPort,
   RiderWithUser,
+  TrustSnapshot,
 } from '../../domain/index.js';
 import { RiderModel, type RiderDocument } from './rider.model.js';
 import { AppError } from '../../../../shared/errors/AppError.js';
+
+/** Prefers sum / count so the average never drifts; falls back to the stored average for older rows. */
+function deriveAverage(sum: number | undefined, count: number, stored: number | null): number | null {
+  if (count <= 0) return null;
+  if (typeof sum === 'number' && sum > 0) return Number((sum / count).toFixed(2));
+  return stored;
+}
 
 export class MongoRiderRepository implements RiderRepositoryPort {
   async findById(riderId: string): Promise<RiderEntity | null> {
@@ -45,8 +53,8 @@ export class MongoRiderRepository implements RiderRepositoryPort {
   }
 
   async update(rider: RiderEntity): Promise<RiderEntity> {
-    const ratingCount = rider.ratingCount > 0 ? rider.ratingCount : 0;
-    const ratingAverage = ratingCount > 0 ? rider.ratingAverage : null;
+    // Ratings and trust are written only by applyRevealedRating / saveTrust, so a stale profile
+    // object can never overwrite them.
     const updated = await RiderModel.findByIdAndUpdate(
       rider.id,
       {
@@ -60,9 +68,6 @@ export class MongoRiderRepository implements RiderRepositoryPort {
               }
             : null,
           preferred_language: rider.preferredLanguage,
-          rating_average: ratingAverage,
-          rating_count: ratingCount,
-          trust_score: rider.trustScore ?? null,
           version: rider.version + 1,
         },
       },
@@ -81,36 +86,79 @@ export class MongoRiderRepository implements RiderRepositoryPort {
     riderId: string,
     stars: number,
   ): Promise<{ ratingAverage: number; ratingCount: number }> {
-    for (let attempt = 0; attempt < 6; attempt++) {
-      const doc = await RiderModel.findById(riderId).lean<RiderDocument | null>().exec();
-      if (!doc) {
-        throw AppError.notFound('RIDER_NOT_FOUND: Rider profile not found.');
-      }
-      const prevCount = doc.rating_count > 0 ? doc.rating_count : 0;
-      const prevAvg = prevCount > 0 && doc.rating_average !== null ? doc.rating_average : 0;
-      const nextCount = prevCount + 1;
-      const nextAvg = Number(((prevAvg * prevCount + stars) / nextCount).toFixed(2));
-      const updated = await RiderModel.findOneAndUpdate(
-        { _id: riderId, version: doc.version },
+    // One atomic pipeline update: the sum and count move together and the average is derived from
+    // them, so concurrent reveals cannot lose a rating or accumulate rounding error (F10).
+    // Profiles that predate rating_sum fall back to average x count for their first update.
+    const updated = await RiderModel.findByIdAndUpdate(
+      riderId,
+      [
         {
           $set: {
-            rating_count: nextCount,
-            rating_average: nextAvg,
-            version: doc.version + 1,
+            rating_sum: {
+              $add: [
+                {
+                  $ifNull: [
+                    '$rating_sum',
+                    {
+                      $round: [
+                        {
+                          $multiply: [
+                            { $ifNull: ['$rating_average', 0] },
+                            { $ifNull: ['$rating_count', 0] },
+                          ],
+                        },
+                        0,
+                      ],
+                    },
+                  ],
+                },
+                stars,
+              ],
+            },
+            rating_count: { $add: [{ $ifNull: ['$rating_count', 0] }, 1] },
+            version: { $add: [{ $ifNull: ['$version', 1] }, 1] },
           },
         },
-        { new: true },
-      )
-        .lean<RiderDocument | null>()
-        .exec();
-      if (updated) {
-        return {
-          ratingAverage: updated.rating_average ?? nextAvg,
-          ratingCount: updated.rating_count,
-        };
-      }
+        { $set: { rating_average: { $round: [{ $divide: ['$rating_sum', '$rating_count'] }, 2] } } },
+      ],
+      { new: true },
+    )
+      .lean<RiderDocument | null>()
+      .exec();
+    if (!updated) {
+      throw AppError.notFound('RIDER_NOT_FOUND: Rider profile not found.');
     }
-    throw AppError.conflict('RATING_AGGREGATE_CONFLICT: Rider rating aggregate retry exhausted.');
+    return { ratingAverage: updated.rating_average ?? 0, ratingCount: updated.rating_count };
+  }
+
+  async findManyByIds(ids: string[]): Promise<RiderEntity[]> {
+    if (ids.length === 0) return [];
+    const docs = await RiderModel.find({ _id: { $in: ids } }).lean<RiderDocument[]>().exec();
+    return docs.map((d) => this.toEntity(d));
+  }
+
+  async saveTrust(id: string, trust: TrustSnapshot): Promise<void> {
+    await RiderModel.updateOne(
+      { _id: id },
+      {
+        $set: {
+          trust_score: trust.score,
+          trust_tier: trust.tier,
+          trust_breakdown: trust.breakdown,
+          trust_updated_at: trust.updatedAt,
+        },
+      },
+    ).exec();
+  }
+
+  async listIds(afterId: string | null, limit: number): Promise<string[]> {
+    const docs = await RiderModel.find(afterId ? { _id: { $gt: afterId } } : {})
+      .sort({ _id: 1 })
+      .limit(limit)
+      .select('_id')
+      .lean<{ _id: string }[]>()
+      .exec();
+    return docs.map((d) => d._id);
   }
 
   async list(filter: RiderListFilter): Promise<{ items: RiderWithUser[]; total: number }> {
@@ -199,9 +247,13 @@ export class MongoRiderRepository implements RiderRepositoryPort {
           }
         : null,
       preferredLanguage: doc.preferred_language,
-      ratingAverage: ratingCount > 0 ? doc.rating_average : null,
+      ratingAverage: deriveAverage(doc.rating_sum, ratingCount, doc.rating_average),
       ratingCount,
+      ratingSum: doc.rating_sum ?? 0,
       trustScore: doc.trust_score ?? null,
+      trustTier: (doc.trust_tier as TrustTier | null | undefined) ?? null,
+      trustBreakdown: (doc.trust_breakdown as TrustScoreBreakdownDto | null | undefined) ?? null,
+      trustUpdatedAt: doc.trust_updated_at ?? null,
       version: doc.version,
       createdAt: doc.created_at,
       updatedAt: doc.updated_at,

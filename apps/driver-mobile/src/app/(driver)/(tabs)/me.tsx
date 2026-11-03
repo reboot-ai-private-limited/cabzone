@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import {
   ActivityIndicator,
+  Image,
   Modal,
   Pressable,
   ScrollView,
-  StyleSheet,
   Text,
   View,
 } from 'react-native';
@@ -16,7 +16,8 @@ import { useAuth } from '@/context/auth-context';
 import { useDuty } from '@/context/duty-context';
 import { useRide } from '@/context/ride-context';
 import { deriveKycBannerState } from '@/services/profile';
-import { colors, typography } from '@/design-system';
+import { colors, typography, createStyles } from '@/design-system';
+import { AppearanceToggle } from '@/components/common/appearance-toggle';
 
 export default function DriverMeTab() {
   const router = useRouter();
@@ -37,6 +38,8 @@ export default function DriverMeTab() {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [logoutError, setLogoutError] = useState<string | null>(null);
 
+  const [photoFailed, setPhotoFailed] = useState(false);
+  const photoUrl = driver?.profilePhotoUrl || null;
   const driverName = driver?.name || 'Driver Partner';
   const phone = user?.phoneE164 || '';
   const rating = formatPublicRatingLabel(driver?.ratingAverage, driver?.ratingCount);
@@ -117,9 +120,18 @@ export default function DriverMeTab() {
         {/* Driver Profile Card */}
         <View style={styles.profileCard}>
           <View style={styles.avatarCircle}>
-            <Text style={styles.avatarInitial}>
-              {driverName.trim().charAt(0).toUpperCase() || 'D'}
-            </Text>
+            {photoUrl && !photoFailed ? (
+              <Image
+                source={{ uri: photoUrl }}
+                style={styles.avatarImage}
+                onError={() => setPhotoFailed(true)}
+                accessibilityLabel="Driver profile photo"
+              />
+            ) : (
+              <Text style={styles.avatarInitial}>
+                {driverName.trim().charAt(0).toUpperCase() || 'D'}
+              </Text>
+            )}
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.driverName}>{driverName}</Text>
@@ -175,6 +187,11 @@ export default function DriverMeTab() {
               <Ionicons name="chevron-forward" size={18} color={colors.secondary} />
             </Pressable>
           ))}
+        </View>
+
+        {/* Appearance */}
+        <View style={styles.menuCard}>
+          <AppearanceToggle />
         </View>
 
         {/* Sign Out Button */}
@@ -241,7 +258,7 @@ export default function DriverMeTab() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createStyles(() => ({
   container: {
     flex: 1,
     backgroundColor: colors.background,
@@ -268,6 +285,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.amber,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
   },
   avatarInitial: {
     fontSize: 26,
@@ -482,4 +504,4 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: colors.white,
   },
-});
+}));

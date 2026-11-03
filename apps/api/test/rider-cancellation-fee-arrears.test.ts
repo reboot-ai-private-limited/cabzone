@@ -453,11 +453,21 @@ describe('Step 3: Rider Cancellation & No-Show Fees, Arrears Ledger, Recovery & 
     freeStored.acceptedAt = new Date(Date.now() - 60_000);
     await rideRepo.save(freeStored);
 
+    // A rider cannot cancel with a reason that only the other side or the system may use (D-048)
+    const wrongReason = await request(app)
+      .post(`/api/v1/rides/${freeRideId}/cancel`)
+      .set('Authorization', riderAuth)
+      .send({ reason: 'RIDER_NO_SHOW' });
+    expect(wrongReason.status).toBe(400);
+    expect(wrongReason.body.message).toContain('INVALID_CANCELLATION_REASON');
+    expect((await rideRepo.findById(freeRideId))!.status).toBe('DRIVER_ASSIGNED');
+
     const freeCancel = await request(app)
       .post(`/api/v1/rides/${freeRideId}/cancel`)
       .set('Authorization', riderAuth)
       .send({ reason: 'RIDER_CHANGED_MIND' });
     expect(freeCancel.status).toBe(200);
+    expect((await rideRepo.findById(freeRideId))!.cancelledBy).toBe('RIDER');
     expect(freeCancel.body.data.feeBreakdown.totalFeePaise).toBe(0);
     expect(freeCancel.body.data.riderArrearsPaise).toBe(0);
     expect(await walletRepo.findByRiderId(RIDER_ID)).toBeNull();
@@ -501,6 +511,8 @@ describe('Step 3: Rider Cancellation & No-Show Fees, Arrears Ledger, Recovery & 
     expect(c2.body.data.feeBreakdown.totalFeePaise).toBe(5000);
     expect(c1.body.data.riderArrearsPaise).toBe(5000);
     expect(c2.body.data.riderArrearsPaise).toBe(5000);
+    expect((await rideRepo.findById(noShowRideId))!.cancelledBy).toBe('DRIVER');
+    expect(c1.body.data.ride.cancelledBy).toBe('DRIVER');
 
     // Mismatched actor/reason replay rejected with 409
     const mismatchCancel = await request(app)
@@ -777,6 +789,14 @@ describe('Step 3: Rider Cancellation & No-Show Fees, Arrears Ledger, Recovery & 
       .set('Authorization', supportAuth)
       .send({ outcome: 'RIDER_WINS', reason: 'Verified cash collection discrepancy' })
       .expect(200);
+
+    // The outcome and timestamps stay on the ride after it returns to SETTLED, so the trust score
+    // can count the dispute against the driver (D-048).
+    const resolvedRide = (await rideRepo.findById(ride2Id))!;
+    expect(resolvedRide.status).toBe('SETTLED');
+    expect(resolvedRide.disputeOutcome).toBe('RIDER_WINS');
+    expect(resolvedRide.disputedAt).toBeInstanceOf(Date);
+    expect(resolvedRide.disputeResolvedAt).toBeInstanceOf(Date);
 
     expect((await walletRepo.findByDriverId(DRIVER_ID))?.balancePaise).toBe(driverBefore);
     const riderWallet = await walletRepo.findByRiderId(RIDER_ID);

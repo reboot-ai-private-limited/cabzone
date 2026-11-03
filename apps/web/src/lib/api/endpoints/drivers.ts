@@ -4,6 +4,8 @@ import type {
   DocumentVerificationStatus,
   DriverApplicationStatus,
   RejectionType,
+  TrustScoreBreakdownDto,
+  TrustTier,
   VehicleCategory,
 } from '@cabzone/contracts';
 import { API_BASE_URL, request } from '../client.js';
@@ -39,6 +41,8 @@ export interface DriverApplicationSummaryDto {
     ratingAverage: number | null;
     ratingCount: number;
     trustScore?: number | null | undefined;
+    trustTier?: TrustTier | null | undefined;
+    trustScoreBreakdown?: TrustScoreBreakdownDto | null | undefined;
   } | null;
   phoneE164: string | null;
   alternatePhone?: string | null;

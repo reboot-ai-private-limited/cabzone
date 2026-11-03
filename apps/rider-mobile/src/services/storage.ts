@@ -1,4 +1,5 @@
 import * as SecureStore from 'expo-secure-store';
+import { DEFAULT_MAP_THEME, normalizeMapTheme, type MapTheme } from './map-theme';
 import { Platform } from 'react-native';
 import type { AuthenticatedUserSummary } from '@cabzone/contracts';
 import type { SavedRouteTemplate } from './rider-helpers';
@@ -16,12 +17,14 @@ export interface RiderLocalPreferences {
   operationalCity: string;
   distanceUnit: 'km' | 'mi';
   language: 'en' | 'hi' | 'bn';
+  mapTheme: MapTheme;
 }
 
 const DEFAULT_PREFS: RiderLocalPreferences = {
   operationalCity: 'Siliguri',
   distanceUnit: 'km',
   language: 'en',
+  mapTheme: DEFAULT_MAP_THEME,
 };
 
 export async function setItem(key: string, value: string): Promise<void> {
@@ -156,6 +159,7 @@ export async function getRiderPreferences(userId: string): Promise<RiderLocalPre
       distanceUnit: parsed.distanceUnit === 'mi' ? 'mi' : 'km',
       language:
         parsed.language === 'hi' || parsed.language === 'bn' ? parsed.language : 'en',
+      mapTheme: normalizeMapTheme(parsed.mapTheme),
     };
   } catch {
     return DEFAULT_PREFS;

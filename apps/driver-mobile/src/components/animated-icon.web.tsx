@@ -1,8 +1,9 @@
 import { Image } from 'expo-image';
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 import Animated, { Keyframe, Easing } from 'react-native-reanimated';
 
 import classes from './animated-icon.module.css';
+import { createStyles } from '@/design-system';
 const DURATION = 300;
 
 export function AnimatedSplashOverlay() {
@@ -72,7 +73,7 @@ export function AnimatedIcon() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createStyles(() => ({
   container: {
     alignItems: 'center',
     width: '100%',
@@ -105,4 +106,4 @@ const styles = StyleSheet.create({
     height: 128,
     position: 'absolute',
   },
-});
+}));

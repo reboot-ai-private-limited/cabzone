@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Easing, Image, Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { colors } from '@/design-system';
+import { colors, createStyles } from '@/design-system';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 import { BlobBackground } from './blob-background';
 
@@ -353,7 +353,7 @@ export function EntryStep({ onContinue }: { onContinue: () => void }) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createStyles(() => ({
   container: { flex: 1, backgroundColor: colors.white },
   content: {
     flex: 1,
@@ -438,4 +438,4 @@ const styles = StyleSheet.create({
   hours: { top: 24, left: 0 },
   fare: { top: 64, right: 0 },
   payment: { bottom: 24 },
-});
+}));

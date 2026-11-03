@@ -1,3 +1,4 @@
+import type { TrustScoreBreakdownDto, TrustTier } from '@cabzone/contracts';
 import {
   REQUIRED_DRIVER_DOCUMENT_TYPES,
   isDocumentValidForVehicle,
@@ -28,6 +29,11 @@ export interface DriverEntity {
   ratingAverage: number | null;
   ratingCount: number;
   trustScore: number | null;
+  trustTier?: TrustTier | null | undefined;
+  trustBreakdown?: TrustScoreBreakdownDto | null | undefined;
+  trustUpdatedAt?: Date | null | undefined;
+  /** Sum of revealed star ratings. The average is derived from this, so it cannot drift. */
+  ratingSum?: number | undefined;
   currentVehicleId: string | null;
   walletId: string;
   version: number;

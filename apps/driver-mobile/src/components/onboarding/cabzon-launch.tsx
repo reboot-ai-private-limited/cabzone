@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Animated, StyleSheet, Text, View } from 'react-native';
-import { colors, motion } from '@/design-system';
+import { Animated, Text, View } from 'react-native';
+import { colors, motion, createStyles } from '@/design-system';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 
 export interface CabzonLaunchProps {
@@ -77,7 +77,7 @@ export function CabzonLaunch({ onFinish }: CabzonLaunchProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createStyles(() => ({
   container: {
     flex: 1,
     backgroundColor: colors.background,
@@ -109,4 +109,4 @@ const styles = StyleSheet.create({
     marginTop: 4,
     textTransform: 'uppercase',
   },
-});
+}));

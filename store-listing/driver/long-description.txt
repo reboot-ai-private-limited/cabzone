@@ -1,0 +1,50 @@
+Cabzone Driver is for independent cab drivers who want ride requests, clear fares and a simple record of what they earn. Go online when you are ready to drive, see each request before you accept it, and keep the fare you agree with the rider.
+
+RIDE OFFERS YOU CAN READ AT A GLANCE
+• See the pickup distance, route and fare before you accept.
+• Accept the offer, ignore it, or send a counter fare within the allowed range.
+• Your estimated earnings after the platform fee are shown on every offer.
+
+GO ONLINE WHEN YOU WANT
+• One switch to go online or offline.
+• Stay in your service zone to receive offers.
+• Live status shows that your location is being shared while you are online.
+
+EARN AND GET PAID DIRECTLY
+• Riders pay you the agreed fare directly, in cash or by UPI.
+• Show your UPI QR code at the end of the trip and confirm payment inside the app.
+• Cabzone charges an 8% platform commission, recorded against your driver wallet.
+
+CLEAR EARNINGS
+• Net earnings for today, the last 7 days, the last 30 days or all time.
+• Gross fare, platform fee and trip counts in one place.
+• Full ledger of commission debits and wallet top-ups.
+
+ALL YOUR TRIPS IN ONE PLACE
+• Active trip, live offers and complete ride history under Rides.
+• Filter by completed, cancelled or disputed trips.
+• Rate riders after a completed trip.
+
+TALK TO YOUR RIDER
+• Chat with the rider about the pickup.
+• Call the rider from inside the app.
+
+VERIFIED AND TRUSTED
+• Complete KYC once: personal details, driving licence, vehicle details and documents, and a profile photo.
+• Get reminders before documents expire, so you can renew without losing rides.
+• Riders see your name, photo and vehicle at pickup.
+
+SUPPORT
+• Call or email the driver support desk from Profile > Help.
+• Report a payment dispute with your trip ID and our team reviews the trip.
+
+PERMISSIONS
+• Location (including while the app is in the background): needed while you are online so riders can be matched to you and can follow the trip. Sharing stops when you go offline.
+• Camera and photos: only when you upload your profile photo and documents.
+• Microphone: only for in-app calls with riders.
+• Notifications: new ride offers, rider messages and call alerts.
+
+REQUIREMENTS
+You need a valid driving licence, a registered vehicle and completed KYC verification before you can go online.
+
+Cabzone is currently available in and around Siliguri, West Bengal. Light and dark themes are supported.

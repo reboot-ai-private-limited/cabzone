@@ -807,6 +807,12 @@ export function makeListPaymentDisputesController(
           typeof ticket?.metadata?.paymentId === 'string',
         );
         const hasOnlineConfirmation = confirmedEvent?.metadata?.method === 'UPI';
+        // A second payment on an already-settled ride: the refund is for this payment id only.
+        const isDuplicatePayment = ticket?.metadata?.duplicate === true;
+        const duplicatePaymentId =
+          isDuplicatePayment && typeof ticket?.metadata?.paymentId === 'string'
+            ? ticket.metadata.paymentId
+            : null;
         const requiresManualProviderRefund = Boolean(
           hasOnlineConfirmation || isDuplicateUpiAfterCash,
         );
@@ -844,6 +850,8 @@ export function makeListPaymentDisputesController(
             providerRefundReference,
             receiptReference,
             isDuplicateUpiAfterCash,
+            isDuplicatePayment,
+            duplicatePaymentId,
             requiresManualProviderRefund,
             commissionChargedPaise: commissionDebit?.amountPaise ?? onlineCommissionPaise,
             commissionRefundedPaise:

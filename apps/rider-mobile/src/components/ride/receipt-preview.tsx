@@ -5,7 +5,6 @@ import {
   Modal,
   Platform,
   Pressable,
-  StyleSheet,
   Text,
   View,
 } from 'react-native';
@@ -15,7 +14,7 @@ import { File } from 'expo-file-system';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { WebView } from 'react-native-webview';
-import { colors, spacing, typography } from '@/design-system';
+import { colors, spacing, typography, createStyles } from '@/design-system';
 import { receiptHtml, type rideReceipt } from '@/services/ride-receipt';
 
 export function ReceiptPreview({
@@ -139,7 +138,7 @@ export function ReceiptPreview({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createStyles(() => ({
   container: { flex: 1, backgroundColor: colors.white },
   header: {
     flexDirection: 'row',
@@ -169,4 +168,4 @@ const styles = StyleSheet.create({
   primary: { backgroundColor: colors.amber, borderColor: colors.amber },
   actionText: { ...typography.bodyBold, color: colors.deepBrown },
   error: { ...typography.caption, color: colors.error, paddingHorizontal: spacing.xl },
-});
+}));

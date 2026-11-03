@@ -1,4 +1,4 @@
-import type { CancellationReason, RideEventActor } from '@cabzone/contracts';
+import { RIDER_BOOKING_BLOCKED_STATUSES, type CancellationReason, type RideEventActor } from '@cabzone/contracts';
 import { AppError } from '../../../../shared/errors/AppError.js';
 import { newUuid } from '../../../../shared/ids.js';
 import type { UnitOfWorkPort } from '../../../../shared/db/unitOfWork.port.js';
@@ -12,6 +12,7 @@ import {
   type WalletTransactionEntity,
 } from '../../../ledger/ledger.public.js';
 import {
+  assertCancellationReasonAllowed,
   calculateCancellationFee,
   canCancelRide,
   MAX_DAILY_UNASSIGNED_CANCELLATIONS,
@@ -192,6 +193,8 @@ export class CancelRideUseCase {
       throw AppError.badRequest(`INVALID_RIDE_STATE: Cannot cancel ride in status ${ride.status}.`);
     }
 
+    assertCancellationReasonAllowed(input.actorType, input.reason);
+
     const now = input.cancelledAt ?? new Date();
 
     // Daily rate-limiting for unassigned rider cancellations (max 5 per day)
@@ -235,6 +238,7 @@ export class CancelRideUseCase {
         ...ride,
         status: 'CANCELLED',
         cancellationReason: input.reason,
+        cancelledBy: input.actorType,
         cancelledAt: now,
         version: ride.version + 1,
         updatedAt: now,
@@ -363,6 +367,33 @@ export class CancelRideUseCase {
     };
   }
 
+  /**
+   * A ride booked before the waiver still carries the old arrears figure. Lower it to what the rider
+   * now owes so the amount shown and the amount charged online stay the same.
+   */
+  private async trimArrearsOnOpenRides(
+    waivedRide: RideEntity,
+    riderWallet: WalletEntity,
+    now: Date,
+  ): Promise<void> {
+    const unpaidPaise = getRiderUnpaidArrearsPaise(riderWallet);
+    const open = await this.deps.rideRepo.list({
+      riderId: waivedRide.bookerRiderId,
+      statuses: [...RIDER_BOOKING_BLOCKED_STATUSES, 'PAYMENT_CASH_CLAIMED'],
+      limit: 20,
+      offset: 0,
+    });
+    for (const other of open) {
+      if (other.id === waivedRide.id || other.bookerRiderId !== waivedRide.bookerRiderId) continue;
+      if ((other.arrearsPaise ?? 0) <= unpaidPaise) continue;
+      await saveRideTransition(
+        this.deps.rideRepo,
+        { ...other, arrearsPaise: unpaidPaise, version: other.version + 1, updatedAt: now },
+        other.version,
+      );
+    }
+  }
+
   private async tryReplayWaiver(
     input: WaiveCancellationFeeInput,
   ): Promise<WaiveCancellationFeeResult | null> {
@@ -455,6 +486,8 @@ export class CancelRideUseCase {
       version: riderWallet.version + 1,
       updatedAt: now,
     });
+
+    await this.trimArrearsOnOpenRides(ride, updatedRiderWallet, now);
 
     if (this.deps.rideEventRepo) {
       await this.deps.rideEventRepo.save({

@@ -2,6 +2,7 @@ import { AppError } from '../../../../shared/errors/AppError.js';
 import { newUuid } from '../../../../shared/ids.js';
 import type { UnitOfWorkPort } from '../../../../shared/db/unitOfWork.port.js';
 import { saveRideTransition } from '../rideTransition.js';
+import { ARRIVE_RADIUS_M, assertDriverWithin, type DriverLocationPort } from '../geofence.js';
 import type {
   RideEntity,
   RideEventRepositoryPort,
@@ -19,6 +20,8 @@ export interface DriverArrivedDeps {
   unitOfWork: UnitOfWorkPort;
   rideRepo: RideRepositoryPort;
   rideEventRepo?: RideEventRepositoryPort;
+  /** When set, the driver must be within 200 m of pickup to mark arrival. */
+  driverLocation?: DriverLocationPort | undefined;
 }
 
 export class DriverArrivedUseCase {
@@ -43,6 +46,16 @@ export class DriverArrivedUseCase {
     if (ride.status !== 'DRIVER_EN_ROUTE') {
       throw AppError.badRequest(
         `INVALID_RIDE_STATE: Driver must be marked as DRIVER_EN_ROUTE before arriving at curb (current status: ${ride.status}).`,
+      );
+    }
+
+    if (this.deps.driverLocation) {
+      await assertDriverWithin(
+        this.deps.driverLocation,
+        input.driverId,
+        ride.pickup,
+        ARRIVE_RADIUS_M,
+        'DRIVER_TOO_FAR_FROM_PICKUP',
       );
     }
 

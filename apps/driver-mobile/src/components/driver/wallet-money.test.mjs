@@ -78,7 +78,7 @@ function screen() {
         return { useDuty: () => ({ refreshSummary: async () => {} }) };
       if (name.includes('services/api')) return { walletApi: api };
       if (name.includes('wallet-money-helpers')) return helpers.exports;
-      return { colors: {} };
+      return { createStyles: (factory) => factory(), colors: {} };
     },
   });
   return {
