@@ -195,7 +195,7 @@ export function CabzonRideOffer({
       <View style={styles.fareCard}>
         <View style={{ flex: 1 }}>
           <Text style={styles.serviceTag}>{offer.serviceType.toUpperCase()}</Text>
-          <Text style={styles.fareText}>₹{grossRupees}</Text>
+          <Text style={styles.fareText} numberOfLines={1} adjustsFontSizeToFit>₹{grossRupees}</Text>
           <Text style={styles.netHintText}>
             Est. net ₹{netRupees} after 8% fee · Cash / UPI
           </Text>
