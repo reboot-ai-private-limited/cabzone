@@ -663,9 +663,10 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
   }, [placeSearchQuery, autocompleteResults, filteredPresets]);
 
 
+  const routePolyline = activeQuote?.routePolyline;
   const routeCoordinates = useMemo(
-    () => (activeQuote?.routePolyline ? decodePolyline(activeQuote.routePolyline) : undefined),
-    [activeQuote?.routePolyline],
+    () => (routePolyline ? decodePolyline(routePolyline) : undefined),
+    [routePolyline],
   );
   const searchActive = placeSearchQuery.trim().length >= 2;
   const recentPlaces = useMemo<PickerPlace[]>(
