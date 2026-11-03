@@ -430,6 +430,10 @@ export interface RideOfferDto {
   /** The rider's public trust tier. Absent until their score is public. */
   riderTrustTier?: 'EXCELLENT' | 'GOOD' | 'FAIR' | 'POOR' | null;
   distanceToPickupM: number;
+  /** Pickup-to-drop route distance in metres. */
+  tripDistanceM?: number;
+  /** Google encoded road polyline for the whole trip. */
+  routePolyline?: string;
   expiresAt: string | null;
   negotiation?: { floorPaise: number; ceilingPaise: number };
 }
@@ -810,12 +814,23 @@ export const walletApi = {
   async cashout(
     token: string,
     amountPaise: number,
-    destinationUpi: string,
+    destination:
+      | { upiId: string }
+      | { bank: { accountNumber: string; ifsc: string; accountHolderName: string } },
     idempotencyKey: string,
   ): Promise<WalletOperationDto> {
     return request(
       '/api/v1/driver/wallet/me/cashouts',
-      { method: 'POST', body: JSON.stringify({ amountPaise, destinationUpi, idempotencyKey }) },
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          amountPaise,
+          idempotencyKey,
+          ...('upiId' in destination
+            ? { destinationUpi: destination.upiId }
+            : { destinationBank: destination.bank }),
+        }),
+      },
       token,
     );
   },

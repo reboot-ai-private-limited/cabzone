@@ -4,11 +4,12 @@ import { useRef, useState } from 'react';
 import type { WalletOperationDto } from '@cabzone/contracts';
 import { Button, Dialog, Input } from '@cabzone/design-system';
 import { formatPaise } from '@/lib/format';
-import { usePendingCashouts, useResolveCashout } from '../hooks/useFinance';
+import { usePendingCashouts, useResolveCashout, useSyncCashout } from '../hooks/useFinance';
 
 export function CashoutQueue({ canMutate = false }: { canMutate?: boolean }) {
   const query = usePendingCashouts();
   const mutation = useResolveCashout();
+  const sync = useSyncCashout();
   const [decision, setDecision] = useState<{
     request: WalletOperationDto;
     outcome: 'PAID' | 'REJECTED';
@@ -31,7 +32,8 @@ export function CashoutQueue({ canMutate = false }: { canMutate?: boolean }) {
         <div>
           <h2 className="text-lg font-semibold text-text">Driver cashouts</h2>
           <p className="text-sm text-text-subtle">
-            Test mode. Funds are reserved; this screen does not send money.
+            Cashouts are paid automatically through RazorpayX. Use Sync to refresh a payout, or settle
+            manually only when a payout was never sent.
           </p>
         </div>
         <Button
@@ -60,7 +62,7 @@ export function CashoutQueue({ canMutate = false }: { canMutate?: boolean }) {
             <div className="space-y-1 min-w-0">
               <p className="font-semibold text-text">
                 {formatPaise(entry.amountPaise)} ·{' '}
-                <span className="break-all">{entry.destinationUpi}</span>
+                <span className="break-all">{entry.destinationLabel ?? entry.destinationUpi}</span>
               </p>
               <p className="text-sm text-text-subtle">
                 Earnings {formatPaise(entry.earningsPaise)} · Recharge{' '}
@@ -72,12 +74,25 @@ export function CashoutQueue({ canMutate = false }: { canMutate?: boolean }) {
             </div>
             {canMutate ? (
               <div className="flex items-center gap-2">
-                <Button variant="secondary" size="sm" onClick={() => choose(entry, 'REJECTED')}>
-                  Reject &amp; return funds
+                <span className="text-xs font-medium text-text-subtle">{entry.status}</span>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  loading={sync.isPending && sync.variables?.id === entry.id}
+                  onClick={() => sync.mutate({ id: entry.id })}
+                >
+                  Sync
                 </Button>
-                <Button size="sm" onClick={() => choose(entry, 'PAID')}>
-                  Record test transfer
-                </Button>
+                {entry.status === 'PENDING' ? (
+                  <>
+                    <Button variant="secondary" size="sm" onClick={() => choose(entry, 'REJECTED')}>
+                      Reject &amp; return funds
+                    </Button>
+                    <Button size="sm" onClick={() => choose(entry, 'PAID')}>
+                      Record manual transfer
+                    </Button>
+                  </>
+                ) : null}
               </div>
             ) : (
               <span className="self-center text-xs text-text-subtle">
@@ -91,7 +106,7 @@ export function CashoutQueue({ canMutate = false }: { canMutate?: boolean }) {
         open={decision !== null && canMutate}
         title={
           decision?.outcome === 'PAID'
-            ? 'Record completed test transfer'
+            ? 'Record completed manual transfer'
             : 'Reject cashout & return funds'
         }
         onOpenChange={(open) => {
@@ -119,14 +134,15 @@ export function CashoutQueue({ canMutate = false }: { canMutate?: boolean }) {
         >
           <p className="text-sm text-text-subtle">
             {decision?.outcome === 'PAID'
-              ? 'Record a reference only after confirming the test transfer. No payout is initiated here.'
+              ? 'Record a reference only after confirming the transfer outside the platform. No payout is initiated here.'
               : 'The reserved earnings and recharge credit will be returned to the driver’s wallet.'}
           </p>
           <p className="font-semibold text-text">
-            {formatPaise(decision?.request.amountPaise ?? 0)} · {decision?.request.destinationUpi}
+            {formatPaise(decision?.request.amountPaise ?? 0)} ·{' '}
+            {decision?.request.destinationLabel ?? decision?.request.destinationUpi}
           </p>
           <label htmlFor="cashout-detail" className="block text-sm font-medium">
-            {decision?.outcome === 'PAID' ? 'Test transfer reference' : 'Reason for rejection'}
+            {decision?.outcome === 'PAID' ? 'Transfer reference (UTR)' : 'Reason for rejection'}
           </label>
           <Input
             id="cashout-detail"

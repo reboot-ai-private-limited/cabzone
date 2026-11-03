@@ -10,11 +10,18 @@ const schema = new Schema<WalletOperation>(
     id: { type: String, required: true, unique: true },
     driverId: { type: String, required: true, index: true },
     kind: { type: String, enum: ['RECHARGE', 'CASHOUT'], required: true },
-    status: { type: String, enum: ['CREATED', 'PENDING', 'COMPLETED', 'REJECTED'], required: true },
+    status: { type: String, enum: ['CREATED', 'PENDING', 'PROCESSING', 'COMPLETED', 'REJECTED'], required: true },
     amountPaise: { type: Number, required: true, min: 1 },
     rechargePaise: { type: Number, required: true, min: 0 },
     earningsPaise: { type: Number, required: true, min: 0 },
     destinationUpi: { type: String, default: null },
+    destinationType: { type: String, enum: ['UPI', 'BANK'], default: 'UPI' },
+    destinationLabel: { type: String, default: null },
+    destinationBank: {
+      type: { accountNumber: String, ifsc: String, accountHolderName: String },
+      default: null,
+      _id: false,
+    },
     orderId: { type: String, default: null },
     providerPaymentId: { type: String, default: null },
     transferReference: { type: String, default: null },
@@ -29,6 +36,8 @@ const schema = new Schema<WalletOperation>(
   { collection: 'wallet_operations', versionKey: false, id: false },
 );
 schema.index({ kind: 1, status: 1, createdAt: -1 });
+schema.index({ orderId: 1 }, { sparse: true });
+schema.index({ providerPaymentId: 1 }, { sparse: true });
 schema.index(
   { transferReference: 1 },
   { unique: true, partialFilterExpression: { transferReference: { $type: 'string' } } },
@@ -43,6 +52,9 @@ export class MongoWalletOperationRepository implements WalletOperationRepository
   }
   async findByKey(idempotencyKey: string) {
     return WalletOperationModel.findOne({ idempotencyKey }).lean<WalletOperation>().exec();
+  }
+  async findByOrderId(orderId: string) {
+    return WalletOperationModel.findOne({ orderId }).lean<WalletOperation>().exec();
   }
   async save(operation: WalletOperation): Promise<WalletOperation> {
     if (operation.version === 1) {
@@ -84,6 +96,9 @@ export class MemoryWalletOperationRepository implements WalletOperationRepositor
   }
   async findByKey(key: string) {
     return [...this.entries.values()].find((entry) => entry.idempotencyKey === key) ?? null;
+  }
+  async findByOrderId(orderId: string) {
+    return [...this.entries.values()].find((entry) => entry.orderId === orderId) ?? null;
   }
   async save(value: WalletOperation) {
     const previous = this.entries.get(value.id);

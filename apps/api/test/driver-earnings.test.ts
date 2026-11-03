@@ -211,6 +211,8 @@ function buildTestApp(deps: {
       cashout: noopHandler,
       cashouts: noopHandler,
       resolve: noopHandler,
+      syncCashout: noopHandler,
+      webhook: noopHandler,
     },
   });
 

@@ -58,6 +58,12 @@ export const walletsApi = {
       body,
       token,
     }),
+  syncCashout: (id: string, token?: string) =>
+    request<WalletOperationDto>(`/v1/admin/wallets/cashouts/${id}/sync`, {
+      method: 'POST',
+      body: {},
+      token,
+    }),
   reconcileLedger: (
     body: { mode?: 'AUDIT' | 'RECONCILE_PENDING_RECHARGES'; driverId?: string } = { mode: 'AUDIT' },
     token?: string,

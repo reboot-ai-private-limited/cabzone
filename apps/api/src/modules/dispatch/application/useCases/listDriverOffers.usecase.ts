@@ -20,6 +20,8 @@ export function toRideOffer(
     proposedFarePaise: ride.proposedFarePaise ?? ride.suggestedFarePaise,
     tollSnapshot: ride.tollSnapshot ?? null,
     distanceToPickupM: Math.round(distanceToPickupM),
+    ...(ride.routeSnapshot?.distanceM ? { tripDistanceM: Math.round(ride.routeSnapshot.distanceM) } : {}),
+    ...(ride.routeSnapshot?.polyline ? { routePolyline: ride.routeSnapshot.polyline } : {}),
     expiresAt: (ride.offeringExpiresAt ?? new Date()).toISOString(),
     negotiation: calculateNegotiationBounds({
       suggestedFarePaise: ride.suggestedFarePaise,

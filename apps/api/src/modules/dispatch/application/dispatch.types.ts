@@ -52,6 +52,10 @@ export interface RideOfferDto {
   /** The rider's public trust tier, when their score is public (D-048). */
   riderTrustTier?: PublicTrustTier | null;
   distanceToPickupM: number;
+  /** Pickup-to-drop route distance in metres (rider's route snapshot). */
+  tripDistanceM?: number;
+  /** Google encoded road polyline pickup -> stops -> drop; absent when the route provider gave none. */
+  routePolyline?: string;
   expiresAt: string;
   negotiation: { floorPaise: number; ceilingPaise: number };
 }

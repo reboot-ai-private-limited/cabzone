@@ -19,17 +19,25 @@ import { walletApi } from '@/services/api';
 import { colors, createStyles } from '@/design-system';
 import { walletAmountPaise, walletRequestKey } from './wallet-money-helpers';
 
+// Mirrors the API limits (walletMoney.usecase.ts).
+const MIN_RECHARGE_PAISE = 50_000;
+const MIN_CASHOUT_PAISE = 20_000;
+
 const money = (paise: number) => `₹${(paise / 100).toFixed(2)}`;
 const operationLabel = (entry: WalletOperationDto) =>
   entry.status === 'CREATED'
     ? 'Awaiting payment'
     : entry.status === 'PENDING'
-      ? 'Pending review'
-      : entry.status === 'REJECTED'
-        ? 'Returned'
-        : entry.kind === 'RECHARGE'
-          ? 'Added'
-          : 'Paid · Test';
+      ? 'Processing'
+      : entry.status === 'PROCESSING'
+        ? 'Sending to your UPI'
+        : entry.status === 'REJECTED'
+          ? 'Returned'
+          : entry.kind === 'RECHARGE'
+            ? 'Added'
+            : entry.testMode
+              ? 'Paid · Test'
+              : 'Paid';
 
 export function WalletMoneyPanel({ refreshVersion = 0 }: { refreshVersion?: number }) {
   const { token } = useAuth();
@@ -38,6 +46,10 @@ export function WalletMoneyPanel({ refreshVersion = 0 }: { refreshVersion?: numb
   const [form, setForm] = useState<'recharge' | 'cashout' | null>(null);
   const [amount, setAmount] = useState('');
   const [upiId, setUpiId] = useState('');
+  const [method, setMethod] = useState<'upi' | 'bank'>('upi');
+  const [accountNumber, setAccountNumber] = useState('');
+  const [ifsc, setIfsc] = useState('');
+  const [holderName, setHolderName] = useState('');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -88,11 +100,12 @@ export function WalletMoneyPanel({ refreshVersion = 0 }: { refreshVersion?: numb
   const submit = async () => {
     if (!token || !form || inFlight.current) return;
     const amountPaise = walletAmountPaise(amount);
-    if (!amountPaise || (form === 'recharge' && amountPaise < 10000)) {
+    if (!amountPaise || (form === 'recharge' && amountPaise < MIN_RECHARGE_PAISE) ||
+      (form === 'cashout' && amountPaise < MIN_CASHOUT_PAISE)) {
       setError(
         form === 'recharge'
-          ? 'Enter ₹100 to ₹1,00,000.'
-          : 'Enter ₹1 to ₹1,00,000 with up to two decimal places.',
+          ? 'Enter ₹500 to ₹1,00,000.'
+          : 'Enter ₹200 to ₹1,00,000 with up to two decimal places.',
       );
       return;
     }
@@ -100,7 +113,43 @@ export function WalletMoneyPanel({ refreshVersion = 0 }: { refreshVersion?: numb
       setError('Amount exceeds your available cashout balance.');
       return;
     }
-    const details = `${form}:${amountPaise}:${form === 'cashout' ? upiId.trim().toLowerCase() : ''}`;
+    let destination:
+      | { upiId: string }
+      | { bank: { accountNumber: string; ifsc: string; accountHolderName: string } }
+      | null = null;
+    if (form === 'cashout') {
+      if (method === 'upi') {
+        if (!/^[a-z0-9._-]{2,256}@[a-z0-9][a-z0-9.-]{1,63}$/i.test(upiId.trim())) {
+          setError('Enter a valid UPI ID, for example name@bank.');
+          return;
+        }
+        destination = { upiId: upiId.trim().toLowerCase() };
+      } else {
+        const account = accountNumber.replace(/\s/g, '');
+        const code = ifsc.trim().toUpperCase();
+        if (!/^\d{9,18}$/.test(account)) {
+          setError('Enter a valid bank account number (9–18 digits).');
+          return;
+        }
+        if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(code)) {
+          setError('Enter a valid 11-character IFSC code, for example HDFC0001234.');
+          return;
+        }
+        if (holderName.trim().length < 2) {
+          setError('Enter the account holder name as it appears at your bank.');
+          return;
+        }
+        destination = {
+          bank: { accountNumber: account, ifsc: code, accountHolderName: holderName.trim() },
+        };
+      }
+    }
+    const destinationKey = !destination
+      ? ''
+      : 'upiId' in destination
+        ? destination.upiId
+        : `${destination.bank.accountNumber}:${destination.bank.ifsc}`;
+    const details = `${form}:${amountPaise}:${destinationKey}`;
     if (key.current?.details !== details) key.current = { details, id: walletRequestKey() };
     inFlight.current = true;
     setBusy(true);
@@ -122,10 +171,16 @@ export function WalletMoneyPanel({ refreshVersion = 0 }: { refreshVersion?: numb
         }
         setMessage('Recharge saved. Your balance updates after payment is verified.');
       } else {
-        await walletApi.cashout(token, amountPaise, upiId.trim(), key.current.id);
+        if (!destination) return;
+        await walletApi.cashout(token, amountPaise, destination, key.current.id);
         setForm(null);
         key.current = null;
-        setMessage('Cashout submitted for Finance review. No transfer has been made yet.');
+        setAccountNumber('');
+        setMessage(
+          method === 'upi'
+            ? 'Cashout requested. The money is on its way to your UPI ID.'
+            : 'Cashout requested. The money is on its way to your bank account (IMPS, usually within minutes).',
+        );
       }
       setActivity(await walletApi.activity(token));
       await refreshSummary();
@@ -164,7 +219,9 @@ export function WalletMoneyPanel({ refreshVersion = 0 }: { refreshVersion?: numb
   return (
     <View style={styles.panel}>
       <Text style={styles.title}>Add money & cash out</Text>
-      <Text style={styles.caption}>Test mode · No money is charged or sent.</Text>
+      {activity?.testMode ? (
+        <Text style={styles.caption}>Test mode · No real money is charged or sent.</Text>
+      ) : null}
       {activity ? (
         <>
           <View style={styles.row}>
@@ -177,7 +234,7 @@ export function WalletMoneyPanel({ refreshVersion = 0 }: { refreshVersion?: numb
           </View>
           {activity.pendingCashoutPaise > 0 ? (
             <Text style={styles.caption}>
-              {money(activity.pendingCashoutPaise)} reserved for your pending cashout.
+              {money(activity.pendingCashoutPaise)} is on its way to your UPI ID.
             </Text>
           ) : null}
           {activity.cashoutBlockedReason ? (
@@ -290,8 +347,8 @@ export function WalletMoneyPanel({ refreshVersion = 0 }: { refreshVersion?: numb
             </Text>
             <Text style={styles.caption}>
               {form === 'recharge'
-                ? 'Test UPI recharge · ₹100 minimum.'
-                : 'Funds are reserved for Finance review. Withdrawing all recharge credit can stop new ride offers.'}
+                ? `${activity?.testMode ? 'Test UPI recharge' : 'UPI recharge'} · ₹500 minimum.`
+                : 'Minimum ₹200. Funds are sent to your UPI ID or bank account automatically and returned to your wallet if the payout fails. Withdrawing all recharge credit can stop new ride offers.'}
             </Text>
             <Text style={styles.label}>Amount in rupees</Text>
             <TextInput
@@ -304,18 +361,77 @@ export function WalletMoneyPanel({ refreshVersion = 0 }: { refreshVersion?: numb
             />
             {form === 'cashout' ? (
               <>
-                <Text style={styles.label}>UPI ID to receive cashout</Text>
-                <TextInput
-                  style={styles.input}
-                  value={upiId}
-                  onChangeText={setUpiId}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  keyboardType="email-address"
-                  accessibilityLabel="Cashout UPI ID"
-                  placeholder="name@bank"
-                  editable={!busy}
-                />
+                <View style={styles.row}>
+                  <Pressable
+                    style={[styles.button, method === 'upi' && styles.primary]}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: method === 'upi' }}
+                    disabled={busy}
+                    onPress={() => setMethod('upi')}
+                  >
+                    <Text style={styles.buttonText}>UPI ID</Text>
+                  </Pressable>
+                  <Pressable
+                    style={[styles.button, method === 'bank' && styles.primary]}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: method === 'bank' }}
+                    disabled={busy}
+                    onPress={() => setMethod('bank')}
+                  >
+                    <Text style={styles.buttonText}>Bank account</Text>
+                  </Pressable>
+                </View>
+                {method === 'upi' ? (
+                  <>
+                    <Text style={styles.label}>UPI ID to receive cashout</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={upiId}
+                      onChangeText={setUpiId}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      keyboardType="email-address"
+                      accessibilityLabel="Cashout UPI ID"
+                      placeholder="name@bank"
+                      editable={!busy}
+                    />
+                  </>
+                ) : (
+                  <>
+                    <Text style={styles.label}>Account holder name</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={holderName}
+                      onChangeText={setHolderName}
+                      autoCapitalize="words"
+                      accessibilityLabel="Account holder name"
+                      placeholder="As on your bank account"
+                      editable={!busy}
+                    />
+                    <Text style={styles.label}>Account number</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={accountNumber}
+                      onChangeText={setAccountNumber}
+                      keyboardType="number-pad"
+                      secureTextEntry
+                      accessibilityLabel="Bank account number"
+                      editable={!busy}
+                    />
+                    <Text style={styles.label}>IFSC code</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={ifsc}
+                      onChangeText={(text) => setIfsc(text.toUpperCase())}
+                      autoCapitalize="characters"
+                      autoCorrect={false}
+                      maxLength={11}
+                      accessibilityLabel="Bank IFSC code"
+                      placeholder="HDFC0001234"
+                      editable={!busy}
+                    />
+                  </>
+                )}
               </>
             ) : null}
             {error ? (
@@ -333,9 +449,7 @@ export function WalletMoneyPanel({ refreshVersion = 0 }: { refreshVersion?: numb
                 <ActivityIndicator color={colors.deepBrown} />
               ) : (
                 <Text style={styles.buttonText}>
-                  {form === 'recharge'
-                    ? 'Continue to UPI test checkout'
-                    : 'Confirm cashout request'}
+                  {form === 'recharge' ? 'Continue to secure payment' : 'Confirm cashout request'}
                 </Text>
               )}
             </Pressable>

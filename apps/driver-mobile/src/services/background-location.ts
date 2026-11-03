@@ -18,6 +18,20 @@ export function isEligibleBackgroundFix(
   return Number.isFinite(fix.coords.latitude) && Number.isFinite(fix.coords.longitude);
 }
 
+/** expo-location reports -1 for unavailable heading/speed; the API rejects negatives. */
+export function sanitizeMotion(
+  heading: number | null | undefined,
+  speed: number | null | undefined,
+) {
+  return {
+    heading:
+      heading != null && Number.isFinite(heading) && heading >= 0 && heading <= 360
+        ? heading
+        : null,
+    speedMps: speed != null && Number.isFinite(speed) && speed >= 0 && speed <= 100 ? speed : null,
+  };
+}
+
 TaskManager.defineTask(TASK_NAME, async ({ data, error }) => {
   if (error || AppState.currentState === 'active') return;
   const locations = (data as { locations?: Location.LocationObject[] } | undefined)?.locations;
@@ -28,8 +42,7 @@ TaskManager.defineTask(TASK_NAME, async ({ data, error }) => {
   const coords = {
     lat: fix.coords.latitude,
     lng: fix.coords.longitude,
-    heading: fix.coords.heading,
-    speedMps: fix.coords.speed,
+    ...sanitizeMotion(fix.coords.heading, fix.coords.speed),
   };
   try {
     await dispatchApi.updateLocation(token, coords);

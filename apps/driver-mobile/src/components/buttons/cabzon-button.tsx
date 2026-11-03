@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Animated,
   Pressable,
+  StyleSheet,
   Text,
   type TextStyle,
   type ViewStyle,
@@ -56,6 +57,10 @@ export function CabzonButton({
 
   const isDisabled = disabled || loading;
 
+  // Layout props (flex/width) must size the outer wrapper, otherwise buttons in a row collapse to content width.
+  const { flex, flexGrow, flexShrink, flexBasis, width, alignSelf, ...innerStyle } =
+    StyleSheet.flatten(style) ?? {};
+
   const getBackgroundColor = () => {
     if (isDisabled) return colors.lightBlue;
     switch (variant) {
@@ -89,7 +94,9 @@ export function CabzonButton({
   };
 
   return (
-    <Animated.View style={{ transform: [{ scale }] }}>
+    <Animated.View
+      style={{ transform: [{ scale }], flex, flexGrow, flexShrink, flexBasis, width, alignSelf }}
+    >
       <Pressable
         onPress={onPress}
         onPressIn={handlePressIn}
@@ -103,20 +110,20 @@ export function CabzonButton({
           { backgroundColor: getBackgroundColor() },
           variant === 'ghost' && styles.ghostBorder,
           (variant === 'secondary' || isDisabled) && styles.secondaryBorder,
-          style,
+          innerStyle,
         ]}
       >
         {loading ? (
           <ActivityIndicator
             size="small"
-            color={variant === 'secondary' || variant === 'primary' ? colors.deepBrown : colors.white}
+            color={
+              variant === 'secondary' || variant === 'primary' ? colors.deepBrown : colors.white
+            }
           />
         ) : (
           <>
             {icon}
-            <Text style={[styles.text, { color: getTextColor() }, textStyle]}>
-              {title}
-            </Text>
+            <Text style={[styles.text, { color: getTextColor() }, textStyle]}>{title}</Text>
           </>
         )}
       </Pressable>

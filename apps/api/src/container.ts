@@ -1,4 +1,4 @@
-import { env, isProdLike } from '@/config/env.js';
+import { env, isProdLike, walletMoneyEnabled } from '@/config/env.js';
 import { TrustScoreService } from '@/modules/identity/application/trustScore.service.js';
 import { MongoUnitOfWork } from '@/shared/db/unitOfWork.js';
 import { buildHealthContainer } from '@/modules/health/health.container.js';
@@ -37,6 +37,7 @@ import { MongoPushReceiptRepository } from '@/modules/dispatch/infrastructure/pu
 import { MongoPaymentRepository, MongoWalletRepository } from '@/modules/ledger/index.js';
 import { buildLedgerContainer, type LedgerContainer } from '@/modules/ledger/ledger.container.js';
 import { RazorpayGateway } from '@/modules/rides/infrastructure/razorpay.adapter.js';
+import { RazorpayXPayoutGateway } from '@/modules/ledger/infrastructure/razorpayPayout.adapter.js';
 import {
   MongoRideEventRepository,
   MongoRideRepository,
@@ -218,8 +219,26 @@ export function buildContainers(overrides?: Partial<AppContainers>): AppContaine
       walletPaymentGateway: new RazorpayGateway(
         env.RAZORPAY_KEY_ID ?? '',
         env.RAZORPAY_KEY_SECRET ?? '',
-        !isProdLike && env.RAZORPAY_MODE === 'test',
+        walletMoneyEnabled,
+        env.RAZORPAY_MODE,
       ),
+      walletPayoutGateway:
+        walletMoneyEnabled && env.RAZORPAY_KEY_ID && env.RAZORPAY_KEY_SECRET && env.RAZORPAYX_ACCOUNT_NUMBER
+          ? new RazorpayXPayoutGateway(
+              env.RAZORPAY_KEY_ID,
+              env.RAZORPAY_KEY_SECRET,
+              env.RAZORPAYX_ACCOUNT_NUMBER,
+            )
+          : undefined,
+      driverContact: async (driverId) => {
+        const driver = await driverRepo.findById(driverId);
+        if (!driver) return null;
+        const user = await UserModel.findById(driver.userId).lean();
+        return {
+          name: driver.name ?? 'Cabzone driver',
+          phone: user?.phone_e164 ?? null,
+        };
+      },
       unitOfWork,
       walletRepo,
       resolveDriverId,

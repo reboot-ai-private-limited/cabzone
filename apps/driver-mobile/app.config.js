@@ -102,6 +102,11 @@ module.exports = ({ config }) => {
       ? './google-services.json'
       : undefined);
 
+  const googleMapsApiKey =
+    process.env.DRIVER_GOOGLE_MAPS_API_KEY ||
+    process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ||
+    '';
+
   const plugins = [
     ...(expo.plugins ?? []),
     [
@@ -125,8 +130,15 @@ module.exports = ({ config }) => {
   return {
     ...expo,
     plugins,
+    ios: {
+      ...expo.ios,
+      ...(googleMapsApiKey ? { config: { ...expo.ios?.config, googleMapsApiKey } } : {}),
+    },
     android: {
       ...expo.android,
+      ...(googleMapsApiKey
+        ? { config: { ...expo.android?.config, googleMaps: { apiKey: googleMapsApiKey } } }
+        : {}),
       blockedPermissions: [
         'android.permission.SYSTEM_ALERT_WINDOW',
         'android.permission.CALL_PHONE',

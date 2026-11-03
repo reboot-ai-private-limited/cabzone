@@ -674,13 +674,13 @@ describe('Step 6 — Historical money & payment operations reconciliation', () =
     // Driver cashes out ₹100 (10000 paise) of online earnings before rider files dispute!
     const cashoutOp = await h.walletMoney.requestCashout(
       'driver-1',
-      10000,
+      20000,
       'driver1@okaxis',
       'cashout-before-dispute',
     );
     await h.walletMoney.resolveCashout(cashoutOp.id, 'PAID', 'UTR99887766', 'fin-1');
-    expect((await h.walletRepo.findByDriverId('driver-1'))?.earningsBalancePaise).toBe(8400);
-    expect((await h.walletRepo.findByDriverId('driver-1'))?.balancePaise).toBe(5000);
+    expect((await h.walletRepo.findByDriverId('driver-1'))?.earningsBalancePaise).toBe(0);
+    expect((await h.walletRepo.findByDriverId('driver-1'))?.balancePaise).toBe(3400);
 
     // Rider files dispute on the online UPI ride
     await request(h.app)
@@ -700,7 +700,7 @@ describe('Step 6 — Historical money & payment operations reconciliation', () =
       .expect(409);
     expect(missingRefRes.body.message).toContain('refundReference');
 
-    // Resolving WITH refundReference reverses 8400 from EARNINGS (to 0) + 10000 shortfall from COMMISSION (5000 -> -5000)!
+    // Resolving WITH refundReference reverses 0 from EARNINGS (already cashed out) + 18400 shortfall from COMMISSION (3400 -> -15000)!
     await request(h.app)
       .post(`/api/v1/rides/${onlineRideId}/payment/dispute/resolve`)
       .set('x-test-auth', 'sup-1:SUPPORT_ADMIN')
@@ -735,7 +735,7 @@ describe('Step 6 — Historical money & payment operations reconciliation', () =
 
     const walletAfterRefund = await h.walletRepo.findByDriverId('driver-1');
     expect(walletAfterRefund?.earningsBalancePaise).toBe(0);
-    expect(walletAfterRefund?.balancePaise).toBe(-5000);
+    expect(walletAfterRefund?.balancePaise).toBe(-15000);
 
     // Server-owned DriverEarningsUseCase reflects ₹0 kept earnings & ₹184 reversed, with 0 unreconciled rides!
     const earningsSummary = await h.driverEarnings.getSummary('driver-1', 'ALL');
@@ -754,7 +754,7 @@ describe('Step 6 — Historical money & payment operations reconciliation', () =
     await h.upiPayment.switchToCash(dupRideId, { role: 'RIDER', id: 'rider-1' });
     await h.completeRide.confirmPayment({ rideId: dupRideId, driverId: 'driver-1' });
     const balanceAfterCashComm = (await h.walletRepo.findByDriverId('driver-1'))!.balancePaise;
-    expect(balanceAfterCashComm).toBe(-5800); // -5000 - 800 cash commission
+    expect(balanceAfterCashComm).toBe(-15800); // -15000 - 800 cash commission
 
     // Late UPI capture arrives -> flags PAYMENT_DISPUTED
     h.capturedOrders.set(dupSession.orderId, { paymentId: 'pay_dup_late_77', amountPaise: 10000 });
@@ -770,7 +770,7 @@ describe('Step 6 — Historical money & payment operations reconciliation', () =
         refundReference: 'rfnd_dup_77',
       })
       .expect(200);
-    expect((await h.walletRepo.findByDriverId('driver-1'))?.balancePaise).toBe(-5800);
+    expect((await h.walletRepo.findByDriverId('driver-1'))?.balancePaise).toBe(-15800);
 
     // 3. Switched-to-cash dispute with NO UPI capture does NOT require refundReference and refunds cash commission!
     const pureCashSwitchId = newUuid();
@@ -793,7 +793,7 @@ describe('Step 6 — Historical money & payment operations reconciliation', () =
         reason: 'Cash overcharge verified; refunding 8% commission',
       })
       .expect(200);
-    expect((await h.walletRepo.findByDriverId('driver-1'))?.balancePaise).toBe(-5800); // -5800 - 800 + 800
+    expect((await h.walletRepo.findByDriverId('driver-1'))?.balancePaise).toBe(-15800); // -15800 - 800 + 800
 
     // 4. Searchable closed disputes & receipt evidence filtering
     const searchOnlineRefund = await request(h.app)
@@ -876,9 +876,9 @@ describe('Step 6 — Historical money & payment operations reconciliation', () =
       .expect(403);
 
     // Create a pending driver recharge and simulate provider capture before callback
-    const rechargeOp = await h.walletMoney.createRecharge('driver-1', 15000, 'rk-step6-1');
+    const rechargeOp = await h.walletMoney.createRecharge('driver-1', 50000, 'rk-step6-1');
     const [storedOp] = await h.operations.list('driver-1');
-    h.capturedOrders.set(storedOp!.orderId!, { paymentId: 'pay_rech_150', amountPaise: 15000 });
+    h.capturedOrders.set(storedOp!.orderId!, { paymentId: 'pay_rech_150', amountPaise: 50000 });
 
     const auditPending = await request(h.app)
       .post('/api/v1/admin/wallets/reconcile')
@@ -889,7 +889,7 @@ describe('Step 6 — Historical money & payment operations reconciliation', () =
       expect.objectContaining({
         code: 'UNRECONCILED_CAPTURED_RECHARGE',
         operationId: rechargeOp.id,
-        expectedPaise: 15000,
+        expectedPaise: 50000,
       }),
     ]);
 
@@ -901,7 +901,7 @@ describe('Step 6 — Historical money & payment operations reconciliation', () =
       .expect(200);
     expect(recovered.body.data.reconciledRechargeIds).toEqual([rechargeOp.id]);
     expect(recovered.body.data.issues).toEqual([]);
-    expect((await h.walletRepo.findByDriverId('driver-1'))?.balancePaise).toBe(25000);
+    expect((await h.walletRepo.findByDriverId('driver-1'))?.balancePaise).toBe(60000);
 
     const retryRecovered = await request(h.app)
       .post('/api/v1/admin/wallets/reconcile')
@@ -909,7 +909,7 @@ describe('Step 6 — Historical money & payment operations reconciliation', () =
       .send({ mode: 'RECONCILE_PENDING_RECHARGES' })
       .expect(200);
     expect(retryRecovered.body.data.reconciledRechargeIds).toEqual([]);
-    expect((await h.walletRepo.findByDriverId('driver-1'))?.balancePaise).toBe(25000);
+    expect((await h.walletRepo.findByDriverId('driver-1'))?.balancePaise).toBe(60000);
 
     // Inject synthetic corruption on a second wallet to prove anomaly detection
     await h.walletRepo.save({

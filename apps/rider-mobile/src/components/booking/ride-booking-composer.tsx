@@ -1075,15 +1075,6 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
         </View>
       ) : null}
 
-      {activeQuote?.bufferApplied ? (
-        <View style={styles.bufferNotice}>
-          <Ionicons name="information-circle-outline" size={15} color={colors.brandBrown} />
-          <Text style={styles.bufferNoticeText}>
-            Includes buffer zone surcharge ({activeQuote.cityName || 'City boundary'})
-          </Text>
-        </View>
-      ) : null}
-
       {activeQuote?.stateBreakdown && activeQuote.stateBreakdown.length > 1 ? (
         <View style={styles.stateBreakdownBox}>
           <Text style={styles.stateBreakdownTitle}>Fare by state</Text>
@@ -1240,7 +1231,8 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
       >
         <KeyboardAvoidingView
           style={styles.modalBackdrop}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          // Android edge-to-edge Modals are not resized by the system, so pad on both platforms.
+          behavior="padding"
         >
           <View style={styles.modalSheet}>
             <View style={styles.modalHeader}>

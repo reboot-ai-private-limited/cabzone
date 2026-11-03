@@ -4,9 +4,11 @@ import { locationLabel } from '@/services/location-names';
 import React, { useEffect, useState } from 'react';
 import { Animated, Dimensions, Pressable, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, motion, createStyles } from '@/design-system';
 import { CabzonButton } from '@/components/buttons/cabzon-button';
 import { RoutePointIcon } from '@/components/common/route-point-icon';
+import { RouteMap } from '@/components/ride/route-map';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 import type { RideOfferDto } from '@/services/api';
 import { trustTierLabel } from '@/services/trust-tier';
@@ -21,6 +23,13 @@ export interface CabzonRideOfferData {
   dropoffAddress: string;
   stopAddresses?: string[];
   distanceKm: number | null;
+  /** Pickup-to-drop trip distance in km, when the API provides it. */
+  tripDistanceKm?: number | null;
+  pickup: { lat: number; lng: number };
+  drop: { lat: number; lng: number };
+  stops?: { lat: number; lng: number }[];
+  /** Google encoded road polyline for the trip. */
+  routePolyline?: string | null;
   estimatedDurationMin?: number;
   serviceType: string;
   riderTrustTier?: RideOfferDto['riderTrustTier'];
@@ -32,9 +41,7 @@ export interface CabzonRideOfferData {
 export function mapRideOfferDtoToCardData(offer: RideOfferDto): CabzonRideOfferData {
   // FIX-03: guard against 0/missing GPS — server sends 0 when driver GPS hasn't resolved yet
   const distanceKm =
-    offer.distanceToPickupM > 0
-      ? Number((offer.distanceToPickupM / 1000).toFixed(1))
-      : null; // null = unknown, renders 'Calculating...' instead of '0 km'
+    offer.distanceToPickupM > 0 ? Number((offer.distanceToPickupM / 1000).toFixed(2)) : null; // null = unknown, renders 'Calculating...' instead of '0 km'
   return {
     tollSnapshot: offer.tollSnapshot ?? null,
     rideId: offer.rideId,
@@ -44,7 +51,17 @@ export function mapRideOfferDtoToCardData(offer: RideOfferDto): CabzonRideOfferD
     ...(offer.stops?.length
       ? { stopAddresses: offer.stops.map((stop) => locationLabel(stop.address, 'Stop')) }
       : {}),
+    pickup: { lat: offer.pickup.lat, lng: offer.pickup.lng },
+    drop: { lat: offer.drop.lat, lng: offer.drop.lng },
+    ...(offer.stops?.length
+      ? { stops: offer.stops.map((stop) => ({ lat: stop.lat, lng: stop.lng })) }
+      : {}),
+    routePolyline: offer.routePolyline ?? null,
     distanceKm,
+    tripDistanceKm:
+      offer.tripDistanceM != null && offer.tripDistanceM > 0
+        ? Number((offer.tripDistanceM / 1000).toFixed(1))
+        : null,
     serviceType: offer.vehicleCategory,
     riderTrustTier: offer.riderTrustTier ?? null,
     expiresAt: offer.expiresAt,
@@ -79,6 +96,7 @@ export function CabzonRideOffer({
   rejectedFarePaise = null,
   isAccepting = false,
 }: CabzonRideOfferProps) {
+  const insets = useSafeAreaInsets();
   const [slideAnim] = useState(() => new Animated.Value(SCREEN_HEIGHT));
   const [opacityAnim] = useState(() => new Animated.Value(0));
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
@@ -162,14 +180,15 @@ export function CabzonRideOffer({
       ? displaySecondsLeft <= 8
         ? 'critical'
         : displaySecondsLeft <= 20
-        ? 'warning'
-        : 'normal'
+          ? 'warning'
+          : 'normal'
       : 'normal';
 
   return (
     <Animated.View
       style={[
         styles.sheetContainer,
+        { paddingBottom: 16 + Math.max(insets.bottom, 16) },
         {
           opacity: opacityAnim,
           transform: [{ translateY: slideAnim }],
@@ -178,113 +197,64 @@ export function CabzonRideOffer({
     >
       <View style={styles.handle} />
 
-      <View style={styles.liveRow}>
-        <View style={styles.liveLabel}>
-          <Animated.View style={[styles.liveDot, { opacity: liveDot }]} />
-          <Text style={styles.liveText}>New ride request</Text>
-        </View>
-        {displaySecondsLeft != null ? (
-          <View style={[
-            styles.timerPill,
-            timerUrgency === 'warning' && styles.timerPillWarning,
-            timerUrgency === 'critical' && styles.timerPillUrgent,
-          ]}>
-            <Ionicons
-              name="time-outline"
-              size={13}
-              color={
-                timerUrgency === 'critical' ? colors.error
-                : timerUrgency === 'warning' ? '#D97706'
-                : colors.deepBrown
-              }
-            />
-            <Text style={[
-              styles.timerText,
-              timerUrgency === 'warning' && styles.timerTextWarning,
-              timerUrgency === 'critical' && styles.timerTextUrgent,
-            ]}>
-              {displaySecondsLeft}s
-            </Text>
-          </View>
-        ) : null}
-      </View>
-
-      {displaySecondsLeft != null && totalSeconds ? (
-        <View style={styles.progressTrack} accessibilityElementsHidden>
-          <View
-            style={[
-              styles.progressFill,
-              timerUrgency === 'warning' && styles.progressFillWarning,
-              timerUrgency === 'critical' && styles.progressFillUrgent,
-              { width: `${Math.max(0, Math.min(100, (displaySecondsLeft / totalSeconds) * 100))}%` },
-            ]}
-          />
-        </View>
-      ) : null}
-
-      <View style={styles.fareCard}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.serviceTag}>{offer.serviceType.toUpperCase()}</Text>
-          {trustTierLabel(offer.riderTrustTier) ? (
-            <Text style={styles.riderTrust} accessibilityLabel={`Rider trust: ${trustTierLabel(offer.riderTrustTier)}`}>
-              Rider trust · {trustTierLabel(offer.riderTrustTier)}
-            </Text>
-          ) : null}
-          <Text style={styles.fareText} numberOfLines={1} adjustsFontSizeToFit>₹{grossRupees}</Text>
-          <Text style={styles.netHintText}>
-            Est. net ₹{netRupees} after 8% fee · Cash / UPI
-          </Text>
-        </View>
-        <View style={styles.metricsBadge}>
-          <Ionicons name="navigate" size={14} color={colors.brandBrown} />
-          <Text style={styles.metricsText}>
-            {offer.distanceKm != null ? `${offer.distanceKm} km away` : 'Calculating...'}
-          </Text>
-        </View>
-      </View>
-
-      <View style={styles.routeContainer}>
-        <View style={styles.pointRow}>
-          <RoutePointIcon type="pickup" size={20} />
-          <View style={styles.pointTextContainer}>
-            <Text style={styles.pointLabel}>PICKUP</Text>
-            <Text style={styles.pointAddress} numberOfLines={2}>
-              {offer.pickupAddress}
-            </Text>
-          </View>
-        </View>
-
-        {(offer.stopAddresses ?? []).map((address, index) => (
-          <React.Fragment key={`stop-${index}`}>
-            <View style={styles.routeLine} />
-            <View style={styles.pointRow}>
-              <View style={styles.stopMarker} />
-              <View style={styles.pointTextContainer}>
-                <Text style={styles.pointLabel}>STOP {index + 1}</Text>
-                <Text style={styles.pointAddress} numberOfLines={2}>
-                  {address}
-                </Text>
-              </View>
+      <View style={styles.buttonStack}>
+        {counterFare != null ? (
+          <>
+            <View style={styles.buttonRow}>
+              <CabzonButton
+                title="Back"
+                variant="secondary"
+                onPress={() => setCounterFare(null)}
+                disabled={isAccepting}
+                style={styles.declineBtn}
+              />
             </View>
-          </React.Fragment>
-        ))}
-
-        <View style={styles.routeLine} />
-
-        <View style={styles.pointRow}>
-          <RoutePointIcon type="drop" size={20} />
-          <View style={styles.pointTextContainer}>
-            <Text style={styles.pointLabel}>DESTINATION</Text>
-            <Text style={styles.pointAddress} numberOfLines={2}>
-              {offer.dropoffAddress}
-            </Text>
-          </View>
-        </View>
+            <CabzonButton
+              title={`Send Counter ₹${Math.round(counterFare / 100)}`}
+              variant="primary"
+              onPress={async () => {
+                if (onCounter && (await onCounter(offer.rideId, counterFare))) setCounterFare(null);
+              }}
+              loading={isAccepting}
+              style={styles.fullBtn}
+            />
+          </>
+        ) : (
+          <>
+            <View style={styles.buttonRow}>
+              <CabzonButton
+                title="Ignore"
+                variant="secondary"
+                onPress={() => onDecline(offer.rideId)}
+                disabled={isAccepting}
+                style={styles.declineBtn}
+              />
+              {onCounter ? (
+                <CabzonButton
+                  title="Counter"
+                  variant="secondary"
+                  onPress={() =>
+                    setCounterFare(
+                      counteredFarePaise ??
+                        Math.min(ceilingPaise, offer.farePaise + COUNTER_STEP_PAISE),
+                    )
+                  }
+                  disabled={isAccepting}
+                  style={styles.declineBtn}
+                />
+              ) : null}
+            </View>
+            <CabzonButton
+              title={`Accept ₹${grossRupees}`}
+              variant="primary"
+              onPress={() => onAccept(offer.rideId)}
+              loading={isAccepting}
+              style={styles.fullBtn}
+            />
+          </>
+        )}
       </View>
 
-      <Text style={{ fontSize: 12, color: colors.secondary, paddingHorizontal: 20 }}>
-        {tollDisclosure(offer.tollSnapshot)}
-      </Text>
       {counteredFarePaise != null && counterFare == null ? (
         <View style={styles.counterSentPill}>
           <Text style={styles.counterSentText}>
@@ -343,65 +313,153 @@ export function CabzonRideOffer({
         </View>
       ) : null}
 
-      <View style={styles.buttonRow}>
-        {counterFare != null ? (
-          <>
-            <CabzonButton
-              title="Back"
-              variant="secondary"
-              onPress={() => setCounterFare(null)}
-              disabled={isAccepting}
-              style={styles.declineBtn}
-            />
-            <CabzonButton
-              title={`Send Counter ₹${Math.round(counterFare / 100)}`}
-              variant="primary"
-              onPress={async () => {
-                if (onCounter && (await onCounter(offer.rideId, counterFare))) setCounterFare(null);
-              }}
-              loading={isAccepting}
-              style={styles.acceptBtn}
-            />
-          </>
-        ) : (
-          <>
-            <CabzonButton
-              title="Ignore"
-              variant="secondary"
-              onPress={() => onDecline(offer.rideId)}
-              disabled={isAccepting}
-              style={styles.declineBtn}
-            />
-            {onCounter ? (
-              <CabzonButton
-                title="Counter"
-                variant="secondary"
-                onPress={() =>
-                  setCounterFare(
-                    counteredFarePaise ??
-                      Math.min(ceilingPaise, offer.farePaise + COUNTER_STEP_PAISE),
-                  )
+      <View style={styles.detailsCard}>
+        <View style={styles.liveRow}>
+          <View style={styles.liveLabel}>
+            <Animated.View style={[styles.liveDot, { opacity: liveDot }]} />
+            <Text style={styles.liveText}>New ride request</Text>
+          </View>
+          {displaySecondsLeft != null ? (
+            <View
+              style={[
+                styles.timerPill,
+                timerUrgency === 'warning' && styles.timerPillWarning,
+                timerUrgency === 'critical' && styles.timerPillUrgent,
+              ]}
+            >
+              <Ionicons
+                name="time-outline"
+                size={13}
+                color={
+                  timerUrgency === 'critical'
+                    ? colors.error
+                    : timerUrgency === 'warning'
+                      ? '#D97706'
+                      : colors.deepBrown
                 }
-                disabled={isAccepting}
-                style={styles.declineBtn}
               />
-            ) : null}
-            <CabzonButton
-              title={`Accept ₹${grossRupees}`}
-              variant="primary"
-              onPress={() => onAccept(offer.rideId)}
-              loading={isAccepting}
-              style={onCounter ? styles.acceptBtnNarrow : styles.acceptBtn}
+              <Text
+                style={[
+                  styles.timerText,
+                  timerUrgency === 'warning' && styles.timerTextWarning,
+                  timerUrgency === 'critical' && styles.timerTextUrgent,
+                ]}
+              >
+                {displaySecondsLeft}s
+              </Text>
+            </View>
+          ) : null}
+        </View>
+
+        {displaySecondsLeft != null && totalSeconds ? (
+          <View style={styles.progressTrack} accessibilityElementsHidden>
+            <View
+              style={[
+                styles.progressFill,
+                timerUrgency === 'warning' && styles.progressFillWarning,
+                timerUrgency === 'critical' && styles.progressFillUrgent,
+                {
+                  width: `${Math.max(0, Math.min(100, (displaySecondsLeft / totalSeconds) * 100))}%`,
+                },
+              ]}
             />
-          </>
-        )}
+          </View>
+        ) : null}
+
+        <View style={styles.routeContainer}>
+          <View style={styles.pointRow}>
+            <RoutePointIcon type="pickup" size={20} />
+            <View style={styles.pointTextContainer}>
+              <Text style={styles.pointLabel}>PICKUP</Text>
+              <Text style={styles.pointAddress} numberOfLines={2}>
+                {offer.pickupAddress}
+              </Text>
+            </View>
+          </View>
+
+          {(offer.stopAddresses ?? []).map((address, index) => (
+            <React.Fragment key={`stop-${index}`}>
+              <View style={styles.routeLine} />
+              <View style={styles.pointRow}>
+                <View style={styles.stopMarker} />
+                <View style={styles.pointTextContainer}>
+                  <Text style={styles.pointLabel}>STOP {index + 1}</Text>
+                  <Text style={styles.pointAddress} numberOfLines={2}>
+                    {address}
+                  </Text>
+                </View>
+              </View>
+            </React.Fragment>
+          ))}
+
+          <View style={styles.routeLine} />
+
+          <View style={styles.pointRow}>
+            <RoutePointIcon type="drop" size={20} />
+            <View style={styles.pointTextContainer}>
+              <Text style={styles.pointLabel}>DESTINATION</Text>
+              <Text style={styles.pointAddress} numberOfLines={2}>
+                {offer.dropoffAddress}
+              </Text>
+            </View>
+          </View>
+        </View>
       </View>
+
+      <RouteMap
+        pickup={offer.pickup}
+        drop={offer.drop}
+        stops={offer.stops ?? []}
+        polyline={offer.routePolyline ?? null}
+        height={150}
+      />
+
+      <View style={styles.fareCard}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.serviceTag}>{offer.serviceType.toUpperCase()}</Text>
+          {trustTierLabel(offer.riderTrustTier) ? (
+            <Text
+              style={styles.riderTrust}
+              accessibilityLabel={`Rider trust: ${trustTierLabel(offer.riderTrustTier)}`}
+            >
+              Rider trust · {trustTierLabel(offer.riderTrustTier)}
+            </Text>
+          ) : null}
+          <Text style={styles.fareText} numberOfLines={1} adjustsFontSizeToFit>
+            ₹{grossRupees}
+          </Text>
+          <Text style={styles.netHintText}>Est. net ₹{netRupees} after 8% fee</Text>
+        </View>
+        <View style={styles.tripBox}>
+          <View style={styles.tripRow}>
+            <Ionicons name="navigate" size={14} color={colors.brandBrown} />
+            <Text style={styles.metricsText}>
+              {offer.tripDistanceKm == null ? '—' : `${offer.tripDistanceKm} km`}
+            </Text>
+          </View>
+          <Text style={styles.tripCaption}>Trip distance</Text>
+          <Text style={styles.tripCaption}>Cash / UPI</Text>
+          {offer.distanceKm != null && offer.distanceKm >= 0.1 ? (
+            <Text style={styles.tripCaption}>{offer.distanceKm} km to pickup</Text>
+          ) : null}
+        </View>
+      </View>
+
+      <Text style={{ fontSize: 12, color: colors.secondary, paddingHorizontal: 20 }}>
+        {tollDisclosure(offer.tollSnapshot)}
+      </Text>
     </Animated.View>
   );
 }
 
 const styles = createStyles(() => ({
-  stopMarker: { width: 20, height: 20, borderRadius: 5, backgroundColor: colors.brandBrown, transform: [{ scale: 0.6 }] },
+  stopMarker: {
+    width: 20,
+    height: 20,
+    borderRadius: 5,
+    backgroundColor: colors.brandBrown,
+    transform: [{ scale: 0.6 }],
+  },
   sheetContainer: {
     position: 'absolute',
     bottom: 0,
@@ -515,13 +573,24 @@ const styles = createStyles(() => ({
     fontWeight: '700',
     color: colors.deepBrown,
   },
-  routeContainer: {
-    gap: 12,
-    marginBottom: 16,
+  routeContainer: { gap: 12 },
+  detailsCard: {
     padding: 16,
     borderRadius: 22,
     backgroundColor: '#FAF7F3',
+    marginBottom: 14,
   },
+  buttonStack: { gap: 8, marginBottom: 14 },
+  fullBtn: { height: 56, borderRadius: 18 },
+  tripBox: {
+    alignItems: 'flex-end',
+    gap: 2,
+    paddingLeft: 14,
+    borderLeftWidth: 1,
+    borderLeftColor: '#FDE7B0',
+  },
+  tripRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  tripCaption: { fontSize: 11, fontWeight: '600', color: colors.secondary },
   pointRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -632,7 +701,6 @@ const styles = createStyles(() => ({
   buttonRow: {
     flexDirection: 'row',
     gap: 8,
-    flexWrap: 'wrap',
   },
   declineBtn: {
     flex: 1,

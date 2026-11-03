@@ -145,7 +145,7 @@ function readStoredPreference(): ThemePreference {
   } catch {
     // fall through to the default
   }
-  return 'system';
+  return 'light';
 }
 
 function resolve(): ResolvedScheme {

@@ -1,24 +1,18 @@
-import React, {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useRef,
-  useState,
-} from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { Alert, Platform } from 'react-native';
 import * as Location from 'expo-location';
-import type {
-  DriverEarningsSummaryDto,
-  RideDto,
-  WalletTransactionDto,
-} from '@cabzone/contracts';
+import type { DriverEarningsSummaryDto, RideDto, WalletTransactionDto } from '@cabzone/contracts';
 import { dispatchApi, isApiError, ridesApi, walletApi } from '@/services/api';
-import { startBackgroundLocation, stopBackgroundLocation } from '@/services/background-location';
+import {
+  sanitizeMotion,
+  startBackgroundLocation,
+  stopBackgroundLocation,
+} from '@/services/background-location';
 import { useAuth } from './auth-context';
 
 export type DutyStatus = 'ONLINE' | 'OFFLINE';
-export type LocationStatus = 'INITIAL' | 'PERMITTED' | 'DENIED' | 'TRANSMITTING' | 'STALE' | 'ERROR';
+export type LocationStatus =
+  'INITIAL' | 'PERMITTED' | 'DENIED' | 'TRANSMITTING' | 'STALE' | 'ERROR';
 
 export interface DriverCoords {
   lat: number;
@@ -43,6 +37,8 @@ interface DutyContextType {
   coords: DriverCoords | null;
   lastTransmittedAt: Date | null;
   walletBalancePaise: number | null;
+  /** Withdrawable online-trip earnings (separate from the recharge/commission balance). */
+  walletEarningsBalancePaise: number | null;
   walletTransactions: WalletTransactionDto[];
   myRides: RideDto[];
   todaySummary: DriverEarningsSummaryDto | null;
@@ -73,6 +69,9 @@ const SILIGURI_DEV_SIMULATION: DriverCoords = {
   timestamp: Date.now(),
 };
 
+const BACKGROUND_OFF_MESSAGE =
+  'Background location is off. Keep the app open while online, or allow "All the time" location in settings.';
+
 export function computeRideEarningsBreakdown(ride: RideDto): {
   grossPaise: number;
   commissionPaise: number;
@@ -85,8 +84,7 @@ export function computeRideEarningsBreakdown(ride: RideDto): {
       netPaise: ride.driverSettlement.netEarningsPaise,
     };
   }
-  const grossPaise =
-    ride.agreedFarePaise ?? ride.proposedFarePaise ?? ride.suggestedFarePaise ?? 0;
+  const grossPaise = ride.agreedFarePaise ?? ride.proposedFarePaise ?? ride.suggestedFarePaise ?? 0;
   const commissionPercent = ride.pricingSnapshot?.commissionPercent ?? 8;
   const commissionPaise = Math.round((grossPaise * commissionPercent) / 100);
   const netPaise = Math.max(0, grossPaise - commissionPaise);
@@ -101,12 +99,15 @@ export function DutyProvider({ children }: { children: React.ReactNode }) {
   const [coords, setCoords] = useState<DriverCoords | null>(null);
   const [lastTransmittedAt, setLastTransmittedAt] = useState<Date | null>(null);
   const [walletBalancePaise, setWalletBalancePaise] = useState<number | null>(null);
+  const [walletEarningsBalancePaise, setWalletEarningsBalancePaise] = useState<number | null>(
+    null,
+  );
   const [walletTransactions, setWalletTransactions] = useState<WalletTransactionDto[]>([]);
   const [myRides, setMyRides] = useState<RideDto[]>([]);
   const [todaySummary, setTodaySummary] = useState<DriverEarningsSummaryDto | null>(null);
   const [summaryError, setSummaryError] = useState<string | null>(null);
   const [isSummaryLoading, setIsSummaryLoading] = useState<boolean>(false);
-  const [useDevSimulatedLocation, setUseDevSimulatedLocation] = useState<boolean>(__DEV__);
+  const [useDevSimulatedLocation, setUseDevSimulatedLocation] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
   const trackingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -142,6 +143,7 @@ export function DutyProvider({ children }: { children: React.ReactNode }) {
       setCoords(null);
       setLastTransmittedAt(null);
       setWalletBalancePaise(null);
+      setWalletEarningsBalancePaise(null);
       setWalletTransactions([]);
       setMyRides([]);
       setTodaySummary(null);
@@ -170,6 +172,7 @@ export function DutyProvider({ children }: { children: React.ReactNode }) {
 
       if (walletRes.status === 'fulfilled') {
         setWalletBalancePaise(walletRes.value.wallet ? walletRes.value.wallet.balancePaise : 0);
+        setWalletEarningsBalancePaise(walletRes.value.wallet?.earningsBalancePaise ?? 0);
         setWalletTransactions(walletRes.value.transactions);
       } else {
         errors.push(
@@ -224,34 +227,32 @@ export function DutyProvider({ children }: { children: React.ReactNode }) {
       };
     }
 
+    const toCoords = (pos: Location.LocationObject): DriverCoords => ({
+      lat: pos.coords.latitude,
+      lng: pos.coords.longitude,
+      ...sanitizeMotion(pos.coords.heading, pos.coords.speed),
+      accuracy: pos.coords.accuracy ?? null,
+      timestamp: pos.timestamp,
+    });
+
+    let timer: ReturnType<typeof setTimeout> | undefined;
     try {
       const pos = await Promise.race([
-        Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.Balanced,
+        Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => reject(new Error('GPS_TIMEOUT')), 8000);
         }),
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('GPS_TIMEOUT')), 2500),
-        ),
       ]);
-
-      return {
-        lat: pos.coords.latitude,
-        lng: pos.coords.longitude,
-        heading: pos.coords.heading ?? null,
-        speedMps: pos.coords.speed ?? null,
-        accuracy: pos.coords.accuracy ?? null,
-        timestamp: pos.timestamp,
-      };
+      return toCoords(pos);
     } catch (err: unknown) {
-      if (__DEV__) {
-        return {
-          ...SILIGURI_DEV_SIMULATION,
-          timestamp: Date.now(),
-        };
-      }
+      // A cold GPS fix can be slow; a recent cached fix is better than failing.
+      const cached = await Location.getLastKnownPositionAsync({ maxAge: 60_000 }).catch(() => null);
+      if (cached) return toCoords(cached);
       throw err instanceof Error
         ? err
         : new Error('Unable to obtain GPS coordinates. Enable location services and try again.');
+    } finally {
+      if (timer) clearTimeout(timer);
     }
   }, []);
 
@@ -281,12 +282,7 @@ export function DutyProvider({ children }: { children: React.ReactNode }) {
         setLocationStatus('TRANSMITTING');
       } catch (err: unknown) {
         // If server presence expired or API restarted while driver was ONLINE, re-register ONLINE seamlessly
-        if (
-          current &&
-          statusRef.current === 'ONLINE' &&
-          isApiError(err) &&
-          err.status === 409
-        ) {
+        if (current && statusRef.current === 'ONLINE' && isApiError(err) && err.status === 409) {
           try {
             const restored = await dispatchApi.setStatus(token, 'ONLINE', {
               lat: current.lat,
@@ -334,6 +330,21 @@ export function DutyProvider({ children }: { children: React.ReactNode }) {
       .getStatus(token)
       .then(async (server) => {
         if (cancelled) return;
+        if (!(__DEV__ && devSimRef.current)) {
+          const perm = await Location.getForegroundPermissionsAsync();
+          if (cancelled) return;
+          if (perm.status !== 'granted') {
+            setLocationStatus('DENIED');
+            setError(
+              'Location permission is off. Enable location access in system settings to stay online.',
+            );
+            if (server.status === 'ONLINE') {
+              setStatus('ONLINE');
+            }
+            return;
+          }
+          setLocationStatus('PERMITTED');
+        }
         if (server.status === 'OFFLINE') {
           if (statusRef.current === 'ONLINE') {
             const current = await obtainCurrentLocation();
@@ -402,6 +413,13 @@ export function DutyProvider({ children }: { children: React.ReactNode }) {
           return false;
         }
       }
+      if (!(__DEV__ && devSimRef.current) && !(await Location.hasServicesEnabledAsync())) {
+        setLocationStatus('ERROR');
+        setError(
+          'Device location (GPS) is turned off. Turn it on in quick settings and try again.',
+        );
+        return false;
+      }
       setLocationStatus('PERMITTED');
 
       // 2. Obtain fresh location
@@ -437,7 +455,11 @@ export function DutyProvider({ children }: { children: React.ReactNode }) {
               'Receive rides in the background',
               'Allow background location so Cabzone can keep your position fresh while you are online. Android will show a persistent location notification.',
               [
-                { text: 'Not now', style: 'cancel' },
+                {
+                  text: 'Not now',
+                  style: 'cancel',
+                  onPress: () => setError(BACKGROUND_OFF_MESSAGE),
+                },
                 {
                   text: 'Continue',
                   onPress: () => {
@@ -445,7 +467,10 @@ export function DutyProvider({ children }: { children: React.ReactNode }) {
                       .then((permission) =>
                         permission.status === 'granted' ? startBackgroundLocation() : false,
                       )
-                      .catch(() => false);
+                      .then((started) => {
+                        if (!started) setError(BACKGROUND_OFF_MESSAGE);
+                      })
+                      .catch(() => setError(BACKGROUND_OFF_MESSAGE));
                   },
                 },
               ],
@@ -511,6 +536,7 @@ export function DutyProvider({ children }: { children: React.ReactNode }) {
         coords,
         lastTransmittedAt,
         walletBalancePaise,
+        walletEarningsBalancePaise,
         walletTransactions,
         myRides,
         todaySummary,
@@ -527,7 +553,8 @@ export function DutyProvider({ children }: { children: React.ReactNode }) {
         goOnline,
         goOffline,
         refreshSummary,
-      }}>
+      }}
+    >
       {children}
     </DutyContext.Provider>
   );

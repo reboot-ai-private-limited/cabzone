@@ -115,8 +115,8 @@ describe('Atomic Mongo wallet money movement', () => {
 
   it('reuses a concurrent recharge request and credits concurrent confirmations once', async () => {
     const requests = await Promise.all([
-      money.createRecharge('driver', 10000, 'same-recharge'),
-      money.createRecharge('driver', 10000, 'same-recharge'),
+      money.createRecharge('driver', 50000, 'same-recharge'),
+      money.createRecharge('driver', 50000, 'same-recharge'),
     ]);
     expect(requests[0]?.id).toBe(requests[1]?.id);
     const recharge = requests[0]!;
@@ -124,19 +124,19 @@ describe('Atomic Mongo wallet money movement', () => {
       money.reconcileRecharge(recharge.id, 'driver'),
       money.reconcileRecharge(recharge.id, 'driver'),
     ]);
-    expect((await walletRepo.findByDriverId('driver'))?.balancePaise).toBe(20000);
+    expect((await walletRepo.findByDriverId('driver'))?.balancePaise).toBe(60000);
     expect(await walletRepo.findTransactionsByWalletId('wallet')).toHaveLength(1);
   });
 
   it('creates one wallet when two first recharges confirm together', async () => {
     await WalletModel.deleteMany({});
-    const first = await money.createRecharge('new-driver', 10000, 'first-recharge');
-    const second = await money.createRecharge('new-driver', 20000, 'second-recharge');
+    const first = await money.createRecharge('new-driver', 50000, 'first-recharge');
+    const second = await money.createRecharge('new-driver', 60000, 'second-recharge');
     await Promise.all([
       money.reconcileRecharge(first.id, 'new-driver'),
       money.reconcileRecharge(second.id, 'new-driver'),
     ]);
     expect(await WalletModel.countDocuments({ driver_id: 'new-driver' })).toBe(1);
-    expect((await walletRepo.findByDriverId('new-driver'))?.balancePaise).toBe(30000);
+    expect((await walletRepo.findByDriverId('new-driver'))?.balancePaise).toBe(110000);
   });
 });

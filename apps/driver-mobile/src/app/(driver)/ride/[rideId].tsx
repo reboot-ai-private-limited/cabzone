@@ -11,6 +11,9 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { RidePaymentQr } from '@/components/driver/ride-payment-qr';
 import { RideRatingCard } from '@/components/driver/ride-rating-card';
 import { RoutePointIcon } from '@/components/common/route-point-icon';
+import { RouteMap } from '@/components/ride/route-map';
+import { useDuty } from '@/context/duty-context';
+import { friendlyRideError, proximityInfo } from '@/services/ride-proximity';
 import {
   ActivityIndicator,
   Linking,
@@ -168,6 +171,8 @@ export default function ActiveRideScreen() {
     markRideUnpaid,
     cancelTrip,
   } = useRide();
+  // Live GPS from the duty loop (refreshed every few seconds while online).
+  const { coords: driverCoords } = useDuty();
 
   const [fetchedRide, setFetchedRide] = useState<RideDto | null>(null);
   const [isLoadingRide, setIsLoadingRide] = useState<boolean>(
@@ -354,6 +359,8 @@ export default function ActiveRideScreen() {
     }
   };
 
+  const proximity = proximityInfo(ride.status, driverCoords, ride);
+
   const isCancellable =
     ride.status === 'DRIVER_ASSIGNED' ||
     ride.status === 'DRIVER_EN_ROUTE' ||
@@ -472,7 +479,7 @@ export default function ActiveRideScreen() {
         {rideError ? (
           <View style={styles.errorBanner}>
             <Ionicons name="alert-circle" size={20} color={colors.error} />
-            <Text style={styles.errorBannerText}>{rideError}</Text>
+            <Text style={styles.errorBannerText}>{friendlyRideError(rideError)}</Text>
             <Pressable onPress={clearRideError} hitSlop={10}>
               <Text style={styles.errorDismiss}>✕</Text>
             </Pressable>
@@ -646,6 +653,15 @@ export default function ActiveRideScreen() {
               </Text>
             </Pressable>
           </View>
+
+          <RouteMap
+            pickup={ride.pickup}
+            drop={ride.drop}
+            stops={ride.stops ?? []}
+            polyline={ride.routeSnapshot?.polyline ?? null}
+            height={200}
+            interactive
+          />
 
           <View style={styles.pointRow}>
             <RoutePointIcon type="pickup" size={20} />
@@ -826,6 +842,22 @@ export default function ActiveRideScreen() {
       {/* FIX-06: Sticky primary CTA bar — always visible, no scrolling needed */}
       {primaryCtaNode != null ? (
         <View style={styles.stickyCtaBar}>
+          {proximity ? (
+            <View
+              style={[styles.proximityRow, proximity.within && styles.proximityRowOk]}
+              accessibilityLiveRegion="polite"
+            >
+              <Ionicons
+                name={proximity.within ? 'checkmark-circle' : 'locate'}
+                size={16}
+                color={proximity.within ? colors.success : colors.brandBrown}
+              />
+              <Text style={styles.proximityLabel}>{proximity.label}</Text>
+              <Text style={styles.proximityHint} numberOfLines={2}>
+                {proximity.hint}
+              </Text>
+            </View>
+          ) : null}
           {primaryCtaNode}
         </View>
       ) : null}
@@ -1444,6 +1476,20 @@ const styles = createStyles(() => ({
     fontWeight: '700',
     color: colors.deepBrown,
   },
+  proximityRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    backgroundColor: '#FFF7E6',
+  },
+  proximityRowOk: { backgroundColor: '#E8F6EC' },
+  proximityLabel: { fontSize: 13, fontWeight: '800', color: colors.deepBrown },
+  proximityHint: { flexBasis: '100%', fontSize: 12, fontWeight: '600', color: colors.secondary },
   // FIX-06: sticky bottom bar — always visible regardless of scroll position
   stickyCtaBar: {
     position: 'absolute',

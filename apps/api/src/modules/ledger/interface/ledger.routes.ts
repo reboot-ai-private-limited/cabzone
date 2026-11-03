@@ -20,6 +20,7 @@ export function buildAdminWalletRouter(deps: AdminWalletRouterDeps): Router {
   router.get('/stats', deps.getStats);
   router.get('/cashouts', deps.money.cashouts);
   router.post('/cashouts/:id/resolve', deps.money.resolve);
+  router.post('/cashouts/:id/sync', deps.money.syncCashout);
   router.get('/transactions', deps.listTransactions);
   router.get('/', deps.listWallets);
   router.post('/adjustments', deps.adjustWallet);
@@ -40,6 +41,8 @@ export interface DriverWalletRouterDeps {
 
 export function buildDriverWalletRouter(deps: DriverWalletRouterDeps): Router {
   const router = Router();
+  // Razorpay server-to-server notifications: authenticated by HMAC signature, not by user token.
+  router.post('/webhook', deps.money.webhook);
   router.get('/recharge-checkout', deps.money.page);
   router.post('/recharge-checkout/session', deps.money.session);
   router.post('/recharge-checkout/status', deps.money.status);

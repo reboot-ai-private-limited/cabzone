@@ -27,7 +27,7 @@ export default function LegalScreen() {
         <View style={styles.card}>
           <Text style={styles.heading}>1. Locked Pricing & Negotiation Snapshot</Text>
           <Text style={styles.body}>
-            When you generate a quote and request a ride, the geographic classification (In-City, Buffer, Outstation, or Interstate state segments) and pricing snapshot are locked. Neither the driver nor the platform can alter per-km rates mid-trip.
+            When you generate a quote and request a ride, the geographic classification (In-City, Outstation, or Interstate state segments) and pricing snapshot are locked. Neither the driver nor the platform can alter per-km rates mid-trip.
           </Text>
         </View>
 

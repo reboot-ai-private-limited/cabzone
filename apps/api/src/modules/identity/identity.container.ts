@@ -1,5 +1,5 @@
 import type { Router } from 'express';
-import { env, allowDevShortcuts, isProdLike } from '@/config/env.js';
+import { env, allowDevShortcuts, isProdLike, isStaging } from '@/config/env.js';
 import type { OtpStorePort, SmsGatewayPort } from './domain/otp.port.js';
 import type { DriverLicenseStoragePort } from './domain/driverLicenseStorage.port.js';
 import { MongoOtpStoreAdapter } from './infrastructure/mongoOtpStore.adapter.js';
@@ -208,7 +208,8 @@ export function buildIdentityContainer(deps?: IdentityContainerDeps): IdentityCo
     otpStore,
     smsGateway,
     otpPepper: env.OTP_PEPPER,
-    devFixedOtp: env.DEV_FIXED_OTP,
+    // Staging always accepts 000000 (rider + driver apps) unless DEV_FIXED_OTP overrides it.
+    devFixedOtp: env.DEV_FIXED_OTP ?? (isStaging ? '000000' : undefined),
   });
 
   const verifyOtpUseCase = new VerifyOtpUseCase({
