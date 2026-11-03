@@ -4,7 +4,6 @@ import {
   Keyboard,
   Pressable,
   ScrollView,
-  StyleSheet,
   Text,
   TextInput,
   TouchableWithoutFeedback,
@@ -15,7 +14,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/context/auth-context';
 import { normalizeIndianPhoneE164 } from '@/services/rider-helpers';
-import { colors, radii, spacing, typography } from '@/design-system';
+import { colors, radii, spacing, typography, createStyles } from '@/design-system';
 
 export default function EmergencyContactScreen() {
   const router = useRouter();
@@ -145,7 +144,7 @@ export default function EmergencyContactScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createStyles(() => ({
   container: {
     flex: 1,
     backgroundColor: colors.background,
@@ -233,4 +232,4 @@ const styles = StyleSheet.create({
     ...typography.bodyBold,
     color: colors.error,
   },
-});
+}));

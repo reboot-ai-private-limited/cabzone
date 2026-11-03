@@ -1,6 +1,11 @@
 import Constants from 'expo-constants';
 import * as Device from 'expo-device';
-import { AndroidImportance } from 'expo-notifications';
+import {
+  AndroidAudioContentType,
+  AndroidAudioUsage,
+  AndroidImportance,
+  AndroidNotificationVisibility,
+} from 'expo-notifications';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
@@ -13,12 +18,18 @@ function resolveEasProjectId(): string | undefined {
 if (Platform.OS !== 'web' && typeof Notifications?.setNotificationHandler === 'function') {
   try {
     Notifications.setNotificationHandler({
-      handleNotification: async () => ({
-        shouldShowBanner: true,
-        shouldShowList: true,
-        shouldPlaySound: true,
-        shouldSetBadge: false,
-      }),
+      handleNotification: async (notification) => {
+        // Incoming calls and ride offers already ring in-app while the app is open; every other
+        // notification keeps its normal sound so updates and chat are not silenced.
+        const type = (notification.request.content.data as { type?: unknown } | null)?.type;
+        const ringsInApp = type === 'ride.call.incoming' || type === 'ride.offer.created';
+        return {
+          shouldShowBanner: true,
+          shouldShowList: true,
+          shouldPlaySound: !ringsInApp,
+          shouldSetBadge: false,
+        };
+      },
     });
   } catch {
     // no-op in Expo Go / web
@@ -33,6 +44,20 @@ export async function registerForPushAsync(): Promise<string | null> {
         name: 'Ride updates',
         importance: AndroidImportance.MAX,
         vibrationPattern: [0, 250, 250, 250],
+      });
+      // Android fixes a channel's sound at creation, so the ringing channel is a new id.
+      // The 29s ring plays in full when a driver calls while the app is closed.
+      await Notifications.setNotificationChannelAsync('ride-calls-ring', {
+        name: 'Incoming ride calls (ringing)',
+        importance: AndroidImportance.MAX,
+        sound: 'ring_long.wav',
+        vibrationPattern: [0, 700, 500, 700, 500, 700, 500, 700, 500, 700, 500, 700],
+        lockscreenVisibility: AndroidNotificationVisibility.PUBLIC,
+        audioAttributes: {
+          usage: AndroidAudioUsage.NOTIFICATION_RINGTONE,
+          contentType: AndroidAudioContentType.SONIFICATION,
+        },
+        bypassDnd: false,
       });
     }
     let { status } = await Notifications.getPermissionsAsync();

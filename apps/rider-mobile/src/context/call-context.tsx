@@ -12,10 +12,6 @@ import {
   Linking,
   PermissionsAndroid,
   Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Room, RoomEvent } from 'livekit-client';
@@ -41,7 +37,8 @@ import {
   isActiveRideCall,
   newCallRequestId,
 } from '@/services/ride-call';
-import { colors } from '@/design-system';
+import { RideCallSheet } from '@/components/ride/ride-call-sheet';
+import { startCallRing, startCallRingback } from '@/services/ringtone';
 
 interface RideCallContextValue {
   activeCall: RideCallDto | null;
@@ -286,6 +283,27 @@ export function RideCallProvider({ children }: { children: React.ReactNode }) {
     terminalNotice,
   });
 
+  // Ring while the driver's call is waiting: until it is answered, declined or ends, or 30 seconds
+  // pass. If the app leaves the foreground the native CallKeep UI takes over, so stop here.
+  const [appActive, setAppActive] = useState(AppState.currentState === 'active');
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => setAppActive(state === 'active'));
+    return () => sub.remove();
+  }, []);
+  const ringingCallId = viewMode === 'incoming' ? (call?.id ?? null) : null;
+  const ringingUntil = call?.ringingUntil ?? null;
+  useEffect(() => {
+    if (!ringingCallId || !appActive) return;
+    return startCallRing(ringingCallId, ringingUntil);
+  }, [ringingCallId, ringingUntil, appActive]);
+
+  // Ringback for the caller: play it while the driver's phone is ringing, stop once answered.
+  const ringbackCallId = viewMode === 'outgoing' ? (call?.id ?? null) : null;
+  useEffect(() => {
+    if (!ringbackCallId || !appActive) return;
+    return startCallRingback(ringbackCallId, ringingUntil);
+  }, [ringbackCallId, ringingUntil, appActive]);
+
   useEffect(() => {
     if (viewMode !== 'connected') return;
     const boot = setTimeout(() => setNowMs(Date.now()), 0);
@@ -515,168 +533,30 @@ export function RideCallProvider({ children }: { children: React.ReactNode }) {
   return (
     <RideCallContext.Provider value={value}>
       {children}
-      {viewMode !== 'idle' && minimised ? (
-        <View style={styles.bannerWrap} pointerEvents="box-none">
-          <Pressable
-            style={styles.returnBanner}
-            onPress={() => setMinimised(false)}
-            accessibilityRole="button"
-            accessibilityLabel="Return to private ride call"
-          >
-            <Text style={styles.returnBannerText}>
-              {viewMode === 'connected'
-                ? `Return to call · ${timerLabel}`
-                : `Return to call · ${counterpartName}`}
-            </Text>
-          </Pressable>
-        </View>
-      ) : null}
-      {viewMode !== 'idle' && !minimised ? (
-        <View style={styles.sheetWrap} pointerEvents="box-none">
-          <View style={styles.sheet} accessibilityLiveRegion="polite">
-            <View style={styles.sheetHeader}>
-              <View style={styles.flex}>
-                <Text style={styles.sheetTitle}>{counterpartName}</Text>
-                <Text style={styles.sheetSub}>
-                  {viewMode === 'incoming'
-                    ? 'Incoming private ride call · phone numbers hidden'
-                    : viewMode === 'outgoing'
-                      ? 'Calling… · phone numbers hidden'
-                      : viewMode === 'connecting'
-                        ? 'Connecting…'
-                        : viewMode === 'connected'
-                          ? `Connected · ${timerLabel}`
-                          : viewMode === 'mic_denied'
-                            ? 'Microphone access is needed for private calls.'
-                            : (terminalNotice ?? "Couldn't connect. Try chat.")}
-                </Text>
-              </View>
-              {viewMode === 'outgoing' || viewMode === 'connecting' || viewMode === 'connected' ? (
-                <Pressable
-                  style={styles.minBtn}
-                  onPress={() => setMinimised(true)}
-                  accessibilityRole="button"
-                  accessibilityLabel="Minimise call controls"
-                >
-                  <Text style={styles.minBtnText}>Hide</Text>
-                </Pressable>
-              ) : null}
-            </View>
-
-            {viewMode === 'incoming' ? (
-              <View style={styles.actionsRow}>
-                <Pressable
-                  style={[styles.btn, styles.btnDecline]}
-                  onPress={() => void declineCall()}
-                  accessibilityRole="button"
-                  accessibilityLabel="Decline call"
-                >
-                  <Text style={styles.btnLightText}>Decline</Text>
-                </Pressable>
-                <Pressable
-                  style={[styles.btn, styles.btnAccept]}
-                  onPress={() => void acceptCall()}
-                  accessibilityRole="button"
-                  accessibilityLabel="Accept call"
-                >
-                  <Text style={styles.btnLightText}>Accept</Text>
-                </Pressable>
-              </View>
-            ) : viewMode === 'outgoing' || viewMode === 'connecting' ? (
-              <View style={styles.actionsRow}>
-                <Pressable
-                  style={[styles.btn, styles.btnNeutral]}
-                  onPress={openChat}
-                  accessibilityRole="button"
-                  accessibilityLabel="Open ride chat"
-                >
-                  <Text style={styles.btnDarkText}>Chat</Text>
-                </Pressable>
-                <Pressable
-                  style={[styles.btn, styles.btnDecline]}
-                  onPress={() => void endCall()}
-                  accessibilityRole="button"
-                  accessibilityLabel="End call"
-                >
-                  <Text style={styles.btnLightText}>End</Text>
-                </Pressable>
-              </View>
-            ) : viewMode === 'connected' ? (
-              <View style={styles.actionsRow}>
-                <Pressable
-                  style={[styles.btn, styles.btnNeutral, muted && styles.btnActive]}
-                  onPress={() => void toggleMute()}
-                  accessibilityRole="button"
-                  accessibilityLabel={muted ? 'Unmute microphone' : 'Mute microphone'}
-                >
-                  <Text style={styles.btnDarkText}>{muted ? 'Unmute' : 'Mute'}</Text>
-                </Pressable>
-                <Pressable
-                  style={[styles.btn, styles.btnNeutral, speaker && styles.btnActive]}
-                  onPress={() => void toggleSpeaker()}
-                  accessibilityRole="button"
-                  accessibilityLabel={speaker ? 'Switch to earpiece' : 'Switch to speaker'}
-                >
-                  <Text style={styles.btnDarkText}>{speaker ? 'Speaker' : 'Earpiece'}</Text>
-                </Pressable>
-                <Pressable
-                  style={[styles.btn, styles.btnDecline]}
-                  onPress={() => void endCall()}
-                  accessibilityRole="button"
-                  accessibilityLabel="End call"
-                >
-                  <Text style={styles.btnLightText}>End</Text>
-                </Pressable>
-              </View>
-            ) : viewMode === 'mic_denied' ? (
-              <View style={styles.actionsRow}>
-                <Pressable
-                  style={[styles.btn, styles.btnNeutral]}
-                  onPress={() => void Linking.openSettings()}
-                  accessibilityRole="button"
-                  accessibilityLabel="Open microphone settings"
-                >
-                  <Text style={styles.btnDarkText}>Open Settings</Text>
-                </Pressable>
-                <Pressable
-                  style={[styles.btn, styles.btnAccept]}
-                  onPress={openChat}
-                  accessibilityRole="button"
-                  accessibilityLabel="Try chat instead"
-                >
-                  <Text style={styles.btnLightText}>Try chat</Text>
-                </Pressable>
-                <Pressable
-                  style={[styles.btn, styles.btnNeutral]}
-                  onPress={() => setMicDenied(false)}
-                  accessibilityRole="button"
-                  accessibilityLabel="Dismiss call notice"
-                >
-                  <Text style={styles.btnDarkText}>Dismiss</Text>
-                </Pressable>
-              </View>
-            ) : (
-              <View style={styles.actionsRow}>
-                <Pressable
-                  style={[styles.btn, styles.btnAccept]}
-                  onPress={openChat}
-                  accessibilityRole="button"
-                  accessibilityLabel="Try chat instead"
-                >
-                  <Text style={styles.btnLightText}>Try chat</Text>
-                </Pressable>
-                <Pressable
-                  style={[styles.btn, styles.btnNeutral]}
-                  onPress={() => setTerminalNotice(null)}
-                  accessibilityRole="button"
-                  accessibilityLabel="Dismiss call notice"
-                >
-                  <Text style={styles.btnDarkText}>Dismiss</Text>
-                </Pressable>
-              </View>
-            )}
-          </View>
-        </View>
+      {viewMode !== 'idle' ? (
+        <RideCallSheet
+          viewMode={viewMode}
+          minimised={minimised}
+          name={counterpartName}
+          timerLabel={timerLabel}
+          ringingUntil={call?.ringingUntil ?? null}
+          notice={terminalNotice}
+          muted={muted}
+          speaker={speaker}
+          onAccept={() => void acceptCall()}
+          onDecline={() => void declineCall()}
+          onEnd={() => void endCall()}
+          onToggleMute={() => void toggleMute()}
+          onToggleSpeaker={() => void toggleSpeaker()}
+          onMinimise={() => setMinimised(true)}
+          onRestore={() => setMinimised(false)}
+          onChat={openChat}
+          onOpenSettings={() => void Linking.openSettings()}
+          onDismiss={() => {
+            setMicDenied(false);
+            setTerminalNotice(null);
+          }}
+        />
       ) : null}
     </RideCallContext.Provider>
   );
@@ -689,109 +569,3 @@ export function useRideCall(): RideCallContextValue {
   }
   return ctx;
 }
-
-const styles = StyleSheet.create({
-  flex: { flex: 1 },
-  bannerWrap: {
-    position: 'absolute',
-    top: 52,
-    left: 16,
-    right: 16,
-    alignItems: 'center',
-    zIndex: 999,
-  },
-  returnBanner: {
-    minHeight: 44,
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 999,
-    backgroundColor: '#27764a',
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 6,
-  },
-  returnBannerText: {
-    color: '#ffffff',
-    fontWeight: '700',
-    fontSize: 14,
-  },
-  sheetWrap: {
-    position: 'absolute',
-    left: 12,
-    right: 12,
-    bottom: 20,
-    zIndex: 1000,
-  },
-  sheet: {
-    backgroundColor: '#fffaf3',
-    borderRadius: 18,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#e2d5c4',
-    elevation: 8,
-    gap: 14,
-  },
-  sheetHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  sheetTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: colors.deepBrown,
-  },
-  sheetSub: {
-    marginTop: 2,
-    fontSize: 13,
-    color: '#6b5e54',
-  },
-  minBtn: {
-    minHeight: 40,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    backgroundColor: '#eee4d8',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  minBtnText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.deepBrown,
-  },
-  actionsRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  btn: {
-    flex: 1,
-    minHeight: 48,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-  },
-  btnAccept: {
-    backgroundColor: '#27764a',
-  },
-  btnDecline: {
-    backgroundColor: '#b84338',
-  },
-  btnNeutral: {
-    backgroundColor: '#eee4d8',
-  },
-  btnActive: {
-    borderWidth: 1.5,
-    borderColor: colors.deepBrown,
-  },
-  btnLightText: {
-    color: '#ffffff',
-    fontWeight: '700',
-    fontSize: 14,
-  },
-  btnDarkText: {
-    color: colors.deepBrown,
-    fontWeight: '700',
-    fontSize: 14,
-  },
-});

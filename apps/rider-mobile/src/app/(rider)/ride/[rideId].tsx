@@ -16,7 +16,6 @@ import {
   RefreshControl,
   ScrollView,
   Share,
-  StyleSheet,
   Text,
   TextInput,
   View,
@@ -39,7 +38,7 @@ import {
   resolveRideCashAvailability,
   resolveRiderCancellationPreview,
 } from '@/services/rider-helpers';
-import { colors, radii, spacing, typography } from '@/design-system';
+import { colors, radii, spacing, typography, createStyles } from '@/design-system';
 import BookingMap from '@/components/booking/booking-map';
 import { OngoingRideView } from '@/components/ride/ongoing-ride-view';
 import { RideRatingCard } from '@/components/ride/ride-rating-card';
@@ -81,6 +80,7 @@ export default function ActiveRideScreen() {
     raiseFare,
     cancelRide,
     claimCashPaid,
+    requestEarlyDrop,
     disputePayment,
   } = useRide();
 
@@ -220,6 +220,22 @@ export default function ActiveRideScreen() {
       await loadRide();
     } finally {
       setIsRefreshing(false);
+    }
+  };
+
+  const [isRequestingEarlyDrop, setIsRequestingEarlyDrop] = useState(false);
+  const handleRequestEarlyDrop = async () => {
+    if (!ride || isRequestingEarlyDrop) return;
+    setIsRequestingEarlyDrop(true);
+    setActionError(null);
+    try {
+      const updated = await requestEarlyDrop(ride.id);
+      setRide(updated);
+      await loadRide();
+    } catch (err: unknown) {
+      setActionError(err instanceof Error ? err.message : 'Unable to request early drop.');
+    } finally {
+      setIsRequestingEarlyDrop(false);
     }
   };
 
@@ -433,7 +449,7 @@ export default function ActiveRideScreen() {
               {!isRealtimeConnected || syncError ? (
                 <View style={styles.connectionPill}>
                   <View style={[styles.connDot, { backgroundColor: colors.brandBrown }]} />
-                  <Text style={styles.connectionText}>Reconnectingâ€¦</Text>
+                  <Text style={styles.connectionText}>Reconnecting…</Text>
                 </View>
               ) : null}
             </View>
@@ -471,7 +487,7 @@ export default function ActiveRideScreen() {
                   </Text>
                   <Text style={styles.statusSubtitle}>
                     {isSearching && remainingSeconds === 0
-                      ? 'Checking the final responsesâ€¦'
+                      ? 'Checking the final responses…'
                       : statusMeta.subtitle}
                   </Text>
                 </View>
@@ -481,7 +497,7 @@ export default function ActiveRideScreen() {
                     accessibilityLabel={`Search expires in ${remainingSeconds} seconds`}
                   >
                     <Ionicons name="timer-outline" size={16} color={colors.deepBrown} />
-                    <Text style={styles.timerBadgeText}>Searching Â· {remainingSeconds}s</Text>
+                    <Text style={styles.timerBadgeText}>Searching · {remainingSeconds}s</Text>
                   </View>
                 ) : null}
               </View>
@@ -545,7 +561,7 @@ export default function ActiveRideScreen() {
                     <View style={{ flex: 1 }}>
                       <Text style={styles.waitingCountersTitle}>Offers will appear here</Text>
                       <Text style={styles.waitingCountersSub}>
-                        Weâ€™ll let you know when a driver responds.
+                        We’ll let you know when a driver responds.
                       </Text>
                     </View>
                   </View>
@@ -562,7 +578,7 @@ export default function ActiveRideScreen() {
                             <Text style={styles.counterDriverName}>Verified Cabzone Driver</Text>
                             <Text style={styles.counterDriverSub}>
                               {counter.vehicleLabel ||
-                                `Driver #${counter.driverId.slice(0, 6).toUpperCase()} Â· Cab (4 Seats)`}
+                                `Driver #${counter.driverId.slice(0, 6).toUpperCase()} · Cab (4 Seats)`}
                             </Text>
                           </View>
                           <View style={{ alignItems: 'flex-end' }}>
@@ -612,12 +628,12 @@ export default function ActiveRideScreen() {
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.driverCardTitle}>
-                      {`${formatAssignedDriverSummary(ride).driverName} Â· â˜… ${formatAssignedDriverSummary(ride).ratingLabel}`}
+                      {`${formatAssignedDriverSummary(ride).driverName} · ★ ${formatAssignedDriverSummary(ride).ratingLabel}`}
                     </Text>
                     <Text style={styles.driverCardSub}>
                       {formatAssignedDriverSummary(ride).vehicleLabel}
                       {formatAssignedDriverSummary(ride).registrationNumber
-                        ? ` Â· ${formatAssignedDriverSummary(ride).registrationNumber}`
+                        ? ` · ${formatAssignedDriverSummary(ride).registrationNumber}`
                         : ''}
                     </Text>
                     {driverLiveLocation ? (
@@ -670,6 +686,34 @@ export default function ActiveRideScreen() {
               />
             ) : null}
 
+            {ride.status === 'TRIP_STARTED' ? (
+              <View style={styles.earlyDropCard}>
+                <Text style={styles.earlyDropTitle}>Need to get off before the destination?</Text>
+                <Text style={styles.earlyDropBody}>
+                  {ride.earlyDropRequestedAt
+                    ? 'Waiting for your driver to confirm. The full agreed fare still applies.'
+                    : 'Your driver has to confirm before the trip ends. The full agreed fare still applies.'}
+                </Text>
+                <Pressable
+                  style={[
+                    styles.earlyDropBtn,
+                    (isRequestingEarlyDrop || !!ride.earlyDropRequestedAt) && styles.earlyDropBtnDisabled,
+                  ]}
+                  disabled={isRequestingEarlyDrop || !!ride.earlyDropRequestedAt}
+                  accessibilityRole="button"
+                  onPress={() => void handleRequestEarlyDrop()}
+                >
+                  {isRequestingEarlyDrop ? (
+                    <ActivityIndicator color={colors.deepBrown} />
+                  ) : (
+                    <Text style={styles.earlyDropBtnText}>
+                      {ride.earlyDropRequestedAt ? 'Request sent' : 'Request early drop'}
+                    </Text>
+                  )}
+                </Pressable>
+              </View>
+            ) : null}
+
             {/* SETTLED RECEIPT & DISPUTE OPTION (D-041) */}
             {ride.status === 'SETTLED' ||
             ride.status === 'PAYMENT_CONFIRMED' ||
@@ -687,7 +731,7 @@ export default function ActiveRideScreen() {
                     <Text style={styles.settledTitle}>
                       {ride.status === 'PAYMENT_DISPUTED'
                         ? 'Payment Dispute Under Admin Review'
-                        : `Paid ${formatRupeesFromPaise(totalPayablePaise)} Â· Settled`}
+                        : `Paid ${formatRupeesFromPaise(totalPayablePaise)} · Settled`}
                     </Text>
                     <Text style={styles.settledSub}>
                       {ride.status === 'PAYMENT_DISPUTED'
@@ -767,7 +811,7 @@ export default function ActiveRideScreen() {
               <View style={styles.kvRow}>
                 <Text style={styles.kvKey}>Distance & Zone</Text>
                 <Text style={styles.kvVal}>
-                  {(ride.routeSnapshot.distanceM / 1000).toFixed(1)} km Â·{' '}
+                  {(ride.routeSnapshot.distanceM / 1000).toFixed(1)} km ·{' '}
                   {ride.zoneSnapshot.classification === 'IN_CITY'
                     ? 'In-city'
                     : ride.zoneSnapshot.classification === 'OUTSTATION'
@@ -811,7 +855,7 @@ export default function ActiveRideScreen() {
               ) : null}
               {isSearching ? (
                 <Text style={styles.fareRange}>
-                  You can offer {formatRupeesFromPaise(floorPaise)}â€“
+                  You can offer {formatRupeesFromPaise(floorPaise)}–
                   {formatRupeesFromPaise(ceilingPaise)}
                 </Text>
               ) : null}
@@ -880,9 +924,9 @@ export default function ActiveRideScreen() {
                 ) : (
                   <Text style={styles.raiseFareText}>
                     {ride.status === 'REQUESTED'
-                      ? 'Waiting for searchâ€¦'
+                      ? 'Waiting for search…'
                       : remainingSeconds === 0
-                        ? 'Checking searchâ€¦'
+                        ? 'Checking search…'
                         : canRaiseFare
                           ? `Raise fare +${formatRupeesFromPaise(nextFarePaise - offerPaise)}`
                           : 'Maximum fare reached'}
@@ -1100,7 +1144,7 @@ export default function ActiveRideScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createStyles(() => ({
   container: {
     flex: 1,
     backgroundColor: colors.background,
@@ -1441,6 +1485,24 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.deepBrown,
   },
+  earlyDropCard: {
+    borderRadius: radii.lg,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.amber,
+    gap: spacing.sm,
+  },
+  earlyDropTitle: { fontSize: 16, fontWeight: '800', color: colors.deepBrown },
+  earlyDropBody: { fontSize: 14, color: colors.deepBrown },
+  earlyDropBtn: {
+    height: 46,
+    borderRadius: radii.lg,
+    backgroundColor: colors.amber,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  earlyDropBtnDisabled: { opacity: 0.5 },
+  earlyDropBtnText: { fontSize: 15, fontWeight: '800', color: colors.deepBrown },
   settledCard: {
     backgroundColor: colors.successBg,
     borderRadius: radii.lg,
@@ -1712,4 +1774,4 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.deepBrown,
   },
-});
+}));

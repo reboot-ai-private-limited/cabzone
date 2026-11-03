@@ -1,9 +1,9 @@
 import React, { useCallback, useRef, useState } from 'react';
-import { Animated, Easing, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Easing, Image, Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, radii, spacing, typography } from '@/design-system';
+import { colors, radii, spacing, typography, createStyles } from '@/design-system';
 import { WelcomeHero } from '@/components/auth/welcome-hero';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 
@@ -199,7 +199,7 @@ export default function WelcomeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createStyles(() => ({
   container: { flex: 1, backgroundColor: colors.background },
   content: {
     flex: 1,
@@ -249,4 +249,4 @@ const styles = StyleSheet.create({
     color: colors.deepBrown,
     flexShrink: 1,
   },
-});
+}));

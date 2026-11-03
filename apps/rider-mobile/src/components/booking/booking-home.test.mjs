@@ -56,9 +56,10 @@ function screen() {
         };
       if (name === 'expo-router')
         return { useRouter: () => ({ navigate: (path) => calls.push(path) }) };
+      if (name.includes('intercity-home')) return { IntercityHomeContent: 'IntercityHomeContent' };
       if (name.includes('use-reduced-motion')) return { useReducedMotion: () => true };
       if (name.includes('design-system'))
-        return { colors: {}, spacing: {}, radii: {}, typography: {} };
+        return { createStyles: (factory) => factory(), colors: {}, spacing: {}, radii: {}, typography: {} };
       return {};
     },
   };
@@ -96,13 +97,40 @@ function find(node, label) {
   return null;
 }
 
-test('Home opens destination, pickup, and GPS actions', () => {
+function findType(node, type) {
+  if (!node || typeof node !== 'object') return null;
+  if (node.type === type) return node;
+  for (const child of (node.children || []).flat(Infinity)) {
+    const hit = findType(child, type);
+    if (hit) return hit;
+  }
+  return null;
+}
+
+test('Home hands destination, pickup, and GPS actions to the shared route sheet', () => {
   const home = screen();
   const tree = home.render();
-  find(tree, 'Choose your destination').props.onPress();
-  find(tree, 'Change pickup: City Centre').props.onPress();
+  const sheet = findType(tree, 'IntercityHomeContent');
+  assert.equal(sheet.props.variant, 'CITY');
+  assert.equal(sheet.props.pickup.address, 'City Centre');
+  assert.equal(sheet.props.destinations.length, 0, 'Home has no popular places section');
+  assert.equal(sheet.props.showSwitch, false, 'Home uses the City to city card instead of a link');
+  const cards = sheet.props.middle;
+  assert.ok(cards, 'Home passes the original three cards');
+  sheet.props.onSearch();
+  sheet.props.onEditPickup();
   find(tree, 'Use current location for pickup').props.onPress();
   assert.deepEqual(home.calls, ['search', 'pickup', 'locate']);
+});
+
+test('Home switches to city to city, and the Intercity variant switches back', () => {
+  const home = screen();
+  findType(home.render(), 'IntercityHomeContent').props.onSwitchMode();
+  home.props.mode = 'OUTSTATION';
+  const sheet = findType(home.render(), 'IntercityHomeContent');
+  assert.equal(sheet.props.variant, 'INTERCITY');
+  sheet.props.onSwitchMode();
+  assert.deepEqual(home.calls, ['/(rider)/(tabs)/intercity', '/(rider)/(tabs)/home']);
 });
 
 test('sheet expands and collapses by swipe and remains collapsible after choosing a destination', () => {

@@ -2,6 +2,7 @@ import type { RideExtensionProposalDto } from './extensions.js';
 import type { TollSnapshot } from './tolls.js';
 import type { StateDistanceBreakdown } from './pricing.js';
 import type { VehicleCategory } from './vehicles.js';
+import type { PublicTrustTier } from './identity.js';
 
 /**
  * Ride state machine statuses.
@@ -108,6 +109,10 @@ export const CANCELLATION_REASONS = [
 
 export type CancellationReason = (typeof CANCELLATION_REASONS)[number];
 
+/** Outcome an admin records when resolving a payment dispute. Feeds the trust score (D-048). */
+export const DISPUTE_OUTCOMES = ['RIDER_WINS', 'DRIVER_WINS'] as const;
+export type DisputeOutcome = (typeof DISPUTE_OUTCOMES)[number];
+
 export type ZoneClassificationType = 'IN_CITY' | 'OUTSTATION' | 'INTERSTATE';
 
 export interface StateSegmentDto {
@@ -165,6 +170,8 @@ export interface RideAssignedDriverDto {
   profilePhotoUrl: string | null;
   ratingAverage?: number | null;
   ratingCount?: number;
+  /** Public trust tier. Present only once the driver's score is public (5+ completed rides). */
+  trustTier?: PublicTrustTier | null;
   vehicle: RideAssignedDriverVehicleDto | null;
 }
 
@@ -345,6 +352,12 @@ export interface RideDto {
   totalPayablePaise?: number;
   pricingSnapshot: RidePricingSnapshot;
   cancellationReason: CancellationReason | null;
+  /** Who ended the ride. Null for rides that were not cancelled or expired (D-048). */
+  cancelledBy?: RideEventActor | null;
+  /** Admin outcome of a payment dispute, once resolved (D-048). */
+  disputeOutcome?: DisputeOutcome | null;
+  /** Set while the rider has asked to end the trip early and the driver has not answered. */
+  earlyDropRequestedAt?: string | null;
   offeringExpiresAt: string | null;
   acceptedAt: string | null;
   arrivedAt: string | null;

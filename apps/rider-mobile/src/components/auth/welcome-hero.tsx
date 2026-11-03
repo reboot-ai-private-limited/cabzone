@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Animated, Easing, Image, StyleSheet, Text, View } from 'react-native';
+import { Animated, Easing, Image, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
-import { colors, radii, spacing, typography } from '@/design-system';
+import { colors, radii, spacing, typography, createStyles } from '@/design-system';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 import { BlobBackground } from './blob-background';
 
@@ -206,7 +206,7 @@ export function WelcomeHero({ exiting = false }: { exiting?: boolean }) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createStyles(() => ({
   frame: {
     flex: 1,
     minHeight: 0,
@@ -259,4 +259,4 @@ const styles = StyleSheet.create({
   },
   benefitCaption: { ...typography.caption, fontSize: 11, color: colors.secondary },
   benefitText: { ...typography.caption, color: colors.deepBrown, fontWeight: '700' },
-});
+}));

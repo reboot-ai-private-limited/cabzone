@@ -1,10 +1,10 @@
 import React, { useEffect } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/context/auth-context';
 import { useRide } from '@/context/ride-context';
-import { colors, radii, spacing, typography } from '@/design-system';
+import { colors, radii, spacing, typography, createStyles } from '@/design-system';
 
 export default function BootstrapIndexScreen() {
   const router = useRouter();
@@ -83,7 +83,7 @@ export default function BootstrapIndexScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createStyles(() => ({
   container: {
     flex: 1,
     backgroundColor: colors.cream,
@@ -152,4 +152,4 @@ const styles = StyleSheet.create({
     color: colors.brandBrown,
     fontWeight: '700',
   },
-});
+}));

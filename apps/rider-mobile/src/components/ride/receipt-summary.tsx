@@ -1,11 +1,11 @@
 import React, { useMemo, type ReactNode } from 'react';
 import { tollDisclosure, type RideDto, type RideEventDto } from '@cabzone/contracts';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, ScrollView, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { decodePolyline } from '@cabzone/geo';
 
 import BookingMap from '@/components/booking/booking-map';
-import { colors, spacing, typography } from '@/design-system';
+import { colors, spacing, typography, createStyles } from '@/design-system';
 import { rideReceipt } from '@/services/ride-receipt';
 
 const milestoneLabels: Record<string, string> = {
@@ -205,7 +205,7 @@ export function ReceiptSummary({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createStyles(() => ({
   content: { paddingBottom: 32, backgroundColor: colors.white },
   flex: { flex: 1 },
   date: { ...typography.h2, color: colors.deepBrown, padding: spacing.xl },
@@ -267,4 +267,4 @@ const styles = StyleSheet.create({
   total: { ...typography.h1, color: colors.deepBrown },
   paymentStatus: { ...typography.bodyBold, color: colors.deepBrown },
   reference: { ...typography.caption, color: colors.secondary, marginTop: spacing.sm },
-});
+}));

@@ -2,7 +2,6 @@ import React from 'react';
 import {
   Pressable,
   ScrollView,
-  StyleSheet,
   Text,
   View,
 } from 'react-native';
@@ -12,7 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/context/auth-context';
 import { useRide } from '@/context/ride-context';
 import type { SavedRouteTemplate } from '@/services/rider-helpers';
-import { colors, radii, spacing, typography } from '@/design-system';
+import { colors, radii, spacing, typography, createStyles } from '@/design-system';
 
 export default function SavedRoutesScreen() {
   const router = useRouter();
@@ -84,7 +83,7 @@ export default function SavedRoutesScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createStyles(() => ({
   container: {
     flex: 1,
     backgroundColor: colors.background,
@@ -182,4 +181,4 @@ const styles = StyleSheet.create({
     ...typography.bodyBold,
     color: colors.deepBrown,
   },
-});
+}));

@@ -6,7 +6,6 @@ import {
   Keyboard,
   Platform,
   Pressable,
-  StyleSheet,
   Text,
   TextInput,
   TouchableWithoutFeedback,
@@ -17,7 +16,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/context/auth-context';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
-import { colors, radii, spacing, typography } from '@/design-system';
+import { colors, radii, spacing, typography, createStyles } from '@/design-system';
 
 export default function OtpVerificationScreen() {
   const router = useRouter();
@@ -310,7 +309,7 @@ export default function OtpVerificationScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createStyles(() => ({
   container: {
     flex: 1,
     backgroundColor: colors.background,
@@ -408,4 +407,4 @@ const styles = StyleSheet.create({
     ...typography.h2,
     color: colors.deepBrown,
   },
-});
+}));

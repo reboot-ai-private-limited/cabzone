@@ -16,7 +16,8 @@ import MapView, { PROVIDER_GOOGLE, type Region } from 'react-native-maps';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, radii, spacing, typography } from '@/design-system';
+import { colors, radii, spacing, typography, createStyles } from '@/design-system';
+import { useMapTheme } from '@/hooks/use-map-theme';
 import { geoAndPricingApi } from '@/services/api';
 import {
   createPlacesSessionToken,
@@ -49,6 +50,8 @@ export interface MapLocationPickerProps {
   token: string | null;
   /** Where the map opens: GPS/pickup point, never a blank default view. */
   initial: { lat: number; lng: number };
+  /** City-to-city: search the whole country instead of ranking results near `initial`. */
+  wideSearch?: boolean;
   onConfirm: (location: PickedLocation) => void;
   onClose: () => void;
 }
@@ -71,10 +74,12 @@ export function MapLocationPicker({
   target,
   token,
   initial,
+  wideSearch = false,
   onConfirm,
   onClose,
 }: MapLocationPickerProps) {
   const mapRef = useRef<MapView | null>(null);
+  const mapTheme = useMapTheme();
   const settleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lookupSeqRef = useRef(0);
@@ -205,7 +210,10 @@ export function MapLocationPicker({
       setIsSearching(true);
       searchTimerRef.current = setTimeout(async () => {
         try {
-          const found = await fetchPlacePredictions(trimmed, { sessionToken });
+          const found = await fetchPlacePredictions(trimmed, {
+            sessionToken,
+            ...(wideSearch ? { radiusMeters: 0 } : { latitude: initial.lat, longitude: initial.lng }),
+          });
           if (seq === searchSeqRef.current) setResults(found);
         } catch {
           if (seq === searchSeqRef.current) setResults([]);
@@ -214,7 +222,7 @@ export function MapLocationPicker({
         }
       }, SEARCH_DEBOUNCE_MS);
     },
-    [sessionToken],
+    [sessionToken, wideSearch, initial.lat, initial.lng],
   );
 
   const handleSelectResult = useCallback(
@@ -261,6 +269,9 @@ export function MapLocationPicker({
           ref={mapRef}
           style={StyleSheet.absoluteFill}
           provider={PROVIDER_GOOGLE}
+          mapType={mapTheme.mapType}
+          userInterfaceStyle={mapTheme.userInterfaceStyle}
+          customMapStyle={mapTheme.customMapStyle}
           initialRegion={{
             latitude: initial.lat,
             longitude: initial.lng,
@@ -441,7 +452,7 @@ export function MapLocationPicker({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createStyles(() => ({
   screen: { flex: 1, backgroundColor: colors.white },
   pinLayer: {
     ...StyleSheet.absoluteFill,
@@ -585,4 +596,4 @@ const styles = StyleSheet.create({
   },
   confirmDisabled: { opacity: 0.45 },
   confirmText: { ...typography.h2, color: colors.deepBrown },
-});
+}));

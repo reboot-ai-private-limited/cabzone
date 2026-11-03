@@ -8,7 +8,6 @@ import {
   ScrollView,
   Platform,
   Pressable,
-  StyleSheet,
   Text,
   TextInput,
   TouchableWithoutFeedback,
@@ -21,7 +20,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/context/auth-context';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 import { normalizeIndianPhoneE164 } from '@/services/rider-helpers';
-import { colors, radii, spacing, typography } from '@/design-system';
+import { colors, radii, spacing, typography, createStyles } from '@/design-system';
 
 export default function PhoneEntryScreen() {
   const router = useRouter();
@@ -307,7 +306,7 @@ export default function PhoneEntryScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createStyles(() => ({
   container: { flex: 1, backgroundColor: colors.background },
   inner: {
     flex: 1,
@@ -396,4 +395,4 @@ const styles = StyleSheet.create({
   submitBtnDisabled: { backgroundColor: colors.lightCream },
   submitBtnPressed: { backgroundColor: colors.amberStrong },
   submitBtnText: { ...typography.bodyBold, fontSize: 17, color: colors.deepBrown },
-});
+}));

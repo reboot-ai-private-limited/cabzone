@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
+  ActivityIndicator,
+  Modal,
   Pressable,
   ScrollView,
-  StyleSheet,
   Text,
   View,
 } from 'react-native';
@@ -11,120 +12,139 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { formatPublicRatingLabel } from '@cabzone/contracts';
 import { useAuth } from '@/context/auth-context';
-import { colors, radii, spacing, typography } from '@/design-system';
+import { colors, radii, spacing, typography, createStyles } from '@/design-system';
+import { AppearanceToggle } from '@/components/common/appearance-toggle';
+import { MAP_THEME_OPTIONS, normalizeMapTheme } from '@/services/map-theme';
+
+type MenuItem = {
+  label: string;
+  sub: string;
+  icon: React.ComponentProps<typeof Ionicons>['name'];
+  href: string;
+};
 
 export default function ProfileTabScreen() {
   const router = useRouter();
-  const {
-    user,
-    profile,
-    templates,
-    preferences,
-    updatePreferences,
-    logout,
-  } = useAuth();
+  const { user, profile, templates, preferences, updatePreferences, logout } = useAuth();
 
-  const initials = (profile?.name || 'C R')
-    .split(' ')
-    .map((p) => p[0])
-    .join('')
-    .slice(0, 2)
-    .toUpperCase();
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const riderName = profile?.name || 'Cabzone Rider';
+  const initial = riderName.trim().charAt(0).toUpperCase() || 'R';
+
+  const handleConfirmLogout = async () => {
+    setIsLoggingOut(true);
+    try {
+      await logout();
+      setShowLogoutModal(false);
+    } finally {
+      setIsLoggingOut(false);
+    }
+  };
+
+  const menuItems: MenuItem[] = [
+    {
+      label: 'Personal Details',
+      sub: `Name, email & operational city (${preferences.operationalCity})`,
+      icon: 'person-circle-outline',
+      href: '/(rider)/account/edit-profile',
+    },
+    {
+      label: 'Emergency Safety Contact',
+      sub: profile?.emergencyContact
+        ? `${profile.emergencyContact.name} (${profile.emergencyContact.phoneE164})`
+        : 'Not configured · Tap to add trusted contact',
+      icon: 'shield-checkmark-outline',
+      href: '/(rider)/account/emergency-contact',
+    },
+    {
+      label: 'Saved Route Templates',
+      sub: `${templates.length} saved quick-launch routes`,
+      icon: 'bookmark-outline',
+      href: '/(rider)/account/saved-routes',
+    },
+    {
+      label: 'Help & Payment Disputes',
+      sub: 'FAQs, safety guide & trip dispute assistance',
+      icon: 'help-buoy-outline',
+      href: '/(rider)/account/support',
+    },
+    {
+      label: 'Terms, Privacy & Fare Policy',
+      sub: 'Direct Cash/UPI rules & cancellation policy',
+      icon: 'document-lock-outline',
+      href: '/(rider)/account/legal',
+    },
+  ];
+
+  const renderMenuRow = (item: MenuItem, idx: number) => (
+    <Pressable
+      key={item.label}
+      style={[styles.menuRow, idx > 0 && styles.menuRowBorder]}
+      onPress={() => router.push(item.href as never)}
+      accessibilityRole="button"
+      accessibilityLabel={item.label}
+    >
+      <View style={styles.menuIconWrap}>
+        <Ionicons name={item.icon} size={22} color={colors.deepBrown} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.menuLabel}>{item.label}</Text>
+        <Text style={styles.menuSub} numberOfLines={1}>
+          {item.sub}
+        </Text>
+      </View>
+      <Ionicons name="chevron-forward" size={18} color={colors.secondary} />
+    </Pressable>
+  );
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.eyebrow}>ACCOUNT & PREFERENCES</Text>
-        <Text style={styles.title}>Profile</Text>
-
-        {/* Profile Identity Card */}
+        {/* Rider Profile Card */}
         <View style={styles.profileCard}>
           <View style={styles.avatarCircle}>
-            <Text style={styles.avatarInitials}>{initials}</Text>
+            <Text style={styles.avatarInitial}>{initial}</Text>
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.profileName}>{profile?.name || 'Cabzone Rider'}</Text>
-            <Text style={styles.profilePhone}>{user?.phoneE164 || ''}</Text>
+            <Text style={styles.riderName}>{riderName}</Text>
+            <Text style={styles.riderPhone}>{user?.phoneE164 || ''}</Text>
             {profile?.email ? (
-              <Text style={styles.profileEmail}>{profile.email}</Text>
+              <Text style={styles.riderEmail} numberOfLines={1}>
+                {profile.email}
+              </Text>
             ) : null}
-          </View>
-          <View style={styles.ratingBadge}>
-            <Ionicons name="star" size={14} color={colors.deepBrown} />
-            <Text style={styles.ratingText}>
-              {formatPublicRatingLabel(profile?.ratingAverage, profile?.ratingCount)}
-            </Text>
+            <View style={styles.badgeRow}>
+              <View style={styles.verifiedPill}>
+                <Text style={styles.verifiedPillText}>✓ VERIFIED RIDER</Text>
+              </View>
+              <View style={styles.ratingPill}>
+                <Text style={styles.ratingPillText}>
+                  ⭐ {formatPublicRatingLabel(profile?.ratingAverage, profile?.ratingCount)}
+                </Text>
+              </View>
+            </View>
           </View>
         </View>
 
-        {/* Account & Safety Menu */}
-        <Text style={styles.sectionHeader}>ACCOUNT & SAFETY</Text>
-        <View style={styles.menuGroup}>
-          <Pressable
-            style={styles.menuRow}
-            onPress={() => router.push('/(rider)/account/edit-profile')}
-          >
-            <Ionicons name="person-outline" size={20} color={colors.deepBrown} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.menuTitle}>Edit Personal Profile & City</Text>
-              <Text style={styles.menuSub}>
-                Name, email & operational city ({preferences.operationalCity})
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={colors.secondary} />
-          </Pressable>
+        {/* Account & Help Menu */}
+        <View style={styles.menuCard}>{menuItems.map(renderMenuRow)}</View>
 
-          <View style={styles.divider} />
-
-          <Pressable
-            style={styles.menuRow}
-            onPress={() => router.push('/(rider)/account/emergency-contact')}
-          >
-            <Ionicons name="shield-checkmark-outline" size={20} color={colors.deepBrown} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.menuTitle}>Emergency Safety Contact</Text>
-              <Text style={styles.menuSub}>
-                {profile?.emergencyContact
-                  ? `${profile.emergencyContact.name} (${profile.emergencyContact.phoneE164})`
-                  : 'Not configured · Tap to add trusted contact'}
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={colors.secondary} />
-          </Pressable>
-
-          <View style={styles.divider} />
-
-          <Pressable
-            style={styles.menuRow}
-            onPress={() => router.push('/(rider)/account/saved-routes')}
-          >
-            <Ionicons name="bookmark-outline" size={20} color={colors.deepBrown} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.menuTitle}>Saved Route Templates</Text>
-              <Text style={styles.menuSub}>
-                {templates.length} saved quick-launch routes
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={colors.secondary} />
-          </Pressable>
-        </View>
-
-        {/* Preferences (Units & Language) */}
+        {/* App Preferences */}
         <Text style={styles.sectionHeader}>APP PREFERENCES</Text>
-        <View style={styles.menuGroup}>
-          <View style={styles.prefRow}>
+        <View style={styles.menuCard}>
+          <AppearanceToggle />
+          <View style={[styles.prefRow, styles.menuRowBorder]}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.menuTitle}>Distance Units</Text>
+              <Text style={styles.menuLabel}>Distance Units</Text>
               <Text style={styles.menuSub}>Used on route maps and quotes</Text>
             </View>
             <View style={styles.segmentedToggle}>
               {(['km', 'mi'] as const).map((unit) => (
                 <Pressable
                   key={unit}
-                  style={[
-                    styles.segBtn,
-                    preferences.distanceUnit === unit && styles.segBtnActive,
-                  ]}
+                  style={[styles.segBtn, preferences.distanceUnit === unit && styles.segBtnActive]}
                   onPress={() => void updatePreferences({ distanceUnit: unit })}
                 >
                   <Text
@@ -140,11 +160,9 @@ export default function ProfileTabScreen() {
             </View>
           </View>
 
-          <View style={styles.divider} />
-
-          <View style={styles.prefRow}>
+          <View style={[styles.prefRow, styles.menuRowBorder]}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.menuTitle}>Preferred Language</Text>
+              <Text style={styles.menuLabel}>Preferred Language</Text>
               <Text style={styles.menuSub}>Saved to your rider profile</Text>
             </View>
             <View style={styles.segmentedToggle}>
@@ -157,10 +175,7 @@ export default function ProfileTabScreen() {
               ).map((lang) => (
                 <Pressable
                   key={lang.code}
-                  style={[
-                    styles.segBtn,
-                    preferences.language === lang.code && styles.segBtnActive,
-                  ]}
+                  style={[styles.segBtn, preferences.language === lang.code && styles.segBtnActive]}
                   onPress={() => void updatePreferences({ language: lang.code })}
                 >
                   <Text
@@ -175,157 +190,214 @@ export default function ProfileTabScreen() {
               ))}
             </View>
           </View>
+
+          <View style={[styles.mapThemeBlock, styles.menuRowBorder]}>
+            <Text style={styles.menuLabel}>Map Theme</Text>
+            <Text style={styles.menuSub}>Used on the booking and pickup maps</Text>
+            <View style={styles.themeChips} accessibilityRole="radiogroup">
+              {MAP_THEME_OPTIONS.map((option) => {
+                const selected = normalizeMapTheme(preferences.mapTheme) === option.id;
+                return (
+                  <Pressable
+                    key={option.id}
+                    style={[styles.themeChip, selected && styles.themeChipActive]}
+                    onPress={() => void updatePreferences({ mapTheme: option.id })}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected }}
+                    accessibilityLabel={`${option.label} map`}
+                  >
+                    <Ionicons
+                      name={option.icon}
+                      size={16}
+                      color={selected ? colors.amber : colors.deepBrown}
+                    />
+                    <Text style={[styles.themeChipText, selected && styles.themeChipTextActive]}>
+                      {option.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
         </View>
 
-        {/* Support & Legal */}
-        <Text style={styles.sectionHeader}>HELP & LEGAL</Text>
-        <View style={styles.menuGroup}>
-          <Pressable
-            style={styles.menuRow}
-            onPress={() => router.push('/(rider)/account/support')}
-          >
-            <Ionicons name="help-buoy-outline" size={20} color={colors.deepBrown} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.menuTitle}>Help & Payment Disputes</Text>
-              <Text style={styles.menuSub}>FAQs, safety guide & trip dispute assistance</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={colors.secondary} />
-          </Pressable>
-
-          <View style={styles.divider} />
-
-          <Pressable
-            style={styles.menuRow}
-            onPress={() => router.push('/(rider)/account/legal')}
-          >
-            <Ionicons name="document-lock-outline" size={20} color={colors.deepBrown} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.menuTitle}>Terms, Privacy & Fare Policy</Text>
-              <Text style={styles.menuSub}>Direct Cash/UPI rules & cancellation policy</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={colors.secondary} />
-          </Pressable>
-        </View>
-
-        {/* Logout */}
+        {/* Sign Out */}
         <Pressable
-          style={styles.logoutButton}
-          onPress={() => void logout()}
+          style={styles.logoutTrigger}
+          onPress={() => setShowLogoutModal(true)}
+          accessibilityRole="button"
         >
           <Ionicons name="log-out-outline" size={20} color={colors.error} />
-          <Text style={styles.logoutButtonText}>Sign Out of Cabzone</Text>
+          <Text style={styles.logoutTriggerText}>Log Out of Cabzone</Text>
         </Pressable>
       </ScrollView>
+
+      {/* Logout Confirmation Modal */}
+      <Modal
+        visible={showLogoutModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowLogoutModal(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Log Out of Account?</Text>
+            <Text style={styles.modalSub}>
+              You will need to verify your phone number with an OTP the next time you sign in.
+            </Text>
+            <View style={styles.modalActions}>
+              <Pressable
+                style={styles.cancelBtn}
+                onPress={() => setShowLogoutModal(false)}
+                disabled={isLoggingOut}
+              >
+                <Text style={styles.cancelBtnText}>Stay Signed In</Text>
+              </Pressable>
+              <Pressable
+                style={styles.confirmLogoutBtn}
+                onPress={() => void handleConfirmLogout()}
+                disabled={isLoggingOut}
+              >
+                {isLoggingOut ? (
+                  <ActivityIndicator color={colors.white} size="small" />
+                ) : (
+                  <Text style={styles.confirmLogoutText}>Log Out</Text>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createStyles(() => ({
   container: {
     flex: 1,
     backgroundColor: colors.background,
   },
   content: {
-    padding: spacing.lg,
-    paddingBottom: 40,
-    gap: spacing.md,
-  },
-  eyebrow: {
-    ...typography.label,
-    color: colors.brandBrown,
-  },
-  title: {
-    ...typography.h1,
-    color: colors.deepBrown,
+    padding: 20,
+    paddingBottom: 48,
+    gap: 18,
   },
   profileCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.md,
     backgroundColor: colors.cream,
-    borderRadius: radii.lg,
-    padding: spacing.md,
-    borderWidth: 1.5,
+    borderRadius: 22,
+    padding: 20,
+    borderWidth: 1,
     borderColor: colors.border,
+    gap: 16,
   },
   avatarCircle: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     backgroundColor: colors.amber,
-    borderWidth: 1.5,
-    borderColor: colors.deepBrown,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarInitials: {
-    ...typography.h2,
+  avatarInitial: {
+    fontSize: 26,
+    fontWeight: '800',
     color: colors.deepBrown,
   },
-  profileName: {
+  riderName: {
     ...typography.h2,
+    fontWeight: '800',
     color: colors.deepBrown,
   },
-  profilePhone: {
+  riderPhone: {
     ...typography.caption,
     color: colors.secondary,
+    marginTop: 2,
+    fontWeight: '600',
   },
-  profileEmail: {
+  riderEmail: {
     fontSize: 12,
     color: colors.secondary,
   },
-  ratingBadge: {
+  badgeRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 8,
+    marginTop: 10,
+  },
+  verifiedPill: {
+    backgroundColor: '#DCFCE7',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#86EFAC',
+  },
+  verifiedPillText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#15803D',
+  },
+  ratingPill: {
     backgroundColor: colors.warmBeige,
     paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: radii.pill,
+    paddingVertical: 4,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
-  ratingText: {
-    ...typography.caption,
-    fontWeight: '700',
+  ratingPillText: {
+    fontSize: 11,
+    fontWeight: '800',
     color: colors.deepBrown,
   },
   sectionHeader: {
     ...typography.label,
     color: colors.secondary,
-    marginTop: 6,
+    marginBottom: -8,
   },
-  menuGroup: {
+  menuCard: {
     backgroundColor: colors.white,
-    borderRadius: radii.lg,
-    borderWidth: 1.5,
+    borderRadius: 20,
+    borderWidth: 1,
     borderColor: colors.border,
     overflow: 'hidden',
   },
   menuRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.md,
-    padding: spacing.md,
+    padding: 16,
+    gap: 14,
+  },
+  menuRowBorder: {
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
   },
   prefRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: spacing.md,
-    padding: spacing.md,
+    padding: 16,
   },
-  menuTitle: {
+  menuIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: colors.warmBeige,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  menuLabel: {
     ...typography.bodyBold,
+    fontWeight: '800',
     color: colors.deepBrown,
   },
   menuSub: {
     fontSize: 12,
     color: colors.secondary,
     marginTop: 2,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: colors.borderSubtle,
-    marginHorizontal: spacing.md,
   },
   segmentedToggle: {
     flexDirection: 'row',
@@ -351,18 +423,109 @@ const styles = StyleSheet.create({
   segBtnTextActive: {
     color: colors.amber,
   },
-  logoutButton: {
+  mapThemeBlock: {
+    padding: 16,
+  },
+  themeChips: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginTop: spacing.md,
+  },
+  themeChip: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: spacing.sm,
-    backgroundColor: colors.errorBg,
-    paddingVertical: 15,
-    borderRadius: radii.lg,
-    marginTop: spacing.sm,
+    gap: 6,
+    minHeight: 40,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.cream,
   },
-  logoutButtonText: {
+  themeChipActive: {
+    backgroundColor: colors.deepBrown,
+    borderColor: colors.deepBrown,
+  },
+  themeChipText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.deepBrown,
+  },
+  themeChipTextActive: {
+    color: colors.amber,
+  },
+  logoutTrigger: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 15,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#FCA5A5',
+    backgroundColor: '#FEF2F2',
+  },
+  logoutTriggerText: {
     ...typography.bodyBold,
+    fontWeight: '800',
     color: colors.error,
   },
-});
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  modalCard: {
+    width: '100%',
+    backgroundColor: colors.white,
+    borderRadius: 22,
+    padding: 22,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: 14,
+  },
+  modalTitle: {
+    ...typography.h2,
+    fontWeight: '800',
+    color: colors.deepBrown,
+  },
+  modalSub: {
+    ...typography.caption,
+    color: colors.secondary,
+    lineHeight: 18,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 4,
+  },
+  cancelBtn: {
+    flex: 1,
+    height: 46,
+    borderRadius: 12,
+    backgroundColor: colors.warmBeige,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cancelBtnText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: colors.deepBrown,
+  },
+  confirmLogoutBtn: {
+    flex: 1,
+    height: 46,
+    borderRadius: 12,
+    backgroundColor: colors.error,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  confirmLogoutText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: colors.white,
+  },
+}));

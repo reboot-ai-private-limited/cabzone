@@ -4,7 +4,6 @@ import {
   Keyboard,
   Pressable,
   ScrollView,
-  StyleSheet,
   Text,
   TextInput,
   TouchableWithoutFeedback,
@@ -15,7 +14,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/context/auth-context';
 import { geoAndPricingApi } from '@/services/api';
-import { colors, radii, spacing, typography } from '@/design-system';
+import { colors, radii, spacing, typography, createStyles } from '@/design-system';
 
 const DEFAULT_CITIES = ['Siliguri', 'Darjeeling', 'Kurseong', 'Kalimpong', 'Gangtok', 'Kolkata'];
 
@@ -162,7 +161,7 @@ export default function EditProfileScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createStyles(() => ({
   container: {
     flex: 1,
     backgroundColor: colors.background,
@@ -260,4 +259,4 @@ const styles = StyleSheet.create({
     ...typography.h2,
     color: colors.deepBrown,
   },
-});
+}));

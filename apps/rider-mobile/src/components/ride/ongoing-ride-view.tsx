@@ -9,7 +9,6 @@ import {
   Pressable,
   RefreshControl,
   ScrollView,
-  StyleSheet,
   Text,
   View,
 } from 'react-native';
@@ -17,7 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { decodePolyline } from '@cabzone/geo';
 import type { RiderRideViewDto } from '@/services/api';
 import { formatAssignedDriverSummary, formatRupeesFromPaise } from '@/services/rider-helpers';
-import { colors, radii, spacing, typography } from '@/design-system';
+import { colors, radii, spacing, typography, createStyles } from '@/design-system';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 import BookingMap from '@/components/booking/booking-map';
 import { RoutePointIcon } from '@/components/common/route-point-icon';
@@ -377,7 +376,9 @@ export function OngoingRideView({
                 )}
               </View>
               <Text style={styles.driverName}>{driverInfo.driverName}</Text>
-              <Text style={styles.caption}>{`★ ${driverInfo.ratingLabel || 'New'}`}</Text>
+              <Text style={styles.caption}>
+                {`★ ${driverInfo.ratingLabel || 'New'}${driverInfo.trustLabel ? ` · ${driverInfo.trustLabel}` : ''}`}
+              </Text>
             </View>
             {onChat ? (
               <Pressable
@@ -494,7 +495,7 @@ export function OngoingRideView({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createStyles(() => ({
   container: { flex: 1, backgroundColor: colors.white },
   flex: { flex: 1 },
   topBar: {
@@ -660,4 +661,4 @@ const styles = StyleSheet.create({
   cancelText: { ...typography.bodyBold, color: colors.error },
   reference: { ...typography.caption, color: colors.secondary },
   error: { ...typography.caption, color: colors.error },
-});
+}));

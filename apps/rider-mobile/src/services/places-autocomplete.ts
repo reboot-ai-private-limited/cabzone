@@ -69,10 +69,13 @@ export async function fetchPlacePredictions(
     input: trimmed,
     key: apiKey,
     components: `country:${country}`,
-    location: `${lat},${lng}`,
-    radius: String(radius),
     language: 'en',
   });
+  // radiusMeters: 0 means "search the whole country" (city-to-city destinations).
+  if (radius > 0) {
+    params.set('location', `${lat},${lng}`);
+    params.set('radius', String(radius));
+  }
 
   if (options?.sessionToken) {
     params.set('sessiontoken', options.sessionToken);

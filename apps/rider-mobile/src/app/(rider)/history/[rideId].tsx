@@ -1,6 +1,6 @@
 import { locationLabel } from '@/services/location-names';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -11,7 +11,7 @@ import { rideReceipt } from '@/services/ride-receipt';
 import { ReceiptSummary } from '@/components/ride/receipt-summary';
 import { ReceiptPreview } from '@/components/ride/receipt-preview';
 import { RideRatingCard } from '@/components/ride/ride-rating-card';
-import { colors, radii, spacing, typography } from '@/design-system';
+import { colors, radii, spacing, typography, createStyles } from '@/design-system';
 
 export default function RideReceiptDetailScreen() {
   const { rideId } = useLocalSearchParams<{ rideId: string }>();
@@ -218,7 +218,7 @@ export default function RideReceiptDetailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createStyles(() => ({
   container: { flex: 1, backgroundColor: colors.white },
   loading: {
     flex: 1,
@@ -259,4 +259,4 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   buttonText: { ...typography.bodyBold, color: colors.deepBrown },
-});
+}));
