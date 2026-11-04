@@ -32,9 +32,9 @@ export default function LegalScreen() {
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.heading}>2. Direct Cash & Personal UPI Payment</Text>
+          <Text style={styles.heading}>2. Cash & UPI Payment</Text>
           <Text style={styles.body}>
-            Cabzone connects riders with verified independent drivers. Riders pay the final Agreed Fare directly to the driver in Cash or via the driver&apos;s personal UPI upon reaching the destination.
+            Pay the confirmed trip amount using an available in-app UPI option or cash. Cash is confirmed by the driver after receipt. UPI is confirmed only after Cabzone verifies the payment with its payment provider.
           </Text>
         </View>
 

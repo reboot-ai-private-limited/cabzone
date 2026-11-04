@@ -13,6 +13,7 @@ import {
 } from '../../../ledger/ledger.public.js';
 import {
   CreateQuoteUseCase,
+  cashAllowedForArrears,
   resolveCancellationPolicy,
   type PricingConfigRepositoryPort,
 } from '../../../pricing/pricing.public.js';
@@ -250,6 +251,12 @@ export class CreateRideUseCase {
       ? await this.deps.walletRepo.findByRiderId(input.riderId)
       : null;
     const arrearsPaise = getRiderUnpaidArrearsPaise(riderWallet);
+    if (
+      input.paymentMethod === 'CASH' &&
+      !cashAllowedForArrears(arrearsPaise, cancellationPolicy.cancellationFeePaise)
+    ) {
+      throw AppError.conflict('Cash is unavailable until cancellation fee arrears are paid online.');
+    }
 
     const now = new Date();
     const rideId = newUuid();

@@ -30,7 +30,7 @@ const operationLabel = (entry: WalletOperationDto) =>
     : entry.status === 'PENDING'
       ? 'Processing'
       : entry.status === 'PROCESSING'
-        ? 'Sending to your UPI'
+        ? 'Sending payout'
         : entry.status === 'REJECTED'
           ? 'Returned'
           : entry.kind === 'RECHARGE'
@@ -172,14 +172,16 @@ export function WalletMoneyPanel({ refreshVersion = 0 }: { refreshVersion?: numb
         setMessage('Recharge saved. Your balance updates after payment is verified.');
       } else {
         if (!destination) return;
-        await walletApi.cashout(token, amountPaise, destination, key.current.id);
+        const result = await walletApi.cashout(token, amountPaise, destination, key.current.id);
         setForm(null);
         key.current = null;
         setAccountNumber('');
         setMessage(
-          method === 'upi'
-            ? 'Cashout requested. The money is on its way to your UPI ID.'
-            : 'Cashout requested. The money is on its way to your bank account (IMPS, usually within minutes).',
+          result.status === 'COMPLETED'
+            ? 'Cashout paid. Check the transfer reference below.'
+            : result.status === 'REJECTED'
+              ? 'Cashout was rejected. Check the reason below; reserved funds will return to your wallet.'
+              : 'Cashout requested. Track its payout status below.',
         );
       }
       setActivity(await walletApi.activity(token));
@@ -234,7 +236,7 @@ export function WalletMoneyPanel({ refreshVersion = 0 }: { refreshVersion?: numb
           </View>
           {activity.pendingCashoutPaise > 0 ? (
             <Text style={styles.caption}>
-              {money(activity.pendingCashoutPaise)} is on its way to your UPI ID.
+              {money(activity.pendingCashoutPaise)} is reserved for cashout. Check its status below.
             </Text>
           ) : null}
           {activity.cashoutBlockedReason ? (
@@ -266,7 +268,7 @@ export function WalletMoneyPanel({ refreshVersion = 0 }: { refreshVersion?: numb
           disabled={
             busy ||
             !activity ||
-            activity.availableCashoutPaise < 100 ||
+            activity.availableCashoutPaise < MIN_CASHOUT_PAISE ||
             activity.pendingCashoutPaise > 0
           }
           accessibilityRole="button"
@@ -348,7 +350,7 @@ export function WalletMoneyPanel({ refreshVersion = 0 }: { refreshVersion?: numb
             <Text style={styles.caption}>
               {form === 'recharge'
                 ? `${activity?.testMode ? 'Test UPI recharge' : 'UPI recharge'} · ₹500 minimum.`
-                : 'Minimum ₹200. Funds are sent to your UPI ID or bank account automatically and returned to your wallet if the payout fails. Withdrawing all recharge credit can stop new ride offers.'}
+                : 'Minimum ₹200. Request a transfer to your UPI ID or bank account and track its status here. Finance may need to process it. Rejected payouts return to your wallet. Withdrawing all recharge credit can stop new ride offers.'}
             </Text>
             <Text style={styles.label}>Amount in rupees</Text>
             <TextInput

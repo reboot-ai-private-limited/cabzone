@@ -25,6 +25,8 @@ import {
 } from '../../../zone/zone.public.js';
 import {
   calculateBaseFareEstimate,
+  cashAllowedForArrears,
+  resolveCancellationPolicy,
   type PricingConfigRepositoryPort,
 } from '../../domain/index.js';
 import { isPointInIndia } from '@cabzone/geo';
@@ -301,7 +303,10 @@ export class CreateQuoteUseCase {
         : null;
     const arrearsPaise = getRiderUnpaidArrearsPaise(riderWallet);
     const totalEstimatedPayablePaise = suggestedFarePaise + arrearsPaise;
-    const cashAllowed = true;
+    const cashAllowed = cashAllowedForArrears(
+      arrearsPaise,
+      resolveCancellationPolicy(config).cancellationFeePaise,
+    );
 
     const quoteId = newUuid();
     const expiresAt = new Date(Date.now() + this.ttlSeconds * 1000);

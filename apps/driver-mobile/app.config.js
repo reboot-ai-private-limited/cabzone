@@ -75,11 +75,34 @@ function withCabzoneVoiceCallManifest(config) {
       const proguardPath = path.join(mod.modRequest.platformProjectRoot, 'app', 'proguard-rules.pro');
       if (fs.existsSync(proguardPath)) {
         const contents = fs.readFileSync(proguardPath, 'utf8');
+        let modified = false;
         if (!contents.includes('livekit.org.jni_zero')) {
-          fs.writeFileSync(
-            proguardPath,
-            `${contents}\n-dontwarn livekit.org.jni_zero.**\n-keep class livekit.org.** { *; }\n`,
-          );
+          contents += '\n-dontwarn livekit.org.jni_zero.**\n-keep class livekit.org.** { *; }\n';
+          modified = true;
+        }
+        if (!contents.includes('androidx.work.impl.WorkDatabase')) {
+          contents +=
+            '\n# WorkManager and Room\n' +
+            '-keep class androidx.work.impl.WorkDatabase { *; }\n' +
+            '-keep class androidx.work.impl.WorkDatabase_Impl { *; }\n' +
+            '-keep class androidx.work.** { *; }\n' +
+            '-keep class * extends androidx.work.ListenableWorker {\n' +
+            '    <init>(android.content.Context, androidx.work.WorkerParameters);\n' +
+            '}\n' +
+            '-keep class * extends androidx.work.Worker {\n' +
+            '    <init>(android.content.Context, androidx.work.WorkerParameters);\n' +
+            '}\n' +
+            '-keep class androidx.room.** { *; }\n' +
+            '-keep class * extends androidx.room.RoomDatabase { *; }\n' +
+            '-keep @androidx.room.Entity class * { *; }\n' +
+            '-keepclassmembers class * extends androidx.room.RoomDatabase {\n' +
+            '    *;\n' +
+            '}\n' +
+            '-dontwarn androidx.work.**\n';
+          modified = true;
+        }
+        if (modified) {
+          fs.writeFileSync(proguardPath, contents);
         }
       }
       return mod;
@@ -90,6 +113,12 @@ function withCabzoneVoiceCallManifest(config) {
 }
 
 module.exports = ({ config }) => {
+  if (
+    process.env.EAS_BUILD_PROFILE === 'production' &&
+    !/^https:\/\/[^/]+/.test(process.env.EXPO_PUBLIC_API_URL ?? '')
+  ) {
+    throw new Error('Production driver builds require EXPO_PUBLIC_API_URL with an HTTPS API origin.');
+  }
   const expo = { ...base.expo, ...config };
   const projectId =
     process.env.DRIVER_EAS_PROJECT_ID ||

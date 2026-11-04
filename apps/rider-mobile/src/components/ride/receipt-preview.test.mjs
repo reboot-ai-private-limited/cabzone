@@ -17,7 +17,6 @@ const code = ts.transpileModule(
 ).outputText;
 function screen() {
   const values = [],
-    effects = [],
     calls = [];
   let cursor = 0;
   const react = {
@@ -36,9 +35,6 @@ function screen() {
       const n = cursor++;
       if (!(n in values)) values[n] = { current: initial };
       return values[n];
-    },
-    useEffect(fn) {
-      effects.push(fn);
     },
   };
   const print = {
@@ -59,24 +55,16 @@ function screen() {
         return { StyleSheet: { create: (v) => v }, Platform: { OS: 'android' } };
       if (name === 'expo-print') return print;
       if (name === 'expo-sharing') return sharing;
-      if (name === 'expo-asset')
-        return {
-          Asset: {
-            fromModule: () => ({ downloadAsync: async () => ({ localUri: 'file:///logo.png' }) }),
-          },
-        };
-      if (name === 'expo-file-system')
-        return {
-          File: class {
-            async base64() {
-              return 'logo-base64';
-            }
-          },
-        };
+      if (name === 'expo-asset' || name === 'expo-file-system')
+        throw new Error('Receipt preview must not load bundled images');
       if (name.includes('design-system')) return { createStyles: (factory) => factory(), colors: {}, spacing: {}, typography: {} };
       if (name.includes('ride-receipt'))
-        return { receiptHtml: (_r, logo) => `<html><img src="${logo}"></html>` };
-      if (name.endsWith('.png')) return 42;
+        return {
+          receiptHtml: (_r, logo) => {
+            assert.equal(logo, undefined);
+            return '<html>Cabzone receipt</html>';
+          },
+        };
       return {};
     },
   });
@@ -88,12 +76,6 @@ function screen() {
     render() {
       cursor = 0;
       return exports.ReceiptPreview({ receipt, onClose() {} });
-    },
-    async prepare() {
-      this.render();
-      effects.splice(0).forEach((fn) => fn());
-      await flush();
-      return this.render();
     },
   };
 }
@@ -115,9 +97,12 @@ const action = (tree, text) =>
   );
 const flush = () => new Promise(setImmediate);
 
-test('receipt prepares an embedded logo and shares an actual PDF', async () => {
+test('receipt renders without loading a logo and shares an actual PDF', async () => {
   const s = screen();
-  const tree = await s.prepare();
+  const tree = s.render();
+  const preview = find(tree, (node) => node.props.source?.html);
+  assert.ok(preview.props.source.html.includes('Cabzone'));
+  assert.ok(!preview.props.source.html.includes('data:image/png;base64'));
   action(tree, 'Share receipt').props.onPress();
   await flush();
   assert.equal(s.calls[0][0], 'share');
@@ -134,11 +119,11 @@ test('save PDF opens print with the prepared receipt and duplicate taps share on
       finish = resolve;
     });
   };
-  const tree = await s.prepare();
+  const tree = s.render();
   action(tree, 'Save PDF').props.onPress();
   action(tree, 'Save PDF').props.onPress();
   assert.equal(s.calls.length, 1);
-  assert.ok(s.calls[0][1].html.includes('data:image/png;base64,logo-base64'));
+  assert.ok(s.calls[0][1].html.includes('Cabzone'));
   finish();
   await flush();
   assert.equal(action(s.render(), 'Save PDF').props.disabled, false);
@@ -147,7 +132,7 @@ test('save PDF opens print with the prepared receipt and duplicate taps share on
 test('unavailable file sharing shows a retryable error instead of a false success', async () => {
   const s = screen();
   s.sharing.isAvailableAsync = async () => false;
-  const tree = await s.prepare();
+  const tree = s.render();
   action(tree, 'Share receipt').props.onPress();
   await flush();
   const updated = s.render();

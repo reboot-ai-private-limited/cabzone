@@ -22,6 +22,7 @@ import { buildAdminWalletRouter, buildDriverWalletRouter } from './interface/led
 import { env, walletMoneyEnabled } from '../../config/env.js';
 import { WalletMoneyUseCase } from './application/useCases/walletMoney.usecase.js';
 import { WalletRechargeTickets } from './infrastructure/walletRechargeTickets.js';
+import { toProviderPayout } from './infrastructure/razorpayPayout.adapter.js';
 import { MongoWalletOperationRepository } from './infrastructure/persistence/walletOperation.repository.js';
 import type {
   WalletOperationRepository,
@@ -82,6 +83,7 @@ export function buildLedgerContainer(deps: LedgerContainerDeps): LedgerContainer
     walletMoneyUseCase,
     new WalletRechargeTickets(env.JWT_ACCESS_SECRET),
     deps.resolveDriverId,
+    toProviderPayout,
     [env.RAZORPAY_WEBHOOK_SECRET, env.RAZORPAYX_WEBHOOK_SECRET].filter(
       (secret): secret is string => Boolean(secret),
     ),

@@ -16,6 +16,7 @@ import { makeAdminReconcileWalletLedgerController } from '../src/modules/ledger/
 import { buildAdminWalletRouter } from '../src/modules/ledger/interface/ledger.routes.js';
 import { walletMoneyControllers } from '../src/modules/ledger/interface/walletMoney.controller.js';
 import { WalletRechargeTickets } from '../src/modules/ledger/infrastructure/walletRechargeTickets.js';
+import { toProviderPayout } from '../src/modules/ledger/infrastructure/razorpayPayout.adapter.js';
 import {
   MemoryRideEventRepository,
   MemoryRideRepository,
@@ -262,6 +263,7 @@ function buildTestHarness() {
     walletMoney,
     new WalletRechargeTickets('step6-test-secret-32-chars-minimum!!'),
     actors.resolveDriverId,
+    toProviderPayout,
   );
   app.use(
     '/api/v1/admin/wallets',

@@ -2,6 +2,7 @@ import { AppError } from '../../../../shared/errors/AppError.js';
 import { newUuid } from '../../../../shared/ids.js';
 import type { UnitOfWorkPort } from '../../../../shared/db/unitOfWork.port.js';
 import { logger } from '../../../../shared/logging/logger.js';
+import { cashAllowedForArrears, resolveCancellationPolicy } from '../../../pricing/pricing.public.js';
 import { saveRideTransition } from '../rideTransition.js';
 import { COMPLETE_RADIUS_M, assertDriverWithin, type DriverLocationPort } from '../geofence.js';
 import type { RefundVerifierPort, ProviderRefund } from '../../domain/refundVerifier.port.js';
@@ -212,6 +213,10 @@ export class CompleteRideUseCase {
         `INVALID_RIDE_STATE: Cash payment can only be claimed while payment is pending (current status: ${ride.status}).`,
       );
     }
+    if (!cashAllowedForArrears(
+      getRiderUnpaidArrearsPaise(await this.deps.walletRepo.findByRiderId(ride.bookerRiderId)),
+      resolveCancellationPolicy(ride.pricingSnapshot).cancellationFeePaise,
+    )) throw AppError.conflict('Cash is unavailable until cancellation fee arrears are paid online.');
 
     const existingClaims = await this.deps.rideRepo.count({
       riderId: ride.bookerRiderId,
@@ -243,6 +248,10 @@ export class CompleteRideUseCase {
       if (current.status !== 'PAYMENT_PENDING') {
         throw AppError.conflict('RIDE_STATE_CHANGED: Refresh the ride and try again.');
       }
+      if (!cashAllowedForArrears(
+        getRiderUnpaidArrearsPaise(await this.deps.walletRepo.findByRiderId(current.bookerRiderId)),
+        resolveCancellationPolicy(current.pricingSnapshot).cancellationFeePaise,
+      )) throw AppError.conflict('Cash is unavailable until cancellation fee arrears are paid online.');
       const concurrentClaims = await this.deps.rideRepo.count({
         riderId: current.bookerRiderId,
         statuses: ['PAYMENT_CASH_CLAIMED'],
@@ -938,6 +947,10 @@ export class CompleteRideUseCase {
       ? getRiderUnpaidArrearsPaise(riderWallet)
       : rideArrearsPaise;
     const collectableArrearsPaise = Math.min(rideArrearsPaise, unpaidArrearsPaise);
+    if (!cashAllowedForArrears(
+      unpaidArrearsPaise,
+      resolveCancellationPolicy(ride.pricingSnapshot).cancellationFeePaise,
+    )) throw AppError.conflict('Cash is unavailable until cancellation fee arrears are paid online.');
     const previousStatus = ride.status;
 
     // Reserve the transition before posting money. A concurrent confirmation retries

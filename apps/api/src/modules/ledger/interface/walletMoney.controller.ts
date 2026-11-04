@@ -3,14 +3,13 @@ import { z } from 'zod';
 import { AppError } from '../../../shared/errors/AppError.js';
 import { asyncHandler } from '../../../shared/http/asyncHandler.js';
 import { getRawBody } from '../../../shared/http/rawBody.js';
-import { toProviderPayout } from '../infrastructure/razorpayPayout.adapter.js';
 import { sendSuccess } from '../../../shared/http/response.util.js';
 import {
   adminWalletOperationView,
   walletOperationView,
   type WalletMoneyUseCase,
 } from '../application/useCases/walletMoney.usecase.js';
-import type { WalletRechargeTicketPort } from '../domain/walletOperation.port.js';
+import type { ProviderPayout, WalletRechargeTicketPort } from '../domain/walletOperation.port.js';
 import { walletRechargeHtml } from './walletRecharge.html.js';
 
 export const idSchema = z.object({ id: z.string().uuid() });
@@ -41,6 +40,7 @@ export function walletMoneyControllers(
   money: WalletMoneyUseCase,
   tickets: WalletRechargeTicketPort,
   resolveDriverId: (userId: string) => Promise<string | null>,
+  parsePayout: (entity: unknown) => ProviderPayout,
   webhookSecrets: readonly string[] = [],
   isTestMode = true,
 ) {
@@ -163,7 +163,7 @@ export function walletMoneyControllers(
         const entity = event.payload?.payout?.entity;
         const reference = entity?.reference_id;
         if (entity && typeof reference === 'string')
-          await money.handlePayoutEvent(reference, toProviderPayout(entity));
+          await money.handlePayoutEvent(reference, parsePayout(entity));
       }
       res.sendStatus(200);
     }),

@@ -2,7 +2,7 @@
 
 For the driver's full-screen, 15-minute QR collection flow, see [Driver UPI QR collection](driver-upi-qr-collection.md). The legacy rider app handoff/browser checkout below retains its own contracts.
 
-The default `RAZORPAY_MODE=test` keeps the existing simulated checkout and browser QR; test checkout is disabled in production. An explicitly configured `RAZORPAY_MODE=live` with matching live credentials uses one single-use, fixed-fare Razorpay QR session for both rider app handoff and driver QR scanning. No live credentials are configured by default. Driver test wallet recharge (`₹100`–`₹1,00,000`), manual Finance/Super Admin cashout review (`wallet_operations`), signed live QR webhooks, and verified provider-refund dispute reversal (`D-041` / `D-044`) are implemented; automated bank payouts (`RazorpayX`) remain deferred to the commercial launch gate per `D-042`.
+The default `RAZORPAY_MODE=test` keeps the existing simulated checkout and browser QR; test checkout is disabled in production. An explicitly configured `RAZORPAY_MODE=live` with matching live credentials uses one single-use, fixed-fare Razorpay QR session for both rider app handoff and driver QR scanning. Driver wallet recharge (`₹500`–`₹1,00,000`), manual Finance/Super Admin cashout review (`wallet_operations`), optional RazorpayX payouts, signed live QR webhooks, and verified provider-refund dispute reversal (`D-041` / `D-044`) are implemented. Live credentials and a funded RazorpayX account must be configured separately in each deployed environment.
 
 Backend credentials live in the ignored root `.env` as `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET`. Restart the API after changing them. Never put the secret in an `EXPO_PUBLIC_` variable or a mobile checkout response.
 
@@ -13,7 +13,7 @@ Backend credentials live in the ignored root `.env` as `RAZORPAY_KEY_ID` and `RA
 3. The existing WebView opens Standard Checkout, configured to show UPI only. No new native module is required for this test screen.
 4. Success proof is verified using HMAC-SHA256 of the stored order ID and returned payment ID. The backend also fetches the order's payments and requires an exact amount, INR, UPI and `captured` status. A client success message alone never settles a ride.
 5. **Check payment status**, reopening the payment panel and foregrounding the app recover payments from the provider, including when the checkout callback was lost. This test integration uses authenticated provider polling, not webhooks; background settlement requires the app to check again.
-6. Ride settlement and audit entries are transactional. Newly reconciled online UPI settlements credit the driver's wallet net of ride commission (`agreedFarePaise - commissionPaise`, `RIDE_ONLINE_EARNINGS`), settle any attached rider cancellation arrears (`arrearsPaise`, `D-044`) without charging commission on arrears, and record audit events labelled with the active provider mode (`test` or `live`). Test balances never migrate into withdrawable live funds (`D-042`).
+6. Ride settlement and audit entries are transactional. Newly reconciled online UPI settlements credit the driver's wallet net of ride commission (`agreedFarePaise - commissionPaise`, `ONLINE_RIDE_EARNINGS`), settle any attached rider cancellation arrears (`arrearsPaise`, `D-044`) without charging commission on arrears, and record audit events labelled with the active provider mode (`test` or `live`). Keep test-funded wallets out of the live database until Finance reconciles them; the wallet schema does not enforce fund provenance.
 
 Once an online order has been exposed, direct cash/personal-UPI confirmation is blocked until an authenticated cash switch is recorded. A new order and a payment-method switch each increment the ride version so they cannot race successfully with settlement. Existing checkout tickets cannot open a new payment after cash selection.
 
@@ -48,6 +48,14 @@ Enable **UPI** (`collect` and `intent` under **Account & Settings → Payment Me
 Razorpay documents simulated UPI testing separately from real UPI Intent/QR app handoff, which requires live-mode testing. Existing test keys remain unchanged.
 
 ## Live UPI session and account setup
+
+### Stage and production wallet rollout
+
+The root `.env` is local to the development process; it does not configure a deployed API or a compiled mobile app. Set `RAZORPAY_MODE=live`, the matching live `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET`, and `RAZORPAY_WEBHOOK_SECRET` in **each deployed API environment**, then restart that API. Register the public HTTPS `POST /api/v1/driver/wallet/webhook` endpoint for wallet recharge and payout notifications. The ride UPI QR webhook below is a separate endpoint. Check the deployed checkout page or API response for `testMode: false` before a real-money acceptance pass.
+
+Set `EXPO_PUBLIC_API_URL` to that environment's public HTTPS API origin in the Expo Build environment for **both** rider and driver apps and rebuild them. Production builds now fail if this value is missing or uses HTTP. Expo embeds `EXPO_PUBLIC_` values in the app bundle; changing the backend `.env` cannot update an already installed app. See [Expo's build environment guidance](https://docs.expo.dev/eas/environment-variables/usage/).
+
+Cashout reserves the driver's earnings and prepaid wallet balances. Without `RAZORPAYX_ACCOUNT_NUMBER` and a configured payout gateway, a cashout remains pending for Finance to resolve manually; the Razorpay payment key and webhook alone do not send a bank transfer. Verify the payout account, funding, destination and webhook in the target environment before enabling automatic cashout. Keep test-funded wallets out of a live deployment until Finance has reconciled or migrated them.
 
 1. Activate the Razorpay merchant account and request QR Codes access. Configure backend-only `RAZORPAY_MODE=live`, matching `rzp_live_` credentials, and a separate `RAZORPAY_WEBHOOK_SECRET`. Never change modes while test rides await payment: existing sessions intentionally cannot migrate between modes.
 2. Register the public HTTPS endpoint `POST /api/v1/rides/payment/upi/webhook` for `qr_code.credited`, using the same webhook signing secret. Raw-body HMAC verification runs before parsing payment scope. A signed notification only triggers provider reconciliation; event amounts or client return values never settle a ride.

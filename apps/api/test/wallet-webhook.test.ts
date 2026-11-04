@@ -4,6 +4,7 @@ import { WalletMoneyUseCase } from '../src/modules/ledger/application/useCases/w
 import { MemoryWalletRepository } from '../src/modules/ledger/index.js';
 import { MemoryWalletOperationRepository } from '../src/modules/ledger/infrastructure/persistence/walletOperation.repository.js';
 import { WalletRechargeTickets } from '../src/modules/ledger/infrastructure/walletRechargeTickets.js';
+import { toProviderPayout } from '../src/modules/ledger/infrastructure/razorpayPayout.adapter.js';
 import { walletMoneyControllers } from '../src/modules/ledger/interface/walletMoney.controller.js';
 import { unitOfWork } from './helpers/unitOfWork.js';
 
@@ -38,6 +39,7 @@ async function setup() {
     money,
     new WalletRechargeTickets('webhook-test-secret-32-chars-minimum!!'),
     async () => 'driver',
+    toProviderPayout,
     [SECRET],
     false,
   );

@@ -17,8 +17,10 @@ import type {
 import type { RidePaymentGateway } from '../../domain/ridePayment.port.js';
 import { saveRideTransition } from '../rideTransition.js';
 import { collectableArrearsPaise } from '../collectableArrears.js';
+import { cashAllowedForArrears, resolveCancellationPolicy } from '../../../pricing/pricing.public.js';
 import {
   calculateNewBalance,
+  getRiderUnpaidArrearsPaise,
   type WalletEntity,
   type WalletRepositoryPort,
 } from '../../../ledger/ledger.public.js';
@@ -152,6 +154,11 @@ export class RideUpiPaymentUseCase {
     const current = await this.reconcileForCash(rideId, ride.bookerRiderId);
     if (current.status === 'SETTLED' || (await this.cashSelected(rideId)))
       return this.paymentState(rideId);
+    if (!cashAllowedForArrears(
+      getRiderUnpaidArrearsPaise(await this.deps.walletRepo.findByRiderId(current.bookerRiderId)),
+      resolveCancellationPolicy(current.pricingSnapshot).cancellationFeePaise,
+    ))
+      throw AppError.conflict('Cash is unavailable until cancellation fee arrears are paid online.');
     const qrCollection = await this.deps.closeQrCollectionForCash?.(rideId);
     if (qrCollection?.alreadyPaid) return this.paymentState(rideId);
     const qr = await this.qrSession(rideId);
@@ -161,6 +168,11 @@ export class RideUpiPaymentUseCase {
     await this.deps.unitOfWork.run(async () => {
       const fresh = await this.ownedRide(rideId, ride.bookerRiderId);
       if (fresh.status === 'SETTLED' || (await this.cashSelected(rideId))) return;
+      if (!cashAllowedForArrears(
+        getRiderUnpaidArrearsPaise(await this.deps.walletRepo.findByRiderId(fresh.bookerRiderId)),
+        resolveCancellationPolicy(fresh.pricingSnapshot).cancellationFeePaise,
+      ))
+        throw AppError.conflict('Cash is unavailable until cancellation fee arrears are paid online.');
       const freshAllowed =
         fresh.status === 'PAYMENT_PENDING' ||
         fresh.status === 'PAYMENT_CASH_CLAIMED' ||

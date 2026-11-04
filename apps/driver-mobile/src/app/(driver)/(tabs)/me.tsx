@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import {
   ActivityIndicator,
   Image,
+  Linking,
   Modal,
   Pressable,
   ScrollView,
@@ -108,7 +109,7 @@ export default function DriverMeTab() {
     },
     {
       label: 'Terms, Privacy & Platform Rules',
-      sub: 'Direct Cash/UPI settlement & 8% commission policy',
+      sub: 'Cash/UPI payment & commission policy',
       icon: 'shield-checkmark-outline' as const,
       href: '/(driver)/account/legal' as const,
     },
@@ -205,6 +206,14 @@ export default function DriverMeTab() {
         >
           <Ionicons name="log-out-outline" size={20} color={colors.error} />
           <Text style={styles.logoutTriggerText}>Log Out of Cabzone Driver</Text>
+        </Pressable>
+        <Pressable
+          style={styles.logoutTrigger}
+          onPress={() => void Linking.openURL('https://cabzone-admin.vercel.app/account-deletion')}
+          accessibilityRole="link"
+          accessibilityLabel="Request account deletion"
+        >
+          <Text style={styles.logoutTriggerText}>Request account deletion</Text>
         </Pressable>
       </ScrollView>
 
