@@ -1137,7 +1137,13 @@ export function RideBookingComposer({ mode }: RideBookingComposerProps) {
           visible
           target={pickerTarget === 'PICKUP' ? 'PICKUP' : 'DROP'}
           token={token}
-          initial={{ lat: pickup.lat, lng: pickup.lng }}
+          initial={
+            pickerTarget === 'DROP' && bookingStarted
+              ? drop
+              : pickerTarget === 'STOP'
+                ? (stops[pickerStopIndex] ?? (bookingStarted ? drop : pickup))
+                : pickup
+          }
           wideSearch={mode === 'OUTSTATION'}
           onClose={() => setPickerOnMap(false)}
           onConfirm={applyPickedLocation}
