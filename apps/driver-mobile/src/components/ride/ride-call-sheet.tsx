@@ -5,6 +5,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 import type { CallViewMode } from '@/services/ride-call';
+import { createStyles } from '@/design-system';
 
 export interface RideCallSheetProps {
   viewMode: Exclude<CallViewMode, 'idle'>;
@@ -311,7 +312,7 @@ export function RideCallSheet(props: RideCallSheetProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createStyles(() => ({
   flex: { flex: 1 },
   pressed: { transform: [{ scale: 0.94 }], opacity: 0.9 },
   fullScreen: { ...StyleSheet.absoluteFill, zIndex: 1000, elevation: 20 },
@@ -364,7 +365,7 @@ const styles = StyleSheet.create({
   },
   returnBannerText: { color: '#FFFFFF', fontWeight: '700', fontSize: 14 },
   liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: GREEN },
-  sheetWrap: { position: 'absolute', left: 12, right: 12, bottom: 20, zIndex: 1000 },
+  sheetWrap: { position: 'absolute', left: 12, right: 12, top: 52, zIndex: 1000 },
   sheet: {
     backgroundColor: '#FFFFFF',
     borderRadius: 28,
@@ -392,4 +393,4 @@ const styles = StyleSheet.create({
     backgroundColor: '#F1ECE6',
   },
   controlsRow: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'flex-start' },
-});
+}));

@@ -39,6 +39,12 @@ for (const app of ['driver-mobile', 'rider-mobile']) {
     };
     context.require.resolve = localRequire.resolve;
     vm.runInNewContext(readFileSync(configUrl, 'utf8'), context);
+    if (env.EAS_BUILD_PROFILE === 'production') {
+      assert.throws(() => context.module.exports({ config: {} }), /HTTPS API origin/);
+      env.EXPO_PUBLIC_API_URL = 'http://api.example.com';
+      assert.throws(() => context.module.exports({ config: {} }), /HTTPS API origin/);
+      env.EXPO_PUBLIC_API_URL = 'https://api.example.com';
+    }
     const resolved = context.module.exports({ config: {} });
     resolved.plugins.find((plugin) => typeof plugin === 'function')(resolved);
     const application = { $: {} };

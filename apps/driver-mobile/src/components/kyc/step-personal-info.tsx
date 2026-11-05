@@ -1,4 +1,4 @@
-import { colors, typography } from '@/design-system';
+import { colors, typography, createStyles } from '@/design-system';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
@@ -8,7 +8,6 @@ import {
   Platform,
   Pressable,
   ScrollView,
-  StyleSheet,
   Text,
   TextInput,
   View,
@@ -839,7 +838,7 @@ export function StepPersonalInfo({ draft, onUpdate, onNext, onClose }: StepPerso
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createStyles(() => ({
   container: {
     flex: 1,
     backgroundColor: colors.background,
@@ -1342,4 +1341,4 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.base,
     fontWeight: '800',
   },
-});
+}));

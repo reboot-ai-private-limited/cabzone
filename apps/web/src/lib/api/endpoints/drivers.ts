@@ -4,6 +4,8 @@ import type {
   DocumentVerificationStatus,
   DriverApplicationStatus,
   RejectionType,
+  TrustScoreBreakdownDto,
+  TrustTier,
   VehicleCategory,
 } from '@cabzone/contracts';
 import { API_BASE_URL, request } from '../client.js';
@@ -39,6 +41,8 @@ export interface DriverApplicationSummaryDto {
     ratingAverage: number | null;
     ratingCount: number;
     trustScore?: number | null | undefined;
+    trustTier?: TrustTier | null | undefined;
+    trustScoreBreakdown?: TrustScoreBreakdownDto | null | undefined;
   } | null;
   phoneE164: string | null;
   alternatePhone?: string | null;
@@ -125,7 +129,12 @@ export function resolvePreviewContentUrl(
 
   let base: URL;
   try {
-    base = new URL(apiBaseUrl);
+    // A relative base (e.g. "/api" behind the Next.js proxy) resolves against the page origin.
+    const origin =
+      typeof window !== 'undefined' && window.location?.origin
+        ? window.location.origin
+        : 'http://localhost:3000';
+    base = new URL(apiBaseUrl, origin);
   } catch {
     return null;
   }

@@ -300,7 +300,7 @@ test('resolveRiderCancellationPreview reflects grace window and arrival fee from
   assert.equal(arrived.feePaise, 4000);
 });
 
-test('resolveRideCashAvailability always allows cash or UPI even when arrears apply', () => {
+test('resolveRideCashAvailability blocks cash at the cancellation fee threshold', () => {
   const lowArrears = resolveRideCashAvailability({
     arrearsPaise: 2000,
     pricingSnapshot: { cancellationFeePaise: 5000 },
@@ -312,9 +312,11 @@ test('resolveRideCashAvailability always allows cash or UPI even when arrears ap
     arrearsPaise: 5000,
     pricingSnapshot: { cancellationFeePaise: 5000 },
   });
-  assert.equal(highArrears.cashAllowed, true);
+  assert.equal(highArrears.cashAllowed, false);
   assert.equal(highArrears.arrearsPaise, 5000);
-  assert.equal(highArrears.reason, null);
+  assert.match(highArrears.reason, /Pay online/);
+
+  assert.equal(resolveRideCashAvailability({ arrearsPaise: 5000, pricingSnapshot: { cancellationFeePaise: 0 } }).cashAllowed, true);
 });
 
 test('isRideWithinRatingWindow enforces the 7-day post-settlement window', () => {

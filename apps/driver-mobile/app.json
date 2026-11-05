@@ -55,7 +55,7 @@
           "icon": "./assets/images/android-icon-monochrome.png",
           "color": "#1A0A00",
           "defaultChannel": "ride-offers",
-          "sounds": []
+          "sounds": ["./assets/sfx/ring_long.wav"]
         }
       ]
     ],

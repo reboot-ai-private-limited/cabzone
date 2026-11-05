@@ -5,11 +5,11 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
-  StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
 import {
@@ -18,8 +18,13 @@ import {
   type RideChatMessageDto,
 } from '@cabzone/contracts';
 import { rideChatApi } from '@/services/api';
-import { isChatAccessError, mergeChatMessages, newChatMessageId } from '@/services/ride-chat';
-import { colors } from '@/design-system';
+import {
+  contactInitials,
+  isChatAccessError,
+  mergeChatMessages,
+  newChatMessageId,
+} from '@/services/ride-chat';
+import { colors, createStyles } from '@/design-system';
 
 type Pending = { key: string; text: string; failed: boolean };
 
@@ -217,25 +222,30 @@ export function RideChatScreen({
           accessibilityRole="button"
           accessibilityLabel="Back to ride"
           onPress={() => router.back()}
-          style={styles.button}
+          style={styles.iconButton}
         >
-          <Text style={styles.label}>Back</Text>
+          <Ionicons name="arrow-back" size={22} color={colors.deepBrown} />
         </Pressable>
-        <Text style={styles.title} numberOfLines={2}>
-          {name}
-        </Text>
+        <View style={styles.avatar}>
+          <Text style={styles.avatarText}>{contactInitials(name)}</Text>
+        </View>
+        <View style={styles.headerCopy}>
+          <Text style={styles.title} numberOfLines={1}>
+            {name}
+          </Text>
+          <Text style={styles.subtitle}>Private ride chat · phone numbers are hidden</Text>
+        </View>
         {!closed && onCall ? (
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={role === 'RIDER' ? 'Call driver' : 'Call passenger'}
             onPress={onCall}
-            style={styles.button}
+            style={[styles.iconButton, styles.callButton]}
           >
-            <Text style={styles.label}>Call</Text>
+            <Ionicons name="call" size={19} color={colors.deepBrown} />
           </Pressable>
         ) : null}
       </View>
-      <Text style={styles.notice}>Private ride chat · phone numbers are hidden</Text>
       <KeyboardAvoidingView
         style={styles.body}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -273,10 +283,12 @@ export function RideChatScreen({
           ListHeaderComponent={
             pending ? (
               <View style={[styles.bubble, styles.mine]}>
-                <Text selectable={false} style={styles.text}>
+                <Text selectable={false} style={[styles.text, styles.textMine]}>
                   {pending.text}
                 </Text>
-                <Text style={styles.time}>{pending.failed ? 'Not sent' : 'Sending…'}</Text>
+                <Text style={[styles.time, styles.timeMine]}>
+                  {pending.failed ? 'Not sent' : 'Sending…'}
+                </Text>
                 {pending.failed ? (
                   <View style={styles.row}>
                     <Pressable
@@ -285,7 +297,7 @@ export function RideChatScreen({
                       style={styles.button}
                       onPress={() => void submit(pending)}
                     >
-                      <Text style={styles.label}>Retry</Text>
+                      <Text style={[styles.label, styles.textMine]}>Retry</Text>
                     </Pressable>
                     <Pressable
                       accessibilityRole="button"
@@ -293,7 +305,7 @@ export function RideChatScreen({
                       style={styles.button}
                       onPress={() => setPending(null)}
                     >
-                      <Text style={styles.label}>Discard</Text>
+                      <Text style={[styles.label, styles.textMine]}>Discard</Text>
                     </Pressable>
                   </View>
                 ) : null}
@@ -313,18 +325,22 @@ export function RideChatScreen({
               </Pressable>
             ) : undefined
           }
-          renderItem={({ item }) => (
-            <View
-              style={[styles.bubble, item.senderRole === role ? styles.mine : styles.theirs]}
-            >
-              <Text selectable={false} style={styles.text}>
-                {item.text}
-              </Text>
-              <Text style={styles.time}>
-                {`${item.senderRole === role ? 'You' : role === 'RIDER' ? 'Driver' : 'Rider'} · ${new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
-              </Text>
-            </View>
-          )}
+          renderItem={({ item }) => {
+            const mine = item.senderRole === role;
+            return (
+              <View style={[styles.bubble, mine ? styles.mine : styles.theirs]}>
+                <Text selectable={false} style={[styles.text, mine && styles.textMine]}>
+                  {item.text}
+                </Text>
+                <Text style={[styles.time, mine && styles.timeMine]}>
+                  {new Date(item.createdAt).toLocaleTimeString([], {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </Text>
+              </View>
+            );
+          }}
         />
         {!closed ? (
           <>
@@ -359,12 +375,16 @@ export function RideChatScreen({
                 accessibilityLabel="Send message"
                 disabled={!valid || !!pending}
                 onPress={() => void submit()}
-                style={[styles.button, (!valid || !!pending) && styles.disabled]}
+                style={[styles.sendButton, (!valid || !!pending) && styles.disabled]}
               >
-                <Text style={styles.label}>Send</Text>
+                <Ionicons name="send" size={18} color={colors.deepBrown} />
               </Pressable>
             </View>
-            <Text style={styles.count}>{`${trimmedLength}/${RIDE_CHAT_MAX_LENGTH}`}</Text>
+            {trimmedLength > RIDE_CHAT_MAX_LENGTH - 60 ? (
+              <Text style={[styles.count, !valid && styles.countOver]}>
+                {`${trimmedLength}/${RIDE_CHAT_MAX_LENGTH}`}
+              </Text>
+            ) : null}
           </>
         ) : null}
       </KeyboardAvoidingView>
@@ -372,17 +392,38 @@ export function RideChatScreen({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createStyles(() => ({
   page: { flex: 1, backgroundColor: colors.background },
   body: { flex: 1 },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 10,
     paddingHorizontal: 12,
+    paddingVertical: 8,
     borderBottomWidth: 1,
     borderColor: colors.border,
   },
-  title: { flex: 1, fontSize: 19, fontWeight: '600', color: colors.text, padding: 12 },
+  iconButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  callButton: { backgroundColor: colors.softAmber },
+  avatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.amber,
+  },
+  avatarText: { fontSize: 15, fontWeight: '800', color: colors.deepBrown },
+  headerCopy: { flex: 1 },
+  title: { fontSize: 17, fontWeight: '700', color: colors.text },
+  subtitle: { fontSize: 12, color: colors.secondary, marginTop: 1 },
   notice: { color: colors.secondary, padding: 14, textAlign: 'center', fontSize: 14 },
   banner: {
     flexDirection: 'row',
@@ -391,19 +432,26 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   error: { flex: 1, color: colors.error, fontSize: 15 },
-  list: { padding: 16, flexGrow: 1 },
+  list: { paddingHorizontal: 14, paddingVertical: 12, flexGrow: 1 },
   bubble: {
-    padding: 12,
-    borderRadius: 14,
-    marginVertical: 5,
-    maxWidth: '88%',
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 20,
+    marginVertical: 3,
+    maxWidth: '82%',
+  },
+  mine: { alignSelf: 'flex-end', backgroundColor: colors.deepBrown, borderBottomRightRadius: 6 },
+  theirs: {
+    alignSelf: 'flex-start',
+    backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
+    borderBottomLeftRadius: 6,
   },
-  mine: { alignSelf: 'flex-end', backgroundColor: colors.softAmber },
-  theirs: { alignSelf: 'flex-start', backgroundColor: colors.surface },
-  text: { fontSize: 16, lineHeight: 23, color: colors.text },
-  time: { marginTop: 5, fontSize: 12, color: colors.secondary },
+  text: { fontSize: 16, lineHeight: 22, color: colors.text },
+  textMine: { color: colors.white },
+  time: { marginTop: 3, fontSize: 11, color: colors.secondary, alignSelf: 'flex-end' },
+  timeMine: { color: colors.softAmber },
   row: { flexDirection: 'row' },
   button: {
     minHeight: 48,
@@ -413,24 +461,39 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   label: { color: colors.deepBrown, fontSize: 15, fontWeight: '600' },
-  quick: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, paddingHorizontal: 12 },
+  quick: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: 12, paddingTop: 6 },
   chip: {
-    minHeight: 48,
+    minHeight: 40,
     justifyContent: 'center',
-    paddingHorizontal: 10,
+    paddingHorizontal: 14,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 12,
+    borderRadius: 20,
+    backgroundColor: colors.surface,
   },
   composer: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-end',
+    gap: 8,
     margin: 12,
+    paddingLeft: 14,
+    paddingRight: 6,
+    paddingVertical: 4,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 12,
+    borderRadius: 26,
+    backgroundColor: colors.surface,
   },
-  input: { flex: 1, minHeight: 48, maxHeight: 120, padding: 12, fontSize: 16, color: colors.text },
+  input: { flex: 1, minHeight: 44, maxHeight: 120, paddingVertical: 10, fontSize: 16, color: colors.text },
+  sendButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.amber,
+  },
   disabled: { opacity: 0.45 },
   count: { textAlign: 'right', marginRight: 20, marginBottom: 6, color: colors.secondary },
-});
+  countOver: { color: colors.error },
+}));

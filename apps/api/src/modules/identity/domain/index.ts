@@ -19,3 +19,5 @@ export * from './driverDocument.port.js';
 export * from './kycAudit.port.js';
 export * from './resolveUserRole.js';
 export * from './trustScore.calculator.js';
+export * from './trustSnapshot.js';
+export * from './trustScore.v2.js';

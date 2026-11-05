@@ -1,4 +1,5 @@
-import { env, isProdLike } from '@/config/env.js';
+import { env, isProdLike, walletMoneyEnabled } from '@/config/env.js';
+import { TrustScoreService } from '@/modules/identity/application/trustScore.service.js';
 import { MongoUnitOfWork } from '@/shared/db/unitOfWork.js';
 import { buildHealthContainer } from '@/modules/health/health.container.js';
 import {
@@ -36,6 +37,7 @@ import { MongoPushReceiptRepository } from '@/modules/dispatch/infrastructure/pu
 import { MongoPaymentRepository, MongoWalletRepository } from '@/modules/ledger/index.js';
 import { buildLedgerContainer, type LedgerContainer } from '@/modules/ledger/ledger.container.js';
 import { RazorpayGateway } from '@/modules/rides/infrastructure/razorpay.adapter.js';
+import { RazorpayXPayoutGateway } from '@/modules/ledger/infrastructure/razorpayPayout.adapter.js';
 import {
   MongoRideEventRepository,
   MongoRideRepository,
@@ -72,6 +74,12 @@ export function buildContainers(overrides?: Partial<AppContainers>): AppContaine
   const documentRepo = new MongoDriverDocumentRepository();
   const rideRepo = new MongoRideRepository();
   const walletRepo = new MongoWalletRepository();
+  // One trust score service for the whole API. Ride writes that can change a score schedule a refresh.
+  const trustScore = new TrustScoreService({ riderRepo, driverRepo, rideRepo, mode: env.TRUST_SCORE_V2 });
+  rideRepo.onTerminalTransition = (ride) => {
+    trustScore.schedule('RIDER', ride.bookerRiderId);
+    if (ride.driverId) trustScore.schedule('DRIVER', ride.driverId);
+  };
   const presenceRepo = new RedisPresenceRepository(getRedis, 120, isProdLike);
 
   const health = overrides?.health ?? buildHealthContainer();
@@ -133,6 +141,7 @@ export function buildContainers(overrides?: Partial<AppContainers>): AppContaine
   const identity =
     overrides?.identity ??
     buildIdentityContainer({
+      trustScore,
       unitOfWork,
       riderRepo,
       driverRepo,
@@ -210,8 +219,26 @@ export function buildContainers(overrides?: Partial<AppContainers>): AppContaine
       walletPaymentGateway: new RazorpayGateway(
         env.RAZORPAY_KEY_ID ?? '',
         env.RAZORPAY_KEY_SECRET ?? '',
-        !isProdLike && env.RAZORPAY_MODE === 'test',
+        walletMoneyEnabled,
+        env.RAZORPAY_MODE,
       ),
+      walletPayoutGateway:
+        walletMoneyEnabled && env.RAZORPAY_KEY_ID && env.RAZORPAY_KEY_SECRET && env.RAZORPAYX_ACCOUNT_NUMBER
+          ? new RazorpayXPayoutGateway(
+              env.RAZORPAY_KEY_ID,
+              env.RAZORPAY_KEY_SECRET,
+              env.RAZORPAYX_ACCOUNT_NUMBER,
+            )
+          : undefined,
+      driverContact: async (driverId) => {
+        const driver = await driverRepo.findById(driverId);
+        if (!driver) return null;
+        const user = await UserModel.findById(driver.userId).lean();
+        return {
+          name: driver.name ?? 'Cabzone driver',
+          phone: user?.phone_e164 ?? null,
+        };
+      },
       unitOfWork,
       walletRepo,
       resolveDriverId,
@@ -275,6 +302,10 @@ export function buildContainers(overrides?: Partial<AppContainers>): AppContaine
       walletRepo: ledger.walletRepo,
       isDevMode: isDevRuntime,
       lookups: {
+        getRiderTrustTier: async (riderIds) => {
+          const tiers = await trustScore.getPublicTiers('RIDER', riderIds);
+          return new Map([...tiers].map(([id, t]) => [id, t.tier]));
+        },
         getDriverProfileByUserId: async (userId) => {
           const driver = await driverRepo.findByUserId(userId);
           if (!driver) return null;
@@ -329,6 +360,7 @@ export function buildContainers(overrides?: Partial<AppContainers>): AppContaine
       chatMessages: new MongoRideChatRepository(),
       consumeChatRateLimit: (userId) =>
         chatRateLimiter.consume(`ride-chat:${userId}`, RIDE_CHAT_RATE_LIMIT_PER_MIN, 60_000),
+      driverLocation: env.RIDE_GEOFENCE_ENABLED ? presenceRepo : undefined,
       notifyChat: (ride, message) => dispatch.notifier.chatMessage(ride, message),
       callRecords: new MongoRideCallRepository(),
       getUserIdForRider: async (riderId) => (await riderRepo.findById(riderId))?.userId ?? null,
@@ -374,7 +406,7 @@ export function buildContainers(overrides?: Partial<AppContainers>): AppContaine
               event === 'incoming'
                 ? 'Tap to answer privately in Cabzone.'
                 : 'Your private ride call has ended.',
-            channelId: 'ride-calls',
+            channelId: event === 'incoming' ? 'ride-calls-ring' : 'ride-calls',
             data,
             expiresAt:
               event === 'incoming'
@@ -420,39 +452,14 @@ export function buildContainers(overrides?: Partial<AppContainers>): AppContaine
       rideReviewRepo: new MongoRideReviewRepository(),
       paymentRepo: new MongoPaymentRepository(),
       applyRevealedProfileRating: async (targetRole, targetId, stars) => {
-        if (targetRole === 'DRIVER') {
-          if (driverRepo.applyRevealedRating) {
-            await driverRepo.applyRevealedRating(targetId, stars);
-            return;
-          }
-          const driver = await driverRepo.findById(targetId);
-          if (!driver) return;
-          const prevCount = driver.ratingCount > 0 ? driver.ratingCount : 0;
-          const prevAvg = prevCount > 0 && driver.ratingAverage !== null ? driver.ratingAverage : 0;
-          const nextCount = prevCount + 1;
-          const nextAvg = Number(((prevAvg * prevCount + stars) / nextCount).toFixed(2));
-          await driverRepo.update({
-            ...driver,
-            ratingCount: nextCount,
-            ratingAverage: nextAvg,
-          });
-          return;
+        // Single atomic update per repository (sum and count together, average derived).
+        const repo = targetRole === 'DRIVER' ? driverRepo : riderRepo;
+        if (!repo.applyRevealedRating) {
+          throw new Error('applyRevealedRating is required to record ratings.');
         }
-        if (riderRepo.applyRevealedRating) {
-          await riderRepo.applyRevealedRating(targetId, stars);
-          return;
-        }
-        const rider = await riderRepo.findById(targetId);
-        if (!rider) return;
-        const prevCount = rider.ratingCount > 0 ? rider.ratingCount : 0;
-        const prevAvg = prevCount > 0 && rider.ratingAverage !== null ? rider.ratingAverage : 0;
-        const nextCount = prevCount + 1;
-        const nextAvg = Number(((prevAvg * prevCount + stars) / nextCount).toFixed(2));
-        await riderRepo.update({
-          ...rider,
-          ratingCount: nextCount,
-          ratingAverage: nextAvg,
-        });
+        await repo.applyRevealedRating(targetId, stars);
+        // The score depends on ratings; refresh it once the surrounding transaction has committed.
+        trustScore.schedule(targetRole === 'DRIVER' ? 'DRIVER' : 'RIDER', targetId);
       },
       walletRepo: ledger.walletRepo,
       pricingConfigRepo: pricing.pricingConfigRepo,
@@ -473,6 +480,10 @@ export function buildContainers(overrides?: Partial<AppContainers>): AppContaine
           profilePhotoUrl: driver.profilePhotoUrl ?? null,
           ratingAverage: driver.ratingCount > 0 ? driver.ratingAverage : null,
           ratingCount: driver.ratingCount,
+          trustTier:
+            driver.trustBreakdown?.isPublic && driver.trustBreakdown.tier !== 'UNRATED'
+              ? driver.trustBreakdown.tier
+              : null,
           vehicle: vehicle
             ? {
                 vehicleId: vehicle.id,

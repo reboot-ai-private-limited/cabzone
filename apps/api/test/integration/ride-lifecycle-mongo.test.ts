@@ -1055,7 +1055,7 @@ describe('MongoDB Atomic Claim & Lifecycle Integration Test (rs0 Replica Set)', 
       expect(riderWalletDoc?.owed_paise).toBe(5000);
     });
 
-    it('keeps cash fallback available at >= threshold, recovers full arrears via UPI without charging commission on arrears, and clears arrears thereafter', async () => {
+    it('blocks cash at the threshold, recovers full arrears via UPI, and clears arrears thereafter', async () => {
       // 1. Incur ₹50 late cancellation fee on ride 1
       const ride1 = await createInitialRide();
       const claim1 = await acceptRideUseCase.execute({ rideId: ride1.id, driverId: DRIVER_ID_1 });
@@ -1067,7 +1067,7 @@ describe('MongoDB Atomic Claim & Lifecycle Integration Test (rs0 Replica Set)', 
         cancelledAt: new Date(claim1.ride.acceptedAt!.getTime() + 180000),
       });
 
-      // 2. Next quote surfaces arrears while keeping cashAllowed = true
+      // 2. Next quote surfaces arrears and blocks cash.
       const pickup = { lat: 26.71, lng: 88.42, address: 'Hill Cart Road' };
       const drop = { lat: 26.75, lng: 88.45, address: 'Sevoke Road' };
       const quote2 = await quoteUseCase.execute({
@@ -1078,7 +1078,7 @@ describe('MongoDB Atomic Claim & Lifecycle Integration Test (rs0 Replica Set)', 
       });
       expect(quote2.arrearsPaise).toBe(5000);
       expect(quote2.totalEstimatedPayablePaise).toBe(quote2.suggestedFarePaise + 5000);
-      expect(quote2.cashAllowed).toBe(true);
+      expect(quote2.cashAllowed).toBe(false);
 
       // 3. Create ride 2, progress to PAYMENT_PENDING
       const ride2 = await createRideUseCase.execute({

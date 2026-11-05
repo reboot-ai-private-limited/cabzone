@@ -8,7 +8,7 @@ import {
   type TextStyle,
   type ViewStyle,
 } from 'react-native';
-import { colors, motion } from '@/design-system';
+import { colors, motion, createStyles } from '@/design-system';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 
 export interface CabzonButtonProps {
@@ -57,6 +57,10 @@ export function CabzonButton({
 
   const isDisabled = disabled || loading;
 
+  // Layout props (flex/width) must size the outer wrapper, otherwise buttons in a row collapse to content width.
+  const { flex, flexGrow, flexShrink, flexBasis, width, alignSelf, ...innerStyle } =
+    StyleSheet.flatten(style) ?? {};
+
   const getBackgroundColor = () => {
     if (isDisabled) return colors.lightBlue;
     switch (variant) {
@@ -90,7 +94,9 @@ export function CabzonButton({
   };
 
   return (
-    <Animated.View style={{ transform: [{ scale }] }}>
+    <Animated.View
+      style={{ transform: [{ scale }], flex, flexGrow, flexShrink, flexBasis, width, alignSelf }}
+    >
       <Pressable
         onPress={onPress}
         onPressIn={handlePressIn}
@@ -104,20 +110,20 @@ export function CabzonButton({
           { backgroundColor: getBackgroundColor() },
           variant === 'ghost' && styles.ghostBorder,
           (variant === 'secondary' || isDisabled) && styles.secondaryBorder,
-          style,
+          innerStyle,
         ]}
       >
         {loading ? (
           <ActivityIndicator
             size="small"
-            color={variant === 'secondary' || variant === 'primary' ? colors.deepBrown : colors.white}
+            color={
+              variant === 'secondary' || variant === 'primary' ? colors.deepBrown : colors.white
+            }
           />
         ) : (
           <>
             {icon}
-            <Text style={[styles.text, { color: getTextColor() }, textStyle]}>
-              {title}
-            </Text>
+            <Text style={[styles.text, { color: getTextColor() }, textStyle]}>{title}</Text>
           </>
         )}
       </Pressable>
@@ -125,7 +131,7 @@ export function CabzonButton({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createStyles(() => ({
   button: {
     height: 52,
     borderRadius: 8,
@@ -146,4 +152,4 @@ const styles = StyleSheet.create({
     borderColor: colors.deepBrown,
   },
   secondaryBorder: { borderWidth: 1, borderColor: colors.border },
-});
+}));

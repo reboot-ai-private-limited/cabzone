@@ -2,6 +2,8 @@
 apps/driver-mobile
 apps/rider-mobile
 apps/api
+release-apks
+store-listing
 .cxx
 .turbo
 android

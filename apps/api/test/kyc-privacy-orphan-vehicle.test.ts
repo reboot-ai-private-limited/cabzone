@@ -620,7 +620,7 @@ describe('C04: KYC private storage deletion, vehicle-change safeguards, and prev
     );
     expect(streamRes.headers['pragma']).toBe('no-cache');
     expect(streamRes.headers['referrer-policy']).toBe('no-referrer');
-    expect(streamRes.headers['cross-origin-resource-policy']).toBe('same-origin');
+    expect(streamRes.headers['cross-origin-resource-policy']).toBe('cross-origin');
 
     const logInfoSpy = vi.spyOn(logger, 'info');
     const badSigSecret = 'leaked-preview-sig-secret-value-999999';

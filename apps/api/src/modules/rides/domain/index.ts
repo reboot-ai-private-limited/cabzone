@@ -7,6 +7,8 @@ export * from './ride.port.js';
 export * from './rideEvent.port.js';
 export * from './rideReview.port.js';
 export * from './cancellationFee.service.js';
+export * from './cancellationPolicy.js';
+export * from './tripStats.js';
 export * from './rideNotifier.port.js';
 export * from './pickupOtp.js';
 export * from './rideCall.port.js';

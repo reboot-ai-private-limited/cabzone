@@ -40,6 +40,7 @@ export class ExpireOffersUseCase {
             ...current,
             status: 'EXPIRED',
             cancellationReason: 'TIMEOUT_EXPIRED',
+            cancelledBy: 'SYSTEM',
             updatedAt: now,
             version: current.version + 1,
           },

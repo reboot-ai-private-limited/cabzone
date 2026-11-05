@@ -100,14 +100,19 @@ export interface WalletOperationDto {
   id: string;
   driverId: string;
   kind: 'RECHARGE' | 'CASHOUT';
-  status: 'CREATED' | 'PENDING' | 'COMPLETED' | 'REJECTED';
+  status: 'CREATED' | 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'REJECTED';
   amountPaise: number;
   rechargePaise: number;
   earningsPaise: number;
   destinationUpi: string | null;
+  /** How a cashout is paid: UPI ID or bank account (IMPS). Recharges are always 'UPI'. */
+  destinationType: 'UPI' | 'BANK';
+  /** Human-readable payout destination, e.g. "driver@upi" or "Bank ****1234 (HDFC0001234)". */
+  destinationLabel: string | null;
   transferReference: string | null;
   reason: string | null;
-  testMode: true;
+  /** True only when the server runs against Razorpay test keys. */
+  testMode: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -119,7 +124,8 @@ export interface DriverWalletActivityDto {
   pendingCashoutPaise: number;
   cashoutBlockedReason: string | null;
   operations: WalletOperationDto[];
-  testMode: true;
+  /** True only when the server runs against Razorpay test keys. */
+  testMode: boolean;
 }
 
 export interface FinanceStatsDto {

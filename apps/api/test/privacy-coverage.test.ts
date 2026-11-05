@@ -1018,7 +1018,7 @@ describe('Phase 6 (P06) — Complete Privacy Coverage', () => {
       .post('/api/v1/driver/wallet/me/cashouts')
       .set('Authorization', f.driverAuth)
       .send({
-        amountPaise: 15000,
+        amountPaise: 20000,
         destinationUpi: 'raju.driver@okaxis',
         idempotencyKey: 'cashout-named-upi-2',
       });

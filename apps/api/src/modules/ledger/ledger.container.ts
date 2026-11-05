@@ -19,13 +19,15 @@ import {
   makeMyWalletTransactionsController,
 } from './interface/ledger.controller.js';
 import { buildAdminWalletRouter, buildDriverWalletRouter } from './interface/ledger.routes.js';
-import { env, isProdLike } from '../../config/env.js';
+import { env, walletMoneyEnabled } from '../../config/env.js';
 import { WalletMoneyUseCase } from './application/useCases/walletMoney.usecase.js';
 import { WalletRechargeTickets } from './infrastructure/walletRechargeTickets.js';
+import { toProviderPayout } from './infrastructure/razorpayPayout.adapter.js';
 import { MongoWalletOperationRepository } from './infrastructure/persistence/walletOperation.repository.js';
 import type {
   WalletOperationRepository,
   WalletPaymentGateway,
+  WalletPayoutGateway,
 } from './domain/walletOperation.port.js';
 import { walletMoneyControllers } from './interface/walletMoney.controller.js';
 import { registerWalletMoneySwaggerPaths } from './interface/walletMoney.swagger.js';
@@ -38,6 +40,9 @@ export interface LedgerLookups {
 export interface LedgerContainerDeps {
   walletOperations?: WalletOperationRepository;
   walletPaymentGateway?: WalletPaymentGateway;
+  /** RazorpayX payouts; when absent, cashouts are settled manually by Finance. */
+  walletPayoutGateway?: WalletPayoutGateway | undefined;
+  driverContact?: ((driverId: string) => Promise<{ name: string; phone: string | null } | null>) | undefined;
   unitOfWork: UnitOfWorkPort;
   walletRepo: WalletRepositoryPort;
   resolveDriverId: (userId: string) => Promise<string | null>;
@@ -65,11 +70,12 @@ export interface LedgerContainer {
 export function buildLedgerContainer(deps: LedgerContainerDeps): LedgerContainer {
   registerWalletMoneySwaggerPaths();
   const operations = deps.walletOperations ?? new MongoWalletOperationRepository();
-  const walletMoneyEnabled = !isProdLike && env.RAZORPAY_MODE === 'test';
   const walletMoneyUseCase = new WalletMoneyUseCase({
     walletRepo: deps.walletRepo,
     operations,
     gateway: deps.walletPaymentGateway,
+    payouts: deps.walletPayoutGateway,
+    driverContact: deps.driverContact,
     unitOfWork: deps.unitOfWork,
     enabled: walletMoneyEnabled,
   });
@@ -77,6 +83,11 @@ export function buildLedgerContainer(deps: LedgerContainerDeps): LedgerContainer
     walletMoneyUseCase,
     new WalletRechargeTickets(env.JWT_ACCESS_SECRET),
     deps.resolveDriverId,
+    toProviderPayout,
+    [env.RAZORPAY_WEBHOOK_SECRET, env.RAZORPAYX_WEBHOOK_SECRET].filter(
+      (secret): secret is string => Boolean(secret),
+    ),
+    !deps.walletPaymentGateway?.live,
   );
   const adminAdjustWalletUseCase = new AdminAdjustWalletUseCase(deps.walletRepo, deps.unitOfWork);
   const getWalletUseCase = new GetWalletUseCase(deps.walletRepo);

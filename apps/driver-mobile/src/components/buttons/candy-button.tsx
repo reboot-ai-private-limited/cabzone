@@ -3,14 +3,13 @@ import {
   ActivityIndicator,
   Animated,
   Pressable,
-  StyleSheet,
   Text,
   View,
   type StyleProp,
   type TextStyle,
   type ViewStyle,
 } from 'react-native';
-import { colors } from '@/design-system';
+import { colors, createStyles } from '@/design-system';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 
 export type CandyButtonVariant = 'primary' | 'espresso' | 'muted';
@@ -101,7 +100,7 @@ export function CandyButton({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createStyles(() => ({
   glow: {
     borderRadius: 8,
     shadowColor: colors.darkNavy,
@@ -144,6 +143,6 @@ const styles = StyleSheet.create({
     color: colors.secondary,
     fontWeight: '600',
   },
-});
+}));
 
 export default CandyButton;

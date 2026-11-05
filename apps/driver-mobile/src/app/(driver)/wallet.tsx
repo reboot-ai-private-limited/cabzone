@@ -4,7 +4,6 @@ import {
   Pressable,
   RefreshControl,
   ScrollView,
-  StyleSheet,
   Text,
   View,
 } from 'react-native';
@@ -15,7 +14,7 @@ import type { WalletTransactionDto } from '@cabzone/contracts';
 import { useAuth } from '@/context/auth-context';
 import { useDuty } from '@/context/duty-context';
 import { walletApi } from '@/services/api';
-import { colors, typography } from '@/design-system';
+import { colors, typography, createStyles } from '@/design-system';
 import { WalletMoneyPanel } from '@/components/driver/wallet-money-panel';
 
 type TxFilter = 'ALL' | 'DEBIT' | 'CREDIT';
@@ -339,7 +338,7 @@ export default function DriverWalletScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createStyles(() => ({
   container: {
     flex: 1,
     backgroundColor: colors.background,
@@ -581,4 +580,4 @@ const styles = StyleSheet.create({
   disabledBtn: {
     opacity: 0.5,
   },
-});
+}));

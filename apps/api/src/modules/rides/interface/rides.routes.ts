@@ -15,6 +15,8 @@ export interface RidesRouterDeps {
   callWebhook?: RequestHandler;
   proposeExtension?: RequestHandler;
   respondExtension?: RequestHandler;
+  requestEarlyDrop?: RequestHandler;
+  respondEarlyDrop?: RequestHandler;
   authenticate: RequestHandler;
   requireRider: RequestHandler;
   requireDriver: RequestHandler;
@@ -108,6 +110,9 @@ export function buildRidesRouter(deps: RidesRouterDeps): Router {
     router.post('/:id/extensions', deps.requireRider, deps.proposeExtension);
   if (deps.respondExtension)
     router.post('/:id/extensions/:extensionId/respond', deps.requireDriver, deps.respondExtension);
+  if (deps.requestEarlyDrop) router.post('/:id/early-drop', deps.requireRider, deps.requestEarlyDrop);
+  if (deps.respondEarlyDrop)
+    router.post('/:id/early-drop/respond', deps.requireDriver, deps.respondEarlyDrop);
   router.post('/:id/cancel', deps.requireCanCancel, deps.cancelRide);
   router.post('/:id/cancellation-fee/waive', deps.requireWaiverAdmin, deps.waiveCancellationFee);
 

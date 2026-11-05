@@ -4,7 +4,6 @@ import {
   Pressable,
   RefreshControl,
   ScrollView,
-  StyleSheet,
   Text,
   View,
 } from 'react-native';
@@ -15,7 +14,7 @@ import type { DriverEarningsPeriod, DriverEarningsSummaryDto } from '@cabzone/co
 import { useAuth } from '@/context/auth-context';
 import { useDuty } from '@/context/duty-context';
 import { ridesApi } from '@/services/api';
-import { colors, typography } from '@/design-system';
+import { colors, typography, createStyles } from '@/design-system';
 
 const PERIOD_TABS: { key: DriverEarningsPeriod; label: string }[] = [
   { key: 'TODAY', label: 'Today' },
@@ -27,7 +26,8 @@ const PERIOD_TABS: { key: DriverEarningsPeriod; label: string }[] = [
 export default function DriverEarningsTab() {
   const router = useRouter();
   const { token } = useAuth();
-  const { walletBalancePaise, walletTransactions, summaryError, refreshSummary } = useDuty();
+  const { walletBalancePaise, walletEarningsBalancePaise, walletTransactions, summaryError, refreshSummary } =
+    useDuty();
   const [period, setPeriod] = useState<DriverEarningsPeriod>('TODAY');
   const [summary, setSummary] = useState<DriverEarningsSummaryDto | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -291,10 +291,18 @@ export default function DriverEarningsTab() {
               <Ionicons name="wallet-outline" size={22} color={colors.deepBrown} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.walletLabel}>Platform Commission & Earnings Wallet</Text>
+              <Text style={styles.walletLabel}>Withdrawable earnings</Text>
+              <Text style={styles.walletBalance}>
+                {walletEarningsBalancePaise != null
+                  ? `₹${(walletEarningsBalancePaise / 100).toFixed(2)}`
+                  : '—'}
+              </Text>
+              <Text style={[styles.walletLabel, { marginTop: 8 }]}>
+                Recharge balance (covers commission)
+              </Text>
               <Text
                 style={[
-                  styles.walletBalance,
+                  styles.walletSecondaryBalance,
                   walletBalancePaise != null && walletBalancePaise < 0
                     ? { color: colors.error }
                     : null,
@@ -308,13 +316,14 @@ export default function DriverEarningsTab() {
               ) : null}
             </View>
             <View style={styles.walletOpenPill}>
-              <Text style={styles.walletOpenText}>Full Ledger →</Text>
+              <Text style={styles.walletOpenText}>Add / Cash out →</Text>
             </View>
           </View>
           <Text style={styles.walletExplain}>
-            Cash trip commission is deducted from your recharge balance; Razorpay online UPI trip
-            payouts credit your withdrawable earnings bucket directly. Wallet top-ups and cashouts
-            never alter trip earnings above.
+            Online UPI trips add your net earnings (fare minus commission) to withdrawable earnings.
+            Cash trips are already with you, so only their commission is deducted, from your
+            recharge balance. A cashout uses withdrawable earnings first, then recharge credit.
+            Net earnings above include cash trips, but only online earnings can be withdrawn.
           </Text>
         </Pressable>
 
@@ -341,9 +350,7 @@ export default function DriverEarningsTab() {
               return (
                 <View key={tx.id} style={styles.txRow}>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.txTitle}>
-                      {tx.referenceType ? tx.referenceType.replace(/_/g, ' ') : tx.type}
-                    </Text>
+                    <Text style={styles.txTitle}>{ledgerTitle(tx.referenceType, tx.type)}</Text>
                     <Text style={styles.txSub}>
                       {new Date(tx.createdAt).toLocaleString('en-IN', {
                         day: 'numeric',
@@ -371,7 +378,21 @@ export default function DriverEarningsTab() {
   );
 }
 
-const styles = StyleSheet.create({
+const LEDGER_TITLES: Record<string, string> = {
+  RIDE_COMMISSION: 'Commission on cash trip',
+  ONLINE_RIDE_EARNINGS: 'Online trip earnings',
+  WALLET_RECHARGE: 'Wallet top-up',
+  WALLET_CASHOUT: 'Cashout',
+  CASHOUT_REVERSAL: 'Cashout returned',
+  RIDER_ARREARS_COLLECTED: 'Cancellation fee collected in cash',
+};
+
+function ledgerTitle(referenceType: string | null | undefined, type: string): string {
+  if (referenceType && LEDGER_TITLES[referenceType]) return LEDGER_TITLES[referenceType];
+  return referenceType ? referenceType.replace(/_/g, ' ') : type;
+}
+
+const styles = createStyles(() => ({
   container: {
     flex: 1,
     backgroundColor: colors.background,
@@ -617,6 +638,12 @@ const styles = StyleSheet.create({
     color: colors.deepBrown,
     marginTop: 2,
   },
+  walletSecondaryBalance: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.deepBrown,
+    marginTop: 2,
+  },
   walletUnavailableText: {
     fontSize: 11,
     color: colors.brandBrown,
@@ -690,4 +717,4 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.sm,
     fontWeight: '800',
   },
-});
+}));

@@ -344,6 +344,7 @@ export function RidersScreen() {
         <TrustScoreBadge
           score={r.trustScore}
           tier={r.trustScoreBreakdown?.tier}
+          breakdown={r.trustScoreBreakdown}
           size="sm"
         />
       ),

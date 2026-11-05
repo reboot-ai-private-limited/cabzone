@@ -6,7 +6,6 @@ import {
   Image,
   Pressable,
   ScrollView,
-  StyleSheet,
   Switch,
   Text,
   View,
@@ -15,7 +14,7 @@ import { useRouter } from 'expo-router';
 import { useAuth } from '@/context/auth-context';
 import { useDuty } from '@/context/duty-context';
 import { useRide } from '@/context/ride-context';
-import { colors, typography } from '@/design-system';
+import { colors, typography, createStyles } from '@/design-system';
 import { Ionicons } from '@expo/vector-icons';
 import { deriveKycBannerState } from '@/services/profile';
 
@@ -553,7 +552,7 @@ export function DriverHome() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createStyles(() => ({
   container: {
     flex: 1,
     backgroundColor: colors.background,
@@ -1051,4 +1050,4 @@ const styles = StyleSheet.create({
     color: colors.secondary,
     marginTop: 2,
   },
-});
+}));

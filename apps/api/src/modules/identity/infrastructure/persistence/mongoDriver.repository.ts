@@ -1,6 +1,14 @@
-import type { DriverEntity, DriverRepositoryPort } from '../../domain/index.js';
+import type { TrustScoreBreakdownDto, TrustTier } from '@cabzone/contracts';
+import type { DriverEntity, DriverRepositoryPort, TrustSnapshot } from '../../domain/index.js';
 import { DriverModel, type DriverDocument } from './driver.model.js';
 import { AppError } from '../../../../shared/errors/AppError.js';
+
+/** Prefers sum / count so the average never drifts; falls back to the stored average for older rows. */
+function deriveAverage(sum: number | undefined, count: number, stored: number | null): number | null {
+  if (count <= 0) return null;
+  if (typeof sum === 'number' && sum > 0) return Number((sum / count).toFixed(2));
+  return stored;
+}
 
 export class MongoDriverRepository implements DriverRepositoryPort {
   async findById(driverId: string): Promise<DriverEntity | null> {
@@ -45,8 +53,8 @@ export class MongoDriverRepository implements DriverRepositoryPort {
   }
 
   async update(driver: DriverEntity): Promise<DriverEntity> {
-    const ratingCount = driver.ratingCount > 0 ? driver.ratingCount : 0;
-    const ratingAverage = ratingCount > 0 ? driver.ratingAverage : null;
+    // Ratings and trust are written only by applyRevealedRating / saveTrust, so a stale profile
+    // object can never overwrite them.
     const updated = await DriverModel.findOneAndUpdate(
       { _id: driver.id, version: driver.version },
       {
@@ -63,9 +71,6 @@ export class MongoDriverRepository implements DriverRepositoryPort {
         status: driver.status,
         kyc_status: driver.kycStatus,
         operational_status: driver.operationalStatus,
-        rating_average: ratingAverage,
-        rating_count: ratingCount,
-        trust_score: driver.trustScore,
         current_vehicle_id: driver.currentVehicleId,
         version: driver.version + 1,
       },
@@ -82,36 +87,79 @@ export class MongoDriverRepository implements DriverRepositoryPort {
     driverId: string,
     stars: number,
   ): Promise<{ ratingAverage: number; ratingCount: number }> {
-    for (let attempt = 0; attempt < 6; attempt++) {
-      const doc = await DriverModel.findById(driverId).lean<DriverDocument | null>().exec();
-      if (!doc) {
-        throw AppError.notFound('DRIVER_NOT_FOUND: Driver profile not found.');
-      }
-      const prevCount = doc.rating_count > 0 ? doc.rating_count : 0;
-      const prevAvg = prevCount > 0 && doc.rating_average !== null ? doc.rating_average : 0;
-      const nextCount = prevCount + 1;
-      const nextAvg = Number(((prevAvg * prevCount + stars) / nextCount).toFixed(2));
-      const updated = await DriverModel.findOneAndUpdate(
-        { _id: driverId, version: doc.version },
+    // One atomic pipeline update: the sum and count move together and the average is derived from
+    // them, so concurrent reveals cannot lose a rating or accumulate rounding error (F10).
+    // Profiles that predate rating_sum fall back to average x count for their first update.
+    const updated = await DriverModel.findByIdAndUpdate(
+      driverId,
+      [
         {
           $set: {
-            rating_count: nextCount,
-            rating_average: nextAvg,
-            version: doc.version + 1,
+            rating_sum: {
+              $add: [
+                {
+                  $ifNull: [
+                    '$rating_sum',
+                    {
+                      $round: [
+                        {
+                          $multiply: [
+                            { $ifNull: ['$rating_average', 0] },
+                            { $ifNull: ['$rating_count', 0] },
+                          ],
+                        },
+                        0,
+                      ],
+                    },
+                  ],
+                },
+                stars,
+              ],
+            },
+            rating_count: { $add: [{ $ifNull: ['$rating_count', 0] }, 1] },
+            version: { $add: [{ $ifNull: ['$version', 1] }, 1] },
           },
         },
-        { new: true },
-      )
-        .lean<DriverDocument | null>()
-        .exec();
-      if (updated) {
-        return {
-          ratingAverage: updated.rating_average ?? nextAvg,
-          ratingCount: updated.rating_count,
-        };
-      }
+        { $set: { rating_average: { $round: [{ $divide: ['$rating_sum', '$rating_count'] }, 2] } } },
+      ],
+      { new: true },
+    )
+      .lean<DriverDocument | null>()
+      .exec();
+    if (!updated) {
+      throw AppError.notFound('DRIVER_NOT_FOUND: Driver profile not found.');
     }
-    throw AppError.conflict('RATING_AGGREGATE_CONFLICT: Driver rating aggregate retry exhausted.');
+    return { ratingAverage: updated.rating_average ?? 0, ratingCount: updated.rating_count };
+  }
+
+  async findManyByIds(ids: string[]): Promise<DriverEntity[]> {
+    if (ids.length === 0) return [];
+    const docs = await DriverModel.find({ _id: { $in: ids } }).lean<DriverDocument[]>().exec();
+    return docs.map((d) => this.toEntity(d));
+  }
+
+  async saveTrust(id: string, trust: TrustSnapshot): Promise<void> {
+    await DriverModel.updateOne(
+      { _id: id },
+      {
+        $set: {
+          trust_score: trust.score,
+          trust_tier: trust.tier,
+          trust_breakdown: trust.breakdown,
+          trust_updated_at: trust.updatedAt,
+        },
+      },
+    ).exec();
+  }
+
+  async listIds(afterId: string | null, limit: number): Promise<string[]> {
+    const docs = await DriverModel.find(afterId ? { _id: { $gt: afterId } } : {})
+      .sort({ _id: 1 })
+      .limit(limit)
+      .select('_id')
+      .lean<{ _id: string }[]>()
+      .exec();
+    return docs.map((d) => d._id);
   }
 
   private toEntity(doc: DriverDocument): DriverEntity {
@@ -132,9 +180,13 @@ export class MongoDriverRepository implements DriverRepositoryPort {
       status: doc.status,
       kycStatus: doc.kyc_status,
       operationalStatus: doc.operational_status,
-      ratingAverage: ratingCount > 0 ? doc.rating_average : null,
+      ratingAverage: deriveAverage(doc.rating_sum, ratingCount, doc.rating_average),
       ratingCount,
+      ratingSum: doc.rating_sum ?? 0,
       trustScore: doc.trust_score,
+      trustTier: (doc.trust_tier as TrustTier | null | undefined) ?? null,
+      trustBreakdown: (doc.trust_breakdown as TrustScoreBreakdownDto | null | undefined) ?? null,
+      trustUpdatedAt: doc.trust_updated_at ?? null,
       currentVehicleId: doc.current_vehicle_id,
       walletId: doc.wallet_id,
       version: doc.version,

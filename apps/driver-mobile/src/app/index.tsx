@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Redirect } from 'expo-router';
 import { useAuth } from '@/context/auth-context';
 import { useRide } from '@/context/ride-context';
 import { CabzonLaunch } from '@/components/onboarding/cabzon-launch';
-import { colors, typography } from '@/design-system';
+import { colors, typography, createStyles } from '@/design-system';
 import { Ionicons } from '@expo/vector-icons';
 
 export default function IndexGateScreen() {
@@ -101,7 +101,7 @@ export default function IndexGateScreen() {
   return <Redirect href="/(onboarding)/onboarding" />;
 }
 
-const styles = StyleSheet.create({
+const styles = createStyles(() => ({
   container: {
     flex: 1,
     backgroundColor: colors.background,
@@ -167,4 +167,4 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.secondary,
   },
-});
+}));

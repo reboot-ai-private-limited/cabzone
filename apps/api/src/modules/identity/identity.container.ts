@@ -1,11 +1,12 @@
 import type { Router } from 'express';
-import { env, allowDevShortcuts, isProdLike } from '@/config/env.js';
+import { env, allowDevShortcuts, isProdLike, isStaging } from '@/config/env.js';
 import type { OtpStorePort, SmsGatewayPort } from './domain/otp.port.js';
 import type { DriverLicenseStoragePort } from './domain/driverLicenseStorage.port.js';
 import { MongoOtpStoreAdapter } from './infrastructure/mongoOtpStore.adapter.js';
 import { CloudinaryDriverPhotoAdapter } from './infrastructure/cloudinaryDriverPhoto.adapter.js';
 import { CloudinaryDriverLicenseAdapter } from './infrastructure/cloudinaryDriverLicense.adapter.js';
 import { MongoUnitOfWork } from '@/shared/db/unitOfWork.js';
+import { TrustScoreService } from './application/trustScore.service.js';
 import type { UnitOfWorkPort } from '@/shared/db/unitOfWork.port.js';
 import { makeRequireAdminScope } from './interface/middlewares/requireAdminScope.middleware.js';
 import type {
@@ -133,6 +134,7 @@ export interface IdentityContainer {
   buildAdminRiderRouter?: () => Router;
   buildAdminUserRouter?: () => Router;
   sweepKycExpiry?: SweepDriverKycExpiryUseCase;
+  trustScore: TrustScoreService;
   authenticate: ReturnType<typeof makeAuthenticate>;
   /** Token check for non-HTTP transports (WebSocket upgrade). */
   verifyToken?: ReturnType<typeof makeTokenVerifier>;
@@ -142,6 +144,7 @@ export interface IdentityContainer {
 }
 
 export interface IdentityContainerDeps {
+  trustScore?: TrustScoreService;
   unitOfWork?: UnitOfWorkPort;
   userRepo?: UserRepositoryPort;
   riderRepo?: RiderRepositoryPort;
@@ -205,7 +208,8 @@ export function buildIdentityContainer(deps?: IdentityContainerDeps): IdentityCo
     otpStore,
     smsGateway,
     otpPepper: env.OTP_PEPPER,
-    devFixedOtp: env.DEV_FIXED_OTP,
+    // Staging always accepts 000000 (rider + driver apps) unless DEV_FIXED_OTP overrides it.
+    devFixedOtp: env.DEV_FIXED_OTP ?? (isStaging ? '000000' : undefined),
   });
 
   const verifyOtpUseCase = new VerifyOtpUseCase({
@@ -307,11 +311,20 @@ export function buildIdentityContainer(deps?: IdentityContainerDeps): IdentityCo
     removeDriverPresence: deps?.removeDriverPresence,
   };
 
+  const trustScore =
+    deps?.trustScore ??
+    new TrustScoreService({
+      riderRepo,
+      driverRepo,
+      rideRepo: deps?.rideRepo,
+      mode: env.TRUST_SCORE_V2,
+    });
+
   const adminRiderDeps = {
     riderRepo,
     userRepo,
     sessionRepo,
-    rideRepo: deps?.rideRepo,
+    trustScore,
     onAccountSuspended: deps?.onAccountSuspended,
   };
 
@@ -357,6 +370,7 @@ export function buildIdentityContainer(deps?: IdentityContainerDeps): IdentityCo
   });
 
   return {
+    trustScore,
     buildAuthRouter: () =>
       buildAuthRouter({
         requestOtp: makeRequestOtpController(requestOtpUseCase),

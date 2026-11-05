@@ -14,6 +14,7 @@ import {
 import { RideCallProvider } from '@/context/call-context';
 import { dispatchApi } from '@/services/api';
 import { RIDE_COMMUNICATION_STATUSES } from '@cabzone/contracts';
+import { ThemeBoundary, ThemeProvider, colors } from '@/design-system';
 
 function NotificationNavigator() {
   const router = useRouter();
@@ -95,16 +96,25 @@ function NotificationNavigator() {
 
 export default function RootLayout() {
   return (
-    <AuthProvider>
-      <DutyProvider>
-        <RideProvider>
-          <RideCallProvider>
-            <StatusBar style="dark" />
-            <NotificationNavigator />
-            <Stack screenOptions={{ headerShown: false }} />
-          </RideCallProvider>
-        </RideProvider>
-      </DutyProvider>
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <DutyProvider>
+          <RideProvider>
+            <RideCallProvider>
+              <StatusBar style="auto" />
+              <NotificationNavigator />
+              <ThemeBoundary>
+                <Stack
+                  screenOptions={{
+                    headerShown: false,
+                    contentStyle: { backgroundColor: colors.background },
+                  }}
+                />
+              </ThemeBoundary>
+            </RideCallProvider>
+          </RideProvider>
+        </DutyProvider>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }

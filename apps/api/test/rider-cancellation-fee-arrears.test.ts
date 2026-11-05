@@ -453,11 +453,21 @@ describe('Step 3: Rider Cancellation & No-Show Fees, Arrears Ledger, Recovery & 
     freeStored.acceptedAt = new Date(Date.now() - 60_000);
     await rideRepo.save(freeStored);
 
+    // A rider cannot cancel with a reason that only the other side or the system may use (D-048)
+    const wrongReason = await request(app)
+      .post(`/api/v1/rides/${freeRideId}/cancel`)
+      .set('Authorization', riderAuth)
+      .send({ reason: 'RIDER_NO_SHOW' });
+    expect(wrongReason.status).toBe(400);
+    expect(wrongReason.body.message).toContain('INVALID_CANCELLATION_REASON');
+    expect((await rideRepo.findById(freeRideId))!.status).toBe('DRIVER_ASSIGNED');
+
     const freeCancel = await request(app)
       .post(`/api/v1/rides/${freeRideId}/cancel`)
       .set('Authorization', riderAuth)
       .send({ reason: 'RIDER_CHANGED_MIND' });
     expect(freeCancel.status).toBe(200);
+    expect((await rideRepo.findById(freeRideId))!.cancelledBy).toBe('RIDER');
     expect(freeCancel.body.data.feeBreakdown.totalFeePaise).toBe(0);
     expect(freeCancel.body.data.riderArrearsPaise).toBe(0);
     expect(await walletRepo.findByRiderId(RIDER_ID)).toBeNull();
@@ -501,6 +511,8 @@ describe('Step 3: Rider Cancellation & No-Show Fees, Arrears Ledger, Recovery & 
     expect(c2.body.data.feeBreakdown.totalFeePaise).toBe(5000);
     expect(c1.body.data.riderArrearsPaise).toBe(5000);
     expect(c2.body.data.riderArrearsPaise).toBe(5000);
+    expect((await rideRepo.findById(noShowRideId))!.cancelledBy).toBe('DRIVER');
+    expect(c1.body.data.ride.cancelledBy).toBe('DRIVER');
 
     // Mismatched actor/reason replay rejected with 409
     const mismatchCancel = await request(app)
@@ -516,7 +528,7 @@ describe('Step 3: Rider Cancellation & No-Show Fees, Arrears Ledger, Recovery & 
     await assertWalletConservation('018f0a00-0000-7000-8000-000000000301', 250_000);
   });
 
-  it('keeps cash fallback available while attaching arrears to quote/createRide and settles full arrears via UPI', async () => {
+  it('blocks cash at the arrears threshold and settles full arrears via UPI', async () => {
     const { app, login, rideRepo, rideEventRepo, walletRepo, unitOfWork, assertWalletConservation } =
       await setup();
     const riderAuth = await login(RIDER_USER, 'RIDER');
@@ -553,7 +565,7 @@ describe('Step 3: Rider Cancellation & No-Show Fees, Arrears Ledger, Recovery & 
       .send({ reason: 'RIDER_CHANGED_MIND' })
       .expect(200);
 
-    // 2. Unauthenticated quote returns arrearsPaise = 0; authenticated quote returns arrearsPaise = 5000 & cashAllowed = true
+    // 2. Unauthenticated quote has no arrears; the rider's arrears block cash.
     const unauthQuoteRes = await request(app)
       .post('/api/v1/pricing/quotes')
       .send({ pickup, drop, vehicleCategory: 'CAB' });
@@ -569,7 +581,21 @@ describe('Step 3: Rider Cancellation & No-Show Fees, Arrears Ledger, Recovery & 
     const q2 = authQuoteRes.body.data;
     expect(q2.arrearsPaise).toBe(5000);
     expect(q2.totalEstimatedPayablePaise).toBe(q2.suggestedFarePaise + 5000);
-    expect(q2.cashAllowed).toBe(true);
+    expect(q2.cashAllowed).toBe(false);
+
+    await request(app)
+      .post('/api/v1/rides')
+      .set('Authorization', riderAuth)
+      .send({
+        quoteToken: q2.quoteToken,
+        proposedFarePaise: q2.suggestedFarePaise,
+        passenger: { name: 'Asha', phoneE164: '+919876543210' },
+        vehicleCategory: 'CAB',
+        pickup,
+        drop,
+        paymentMethod: 'CASH',
+      })
+      .expect(409);
 
     // 3. Create Ride 2, progress to PAYMENT_PENDING
     const r2Res = await request(app)
@@ -615,6 +641,19 @@ describe('Step 3: Rider Cancellation & No-Show Fees, Arrears Ledger, Recovery & 
       .post(`/api/v1/rides/${ride2Id}/complete`)
       .set('Authorization', driverAuth)
       .expect(200);
+
+    await request(app)
+      .post(`/api/v1/rides/${ride2Id}/payment/cash`)
+      .set('Authorization', riderAuth)
+      .expect(409);
+    await request(app)
+      .post(`/api/v1/rides/${ride2Id}/payment/claim-cash`)
+      .set('Authorization', riderAuth)
+      .expect(409);
+    await request(app)
+      .post(`/api/v1/rides/${ride2Id}/payment/confirm`)
+      .set('Authorization', driverAuth)
+      .expect(409);
 
     // 4. Settle Ride 2 via UPI -> captures agreedFare + 5000, settles rider arrears once, keeps commission strictly on agreedFare
     const agreedFare = q2.suggestedFarePaise as number;
@@ -777,6 +816,14 @@ describe('Step 3: Rider Cancellation & No-Show Fees, Arrears Ledger, Recovery & 
       .set('Authorization', supportAuth)
       .send({ outcome: 'RIDER_WINS', reason: 'Verified cash collection discrepancy' })
       .expect(200);
+
+    // The outcome and timestamps stay on the ride after it returns to SETTLED, so the trust score
+    // can count the dispute against the driver (D-048).
+    const resolvedRide = (await rideRepo.findById(ride2Id))!;
+    expect(resolvedRide.status).toBe('SETTLED');
+    expect(resolvedRide.disputeOutcome).toBe('RIDER_WINS');
+    expect(resolvedRide.disputedAt).toBeInstanceOf(Date);
+    expect(resolvedRide.disputeResolvedAt).toBeInstanceOf(Date);
 
     expect((await walletRepo.findByDriverId(DRIVER_ID))?.balancePaise).toBe(driverBefore);
     const riderWallet = await walletRepo.findByRiderId(RIDER_ID);

@@ -1,10 +1,9 @@
-import { colors, typography } from '@/design-system';
+import { colors, typography, createStyles } from '@/design-system';
 import React, { useMemo, useRef, useState } from 'react';
 import {
   Keyboard,
   Platform,
   Pressable,
-  StyleSheet,
   Text,
   TextInput,
   View,
@@ -637,7 +636,7 @@ export function StepVehicleInfo({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createStyles(() => ({
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -873,4 +872,4 @@ const styles = StyleSheet.create({
     marginTop: 10,
     textAlign: 'center',
   },
-});
+}));

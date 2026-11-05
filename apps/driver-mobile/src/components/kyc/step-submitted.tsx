@@ -1,10 +1,9 @@
-import { colors, typography } from '@/design-system';
+import { colors, typography, createStyles } from '@/design-system';
 import React from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   Pressable,
   ScrollView,
-  StyleSheet,
   Text,
   View,
 } from 'react-native';
@@ -59,7 +58,7 @@ export function StepSubmitted({ onGoHome }: StepSubmittedProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createStyles(() => ({
   container: {
     flex: 1,
     backgroundColor: colors.background,
@@ -172,4 +171,4 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.base,
     fontWeight: '800',
   },
-});
+}));

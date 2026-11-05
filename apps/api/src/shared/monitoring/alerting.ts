@@ -9,6 +9,7 @@ export type OperationalAlertCategory =
   | 'SMS_DELIVERY'
   | 'PUSH_DELIVERY'
   | 'WALLET_RECONCILIATION'
+  | 'PAYMENT_RECONCILIATION'
   | 'MOBILE_CRASH';
 
 export type OperationalAlertSeverity = 'warning' | 'critical';

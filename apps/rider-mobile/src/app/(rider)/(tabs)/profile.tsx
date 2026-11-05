@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import {
   ActivityIndicator,
+  Linking,
   Modal,
   Pressable,
   ScrollView,
@@ -72,7 +73,7 @@ export default function ProfileTabScreen() {
     },
     {
       label: 'Terms, Privacy & Fare Policy',
-      sub: 'Direct Cash/UPI rules & cancellation policy',
+      sub: 'Cash/UPI payment & cancellation policy',
       icon: 'document-lock-outline',
       href: '/(rider)/account/legal',
     },
@@ -229,6 +230,14 @@ export default function ProfileTabScreen() {
         >
           <Ionicons name="log-out-outline" size={20} color={colors.error} />
           <Text style={styles.logoutTriggerText}>Log Out of Cabzone</Text>
+        </Pressable>
+        <Pressable
+          style={styles.logoutTrigger}
+          onPress={() => void Linking.openURL('https://cabzone-admin.vercel.app/account-deletion')}
+          accessibilityRole="link"
+          accessibilityLabel="Request account deletion"
+        >
+          <Text style={styles.logoutTriggerText}>Request account deletion</Text>
         </Pressable>
       </ScrollView>
 

@@ -359,12 +359,15 @@ export function resolveRideCashAvailability(
   const arrearsPaise = Math.max(0, ride.arrearsPaise ?? 0);
   const rawThreshold = ride.pricingSnapshot?.cancellationFeePaise ?? DEFAULT_CANCELLATION_FEE_PAISE;
   const cashBlockThresholdPaise = rawThreshold > 0 ? rawThreshold : DEFAULT_CANCELLATION_FEE_PAISE;
+  const cashAllowed = rawThreshold === 0 || arrearsPaise < cashBlockThresholdPaise;
 
   return {
-    cashAllowed: true,
+    cashAllowed,
     arrearsPaise,
     cashBlockThresholdPaise,
-    reason: null,
+    reason: cashAllowed
+      ? null
+      : `Cash is unavailable while ${formatRupeesFromPaise(arrearsPaise)} in cancellation fees is due. Pay online to clear it.`,
   };
 }
 

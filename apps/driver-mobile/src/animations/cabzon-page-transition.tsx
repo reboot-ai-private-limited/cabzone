@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Animated, StyleSheet, type ViewStyle } from 'react-native';
-import { motion } from '@/design-system';
+import { Animated, type ViewStyle } from 'react-native';
+import { motion, createStyles } from '@/design-system';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 
 export interface CabzonPageTransitionProps {
@@ -68,9 +68,9 @@ export function CabzonPageTransition({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createStyles(() => ({
   container: {
     flex: 1,
     width: '100%',
   },
-});
+}));

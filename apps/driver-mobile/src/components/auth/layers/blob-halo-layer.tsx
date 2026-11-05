@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { Animated, Easing, StyleSheet } from 'react-native';
+import { Animated, Easing } from 'react-native';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 import { BlobBackground } from '../blob-background';
+import { createStyles } from '@/design-system';
 
 export interface BlobHaloLayerProps {
   screenWidth: number;
@@ -73,7 +74,7 @@ export function BlobHaloLayer({ screenWidth, screenHeight, topInset }: BlobHaloL
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createStyles(() => ({
   haloContainer: {
     position: 'absolute',
     width: HALO_SIZE,
@@ -82,5 +83,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     zIndex: 1,
   },
-});
+}));
 

@@ -3,6 +3,8 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import type {
   AdminDocumentPreviewDto,
   DriverApplicationStatus,
+  TrustScoreBreakdownDto,
+  TrustTier,
   VehicleCategory,
 } from '@cabzone/contracts';
 import { newUuid } from '../../../../shared/ids.js';
@@ -63,6 +65,8 @@ export interface AdminDriverProfileView {
   ratingAverage: number | null;
   ratingCount: number;
   trustScore: number | null;
+  trustTier: TrustTier | null;
+  trustScoreBreakdown: TrustScoreBreakdownDto | null;
   currentVehicleId: string | null;
   walletId: string;
   version: number;
@@ -112,6 +116,8 @@ function toAdminDriverProfile(
     ratingAverage: driver.ratingAverage,
     ratingCount: driver.ratingCount,
     trustScore: driver.trustScore,
+    trustTier: driver.trustTier ?? null,
+    trustScoreBreakdown: driver.trustBreakdown ?? null,
     currentVehicleId: driver.currentVehicleId,
     walletId: driver.walletId,
     version: driver.version,

@@ -1,5 +1,6 @@
 import type { RideStatus, VehicleCategory } from '@cabzone/contracts';
 import type { RideEntity } from './ride.entity.js';
+import type { TripStats, TripStatsRole } from './tripStats.js';
 
 export interface AtomicClaimResult {
   ride: RideEntity;
@@ -22,13 +23,6 @@ export interface RideListFilter extends RideCountFilter {
   offset: number;
 }
 
-export interface RiderTripCountsSummary {
-  totalRides: number;
-  completedRides: number;
-  cancelledRides: number;
-  noShowsCount?: number | undefined;
-  disputesCount?: number | undefined;
-}
 
 export interface RideRepositoryPort {
   ensureReady?(): Promise<void>;
@@ -65,13 +59,14 @@ export interface RideRepositoryPort {
     assignedAt?: Date;
   }): Promise<RideEntity | null>;
   countDailyRiderUnassignedCancellations(riderId: string, sinceDate: Date): Promise<number>;
-  getRiderStats(riderId: string): Promise<{
-    totalRides: number;
-    completedRides: number;
-    cancelledRides: number;
-    totalSpentPaise: number;
-    noShowsCount?: number | undefined;
-    disputesCount?: number | undefined;
-  }>;
-  getRiderTripCountsBatch(riderIds: string[]): Promise<Map<string, RiderTripCountsSummary>>;
+  /**
+   * Trust statistics for riders (rides they booked) or drivers (rides assigned to them).
+   * One implementation of the rules for every caller: see computeTripStats.
+   */
+  getTripStats(role: TripStatsRole, ids: string[], now?: Date): Promise<Map<string, TripStats>>;
+  /**
+   * Called after a ride is written in a state that can change a trust score (cancelled, settled,
+   * unpaid, disputed, expired). Fire-and-forget: it must never throw into the ride transition.
+   */
+  onTerminalTransition?: ((ride: RideEntity) => void) | undefined;
 }

@@ -116,7 +116,7 @@ function createHarness(apiOverrides = {}) {
       }
       if (name.includes('design-system')) {
         return {
-          colors: {},
+          createStyles: (factory) => factory(), colors: {},
           typography: { sizes: { xs: 12, sm: 13, label: 14, base: 16 } },
         };
       }

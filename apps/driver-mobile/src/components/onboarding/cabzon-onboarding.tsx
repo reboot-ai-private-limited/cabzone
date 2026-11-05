@@ -2,11 +2,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import React, { useEffect, useState } from 'react';
 import {
   Animated,
-  StyleSheet,
   Text,
   View,
 } from 'react-native';
-import { colors, motion } from '@/design-system';
+import { colors, motion, createStyles } from '@/design-system';
 import { CabzonButton } from '@/components/buttons/cabzon-button';
 import { CabzonProgress } from '@/components/feedback/cabzon-progress';
 import { CabzonPageTransition } from '@/animations/cabzon-page-transition';
@@ -234,7 +233,7 @@ export function CabzonOnboarding({ onComplete }: CabzonOnboardingProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createStyles(() => ({
   safeArea: {
     flex: 1,
     backgroundColor: colors.background,
@@ -328,4 +327,4 @@ const styles = StyleSheet.create({
     width: '100%',
     paddingBottom: 8,
   },
-});
+}));

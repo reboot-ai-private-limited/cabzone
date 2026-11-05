@@ -4,12 +4,11 @@ import {
   Animated,
   Pressable,
   ScrollView,
-  StyleSheet,
   Text,
   View,
 } from 'react-native';
 import { VEHICLE_CATEGORY_REGISTRY } from '@cabzone/contracts';
-import { colors, typography } from '@/design-system';
+import { colors, typography, createStyles } from '@/design-system';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 import { ERickshawIcon } from '@/components/common/e-rickshaw-icon';
 
@@ -170,7 +169,7 @@ function VehicleCard({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createStyles(() => ({
   container: {
     flex: 1,
     backgroundColor: colors.background,
@@ -306,4 +305,4 @@ const styles = StyleSheet.create({
     color: colors.secondary,
     lineHeight: 19,
   },
-});
+}));

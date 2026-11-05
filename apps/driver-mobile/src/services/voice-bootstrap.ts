@@ -2,6 +2,7 @@ import { NativeModules, Platform } from 'react-native';
 
 export const CABZONE_BG_CALL_NOTIFICATION_TASK = 'CABZONE_BG_CALL_NOTIFICATION_TASK';
 export const RIDE_CALL_CHANNEL_ID = 'ride-calls';
+export const RIDE_CALL_RING_CHANNEL_ID = 'ride-calls-ring';
 export const RIDE_CALL_CATEGORY_ID = 'ride-call';
 
 let globalsRegistered = false;
@@ -100,6 +101,19 @@ export async function ensureCallNotificationSetup(): Promise<void> {
         bypassDnd: false,
         sound: 'default',
       });
+      // Ringing channel (29s ring) used for incoming-call pushes when the app is closed.
+      await Notifications.setNotificationChannelAsync(RIDE_CALL_RING_CHANNEL_ID, {
+        name: 'Incoming ride calls (ringing)',
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 700, 500, 700, 500, 700, 500, 700, 500, 700, 500, 700],
+        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+        bypassDnd: false,
+        sound: 'ring_long.wav',
+        audioAttributes: {
+          usage: Notifications.AndroidAudioUsage.NOTIFICATION_RINGTONE,
+          contentType: Notifications.AndroidAudioContentType.SONIFICATION,
+        },
+      });
     }
     await Notifications.setNotificationCategoryAsync(RIDE_CALL_CATEGORY_ID, [
       {
@@ -159,7 +173,7 @@ export async function presentSystemIncomingCall(
         title: `Incoming ride call · ${input.callerName}`,
         body: 'Tap Accept to answer privately in Cabzone Driver.',
         categoryIdentifier: RIDE_CALL_CATEGORY_ID,
-        sound: true,
+        sound: 'ring_long.wav',
         priority: Notifications.AndroidNotificationPriority.MAX,
         data: {
           type: 'ride.call.incoming',
@@ -169,7 +183,7 @@ export async function presentSystemIncomingCall(
           ...(input.expiresAt ? { expiresAt: input.expiresAt } : {}),
           ...(input.extraData ?? {}),
         },
-        ...(Platform.OS === 'android' ? { channelId: RIDE_CALL_CHANNEL_ID } : {}),
+        ...(Platform.OS === 'android' ? { channelId: RIDE_CALL_RING_CHANNEL_ID } : {}),
       },
       trigger: null,
     });

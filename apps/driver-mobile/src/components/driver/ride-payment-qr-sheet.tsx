@@ -8,14 +8,13 @@ import {
   Platform,
   Pressable,
   ScrollView,
-  StyleSheet,
   Text,
   Vibration,
   View,
 } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import { useAuth } from '@/context/auth-context';
-import { colors } from '@/design-system';
+import { colors, createStyles } from '@/design-system';
 import { ridesApi } from '@/services/api';
 
 /** Razorpay's hosted QR image is a tall poster (~674x1644), NOT a square. */
@@ -477,7 +476,7 @@ export function RidePaymentQrSheet({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createStyles(() => ({
   screen: {
     flex: 1,
     backgroundColor: '#FFFFFF',
@@ -739,4 +738,4 @@ const styles = StyleSheet.create({
     color: colors.brandBrown,
     textAlign: 'center',
   },
-});
+}));

@@ -78,7 +78,7 @@ function screen() {
         return { useDuty: () => ({ refreshSummary: async () => {} }) };
       if (name.includes('services/api')) return { walletApi: api };
       if (name.includes('wallet-money-helpers')) return helpers.exports;
-      return { colors: {} };
+      return { createStyles: (factory) => factory(), colors: {} };
     },
   });
   return {
@@ -129,7 +129,7 @@ test('opens checkout without claiming a credit and creates a new key for another
   s.runEffects();
   await flush();
   button(s.render(), 'Add money').props.onPress();
-  button(s.render(), 'Continue to UPI test checkout').props.onPress();
+  button(s.render(), 'Continue to secure payment').props.onPress();
   await flush();
   assert.equal(s.calls[0][0], 'recharge');
   assert.equal(s.calls[1][0], 'open');
@@ -139,7 +139,7 @@ test('opens checkout without claiming a credit and creates a new key for another
     ),
   );
   button(s.render(), 'Add money').props.onPress();
-  button(s.render(), 'Continue to UPI test checkout').props.onPress();
+  button(s.render(), 'Continue to secure payment').props.onPress();
   await flush();
   assert.notEqual(s.calls[0][3], s.calls[2][3]);
 });
@@ -169,4 +169,29 @@ test('blocks invalid cashout amounts, keeps a stable key on retry, and ignores d
   await flush();
   assert.equal(s.calls.length, 2);
   assert.equal(s.calls[0][3], s.calls[1][3]);
+});
+
+test('enforces the ₹500 recharge and ₹200 cashout minimums before calling the API', async () => {
+  const s = screen();
+  s.render();
+  s.runEffects();
+  await flush();
+  button(s.render(), 'Add money').props.onPress();
+  input(s.render(), 'Amount in rupees').props.onChangeText('499');
+  button(s.render(), 'Continue to secure payment').props.onPress();
+  await flush();
+  assert.equal(s.calls.length, 0);
+  assert.ok(find(s.render(), (node) => node.children.includes('Enter ₹500 to ₹1,00,000.')));
+  button(s.render(), 'Cancel').props.onPress();
+  button(s.render(), 'Cash out').props.onPress();
+  input(s.render(), 'Amount in rupees').props.onChangeText('199');
+  input(s.render(), 'Cashout UPI ID').props.onChangeText('driver@upi');
+  button(s.render(), 'Confirm cashout request').props.onPress();
+  await flush();
+  assert.equal(s.calls.length, 0);
+  assert.ok(
+    find(s.render(), (node) =>
+      node.children.includes('Enter ₹200 to ₹1,00,000 with up to two decimal places.'),
+    ),
+  );
 });

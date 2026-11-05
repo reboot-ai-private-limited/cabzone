@@ -79,6 +79,7 @@ interface RideContextType {
   markArrived: (rideId: string) => Promise<RideDto | null>;
   startTripWithOtp: (rideId: string, otp: string) => Promise<RideDto | null>;
   completeTrip: (rideId: string) => Promise<CompleteRideResultDto | null>;
+  respondEarlyDrop: (rideId: string, decision: 'ACCEPT' | 'DECLINE') => Promise<RideDto | null>;
   confirmDirectPayment: (rideId: string) => Promise<CompleteRideResultDto | null>;
   markRideUnpaid: (rideId: string, reason?: string) => Promise<RideDto | null>;
   cancelTrip: (rideId: string, reason: CancellationReason) => Promise<RideDto | null>;
@@ -781,6 +782,31 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
     [token, isMutatingRide, refreshSummary],
   );
 
+  const respondEarlyDrop = useCallback(
+    async (rideId: string, decision: 'ACCEPT' | 'DECLINE'): Promise<RideDto | null> => {
+      if (!token || isMutatingRide || mutatingRideRef.current) return null;
+      mutatingRideRef.current = true;
+      setIsMutatingRide(true);
+      setRideError(null);
+      try {
+        const updated = await ridesApi.respondEarlyDrop(token, rideId, decision);
+        setActiveRide(ACTIVE_RIDE_STATUSES.has(updated.status) ? updated : null);
+        if (PENDING_PAYMENT_STATUSES.has(updated.status)) {
+          setPendingPaymentRide(updated);
+        }
+        if (decision === 'ACCEPT') void refreshSummary();
+        return updated;
+      } catch (err: unknown) {
+        setRideError(err instanceof Error ? err.message : 'Failed to answer the early drop request');
+        return null;
+      } finally {
+        mutatingRideRef.current = false;
+        setIsMutatingRide(false);
+      }
+    },
+    [token, isMutatingRide, refreshSummary],
+  );
+
   const confirmDirectPayment = useCallback(
     async (rideId: string): Promise<CompleteRideResultDto | null> => {
       if (!token || isMutatingRide || mutatingRideRef.current) return null;
@@ -909,6 +935,7 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
         markArrived,
         startTripWithOtp,
         completeTrip,
+        respondEarlyDrop,
         confirmDirectPayment,
         markRideUnpaid,
         cancelTrip,

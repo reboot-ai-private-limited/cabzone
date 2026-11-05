@@ -3,7 +3,6 @@ import {
   ActivityIndicator,
   Keyboard,
   Pressable,
-  StyleSheet,
   Text,
   TextInput,
   View,
@@ -20,7 +19,7 @@ import { useAuth } from '@/context/auth-context';
 import { driverApi } from '@/services/api';
 import { pickDriverLicense, type SelectedDriverLicense } from '@/services/driver-license';
 import { formatDateInput, toDisplayDate, validateFutureExpiryDate } from '@/services/profile';
-import { colors, typography } from '@/design-system';
+import { colors, typography, createStyles } from '@/design-system';
 
 const DOC_LABELS: Record<DocumentType, string> = {
   GOVERNMENT_ID: 'Government Identity Proof (Aadhaar / PAN / Voter ID)',
@@ -490,7 +489,7 @@ export default function DriverDocumentsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createStyles(() => ({
   container: { flex: 1, backgroundColor: colors.background },
   topBar: {
     flexDirection: 'row',
@@ -717,4 +716,4 @@ const styles = StyleSheet.create({
   btnDisabled: {
     opacity: 0.6,
   },
-});
+}));

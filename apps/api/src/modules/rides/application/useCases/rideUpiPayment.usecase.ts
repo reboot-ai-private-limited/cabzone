@@ -16,8 +16,11 @@ import type {
 } from '../../domain/index.js';
 import type { RidePaymentGateway } from '../../domain/ridePayment.port.js';
 import { saveRideTransition } from '../rideTransition.js';
+import { collectableArrearsPaise } from '../collectableArrears.js';
+import { cashAllowedForArrears, resolveCancellationPolicy } from '../../../pricing/pricing.public.js';
 import {
   calculateNewBalance,
+  getRiderUnpaidArrearsPaise,
   type WalletEntity,
   type WalletRepositoryPort,
 } from '../../../ledger/ledger.public.js';
@@ -44,6 +47,10 @@ export class RideUpiPaymentUseCase {
       gateway: RidePaymentGateway;
       walletRepo: WalletRepositoryPort;
       closeQrCollectionForCash?: (rideId: string) => Promise<{ alreadyPaid: boolean }>;
+      /** Live mode: the single QR shared with the driver's "Show QR" (see RideQrPaymentUseCase). */
+      liveQrSession?: (rideId: string, riderId: string) => Promise<RideUpiIntentDto>;
+      /** Live mode: checks the shared QR with the provider so a rider status check can settle it. */
+      refreshQrPayment?: (rideId: string) => Promise<void>;
     },
   ) {}
 
@@ -68,13 +75,15 @@ export class RideUpiPaymentUseCase {
     return fare;
   }
 
-  private arrears(ride: RideEntity): number {
-    const arrearsPaise = ride.arrearsPaise ?? 0;
-    return Number.isSafeInteger(arrearsPaise) && arrearsPaise > 0 ? arrearsPaise : 0;
+  private async arrears(ride: RideEntity): Promise<number> {
+    return collectableArrearsPaise(
+      ride,
+      await this.deps.walletRepo.findByRiderId(ride.bookerRiderId),
+    );
   }
 
-  private payableAmount(ride: RideEntity): number {
-    return this.fare(ride) + this.arrears(ride);
+  private async payableAmount(ride: RideEntity): Promise<number> {
+    return this.fare(ride) + (await this.arrears(ride));
   }
 
   private async cashSelected(rideId: string): Promise<boolean> {
@@ -145,6 +154,11 @@ export class RideUpiPaymentUseCase {
     const current = await this.reconcileForCash(rideId, ride.bookerRiderId);
     if (current.status === 'SETTLED' || (await this.cashSelected(rideId)))
       return this.paymentState(rideId);
+    if (!cashAllowedForArrears(
+      getRiderUnpaidArrearsPaise(await this.deps.walletRepo.findByRiderId(current.bookerRiderId)),
+      resolveCancellationPolicy(current.pricingSnapshot).cancellationFeePaise,
+    ))
+      throw AppError.conflict('Cash is unavailable until cancellation fee arrears are paid online.');
     const qrCollection = await this.deps.closeQrCollectionForCash?.(rideId);
     if (qrCollection?.alreadyPaid) return this.paymentState(rideId);
     const qr = await this.qrSession(rideId);
@@ -154,6 +168,11 @@ export class RideUpiPaymentUseCase {
     await this.deps.unitOfWork.run(async () => {
       const fresh = await this.ownedRide(rideId, ride.bookerRiderId);
       if (fresh.status === 'SETTLED' || (await this.cashSelected(rideId))) return;
+      if (!cashAllowedForArrears(
+        getRiderUnpaidArrearsPaise(await this.deps.walletRepo.findByRiderId(fresh.bookerRiderId)),
+        resolveCancellationPolicy(fresh.pricingSnapshot).cancellationFeePaise,
+      ))
+        throw AppError.conflict('Cash is unavailable until cancellation fee arrears are paid online.');
       const freshAllowed =
         fresh.status === 'PAYMENT_PENDING' ||
         fresh.status === 'PAYMENT_CASH_CLAIMED' ||
@@ -230,7 +249,7 @@ export class RideUpiPaymentUseCase {
       throw AppError.badRequest('This ride is not awaiting payment.');
     let orderId = await this.order(rideId);
     const farePaise = this.fare(ride);
-    const arrearsPaise = this.arrears(ride);
+    const arrearsPaise = await this.arrears(ride);
     const amountPaise = farePaise + arrearsPaise;
     if (!orderId) {
       const created = await this.deps.gateway.createOrder(amountPaise, rideId);
@@ -306,8 +325,10 @@ export class RideUpiPaymentUseCase {
       throw AppError.conflict(
         'This ride already uses test checkout. Finish it before switching payment mode.',
       );
-    const amountPaise = this.payableAmount(ride);
+    const amountPaise = await this.payableAmount(ride);
     let session = await this.qrSession(rideId);
+    // Rides that already have a rider-side QR keep it; everything else shares the driver's QR.
+    if (!session && this.deps.liveQrSession) return this.deps.liveQrSession(rideId, riderId);
     if (!session) {
       const created = await this.deps.gateway.createQr(amountPaise, rideId);
       if (!created) throw AppError.badRequest('UPI QR payment is unavailable on the server.');
@@ -316,7 +337,7 @@ export class RideUpiPaymentUseCase {
         if (await this.cashSelected(rideId)) throw AppError.conflict('This ride now uses cash.');
         if (
           !isAwaitingPaymentStatus(current.status) ||
-          this.payableAmount(current) !== created.amountPaise
+          (await this.payableAmount(current)) !== created.amountPaise
         )
           throw AppError.conflict('Ride payment state changed.');
         const existing = await this.qrSession(rideId);
@@ -338,7 +359,7 @@ export class RideUpiPaymentUseCase {
             session: created,
             qrId: created.qrId,
             farePaise: this.fare(current),
-            arrearsPaise: this.arrears(current),
+            arrearsPaise: await this.arrears(current),
             mode: 'live',
           },
           createdAt: new Date(),
@@ -362,18 +383,30 @@ export class RideUpiPaymentUseCase {
       throw AppError.badRequest('Payment QR does not match this ride.');
     const ride = await this.deps.rideRepo.findById(rideId);
     if (!ride) throw AppError.notFound('Ride not found.');
-    return this.reconcile(rideId, ride.bookerRiderId);
+    // A credit notification on an already-settled ride may be a second payment: check the provider.
+    return this.reconcile(rideId, ride.bookerRiderId, undefined, { detectDuplicate: true });
+  }
+
+  /** Closes this ride's rider-side QR at the provider once the ride is paid another way. */
+  async closeLegacySession(rideId: string): Promise<void> {
+    const qr = await this.qrSession(rideId);
+    if (qr && this.live) await this.deps.gateway.closeQrForCash(qr.qrId);
   }
 
   async reconcile(
     rideId: string,
     riderId: string,
     proof?: { orderId: string; paymentId: string; signature: string },
+    options?: { detectDuplicate?: boolean },
   ): Promise<RideEntity> {
     const ride = await this.ownedRide(rideId, riderId);
     const qr = await this.qrSession(rideId);
     const orderId = await this.order(rideId);
-    if (!orderId && !qr) return ride;
+    if (!orderId && !qr) {
+      if (!this.deps.refreshQrPayment) return ride;
+      await this.deps.refreshQrPayment(rideId);
+      return (await this.deps.rideRepo.findById(rideId)) ?? ride;
+    }
     if (!!qr !== this.live)
       throw AppError.conflict(
         'Ride payment mode differs from server configuration. Contact support.',
@@ -383,12 +416,17 @@ export class RideUpiPaymentUseCase {
         throw AppError.badRequest('Payment order does not belong to this ride.');
       this.deps.gateway.verifySignature(orderId, proof.paymentId, proof.signature);
     }
-    if (ride.status === 'SETTLED' && !(await this.cashCollected(rideId))) return ride;
+    if (
+      ride.status === 'SETTLED' &&
+      !options?.detectDuplicate &&
+      !(await this.cashCollected(rideId))
+    )
+      return ride;
     if (ride.status === 'PAYMENT_DISPUTED') return ride;
     if (!isAwaitingPaymentStatus(ride.status) && ride.status !== 'SETTLED')
       throw AppError.conflict('Ride is not awaiting payment.');
     const farePaise = this.fare(ride);
-    const arrearsPaise = this.arrears(ride);
+    const arrearsPaise = await this.arrears(ride);
     const totalPayablePaise = farePaise + arrearsPaise;
     const paymentId = qr
       ? await this.deps.gateway.findQrPayment(qr.qrId, totalPayablePaise)
@@ -400,11 +438,24 @@ export class RideUpiPaymentUseCase {
       const result = await this.deps.unitOfWork.run(async () => {
         const current = await this.ownedRide(rideId, riderId);
         if (current.status === 'SETTLED') {
-          if (!(await this.cashCollected(rideId))) return current;
+          const afterCash = await this.cashCollected(rideId);
+          if (!afterCash) {
+            const settledBy = (await this.deps.rideEventRepo.findByRideId(rideId)).find(
+              (e) => e.eventType === 'PAYMENT_CONFIRMED',
+            );
+            // The payment that settled the ride is reported again: nothing new happened.
+            if (settledBy?.metadata.paymentId === paymentId) return current;
+          }
           const now = new Date();
           const disputed = await saveRideTransition(
             this.deps.rideRepo,
-            { ...current, status: 'PAYMENT_DISPUTED', version: current.version + 1, updatedAt: now },
+            {
+              ...current,
+              status: 'PAYMENT_DISPUTED',
+              disputedAt: now,
+              version: current.version + 1,
+              updatedAt: now,
+            },
             current.version,
           );
           await this.deps.rideEventRepo.save({
@@ -416,7 +467,11 @@ export class RideUpiPaymentUseCase {
             previousStatus: current.status,
             newStatus: 'PAYMENT_DISPUTED',
             metadata: {
-              reason: 'UPI received after cash confirmation; refund review required',
+              reason: afterCash
+                ? 'UPI received after cash confirmation; refund review required'
+                : 'Duplicate UPI payment received after the ride was settled; refund review required',
+              duplicate: true,
+              duplicateOf: afterCash ? 'CASH' : 'UPI',
               paymentId,
               orderId,
               qrId: qr?.qrId ?? null,
@@ -432,7 +487,7 @@ export class RideUpiPaymentUseCase {
         if (
           !isAwaitingPaymentStatus(current.status) ||
           this.fare(current) !== farePaise ||
-          this.arrears(current) !== arrearsPaise ||
+          (await this.arrears(current)) !== arrearsPaise ||
           !current.driverId
         )
           throw AppError.conflict('Ride payment state changed.');

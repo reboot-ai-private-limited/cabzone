@@ -34,6 +34,10 @@ const RIDER_PUSH_MESSAGES: Partial<
     title: 'Trip completed',
     body: 'Review the final fare and complete payment in Cabzone.',
   },
+  'ride.early_drop.declined': {
+    title: 'Early drop declined',
+    body: 'Your driver declined to end the trip early. Please continue to the destination.',
+  },
   'ride.payment.unpaid': {
     title: 'Trip payment pending',
     body: 'Your trip fare is unpaid. Open Cabzone to pay via UPI.',
@@ -112,11 +116,15 @@ export class RideRealtimeNotifier implements RideNotifierPort, DriverLocationObs
           ride.offeringExpiresAt,
         );
       }
+      const riderTier = await this.lookups
+        .getRiderTrustTier?.([ride.bookerRiderId])
+        .then((tiers) => tiers.get(ride.bookerRiderId) ?? null)
+        .catch(() => null);
       for (const driver of candidates) {
         this.publisher.publishToUser(
           driver.userId,
           'ride.offer.created',
-          toRideOffer(ride, driver.distanceM),
+          toRideOffer(ride, driver.distanceM, riderTier ?? null),
         );
       }
       // Presence is user-scoped; a foreground session suppresses push to that user's installations.
@@ -135,7 +143,7 @@ export class RideRealtimeNotifier implements RideNotifierPort, DriverLocationObs
       void this.push?.notify(backgroundUsers, {
         title: 'New ride request',
         body: `₹${Math.round((ride.proposedFarePaise ?? ride.suggestedFarePaise) / 100)} offered. Open Cabzone to view the request.`,
-        channelId: 'ride-offers',
+        channelId: 'ride-offers-ring',
         data: { type: 'ride.offer.created', rideId: ride.id, rideVersion: ride.version },
         expiresAt: ride.offeringExpiresAt,
       });
@@ -182,6 +190,14 @@ export class RideRealtimeNotifier implements RideNotifierPort, DriverLocationObs
         const driverUserId = await this.lookups.getUserIdForDriver(ride.driverId);
         if (driverUserId) {
           this.publisher.publishToUser(driverUserId, event, base);
+          if (event === 'ride.early_drop.requested') {
+            void this.notifyBackgroundUser(driverUserId, {
+              title: 'Rider wants to end the trip',
+              body: 'Your rider asked to be dropped early. Open Cabzone to confirm or decline.',
+              channelId: 'ride-offers',
+              data: { type: event, rideId: ride.id, rideVersion: ride.version },
+            });
+          }
           if (event === 'ride.payment.cash_claimed') {
             void this.notifyBackgroundUser(driverUserId, {
               title: 'Confirm cash payment',

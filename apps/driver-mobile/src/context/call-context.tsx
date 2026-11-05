@@ -38,7 +38,7 @@ import {
   newCallRequestId,
 } from '@/services/ride-call';
 import { RideCallSheet } from '@/components/ride/ride-call-sheet';
-import { startCallRing } from '@/services/ringtone';
+import { startCallRing, startCallRingback } from '@/services/ringtone';
 
 interface RideCallContextValue {
   activeCall: RideCallDto | null;
@@ -280,19 +280,24 @@ export function RideCallProvider({ children }: { children: React.ReactNode }) {
 
   // Ring while an incoming call is waiting: until it is answered, declined or ends, or 30 seconds
   // pass. If the app leaves the foreground the native CallKeep UI takes over, so stop here.
+  const [appActive, setAppActive] = useState(AppState.currentState === 'active');
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => setAppActive(state === 'active'));
+    return () => sub.remove();
+  }, []);
   const ringingCallId = viewMode === 'incoming' ? (call?.id ?? null) : null;
   const ringingUntil = call?.ringingUntil ?? null;
   useEffect(() => {
-    if (!ringingCallId || AppState.currentState !== 'active') return;
-    const stop = startCallRing(ringingCallId, ringingUntil);
-    const sub = AppState.addEventListener('change', (state) => {
-      if (state !== 'active') stop();
-    });
-    return () => {
-      sub.remove();
-      stop();
-    };
-  }, [ringingCallId, ringingUntil]);
+    if (!ringingCallId || !appActive) return;
+    return startCallRing(ringingCallId, ringingUntil);
+  }, [ringingCallId, ringingUntil, appActive]);
+
+  // Ringback for the caller: play it while the other side is ringing, stop once answered.
+  const ringbackCallId = viewMode === 'outgoing' ? (call?.id ?? null) : null;
+  useEffect(() => {
+    if (!ringbackCallId || !appActive) return;
+    return startCallRingback(ringbackCallId, ringingUntil);
+  }, [ringbackCallId, ringingUntil, appActive]);
 
   useEffect(() => {
     if (viewMode !== 'connected') return;

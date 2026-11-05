@@ -37,6 +37,10 @@ const schema = z.object({
     .optional(),
   RAZORPAY_KEY_SECRET: z.string().min(1).optional(),
   RAZORPAY_WEBHOOK_SECRET: z.string().min(16).optional(),
+  /** RazorpayX current-account number that funds driver cashout payouts. Enables automated payouts. */
+  RAZORPAYX_ACCOUNT_NUMBER: z.string().min(6).optional(),
+  /** Secret of the RazorpayX webhook reporting payout.* events (falls back to RAZORPAY_WEBHOOK_SECRET). */
+  RAZORPAYX_WEBHOOK_SECRET: z.string().min(16).optional(),
 
   MONGO_URI: z.string().min(1, 'MONGO_URI is required'),
   REDIS_URL: z.string().min(1, 'REDIS_URL is required'),
@@ -87,6 +91,12 @@ const schema = z.object({
     .regex(/^\d{6}$/, 'DEV_FIXED_OTP must be exactly 6 digits')
     .optional(),
 
+  /**
+   * Trust score rollout (D-048). off: old formula only. shadow: old formula is shown, the new one is
+   * computed and the difference logged. on: the new formula is shown.
+   */
+  TRUST_SCORE_V2: z.enum(['off', 'shadow', 'on']).default('on'),
+
   /** Transactional SMS gateway configuration (Step 16 / C03) */
   SMS_PROVIDER: z.enum(['console', 'msg91', 'twilio', 'webhook']).default('console'),
   SMS_SENDER_ID: z.string().min(1).optional(),
@@ -112,10 +122,22 @@ const schema = z.object({
     .default('false')
     .transform((v) => v === 'true'),
 
+  /** Driver must be within 200 m of pickup to arrive and 500 m of drop to complete (unless early drop is approved). */
+  RIDE_GEOFENCE_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((v) => v === 'true'),
+
   /** Routing module configuration */
   ROUTING_PROVIDER: z
     .enum(['google', 'haversine'])
-    .default(process.env.NODE_ENV === 'production' ? 'google' : 'haversine'),
+    .default(() =>
+      process.env.NODE_ENV === 'production' ||
+      process.env.GOOGLE_ROUTES_API_KEY ||
+      process.env.GOOGLE_MAPS_API_KEY
+        ? 'google'
+        : 'haversine',
+    ),
   GOOGLE_ROUTES_API_KEY: z
     .string()
     .optional()
@@ -178,6 +200,13 @@ export const isStaging = env.NODE_ENV === 'stage' || env.NODE_ENV === 'staging';
 export const isDevelopment = env.NODE_ENV === 'development';
 export const isTest = env.NODE_ENV === 'test';
 export const isProdLike = isProduction || isStaging;
+/**
+ * Wallet recharge/cashout run whenever Razorpay keys are configured. Production additionally
+ * requires live keys so test payments can never credit real driver wallets.
+ */
+export const walletMoneyEnabled =
+  Boolean(env.RAZORPAY_KEY_ID && env.RAZORPAY_KEY_SECRET) &&
+  (!isProduction || env.RAZORPAY_MODE === 'live');
 
 export const allowDevShortcuts = isDevelopment || (isStaging && env.STAGING_UNSAFE);
 

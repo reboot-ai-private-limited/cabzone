@@ -33,6 +33,7 @@ async function createFixture(opts?: {
   arrearsPaise?: number;
   gateway?: QrPaymentGatewayPort;
   initialTimeMs?: number;
+  closeLegacyQrSession?: (rideId: string) => Promise<void>;
 }) {
   let nowMs = opts?.initialTimeMs ?? Date.parse('2026-10-30T10:00:00.000Z');
   const clock = () => new Date(nowMs);
@@ -121,6 +122,7 @@ async function createFixture(opts?: {
     unitOfWork,
     gateway,
     clock,
+    ...(opts?.closeLegacyQrSession ? { closeLegacyQrSession: opts.closeLegacyQrSession } : {}),
     onRideSettled: rideUpdated,
   });
 
@@ -683,5 +685,252 @@ describe('Collect payment by UPI QR via Razorpay', () => {
     expect(polled.body.data.qr.state).toBe('PAID');
     expect(closeSpy).toHaveBeenCalledWith(qrRow!.gatewayRef);
     expect((await f.paymentRepo.findById(qrRow!.id))?.status).toBe('FAILED');
+  });
+  it('10. a credit webhook without an amount reads the credit from the provider and settles', async () => {
+    const f = await createFixture({ agreedFarePaise: 12000 });
+    await request(f.server).post(`/rides/${RIDE_ID}/payment-qr`);
+    const [stored] = await f.paymentRepo.listQrByRideId(RIDE_ID);
+    const qrId = stored!.gatewayRef!;
+    f.mockGateway.simulateCredit(qrId, 12000, 'pay_provider_truth');
+
+    const raw = JSON.stringify({
+      event: 'qr_code.credited',
+      payload: { qr_code: { entity: { id: qrId } } },
+    });
+    const res = await request(f.server)
+      .post('/webhook')
+      .type('json')
+      .set('x-razorpay-signature', signWebhook(raw))
+      .set('x-razorpay-event-id', 'evt_no_amount')
+      .send(raw);
+    expect(res.status).toBe(200);
+    expect((await f.rideRepo.findById(RIDE_ID))?.status).toBe('SETTLED');
+    expect((await f.paymentRepo.findById(stored!.id))?.providerPaymentId).toBe('pay_provider_truth');
+  });
+
+  it('11. a credit webhook the provider cannot confirm is retried, not acknowledged', async () => {
+    const f = await createFixture({ agreedFarePaise: 12000 });
+    await request(f.server).post(`/rides/${RIDE_ID}/payment-qr`);
+    const [stored] = await f.paymentRepo.listQrByRideId(RIDE_ID);
+
+    const raw = JSON.stringify({
+      event: 'qr_code.credited',
+      payload: { qr_code: { entity: { id: stored!.gatewayRef! } } },
+    });
+    const res = await request(f.server)
+      .post('/webhook')
+      .type('json')
+      .set('x-razorpay-signature', signWebhook(raw))
+      .set('x-razorpay-event-id', 'evt_unconfirmed')
+      .send(raw);
+    expect(res.status).toBe(409);
+    expect(await f.qrPayment.hasWebhookEvent('evt_unconfirmed')).toBe(false);
+    expect((await f.rideRepo.findById(RIDE_ID))?.status).toBe('PAYMENT_PENDING');
+
+    // Once the provider shows the credit, the same delivery succeeds.
+    f.mockGateway.simulateCredit(stored!.gatewayRef!, 12000, 'pay_late_confirm');
+    const retry = await request(f.server)
+      .post('/webhook')
+      .type('json')
+      .set('x-razorpay-signature', signWebhook(raw))
+      .set('x-razorpay-event-id', 'evt_unconfirmed')
+      .send(raw);
+    expect(retry.status).toBe(200);
+    expect((await f.rideRepo.findById(RIDE_ID))?.status).toBe('SETTLED');
+  });
+
+  it('12. a second UPI payment on a ride another payment already settled is flagged for refund review', async () => {
+    const f = await createFixture({ agreedFarePaise: 12000 });
+    await request(f.server).post(`/rides/${RIDE_ID}/payment-qr`);
+    const [stored] = await f.paymentRepo.listQrByRideId(RIDE_ID);
+
+    // Another UPI payment settles the ride first.
+    const ride = (await f.rideRepo.findById(RIDE_ID))!;
+    await f.rideRepo.save({ ...ride, status: 'SETTLED', settledAt: f.clock(), version: ride.version + 1 });
+    await f.rideEventRepo.save({
+      id: 'first-payment',
+      rideId: RIDE_ID,
+      eventType: 'PAYMENT_CONFIRMED',
+      actorType: 'SYSTEM',
+      actorId: null,
+      previousStatus: 'PAYMENT_PENDING',
+      newStatus: 'SETTLED',
+      metadata: { method: 'UPI', paymentId: 'pay_first' },
+      createdAt: f.clock(),
+    });
+
+    const raw = JSON.stringify({
+      event: 'qr_code.credited',
+      payload: {
+        qr_code: { entity: { id: stored!.gatewayRef! } },
+        payment: { entity: { id: 'pay_second', amount: 12000 } },
+      },
+    });
+    const res = await request(f.server)
+      .post('/webhook')
+      .type('json')
+      .set('x-razorpay-signature', signWebhook(raw))
+      .send(raw);
+    expect(res.status).toBe(200);
+
+    expect((await f.rideRepo.findById(RIDE_ID))?.status).toBe('PAYMENT_DISPUTED');
+    const dispute = (await f.rideEventRepo.findByRideId(RIDE_ID)).find(
+      (e) => e.eventType === 'PAYMENT_DISPUTED',
+    );
+    expect(dispute?.metadata).toMatchObject({
+      duplicate: true,
+      duplicateOf: 'UPI',
+      paymentId: 'pay_second',
+      totalPayablePaise: 12000,
+    });
+    // The driver is not credited a second time.
+    expect(await f.walletRepo.findTransactionsByWalletId('wallet-driver-1')).toHaveLength(0);
+  });
+
+  it('13. a rider-side live QR credited after another payment settled the ride is a duplicate; re-reporting the settling payment is not', async () => {
+    const f = await createFixture({ agreedFarePaise: 12000 });
+    const session = {
+      kind: 'intent',
+      qrId: 'qr_legacy1',
+      upiUrl: 'upi://pay?pa=cabzone@upi&pn=Cabzone&am=120.00&cu=INR&tr=qr_legacy1',
+      imageDataUrl: 'data:image/png;base64,AAAA',
+      amountPaise: 12000,
+      expiresAt: new Date(f.clock().getTime() + 20 * 60_000).toISOString(),
+      testMode: false,
+    };
+    await f.rideEventRepo.save({
+      id: 'legacy-qr',
+      rideId: RIDE_ID,
+      eventType: 'UPI_QR_CREATED',
+      actorType: 'SYSTEM',
+      actorId: null,
+      previousStatus: 'PAYMENT_PENDING',
+      newStatus: 'PAYMENT_PENDING',
+      metadata: { session, qrId: 'qr_legacy1', farePaise: 12000, arrearsPaise: 0, mode: 'live' },
+      createdAt: f.clock(),
+    });
+    const ride = (await f.rideRepo.findById(RIDE_ID))!;
+    await f.rideRepo.save({ ...ride, status: 'SETTLED', settledAt: f.clock(), version: ride.version + 1 });
+    await f.rideEventRepo.save({
+      id: 'settled-by',
+      rideId: RIDE_ID,
+      eventType: 'PAYMENT_CONFIRMED',
+      actorType: 'SYSTEM',
+      actorId: null,
+      previousStatus: 'PAYMENT_PENDING',
+      newStatus: 'SETTLED',
+      metadata: { method: 'UPI', paymentId: 'pay_first' },
+      createdAt: f.clock(),
+    });
+
+    const live = (providerPaymentId: string) =>
+      new RideUpiPaymentUseCase({
+        rideRepo: f.rideRepo,
+        rideEventRepo: f.rideEventRepo,
+        unitOfWork,
+        walletRepo: f.walletRepo,
+        gateway: {
+          live: true,
+          keyId: 'rzp_live_fixture',
+          closeQrForCash: vi.fn(async () => {}),
+          createQr: vi.fn(async () => null),
+          findQrPayment: vi.fn(async () => providerPaymentId),
+          createOrder: vi.fn(async () => 'order_unused'),
+          verifySignature: vi.fn(),
+          findCapturedPayment: vi.fn(async () => null),
+        },
+      });
+
+    // The settling payment shows up again (e.g. a repeated webhook): nothing changes.
+    expect((await live('pay_first').reconcileQrWebhook(RIDE_ID, 'qr_legacy1')).status).toBe('SETTLED');
+
+    // A different payment on the rider's QR is a second payment.
+    const disputed = await live('pay_second').reconcileQrWebhook(RIDE_ID, 'qr_legacy1');
+    expect(disputed.status).toBe('PAYMENT_DISPUTED');
+    const dispute = (await f.rideEventRepo.findByRideId(RIDE_ID)).find(
+      (e) => e.eventType === 'PAYMENT_DISPUTED',
+    );
+    expect(dispute?.metadata).toMatchObject({ duplicate: true, duplicateOf: 'UPI', paymentId: 'pay_second' });
+  });
+
+  it('14. a driver QR that settles the ride closes the rider-side QR for that ride', async () => {
+    const closeLegacy = vi.fn(async () => {});
+    const f = await createFixture({ agreedFarePaise: 12000, closeLegacyQrSession: closeLegacy });
+    await request(f.server).post(`/rides/${RIDE_ID}/payment-qr`);
+    const [stored] = await f.paymentRepo.listQrByRideId(RIDE_ID);
+    f.mockGateway.simulateCredit(stored!.gatewayRef!, 12000, 'pay_driver_qr');
+    f.advanceMs(4000);
+    const polled = await request(f.server).get(`/rides/${RIDE_ID}/payment-qr`);
+    expect(polled.body.data.qr.state).toBe('PAID');
+    expect(closeLegacy).toHaveBeenCalledTimes(1);
+    expect(closeLegacy).toHaveBeenCalledWith(RIDE_ID);
+  });
+
+  it('15. the rider live session and the driver QR are one QR, and a rider status check settles it', async () => {
+    const f = await createFixture({ agreedFarePaise: 12000 });
+    const liveUpi = new RideUpiPaymentUseCase({
+      rideRepo: f.rideRepo,
+      rideEventRepo: f.rideEventRepo,
+      unitOfWork,
+      walletRepo: f.walletRepo,
+      gateway: {
+        live: true,
+        keyId: 'rzp_live_fixture',
+        closeQrForCash: vi.fn(async () => {}),
+        createQr: vi.fn(async () => {
+          throw new Error('the rider must not create a separate legacy QR');
+        }),
+        findQrPayment: vi.fn(async () => null),
+        createOrder: vi.fn(async () => 'order_unused'),
+        verifySignature: vi.fn(),
+        findCapturedPayment: vi.fn(async () => null),
+      },
+      closeQrCollectionForCash: (id) => f.qrPayment.closeForCash(id),
+      liveQrSession: (rideId, riderId) => f.qrPayment.liveSessionForRider(rideId, riderId),
+      refreshQrPayment: (rideId) => f.qrPayment.refreshForRider(rideId),
+    });
+
+    const riderSession = await liveUpi.session(RIDE_ID, 'rider-1');
+    expect(riderSession.kind).toBe('intent');
+    if (riderSession.kind !== 'intent') return;
+    expect(riderSession.amountPaise).toBe(12000);
+    expect(riderSession.upiUrl.startsWith('upi://pay?')).toBe(true);
+    expect(riderSession.testMode).toBe(false);
+
+    // Same QR on repeat taps, and the driver's "Show QR" returns that very QR.
+    const again = await liveUpi.session(RIDE_ID, 'rider-1');
+    expect(again.kind === 'intent' && again.qrId).toBe(riderSession.qrId);
+    const driverView = await request(f.server).post(`/rides/${RIDE_ID}/payment-qr`);
+    expect(driverView.status).toBe(200);
+    const rows = await f.paymentRepo.listQrByRideId(RIDE_ID);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.gatewayRef).toBe(riderSession.qrId);
+
+    // The rider pays; a rider-side status check (no driver app open) settles the ride.
+    f.mockGateway.simulateCredit(riderSession.qrId, 12000, 'pay_rider_scan');
+    f.advanceMs(4000);
+    const ride = await liveUpi.reconcile(RIDE_ID, 'rider-1');
+    expect(ride.status).toBe('SETTLED');
+    expect((await f.paymentRepo.listQrByRideId(RIDE_ID))[0]?.status).toBe('CAPTURED');
+  });
+
+  it('16. only the booking rider can open the live session, and a cash-selected ride refuses it', async () => {
+    const f = await createFixture({ agreedFarePaise: 12000 });
+    await expect(f.qrPayment.liveSessionForRider(RIDE_ID, 'someone-else')).rejects.toThrow(
+      /booking customer/,
+    );
+    await f.rideEventRepo.save({
+      id: 'cash-chosen',
+      rideId: RIDE_ID,
+      eventType: 'PAYMENT_METHOD_CHANGED',
+      actorType: 'DRIVER',
+      actorId: 'driver-1',
+      previousStatus: 'PAYMENT_PENDING',
+      newStatus: 'PAYMENT_PENDING',
+      metadata: { method: 'CASH', previousMethod: 'UPI' },
+      createdAt: f.clock(),
+    });
+    await expect(f.qrPayment.liveSessionForRider(RIDE_ID, 'rider-1')).rejects.toThrow(/uses cash/);
+    expect(await f.paymentRepo.listQrByRideId(RIDE_ID)).toHaveLength(0);
   });
 });

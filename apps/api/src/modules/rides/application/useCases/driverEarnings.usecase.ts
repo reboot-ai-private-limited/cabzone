@@ -246,7 +246,8 @@ export class DriverEarningsUseCase {
     const isOnlineRefunded =
       isOnlineUpi &&
       resolutionEvent?.metadata?.outcome === 'RIDER_WINS' &&
-      !resolutionEvent?.metadata?.duplicateUpiAfterCash;
+      !resolutionEvent?.metadata?.duplicateUpiAfterCash &&
+      !resolutionEvent?.metadata?.duplicatePayment;
 
     if (isOnlineRefunded) {
       const reconciled = onlineTx
@@ -653,7 +654,8 @@ export class DriverEarningsUseCase {
       const isOnlineRefunded =
         isOnlineUpi &&
         resolutionEvent?.metadata?.outcome === 'RIDER_WINS' &&
-        !resolutionEvent?.metadata?.duplicateUpiAfterCash;
+        !resolutionEvent?.metadata?.duplicateUpiAfterCash &&
+      !resolutionEvent?.metadata?.duplicatePayment;
 
       if (isOnlineUpi) {
         const eventCommission =

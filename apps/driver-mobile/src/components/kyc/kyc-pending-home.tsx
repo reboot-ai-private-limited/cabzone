@@ -1,11 +1,10 @@
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors, typography } from '@/design-system';
+import { colors, typography, createStyles } from '@/design-system';
 import React, { useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
   ScrollView,
-  StyleSheet,
   Text,
   View,
 } from 'react-native';
@@ -196,7 +195,7 @@ export function KycPendingHome() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createStyles(() => ({
   container: {
     flex: 1,
     backgroundColor: colors.background,
@@ -470,4 +469,4 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#9CA3AF',
   },
-});
+}));

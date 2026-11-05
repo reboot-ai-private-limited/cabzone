@@ -27,14 +27,14 @@ export default function LegalScreen() {
         <View style={styles.card}>
           <Text style={styles.heading}>1. Locked Pricing & Negotiation Snapshot</Text>
           <Text style={styles.body}>
-            When you generate a quote and request a ride, the geographic classification (In-City, Buffer, Outstation, or Interstate state segments) and pricing snapshot are locked. Neither the driver nor the platform can alter per-km rates mid-trip.
+            When you generate a quote and request a ride, the geographic classification (In-City, Outstation, or Interstate state segments) and pricing snapshot are locked. Neither the driver nor the platform can alter per-km rates mid-trip.
           </Text>
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.heading}>2. Direct Cash & Personal UPI Payment</Text>
+          <Text style={styles.heading}>2. Cash & UPI Payment</Text>
           <Text style={styles.body}>
-            Cabzone connects riders with verified independent drivers. Riders pay the final Agreed Fare directly to the driver in Cash or via the driver&apos;s personal UPI upon reaching the destination.
+            Pay the confirmed trip amount using an available in-app UPI option or cash. Cash is confirmed by the driver after receipt. UPI is confirmed only after Cabzone verifies the payment with its payment provider.
           </Text>
         </View>
 

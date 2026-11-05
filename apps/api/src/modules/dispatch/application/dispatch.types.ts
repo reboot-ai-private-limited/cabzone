@@ -1,4 +1,4 @@
-import type { TollSnapshot, VehicleCategory } from '@cabzone/contracts';
+import type { PublicTrustTier, TollSnapshot, VehicleCategory } from '@cabzone/contracts';
 
 /** What dispatch needs to know about a driver account. Supplied by the composition root (identity). */
 export interface DriverDispatchProfile {
@@ -14,6 +14,8 @@ export interface DispatchLookups {
   getDriverProfileByUserId: (userId: string) => Promise<DriverDispatchProfile | null>;
   getUserIdForRider: (riderId: string) => Promise<string | null>;
   getUserIdForDriver: (driverId: string) => Promise<string | null>;
+  /** Public trust tiers for riders, used on offer cards. Only riders whose score is public appear. */
+  getRiderTrustTier?: (riderIds: string[]) => Promise<Map<string, PublicTrustTier>>;
   getDriverInfo?: (
     driverId: string,
   ) => Promise<{ name: string; phoneE164: string; registrationNumber?: string | undefined } | null>;
@@ -47,7 +49,13 @@ export interface RideOfferDto {
   drop: { lat: number; lng: number; address: string | null };
   stops?: { lat: number; lng: number; address: string | null }[];
   proposedFarePaise: number;
+  /** The rider's public trust tier, when their score is public (D-048). */
+  riderTrustTier?: PublicTrustTier | null;
   distanceToPickupM: number;
+  /** Pickup-to-drop route distance in metres (rider's route snapshot). */
+  tripDistanceM?: number;
+  /** Google encoded road polyline pickup -> stops -> drop; absent when the route provider gave none. */
+  routePolyline?: string;
   expiresAt: string;
   negotiation: { floorPaise: number; ceilingPaise: number };
 }

@@ -100,6 +100,13 @@ test('receipt HTML escapes names and addresses and omits internal pricing and OT
   assert.ok(!html.includes('commission'));
 });
 
+test('receipt HTML remains printable without a bundled image', () => {
+  const html = exports.receiptHtml(exports.rideReceipt(ride(), []));
+  assert.ok(html.includes('<div class="brand">Cabzone</div>'));
+  assert.ok(!html.includes('<img'));
+  assert.ok(html.includes('₹165.25'));
+});
+
 test('empty route names and cancelled rides have clear fallbacks', () => {
   const receipt = exports.rideReceipt(
     {

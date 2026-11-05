@@ -48,6 +48,13 @@ export function useResolveCashout() {
   });
 }
 
+export function useSyncCashout() {
+  return useApiMutation<{ id: string }, WalletOperationDto>({
+    call: (token, { id }) => walletsApi.syncCashout(id, token),
+    invalidates: [keys.wallets.all()],
+  });
+}
+
 export function useWalletsList(query: ListWalletsQueryDto = {}) {
   return useQuery(
     authedQueryOptions<{ items: WalletSummaryDto[]; total: number }>({

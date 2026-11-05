@@ -3,9 +3,13 @@ import {
   type TollSnapshot,
   ACTIVE_RIDE_STATUSES,
   CANCELLATION_REASONS,
+  DISPUTE_OUTCOMES,
+  RIDE_EVENT_ACTORS,
   RIDE_STATUSES,
   VEHICLE_CATEGORIES,
   type CancellationReason,
+  type DisputeOutcome,
+  type RideEventActor,
   type RidePricingSnapshot,
   type RideStatus,
   type VehicleCategory,
@@ -44,6 +48,11 @@ export interface RideDocument extends Document<string> {
   arrears_paise?: number;
   status: RideStatus;
   cancellation_reason: CancellationReason | null;
+  cancelled_by?: RideEventActor | null;
+  disputed_at?: Date | null;
+  early_drop_requested_at?: Date | null;
+  dispute_outcome?: DisputeOutcome | null;
+  dispute_resolved_at?: Date | null;
   offering_expires_at: Date | null;
   accepted_at: Date | null;
   arrived_at: Date | null;
@@ -115,6 +124,11 @@ const rideSchema = new Schema<RideDocument>(
       enum: CANCELLATION_REASONS,
       default: null,
     },
+    cancelled_by: { type: String, enum: [...RIDE_EVENT_ACTORS, null], default: null },
+    disputed_at: { type: Date, default: null },
+    early_drop_requested_at: { type: Date, default: null },
+    dispute_outcome: { type: String, enum: [...DISPUTE_OUTCOMES, null], default: null },
+    dispute_resolved_at: { type: Date, default: null },
     offering_expires_at: { type: Date, default: null },
     accepted_at: { type: Date, default: null },
     arrived_at: { type: Date, default: null },

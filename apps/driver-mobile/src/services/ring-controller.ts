@@ -13,8 +13,11 @@ export interface RingPlayer {
   pause(): void;
 }
 
+/** Which loop to play: the incoming ring or the ringback the caller hears. */
+export type RingSound = 'ring' | 'ringback';
+
 export interface RingDeps {
-  createPlayer: () => RingPlayer | null;
+  createPlayer: (sound: RingSound) => RingPlayer | null;
   /** Start (pattern) or cancel (null) a repeating vibration. */
   vibrate: (pattern: readonly number[] | null) => void;
   setTimer: (fn: () => void, ms: number) => unknown;
@@ -29,6 +32,10 @@ export interface RingRequest {
   id: string;
   /** Higher priority preempts lower; a lower priority never interrupts a higher one. */
   priority: number;
+  /** Defaults to the incoming ring. */
+  sound?: RingSound | undefined;
+  /** Defaults to true for the incoming ring and false for ringback. */
+  vibrate?: boolean | undefined;
   /** When the offer/call stops being answerable. The ring stops no later than this. */
   until?: string | number | null | undefined;
   maxMs?: number | undefined;
@@ -50,23 +57,25 @@ export function ringDurationMs(
 interface Session {
   id: string;
   priority: number;
+  sound: RingSound;
+  vibrates: boolean;
   timer: unknown;
   onEnd: ((reason: RingEndReason) => void) | undefined;
 }
 
 export function createRingController(deps: RingDeps) {
   let current: Session | null = null;
-  let player: RingPlayer | null | undefined;
+  const players = new Map<RingSound, RingPlayer | null>();
 
-  const getPlayer = (): RingPlayer | null => {
-    if (player === undefined) {
+  const getPlayer = (sound: RingSound): RingPlayer | null => {
+    if (!players.has(sound)) {
       try {
-        player = deps.createPlayer();
+        players.set(sound, deps.createPlayer(sound));
       } catch {
-        player = null;
+        players.set(sound, null);
       }
     }
-    return player;
+    return players.get(sound) ?? null;
   };
 
   const finish = (session: Session, reason: RingEndReason) => {
@@ -74,11 +83,11 @@ export function createRingController(deps: RingDeps) {
     current = null;
     deps.clearTimer(session.timer);
     try {
-      getPlayer()?.pause();
+      getPlayer(session.sound)?.pause();
     } catch {
       // A failing audio stack must never break the offer or call flow.
     }
-    deps.vibrate(null);
+    if (session.vibrates) deps.vibrate(null);
     session.onEnd?.(reason);
   };
 
@@ -100,17 +109,19 @@ export function createRingController(deps: RingDeps) {
       const session: Session = {
         id: request.id,
         priority: request.priority,
+        sound: request.sound ?? 'ring',
+        vibrates: request.vibrate ?? (request.sound ?? 'ring') !== 'ringback',
         timer: undefined,
         onEnd: request.onEnd,
       };
       current = session;
       session.timer = deps.setTimer(() => finish(session, 'timeout'), duration);
       try {
-        getPlayer()?.play();
+        getPlayer(session.sound)?.play();
       } catch {
         // Keep vibrating even if audio fails to start.
       }
-      deps.vibrate([0, 700, 500]);
+      if (session.vibrates) deps.vibrate([0, 700, 500]);
       return () => finish(session, 'stopped');
     },
 

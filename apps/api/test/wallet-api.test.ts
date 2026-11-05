@@ -104,7 +104,7 @@ describe('Wallet API', () => {
     const create = await request(s.app)
       .post('/api/v1/driver/wallet/me/recharges')
       .set('Authorization', s.driver)
-      .send({ amountPaise: 10000, idempotencyKey: 'recharge-http' });
+      .send({ amountPaise: 50000, idempotencyKey: 'recharge-http' });
     expect(create.status).toBe(201);
     const { operation, checkoutUrl } = create.body.data;
     expect(operation).not.toHaveProperty('idempotencyKey');
@@ -138,7 +138,7 @@ describe('Wallet API', () => {
     const cashout = await request(s.app)
       .post('/api/v1/driver/wallet/me/cashouts')
       .set('Authorization', s.driver)
-      .send({ amountPaise: 15000, destinationUpi: 'driver@upi', idempotencyKey: 'cashout-http' });
+      .send({ amountPaise: 20000, destinationUpi: 'driver@upi', idempotencyKey: 'cashout-http' });
     expect(cashout.status).toBe(201);
     const path = `/api/v1/admin/wallets/cashouts/${cashout.body.data.id}/resolve`;
     expect(

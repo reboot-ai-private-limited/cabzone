@@ -1,5 +1,6 @@
 import React from 'react';
-import { Animated, Image, StyleSheet } from 'react-native';
+import { Animated, Image } from 'react-native';
+import { createStyles } from '@/design-system';
 
 export interface CabVehicleLayerProps {
   anim: Animated.Value;
@@ -49,11 +50,11 @@ export function CabVehicleLayer({ anim, screenWidth, vehicleWidth }: CabVehicleL
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createStyles(() => ({
   container: {
     position: 'absolute',
     bottom: 2,
     right: -8,
     zIndex: 3,
   },
-});
+}));

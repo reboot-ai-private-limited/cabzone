@@ -234,7 +234,7 @@ function createHarness({ screenWidth = 360 } = {}) {
       if (name.includes('services/api')) return { ridesApi: api };
       if (name.includes('design-system'))
         return {
-          colors: {
+          createStyles: (factory) => factory(), colors: {
             deepBrown: '#3A2414',
             amber: '#FBBF24',
             white: '#FFFFFF',
@@ -261,7 +261,7 @@ function createHarness({ screenWidth = 360 } = {}) {
       if (name.includes('services/api')) return { ridesApi: api };
       if (name.includes('design-system'))
         return {
-          colors: {
+          createStyles: (factory) => factory(), colors: {
             deepBrown: '#3A2414',
             amber: '#FBBF24',
             white: '#FFFFFF',

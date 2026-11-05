@@ -153,6 +153,10 @@ export function resolveCancellationPolicy(
   };
 }
 
+export function cashAllowedForArrears(arrearsPaise: number, cancellationFeePaise: number): boolean {
+  return cancellationFeePaise === 0 || arrearsPaise < cancellationFeePaise;
+}
+
 export function isPricingConfigEffective(
   config: PricingConfigEntity,
   now: Date = new Date(),

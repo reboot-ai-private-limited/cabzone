@@ -2,7 +2,9 @@ import { AppError } from '../../../../shared/errors/AppError.js';
 import { newUuid } from '../../../../shared/ids.js';
 import type { UnitOfWorkPort } from '../../../../shared/db/unitOfWork.port.js';
 import { logger } from '../../../../shared/logging/logger.js';
+import { cashAllowedForArrears, resolveCancellationPolicy } from '../../../pricing/pricing.public.js';
 import { saveRideTransition } from '../rideTransition.js';
+import { COMPLETE_RADIUS_M, assertDriverWithin, type DriverLocationPort } from '../geofence.js';
 import type { RefundVerifierPort, ProviderRefund } from '../../domain/refundVerifier.port.js';
 import {
   calculateNewBalance,
@@ -21,6 +23,8 @@ export interface CompleteRideInput {
   driverId: string;
   metadata?: Record<string, unknown>;
   completedAt?: Date;
+  /** Driver confirmed the rider's early drop request; skips the 500 m drop-off check. */
+  earlyDrop?: boolean;
 }
 
 export interface ClaimCashPaidInput {
@@ -43,6 +47,8 @@ export interface CompleteRideDeps {
   rideRepo: RideRepositoryPort;
   walletRepo: WalletRepositoryPort;
   rideEventRepo?: RideEventRepositoryPort;
+  /** When set, the driver must be within 500 m of the drop to complete (unless early drop was approved). */
+  driverLocation?: DriverLocationPort | undefined;
 }
 
 export interface CompleteRideResult {
@@ -102,6 +108,19 @@ export class CompleteRideUseCase {
           totalPayablePaise: farePaise + arrearsPaise,
           driverWallet: wallet,
         };
+      }
+      if (input.earlyDrop) {
+        if (!ride.earlyDropRequestedAt) {
+          throw AppError.badRequest('NO_EARLY_DROP_REQUEST: There is no pending early drop request.');
+        }
+      } else if (this.deps.driverLocation) {
+        await assertDriverWithin(
+          this.deps.driverLocation,
+          input.driverId,
+          ride.drop,
+          COMPLETE_RADIUS_M,
+          'DRIVER_TOO_FAR_FROM_DROP',
+        );
       }
       const now = input.completedAt ?? new Date();
       const saved = await saveRideTransition(
@@ -194,6 +213,10 @@ export class CompleteRideUseCase {
         `INVALID_RIDE_STATE: Cash payment can only be claimed while payment is pending (current status: ${ride.status}).`,
       );
     }
+    if (!cashAllowedForArrears(
+      getRiderUnpaidArrearsPaise(await this.deps.walletRepo.findByRiderId(ride.bookerRiderId)),
+      resolveCancellationPolicy(ride.pricingSnapshot).cancellationFeePaise,
+    )) throw AppError.conflict('Cash is unavailable until cancellation fee arrears are paid online.');
 
     const existingClaims = await this.deps.rideRepo.count({
       riderId: ride.bookerRiderId,
@@ -225,6 +248,10 @@ export class CompleteRideUseCase {
       if (current.status !== 'PAYMENT_PENDING') {
         throw AppError.conflict('RIDE_STATE_CHANGED: Refresh the ride and try again.');
       }
+      if (!cashAllowedForArrears(
+        getRiderUnpaidArrearsPaise(await this.deps.walletRepo.findByRiderId(current.bookerRiderId)),
+        resolveCancellationPolicy(current.pricingSnapshot).cancellationFeePaise,
+      )) throw AppError.conflict('Cash is unavailable until cancellation fee arrears are paid online.');
       const concurrentClaims = await this.deps.rideRepo.count({
         riderId: current.bookerRiderId,
         statuses: ['PAYMENT_CASH_CLAIMED'],
@@ -325,6 +352,7 @@ export class CompleteRideUseCase {
           {
             ...current,
             status: 'PAYMENT_DISPUTED',
+            disputedAt: now,
             updatedAt: now,
             version: current.version + 1,
           },
@@ -408,7 +436,13 @@ export class CompleteRideUseCase {
       const now = new Date();
       const saved = await saveRideTransition(
         this.deps.rideRepo,
-        { ...ride, status: 'PAYMENT_DISPUTED', updatedAt: now, version: ride.version + 1 },
+        {
+          ...ride,
+          status: 'PAYMENT_DISPUTED',
+          disputedAt: now,
+          updatedAt: now,
+          version: ride.version + 1,
+        },
         ride.version,
       );
       await this.deps.rideEventRepo!.save({
@@ -445,6 +479,14 @@ export class CompleteRideUseCase {
       const hasCashConfirmation = confirmedEvents.some((event) => event.metadata?.method !== 'UPI');
       const isDuplicateUpiAfterCash =
         hasCashConfirmation && typeof latestDispute?.metadata?.paymentId === 'string';
+      // A second UPI payment on a ride the first UPI payment already settled: refund only the
+      // duplicate, and leave the driver's original earnings and commission alone.
+      const isDuplicateUpiAfterUpi =
+        !hasCashConfirmation &&
+        hasOnlineConfirmation &&
+        latestDispute?.metadata?.duplicate === true &&
+        typeof latestDispute?.metadata?.paymentId === 'string';
+      const isDuplicatePayment = isDuplicateUpiAfterCash || isDuplicateUpiAfterUpi;
       const requiresManualProviderRefund =
         (hasOnlineConfirmation || isDuplicateUpiAfterCash) && input.outcome === 'RIDER_WINS';
 
@@ -479,10 +521,10 @@ export class CompleteRideUseCase {
       let verifiedRefund: ProviderRefund | null = null;
       if (requiresManualProviderRefund) {
         const confirmation = confirmedEvents.find((event) => event.metadata?.method === 'UPI');
-        const paymentId = isDuplicateUpiAfterCash
+        const paymentId = isDuplicatePayment
           ? latestDispute?.metadata?.paymentId
           : confirmation?.metadata?.paymentId;
-        const amountPaise = isDuplicateUpiAfterCash
+        const amountPaise = isDuplicatePayment
           ? (latestDispute?.metadata?.totalPayablePaise ?? latestDispute?.metadata?.amountPaise)
           : (ride.agreedFarePaise ?? ride.proposedFarePaise ?? ride.suggestedFarePaise) +
             Math.max(0, ride.arrearsPaise ?? 0);
@@ -513,7 +555,14 @@ export class CompleteRideUseCase {
       const now = new Date();
       const saved = await saveRideTransition(
         this.deps.rideRepo,
-        { ...ride, status: 'SETTLED', updatedAt: now, version: ride.version + 1 },
+        {
+          ...ride,
+          status: 'SETTLED',
+          disputeOutcome: input.outcome,
+          disputeResolvedAt: now,
+          updatedAt: now,
+          version: ride.version + 1,
+        },
         ride.version,
       );
 
@@ -522,7 +571,7 @@ export class CompleteRideUseCase {
       let refundedCollectedArrearsPaise = 0;
 
       if (input.outcome === 'RIDER_WINS') {
-        if (hasOnlineConfirmation) {
+        if (hasOnlineConfirmation && !isDuplicateUpiAfterUpi) {
           const onlineCredit = await this.deps.walletRepo.findTransactionByIdempotencyKey(
             `ride-earnings:${ride.id}`,
           );
@@ -817,6 +866,7 @@ export class CompleteRideUseCase {
           ...(refundReference ? { refundReference } : {}),
           ...(verifiedRefund ? { verifiedRefund, refundVerifiedAt: now.toISOString() } : {}),
           ...(isDuplicateUpiAfterCash ? { duplicateUpiAfterCash: true } : {}),
+          ...(isDuplicatePayment ? { duplicatePayment: true } : {}),
         },
         createdAt: now,
       });
@@ -897,6 +947,10 @@ export class CompleteRideUseCase {
       ? getRiderUnpaidArrearsPaise(riderWallet)
       : rideArrearsPaise;
     const collectableArrearsPaise = Math.min(rideArrearsPaise, unpaidArrearsPaise);
+    if (!cashAllowedForArrears(
+      unpaidArrearsPaise,
+      resolveCancellationPolicy(ride.pricingSnapshot).cancellationFeePaise,
+    )) throw AppError.conflict('Cash is unavailable until cancellation fee arrears are paid online.');
     const previousStatus = ride.status;
 
     // Reserve the transition before posting money. A concurrent confirmation retries

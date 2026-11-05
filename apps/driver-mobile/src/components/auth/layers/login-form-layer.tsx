@@ -1,4 +1,4 @@
-import { colors, typography } from '@/design-system';
+import { colors, typography, createStyles } from '@/design-system';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Animated,
@@ -349,7 +349,7 @@ export function LoginFormLayer({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createStyles(() => ({
   container: {
     width: '100%',
     flex: 1,
@@ -602,4 +602,4 @@ const styles = StyleSheet.create({
     width: '100%',
     marginTop: 14,
   },
-});
+}));

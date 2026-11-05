@@ -75,11 +75,34 @@ function withCabzoneVoiceCallManifest(config) {
       const proguardPath = path.join(mod.modRequest.platformProjectRoot, 'app', 'proguard-rules.pro');
       if (fs.existsSync(proguardPath)) {
         const contents = fs.readFileSync(proguardPath, 'utf8');
+        let modified = false;
         if (!contents.includes('livekit.org.jni_zero')) {
-          fs.writeFileSync(
-            proguardPath,
-            `${contents}\n-dontwarn livekit.org.jni_zero.**\n-keep class livekit.org.** { *; }\n`,
-          );
+          contents += '\n-dontwarn livekit.org.jni_zero.**\n-keep class livekit.org.** { *; }\n';
+          modified = true;
+        }
+        if (!contents.includes('androidx.work.impl.WorkDatabase')) {
+          contents +=
+            '\n# WorkManager and Room\n' +
+            '-keep class androidx.work.impl.WorkDatabase { *; }\n' +
+            '-keep class androidx.work.impl.WorkDatabase_Impl { *; }\n' +
+            '-keep class androidx.work.** { *; }\n' +
+            '-keep class * extends androidx.work.ListenableWorker {\n' +
+            '    <init>(android.content.Context, androidx.work.WorkerParameters);\n' +
+            '}\n' +
+            '-keep class * extends androidx.work.Worker {\n' +
+            '    <init>(android.content.Context, androidx.work.WorkerParameters);\n' +
+            '}\n' +
+            '-keep class androidx.room.** { *; }\n' +
+            '-keep class * extends androidx.room.RoomDatabase { *; }\n' +
+            '-keep @androidx.room.Entity class * { *; }\n' +
+            '-keepclassmembers class * extends androidx.room.RoomDatabase {\n' +
+            '    *;\n' +
+            '}\n' +
+            '-dontwarn androidx.work.**\n';
+          modified = true;
+        }
+        if (modified) {
+          fs.writeFileSync(proguardPath, contents);
         }
       }
       return mod;
@@ -90,6 +113,12 @@ function withCabzoneVoiceCallManifest(config) {
 }
 
 module.exports = ({ config }) => {
+  if (
+    process.env.EAS_BUILD_PROFILE === 'production' &&
+    !/^https:\/\/[^/]+/.test(process.env.EXPO_PUBLIC_API_URL ?? '')
+  ) {
+    throw new Error('Production driver builds require EXPO_PUBLIC_API_URL with an HTTPS API origin.');
+  }
   const expo = { ...base.expo, ...config };
   const projectId =
     process.env.DRIVER_EAS_PROJECT_ID ||
@@ -101,6 +130,11 @@ module.exports = ({ config }) => {
     (fs.existsSync(path.resolve(path.dirname(require.resolve('./app.json')), 'google-services.json'))
       ? './google-services.json'
       : undefined);
+
+  const googleMapsApiKey =
+    process.env.DRIVER_GOOGLE_MAPS_API_KEY ||
+    process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ||
+    '';
 
   const plugins = [
     ...(expo.plugins ?? []),
@@ -125,8 +159,15 @@ module.exports = ({ config }) => {
   return {
     ...expo,
     plugins,
+    ios: {
+      ...expo.ios,
+      ...(googleMapsApiKey ? { config: { ...expo.ios?.config, googleMapsApiKey } } : {}),
+    },
     android: {
       ...expo.android,
+      ...(googleMapsApiKey
+        ? { config: { ...expo.android?.config, googleMaps: { apiKey: googleMapsApiKey } } }
+        : {}),
       blockedPermissions: [
         'android.permission.SYSTEM_ALERT_WINDOW',
         'android.permission.CALL_PHONE',

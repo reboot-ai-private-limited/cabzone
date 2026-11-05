@@ -62,7 +62,7 @@ function getApiBaseUrl(): string {
   }
 
   // 4. Default to local Wi-Fi IP
-  return 'http://192.168.1.5:4000';
+  return 'http://200.234.38.54:4090';
 }
 
 export const API_BASE_URL = getApiBaseUrl();
@@ -427,7 +427,13 @@ export interface RideOfferDto {
   };
   stops?: { lat: number; lng: number; address: string | null }[];
   proposedFarePaise: number;
+  /** The rider's public trust tier. Absent until their score is public. */
+  riderTrustTier?: 'EXCELLENT' | 'GOOD' | 'FAIR' | 'POOR' | null;
   distanceToPickupM: number;
+  /** Pickup-to-drop route distance in metres. */
+  tripDistanceM?: number;
+  /** Google encoded road polyline for the whole trip. */
+  routePolyline?: string;
   expiresAt: string | null;
   negotiation?: { floorPaise: number; ceilingPaise: number };
 }
@@ -708,6 +714,18 @@ export const ridesApi = {
     );
   },
 
+  async respondEarlyDrop(
+    token: string,
+    rideId: string,
+    decision: 'ACCEPT' | 'DECLINE',
+  ): Promise<RideDto> {
+    return request<RideDto>(
+      `/api/v1/rides/${encodeURIComponent(rideId)}/early-drop/respond`,
+      { method: 'POST', body: JSON.stringify({ decision }) },
+      token,
+    );
+  },
+
   async getRideRating(token: string, rideId: string): Promise<RideRatingStatusDto> {
     return request<RideRatingStatusDto>(
       `/api/v1/rides/${encodeURIComponent(rideId)}/rating`,
@@ -796,12 +814,23 @@ export const walletApi = {
   async cashout(
     token: string,
     amountPaise: number,
-    destinationUpi: string,
+    destination:
+      | { upiId: string }
+      | { bank: { accountNumber: string; ifsc: string; accountHolderName: string } },
     idempotencyKey: string,
   ): Promise<WalletOperationDto> {
     return request(
       '/api/v1/driver/wallet/me/cashouts',
-      { method: 'POST', body: JSON.stringify({ amountPaise, destinationUpi, idempotencyKey }) },
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          amountPaise,
+          idempotencyKey,
+          ...('upiId' in destination
+            ? { destinationUpi: destination.upiId }
+            : { destinationBank: destination.bank }),
+        }),
+      },
       token,
     );
   },

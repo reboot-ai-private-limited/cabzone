@@ -7,12 +7,12 @@ function harness(startMs = 1_000_000) {
   const timers = new Map();
   let nextId = 1;
   const log = [];
-  const player = {
-    play: () => log.push('play'),
-    pause: () => log.push('pause'),
-  };
+  const makePlayer = (sound) => ({
+    play: () => log.push(sound === 'ring' ? 'play' : `play:${sound}`),
+    pause: () => log.push(sound === 'ring' ? 'pause' : `pause:${sound}`),
+  });
   const controller = createRingController({
-    createPlayer: () => player,
+    createPlayer: (sound) => makePlayer(sound),
     vibrate: (pattern) => log.push(pattern ? 'vibrate' : 'vibrate-cancel'),
     setTimer: (fn, ms) => {
       const id = nextId++;
@@ -132,4 +132,12 @@ test('a failing audio stack does not break the flow', () => {
   assert.equal(controller.isRinging('x'), true);
   stop();
   assert.equal(controller.isRinging(), false);
+});
+
+test('ringback plays its own sound and the right player is paused', () => {
+  const h = harness();
+  const stop = h.controller.start({ id: 'call-out-1', priority: 2, sound: 'ringback' });
+  assert.deepEqual(h.log, ['play:ringback']);
+  stop();
+  assert.deepEqual(h.log, ['play:ringback', 'pause:ringback']);
 });

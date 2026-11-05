@@ -1,10 +1,9 @@
-import { colors, typography } from '@/design-system';
+import { colors, typography, createStyles } from '@/design-system';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
   ScrollView,
-  StyleSheet,
   Text,
   View,
 } from 'react-native';
@@ -297,7 +296,7 @@ export function StepReview({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createStyles(() => ({
   container: {
     flex: 1,
     backgroundColor: colors.background,
@@ -576,4 +575,4 @@ const styles = StyleSheet.create({
     opacity: 0.88,
     transform: [{ scale: 0.99 }],
   },
-});
+}));

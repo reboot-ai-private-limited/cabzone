@@ -1,9 +1,9 @@
 import React from 'react';
-import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Linking, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, typography } from '@/design-system';
+import { colors, typography, createStyles } from '@/design-system';
 
 const SUPPORT_PHONE = '+919800000000';
 const SUPPORT_EMAIL = 'driversupport@cabzone.in';
@@ -79,7 +79,7 @@ export default function DriverHelpScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createStyles(() => ({
   container: { flex: 1, backgroundColor: colors.background },
   topBar: {
     flexDirection: 'row',
@@ -142,4 +142,4 @@ const styles = StyleSheet.create({
   faqBorder: { borderTopWidth: 1, borderTopColor: colors.border },
   faqQ: { fontSize: typography.sizes.xs, fontWeight: '800', color: colors.deepBrown },
   faqA: { fontSize: typography.sizes.xs, color: colors.secondary, lineHeight: 18 },
-});
+}));

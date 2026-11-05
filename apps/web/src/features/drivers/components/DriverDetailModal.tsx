@@ -90,7 +90,12 @@ export function DriverDetailModal({
           </div>
 
           <div className="flex items-center gap-3">
-            <TrustScoreBadge score={driver?.trustScore} size="sm" />
+            <TrustScoreBadge
+              score={driver?.trustScore}
+              tier={driver?.trustTier ?? undefined}
+              breakdown={driver?.trustScoreBreakdown}
+              size="sm"
+            />
             <div className="flex items-center gap-1.5 text-xs font-medium text-amber-500">
               <Star className="size-4 fill-amber-500 text-amber-500" />
               <span className="text-text font-semibold">

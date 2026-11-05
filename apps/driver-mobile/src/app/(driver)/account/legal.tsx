@@ -1,9 +1,9 @@
 import React from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, typography } from '@/design-system';
+import { colors, typography, createStyles } from '@/design-system';
 
 export default function DriverLegalScreen() {
   const router = useRouter();
@@ -21,9 +21,9 @@ export default function DriverLegalScreen() {
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>1. Direct Passenger Settlement</Text>
+          <Text style={styles.sectionTitle}>1. Ride Payment</Text>
           <Text style={styles.body}>
-            Cabzone operates a direct-settlement model. Passengers pay the agreed fare directly to the Driver Partner via Cash or personal UPI upon trip completion. Driver Partners must honestly confirm payment receipt in the app immediately upon receiving funds.
+            Passengers may pay cash to the driver or use Cabzone&apos;s in-app UPI payment. Confirm cash receipt only after receiving the full amount. Cabzone credits verified online ride earnings to the driver wallet after platform commission.
           </Text>
 
           <Text style={styles.sectionTitle}>2. Platform Commission (8%)</Text>
@@ -33,7 +33,7 @@ export default function DriverLegalScreen() {
 
           <Text style={styles.sectionTitle}>3. Location & Safety Telemetry</Text>
           <Text style={styles.body}>
-            While ONLINE or executing an assigned ride, the Cabzone Driver app transmits foreground GPS coordinates to match nearby passengers, compute accurate pickup ETAs, and maintain trip safety records.
+            With location permission, the Cabzone Driver app can transmit GPS coordinates while you are online or on an assigned ride, including when the app is in the background. This supports nearby ride offers, pickup ETAs, and trip safety.
           </Text>
 
           <Text style={styles.sectionTitle}>4. Document Compliance</Text>
@@ -46,7 +46,7 @@ export default function DriverLegalScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createStyles(() => ({
   container: { flex: 1, backgroundColor: colors.background },
   topBar: {
     flexDirection: 'row',
@@ -80,4 +80,4 @@ const styles = StyleSheet.create({
     color: colors.secondary,
     lineHeight: 19,
   },
-});
+}));

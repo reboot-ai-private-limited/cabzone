@@ -1,0 +1,46 @@
+Cabzone is a cab booking app where you agree on the fare before you ride. Book a city ride or plan a trip to another city, see the route, set the price you want to pay, and get matched with a verified independent driver.
+
+YOUR RIDE. YOUR FARE.
+• See the route and a suggested fare before you book.
+• Raise or lower the fare in ₹10 steps to suit your budget.
+• Fares are locked when you request the ride, so the rate cannot change mid-trip.
+• Toll and permit charges, where they apply, are shown as extra at actuals.
+
+CITY RIDES
+• Pick your pickup and drop-off by searching for a place or choosing it on the map.
+• Add stops along the way.
+• Book for yourself or for someone else.
+
+CITY TO CITY
+• Plan outstation trips from Siliguri to nearby destinations such as Kurseong and Kalimpong.
+• Popular routes are shown with approximate distances so you can start quickly.
+
+SAFER PICKUPS
+• Every trip uses a one-time pickup OTP, so you only start the ride with the right driver.
+• Save an emergency contact in your profile.
+• Chat with your driver, or call them from inside the app.
+
+PAY THE DRIVER DIRECTLY
+• Pay the agreed fare to your driver in cash or by UPI when you reach your destination.
+• Cabzone connects riders and independent drivers. The fare you agreed is what you pay.
+
+TRIPS AND RECEIPTS
+• See every past trip in Activity, with itemised receipts.
+• Repeat a ride or book the return route in one tap.
+• Rate your driver after a trip.
+• Save your regular routes for quick booking.
+
+MADE FOR YOU
+• Available in English, Hindi and Bengali.
+• Choose kilometres or miles.
+• Light and dark themes, or follow your phone setting.
+
+PERMISSIONS
+• Location: used while the app is open to suggest your pickup point and to show nearby drivers. Cabzone does not track your location in the background.
+• Notifications: ride updates, driver messages and incoming call alerts.
+• Microphone: only when you make or take a call with your driver inside the app.
+
+SIGN IN
+Sign in with your mobile number and a 6-digit code sent by SMS. No password to remember.
+
+Cabzone is currently available in and around Siliguri, West Bengal, with more cities planned. Questions? Open Profile > Help in the app.

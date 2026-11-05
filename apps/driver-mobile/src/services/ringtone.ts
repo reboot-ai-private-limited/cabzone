@@ -4,18 +4,25 @@ import {
   createRingController,
   type RingEndReason,
   type RingPlayer,
+  type RingSound,
 } from './ring-controller';
 
 /** Calls outrank ride offers: an incoming call interrupts an offer ring, never the reverse. */
 const PRIORITY_OFFER = 1;
 const PRIORITY_CALL = 2;
 
-function createNativePlayer(): RingPlayer | null {
+function loadAsset(sound: RingSound): unknown {
+  // Metro needs static require paths, so each sound is listed explicitly.
+  return sound === 'ringback'
+    ? require('@/assets/sfx/ringback.wav')
+    : require('@/assets/sfx/ringtone.wav');
+}
+
+function createNativePlayer(sound: RingSound): RingPlayer | null {
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { createAudioPlayer, setAudioModeAsync } = require('expo-audio');
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const asset = require('@/assets/sfx/ringtone.wav');
+    const asset = loadAsset(sound);
     // Ring even when the phone is on silent: a missed offer is a lost ride.
     void setAudioModeAsync?.({ playsInSilentMode: true, shouldPlayInBackground: false })?.catch?.(
       () => {},
@@ -36,11 +43,10 @@ function createNativePlayer(): RingPlayer | null {
   }
 }
 
-function createWebPlayer(): RingPlayer | null {
+function createWebPlayer(sound: RingSound): RingPlayer | null {
   try {
     if (typeof window === 'undefined' || !(window as { Audio?: unknown }).Audio) return null;
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const asset = require('@/assets/sfx/ringtone.wav');
+    const asset = loadAsset(sound) as string | { default?: string; uri?: string };
     const uri =
       typeof asset === 'string' ? asset : (asset?.default ?? asset?.uri ?? '');
     if (!uri) return null;
@@ -61,7 +67,8 @@ function createWebPlayer(): RingPlayer | null {
 }
 
 const controller = createRingController({
-  createPlayer: () => (Platform.OS === 'web' ? createWebPlayer() : createNativePlayer()),
+  createPlayer: (sound) =>
+    Platform.OS === 'web' ? createWebPlayer(sound) : createNativePlayer(sound),
   vibrate: (pattern) => {
     if (Platform.OS === 'web') return;
     if (pattern) Vibration.vibrate([...pattern], true);
@@ -99,4 +106,17 @@ export function startCallRing(
 
 export function stopAllRinging(): void {
   controller.stop();
+}
+
+/**
+ * Ringback the caller hears while the other side's phone is ringing. Stops when the call is
+ * answered or ended, or after 30 seconds. No vibration.
+ */
+export function startCallRingback(callId: string, ringingUntil?: string | null): () => void {
+  return controller.start({
+    id: `callback:${callId}`,
+    priority: PRIORITY_CALL,
+    sound: 'ringback',
+    until: ringingUntil,
+  });
 }
