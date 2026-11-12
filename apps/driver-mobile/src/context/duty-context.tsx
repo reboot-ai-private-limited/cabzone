@@ -452,8 +452,8 @@ export function DutyProvider({ children }: { children: React.ReactNode }) {
             void startBackgroundLocation().catch(() => {});
           } else {
             Alert.alert(
-              'Receive rides in the background',
-              'Allow background location so Cabzone can keep your position fresh while you are online. Android will show a persistent location notification.',
+              'Background location disclosure',
+              'Cabzone Driver collects location data to enable nearby ride offers, live pickup ETAs, and active trip safety tracking even when the app is closed or not in use. Android will show a persistent location notification while you are online.',
               [
                 {
                   text: 'Not now',

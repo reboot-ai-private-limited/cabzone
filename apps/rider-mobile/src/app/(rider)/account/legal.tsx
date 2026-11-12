@@ -1,5 +1,6 @@
 import React from 'react';
 import {
+  Linking,
   Pressable,
   ScrollView,
   Text,
@@ -50,6 +51,15 @@ export default function LegalScreen() {
           <Text style={styles.body}>
             Cabzone uses foreground location only to assist with pickup selection and route quoting. Your phone number and trip history are protected under Cabzone&apos;s zero-trust access controls.
           </Text>
+          <Pressable
+            onPress={() => void Linking.openURL('https://cabzone-admin.vercel.app/privacy')}
+            accessibilityRole="link"
+            accessibilityLabel="Read full Privacy Policy"
+          >
+            <Text style={[styles.heading, { marginTop: 6, textDecorationLine: 'underline' }]}>
+              Read full Privacy Policy →
+            </Text>
+          </Pressable>
         </View>
       </ScrollView>
     </SafeAreaView>

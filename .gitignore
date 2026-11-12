@@ -40,9 +40,12 @@ docs/engineering/git-workflow.md
 docs/design&flow
 
 
-# Mobile Firebase / FCM credentials & generated native CMake staging (never commit)
+# Mobile Firebase / FCM credentials, signing keys & generated native CMake staging (never commit)
 **/google-services.json
 *firebase-adminsdk*.json
+*.keystore
+*.jks
+!**/debug.keystore
 .cxx/
 
 .vercel

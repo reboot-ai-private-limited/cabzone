@@ -26,7 +26,8 @@
         "android.permission.FOREGROUND_SERVICE",
         "android.permission.FOREGROUND_SERVICE_LOCATION"
       ],
-      "package": "com.cabzone.driver"
+      "package": "com.cabzone.driver",
+      "versionCode": 1
     },
     "web": {
       "output": "static",
@@ -37,6 +38,8 @@
       [
         "expo-location",
         {
+          "locationWhenInUsePermission": "Allow Cabzone Driver to access your location for nearby ride offers and navigation.",
+          "locationAlwaysAndWhenInUsePermission": "Allow Cabzone Driver to collect location data for nearby ride offers and active trip tracking even when the app is closed or not in use.",
           "isAndroidBackgroundLocationEnabled": true,
           "isAndroidForegroundServiceEnabled": true
         }
