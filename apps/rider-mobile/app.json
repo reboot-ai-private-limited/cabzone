@@ -24,7 +24,8 @@
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_FINE_LOCATION"
       ],
-      "package": "com.cabzone.rider"
+      "package": "com.cabzone.rider",
+      "versionCode": 1
     },
     "web": {
       "output": "static",

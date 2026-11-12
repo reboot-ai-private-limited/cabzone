@@ -57,14 +57,24 @@ function withCabzoneVoiceCallManifest(config) {
   });
 
   config = withAppBuildGradle(config, (mod) => {
-    if (
-      typeof mod.modResults.contents === 'string' &&
-      !mod.modResults.contents.includes('CMAKE_OBJECT_PATH_MAX=245')
-    ) {
-      mod.modResults.contents = mod.modResults.contents.replace(
-        'defaultConfig {',
-        'externalNativeBuild {\n        cmake {\n            buildStagingDirectory file("${rootDir}/../../../.cxx/r").canonicalFile\n        }\n    }\n    defaultConfig {\n        externalNativeBuild {\n            cmake {\n                arguments "-DCMAKE_OBJECT_PATH_MAX=245"\n            }\n        }',
-      );
+    if (typeof mod.modResults.contents === 'string') {
+      if (!mod.modResults.contents.includes('CMAKE_OBJECT_PATH_MAX=245')) {
+        mod.modResults.contents = mod.modResults.contents.replace(
+          'defaultConfig {',
+          'externalNativeBuild {\n        cmake {\n            buildStagingDirectory file("${rootDir}/../../../.cxx/r").canonicalFile\n        }\n    }\n    defaultConfig {\n        externalNativeBuild {\n            cmake {\n                arguments "-DCMAKE_OBJECT_PATH_MAX=245"\n            }\n        }',
+        );
+      }
+      if (!mod.modResults.contents.includes('CABZONE_RIDER_UPLOAD_STORE_FILE')) {
+        mod.modResults.contents = mod.modResults.contents
+          .replace(
+            "        debug {\n            storeFile file('debug.keystore')\n            storePassword 'android'\n            keyAlias 'androiddebugkey'\n            keyPassword 'android'\n        }",
+            "        debug {\n            storeFile file('debug.keystore')\n            storePassword 'android'\n            keyAlias 'androiddebugkey'\n            keyPassword 'android'\n        }\n        release {\n            def uploadStoreFile = findProperty('CABZONE_RIDER_UPLOAD_STORE_FILE') ?: System.getenv('CABZONE_RIDER_UPLOAD_STORE_FILE') ?: findProperty('CABZONE_UPLOAD_STORE_FILE') ?: System.getenv('CABZONE_UPLOAD_STORE_FILE')\n            if (uploadStoreFile) {\n                storeFile file(uploadStoreFile)\n                storePassword (findProperty('CABZONE_RIDER_UPLOAD_STORE_PASSWORD') ?: System.getenv('CABZONE_RIDER_UPLOAD_STORE_PASSWORD') ?: findProperty('CABZONE_UPLOAD_STORE_PASSWORD') ?: System.getenv('CABZONE_UPLOAD_STORE_PASSWORD'))\n                keyAlias (findProperty('CABZONE_RIDER_UPLOAD_KEY_ALIAS') ?: System.getenv('CABZONE_RIDER_UPLOAD_KEY_ALIAS') ?: findProperty('CABZONE_UPLOAD_KEY_ALIAS') ?: System.getenv('CABZONE_UPLOAD_KEY_ALIAS'))\n                keyPassword (findProperty('CABZONE_RIDER_UPLOAD_KEY_PASSWORD') ?: System.getenv('CABZONE_RIDER_UPLOAD_KEY_PASSWORD') ?: findProperty('CABZONE_UPLOAD_KEY_PASSWORD') ?: System.getenv('CABZONE_UPLOAD_KEY_PASSWORD'))\n            }\n        }",
+          )
+          .replace(
+            '            signingConfig signingConfigs.debug\n            def enableShrinkResources',
+            '            signingConfig signingConfigs.release.storeFile ? signingConfigs.release : signingConfigs.debug\n            def enableShrinkResources',
+          );
+      }
     }
     return mod;
   });

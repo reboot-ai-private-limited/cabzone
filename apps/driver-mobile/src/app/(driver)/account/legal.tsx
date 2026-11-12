@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { Linking, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -40,6 +40,16 @@ export default function DriverLegalScreen() {
           <Text style={styles.body}>
             Driver Partners must maintain a valid Commercial Driving Licence, Registration Certificate (RC), Commercial Insurance, and Route Permit at all times.
           </Text>
+
+          <Pressable
+            onPress={() => void Linking.openURL('https://cabzone-admin.vercel.app/privacy')}
+            accessibilityRole="link"
+            accessibilityLabel="Read full Privacy Policy"
+          >
+            <Text style={[styles.sectionTitle, { textDecorationLine: 'underline' }]}>
+              Read full Privacy Policy →
+            </Text>
+          </Pressable>
         </View>
       </ScrollView>
     </SafeAreaView>
