@@ -9,7 +9,7 @@ module.exports = {
       watch: false,
       max_memory_restart: '1G',
       env: {
-        NODE_ENV: 'production',
+        NODE_ENV: 'stage',
         PORT: 4090,
       },
     },
@@ -22,7 +22,7 @@ module.exports = {
       watch: false,
       max_memory_restart: '1G',
       env: {
-        NODE_ENV: 'production',
+        NODE_ENV: 'stage',
       },
     },
     {
