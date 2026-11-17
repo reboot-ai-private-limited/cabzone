@@ -84,7 +84,7 @@ function withCabzoneVoiceCallManifest(config) {
     async (mod) => {
       const proguardPath = path.join(mod.modRequest.platformProjectRoot, 'app', 'proguard-rules.pro');
       if (fs.existsSync(proguardPath)) {
-        const contents = fs.readFileSync(proguardPath, 'utf8');
+        let contents = fs.readFileSync(proguardPath, 'utf8');
         let modified = false;
         if (!contents.includes('livekit.org.jni_zero')) {
           contents += '\n-dontwarn livekit.org.jni_zero.**\n-keep class livekit.org.** { *; }\n';

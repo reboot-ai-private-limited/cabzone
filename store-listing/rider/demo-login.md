@@ -8,8 +8,8 @@ Paste into **Play Console > App content > App access** (choose "All or some func
 Cabzone uses phone-number sign-in with a 6-digit SMS code (no password).
 
 Demo account
-  Phone number: +91 [demo rider number]
-  Sign-in code: [fixed review code]
+  Phone number: +91 9999900001
+  Sign-in code: 000000
 
 Steps
 1. Open the app and tap "Continue with phone".
@@ -42,4 +42,8 @@ Google reviewers cannot receive an SMS to a number you control, so a real OTP wi
 2. **Staging build.** Point the review build at the staging API with `STAGING_UNSAFE=true` and `DEV_FIXED_OTP` set. The app must then ship with a staging API URL, and you should not leave that build live.
 3. **Give a live number.** Provide a phone you will watch during review and the OTP when asked. Reviews can take days, so this is unreliable.
 
-Replace `[demo rider number]` and `[fixed review code]` once you choose.
+Replace `[demo rider number]` and `000000` once you choose.
+
+## Decision (2026-11-17): staging release
+
+Release runs against the staging API (`NODE_ENV=stage`, `STAGING_UNSAFE=true`, `SMS_PROVIDER=console`), where `000000` is accepted for any number. The demo number above is a normal rider that signs up on first login. Switch to the production allow-list approach before a real public launch.
