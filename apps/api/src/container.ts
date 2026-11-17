@@ -106,7 +106,7 @@ export function buildContainers(overrides?: Partial<AppContainers>): AppContaine
         updatedAt: now,
       };
     }
-    if (wallet.balancePaise <= 0) {
+    if (wallet.balancePaise < 5000) {
       const topUpPaise = 50000 - wallet.balancePaise;
       await walletRepo.recordTransaction({
         id: crypto.randomUUID(),

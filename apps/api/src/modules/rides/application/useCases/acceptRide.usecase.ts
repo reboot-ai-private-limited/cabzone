@@ -46,7 +46,7 @@ export class AcceptRideUseCase {
     const wallet = await this.deps.walletRepo.findByDriverId(input.driverId);
     if (!wallet || !isDriverEligibleForNewRides(wallet)) {
       throw AppError.forbidden(
-        'DRIVER_WALLET_ZERO_BALANCE: Strictly positive wallet balance is required to accept new ride requests.',
+        'DRIVER_WALLET_ZERO_BALANCE: Wallet balance is below ₹50. Recharge your wallet to accept new ride requests.',
       );
     }
 

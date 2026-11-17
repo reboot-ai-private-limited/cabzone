@@ -1300,10 +1300,10 @@ describe('MongoDB Atomic Claim & Lifecycle Integration Test (rs0 Replica Set)', 
 
   describe('Wallet Zero Invariant & Commission Settlement in MongoDB', () => {
     it('settles ride normally even if commission drives balance negative, but blocks subsequent ride acceptance', async () => {
-      // 1. Set driver wallet to low initial balance (500 paise = ₹5.00)
+      // 1. Driver starts at exactly the ₹50 minimum so they can accept the ride
       const lowBalanceWallet: WalletEntity = {
         ...driver1Wallet,
-        balancePaise: 500,
+        balancePaise: 5_000,
         version: 1,
       };
       await walletRepo.save(lowBalanceWallet);
@@ -1324,6 +1324,10 @@ describe('MongoDB Atomic Claim & Lifecycle Integration Test (rs0 Replica Set)', 
         driverId: DRIVER_ID_1,
         otp: claimResult._riderPickupOtp!,
       });
+
+      // Balance drops to ₹5.00 (500 paise) while the trip is in progress
+      const midTripWallet = await walletRepo.findByDriverId(DRIVER_ID_1);
+      await walletRepo.save({ ...midTripWallet!, balancePaise: 500 });
 
       // 4. Complete the trip, then confirm receipt before posting 8% commission.
       const pendingResult = await completeRideUseCase.execute({

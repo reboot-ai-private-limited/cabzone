@@ -35,6 +35,10 @@ describe('Wallet Domain Invariants', () => {
     // Strictly positive balance is eligible
     expect(isDriverEligibleForNewRides(activeWallet)).toBe(true);
 
+    // Below the ₹50 minimum is ineligible; exactly ₹50 is eligible
+    expect(isDriverEligibleForNewRides({ ...activeWallet, balancePaise: 4_999 })).toBe(false);
+    expect(isDriverEligibleForNewRides({ ...activeWallet, balancePaise: 5_000 })).toBe(true);
+
     // Exactly zero balance is ineligible (PRD v2 / D-008 gate)
     expect(isDriverEligibleForNewRides({ ...activeWallet, balancePaise: 0 })).toBe(false);
 

@@ -5,6 +5,9 @@
 export const WALLET_OWNER_TYPES = ['DRIVER', 'RIDER', 'PLATFORM'] as const;
 export type WalletOwnerType = (typeof WALLET_OWNER_TYPES)[number];
 
+/** Drivers below this wallet balance (₹50) are blocked from new rides until they recharge. */
+export const MIN_DRIVER_WALLET_BALANCE_PAISE = 5_000;
+
 export const WALLET_STATUSES = ['ACTIVE', 'BLOCKED'] as const;
 export type WalletStatus = (typeof WALLET_STATUSES)[number];
 

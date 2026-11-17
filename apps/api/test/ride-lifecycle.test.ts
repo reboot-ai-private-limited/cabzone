@@ -594,14 +594,18 @@ describe('Ride Lifecycle: Curbside Arrival & En-Route Progression', () => {
     it('The Wallet Zero Invariant: active trip completes and settles normally even if debit drops wallet to zero or negative, while blocking driver from subsequent rides', async () => {
       const fixture = setupFixture();
 
-      // Driver starts with low prepaid balance: Rs. 5 (500 paise)
+      // Driver starts at exactly the Rs. 50 minimum, so they can accept the ride.
       await fixture.walletRepo.save({
         ...driverWallet,
-        balancePaise: 500,
+        balancePaise: 5_000,
       });
 
       const { ride } = await createStartedRide(fixture);
       expect(ride.status).toBe('TRIP_STARTED');
+
+      // Balance drops to Rs. 5 (500 paise) while the trip is in progress.
+      const midTripWallet = await fixture.walletRepo.findByDriverId(DRIVER_ID_1);
+      await fixture.walletRepo.save({ ...midTripWallet!, balancePaise: 500 });
 
       // Completing the trip incurs 8% commission (approx Rs. 8 - 12 / 800 - 1200 paise)
       const pending = await fixture.completeRideUseCase.execute({

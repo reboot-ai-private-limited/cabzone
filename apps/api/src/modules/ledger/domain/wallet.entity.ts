@@ -1,4 +1,9 @@
-import type { WalletOwnerType, WalletStatus, WalletTransactionType } from '@cabzone/contracts';
+import {
+  MIN_DRIVER_WALLET_BALANCE_PAISE,
+  type WalletOwnerType,
+  type WalletStatus,
+  type WalletTransactionType,
+} from '@cabzone/contracts';
 
 export interface WalletEntity {
   id: string;
@@ -19,14 +24,14 @@ export function isWalletActive(wallet: WalletEntity): boolean {
 }
 
 /**
- * Driver must maintain a strictly positive balance (> 0) to receive new ride dispatches.
- * Per Decision D-008 and D-036: Zero or negative balance blocks new dispatches.
+ * Driver must keep at least ₹50 (MIN_DRIVER_WALLET_BALANCE_PAISE) to receive new ride dispatches.
+ * Below that the driver is blocked until they recharge (extends D-008 / D-036).
  */
 export function isDriverEligibleForNewRides(
   wallet: WalletEntity,
-  minBalancePaise: number = 0,
+  minBalancePaise: number = MIN_DRIVER_WALLET_BALANCE_PAISE,
 ): boolean {
-  return wallet.status === 'ACTIVE' && wallet.balancePaise > minBalancePaise;
+  return wallet.status === 'ACTIVE' && wallet.balancePaise >= minBalancePaise;
 }
 
 export function calculateNewBalance(

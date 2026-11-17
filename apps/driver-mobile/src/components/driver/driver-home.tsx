@@ -17,6 +17,7 @@ import { useRide } from '@/context/ride-context';
 import { colors, typography, createStyles } from '@/design-system';
 import { Ionicons } from '@expo/vector-icons';
 import { deriveKycBannerState } from '@/services/profile';
+import { MIN_DRIVER_WALLET_BALANCE_PAISE } from '@cabzone/contracts';
 
 export function DriverHome() {
   const router = useRouter();
@@ -294,7 +295,9 @@ export function DriverHome() {
             <Text
               style={[
                 styles.kpiValue,
-                walletBalancePaise != null && walletBalancePaise < 0 ? styles.kpiNegative : null,
+                walletBalancePaise != null && walletBalancePaise < MIN_DRIVER_WALLET_BALANCE_PAISE
+                  ? styles.kpiNegative
+                  : null,
               ]}
             >
               {walletBalancePaise != null ? `₹${(walletBalancePaise / 100).toFixed(0)}` : '—'}
@@ -306,10 +309,32 @@ export function DriverHome() {
                   : 'Unavailable'
                 : walletBalancePaise < 0
                   ? 'Commission due'
-                  : 'Available'}
+                  : walletBalancePaise < MIN_DRIVER_WALLET_BALANCE_PAISE
+                    ? 'Low balance'
+                    : 'Available'}
             </Text>
           </Pressable>
         </View>
+
+        {walletBalancePaise != null && walletBalancePaise < MIN_DRIVER_WALLET_BALANCE_PAISE ? (
+          <View style={styles.summaryRetryBanner}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.summaryRetryTitle}>Recharge to get ride requests</Text>
+              <Text style={styles.summaryRetryMsg}>
+                Your wallet is below ₹{MIN_DRIVER_WALLET_BALANCE_PAISE / 100}. Add money to start
+                receiving rides.
+              </Text>
+            </View>
+            <Pressable
+              style={styles.summaryRetryBtn}
+              onPress={() => router.push('/(driver)/wallet')}
+              accessibilityRole="button"
+              accessibilityLabel="Recharge wallet"
+            >
+              <Text style={styles.summaryRetryBtnText}>Recharge</Text>
+            </Pressable>
+          </View>
+        ) : null}
 
         {summaryError ? (
           <View style={styles.summaryRetryBanner}>
