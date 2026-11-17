@@ -9,8 +9,9 @@ async function fixture() {
   await walletRepo.save({
     id: 'wallet',
     driverId: 'driver',
-    balancePaise: 100000,
-    earningsBalancePaise: 200000,
+    // Single wallet: one balance (recharge + online earnings, less commission).
+    balancePaise: 300000,
+    earningsBalancePaise: 0,
     status: 'ACTIVE',
     version: 1,
     createdAt: new Date(),
@@ -43,7 +44,7 @@ describe('Wallet money movement', () => {
     const [saved] = await f.operations.list('driver');
     expect(saved?.orderId).toBeNull();
     expect((await f.money.reconcileRecharge(saved!.id, 'driver')).orderId).toBe('order_fixture');
-    expect((await f.money.activity('driver')).commissionBalancePaise).toBe(100000);
+    expect((await f.money.activity('driver')).commissionBalancePaise).toBe(300000);
   });
   it('credits a recharge only after capture and never twice', async () => {
     const f = await fixture();
@@ -51,22 +52,22 @@ describe('Wallet money movement', () => {
     expect((await f.money.createRecharge('driver', 100000, 'recharge-key')).id).toBe(recharge.id);
     expect(f.gateway.createOrder).toHaveBeenCalledTimes(1);
     await f.money.reconcileRecharge(recharge.id, 'driver');
-    expect((await f.walletRepo.findByDriverId('driver'))?.balancePaise).toBe(100000);
+    expect((await f.walletRepo.findByDriverId('driver'))?.balancePaise).toBe(300000);
     await expect(f.money.reconcileRecharge(recharge.id, 'other')).rejects.toThrow();
     f.gateway.findCapturedPayment.mockResolvedValue('pay_fixture');
     await f.money.reconcileRecharge(recharge.id, 'driver');
     await f.money.reconcileRecharge(recharge.id, 'driver');
-    expect((await f.walletRepo.findByDriverId('driver'))?.balancePaise).toBe(200000);
+    expect((await f.walletRepo.findByDriverId('driver'))?.balancePaise).toBe(400000);
     expect(await f.walletRepo.findTransactionsByWalletId('wallet')).toHaveLength(1);
     await expect(f.money.createRecharge('driver', 200000, 'recharge-key')).rejects.toThrow(
       'different',
     );
   });
 
-  it('reserves earnings first and unused recharge next; rejection restores each bucket exactly once', async () => {
+  it('reserves the cashout from the single balance; rejection restores it exactly once', async () => {
     const f = await fixture();
     const cashout = await f.money.requestCashout('driver', 250000, 'driver@upi', 'cashout-key');
-    expect(cashout).toMatchObject({ status: 'PENDING', earningsPaise: 200000, rechargePaise: 50000 });
+    expect(cashout).toMatchObject({ status: 'PENDING', earningsPaise: 0, rechargePaise: 250000 });
     expect((await f.money.activity('driver')).availableCashoutPaise).toBe(50000);
     expect((await f.money.requestCashout('driver', 250000, 'driver@upi', 'cashout-key')).id).toBe(
       cashout.id,
@@ -218,5 +219,22 @@ describe('Automated cashout payouts', () => {
     await expect(
       f.money.requestCashout('driver', 100000, { ...bank, accountNumber: '999999999999' }, 'bank-key-1'),
     ).rejects.toThrow('different payment details');
+  });
+});
+
+describe('Single wallet', () => {
+  it('lets online earnings offset commission dues so the net balance can be cashed out', async () => {
+    const f = await fixture();
+    const wallet = (await f.walletRepo.findByDriverId('driver'))!;
+    // ₹300 balance after ₹350 online earnings and ₹50 cash-ride commission: no dues, cashout allowed.
+    await f.walletRepo.save({ ...wallet, balancePaise: 30000 });
+    const activity = await f.money.activity('driver');
+    expect(activity.cashoutBlockedReason).toBeNull();
+    expect(activity.availableCashoutPaise).toBe(30000);
+    await expect(f.money.requestCashout('driver', 30000, 'driver@upi', 'net-cashout-key')).resolves.toMatchObject({
+      status: 'PENDING',
+      rechargePaise: 30000,
+      earningsPaise: 0,
+    });
   });
 });

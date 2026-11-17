@@ -227,8 +227,8 @@ export function WalletMoneyPanel({ refreshVersion = 0 }: { refreshVersion?: numb
       {activity ? (
         <>
           <View style={styles.row}>
-            <Text style={styles.label}>Online earnings</Text>
-            <Text style={styles.value}>{money(activity.earningsBalancePaise)}</Text>
+            <Text style={styles.label}>Wallet balance</Text>
+            <Text style={styles.value}>{money(activity.commissionBalancePaise)}</Text>
           </View>
           <View style={styles.row}>
             <Text style={styles.label}>Available to cash out</Text>
@@ -247,8 +247,8 @@ export function WalletMoneyPanel({ refreshVersion = 0 }: { refreshVersion?: numb
         <ActivityIndicator color={colors.deepBrown} />
       )}
       <Text style={styles.caption}>
-        Cash fares are already with you. Online earnings and unused recharge credit can be cashed
-        out after dues are cleared.
+        Cash fares are already with you. Your wallet balance (recharges plus online earnings, less
+        commission) can be cashed out after dues are cleared.
       </Text>
       <View style={styles.row}>
         <Pressable

@@ -961,11 +961,12 @@ export class DriverEarningsUseCase {
             return;
           }
           const now = new Date();
-          const before = wallet.earningsBalancePaise ?? 0;
+          const before = wallet.balancePaise;
           const after = before + payablePaise;
           await this.deps.walletRepo.save({
             ...wallet,
-            earningsBalancePaise: after,
+            balancePaise: after,
+            owedPaise: Math.max(0, -after),
             version: wallet.version + 1,
             updatedAt: now,
           });
@@ -973,7 +974,7 @@ export class DriverEarningsUseCase {
             id: newUuid(),
             walletId: wallet.id,
             driverId: currentRide.driverId,
-            bucket: 'EARNINGS',
+            bucket: 'COMMISSION',
             type: 'CREDIT',
             amountPaise: payablePaise,
             referenceType: 'ONLINE_RIDE_EARNINGS',

@@ -254,13 +254,10 @@ async function setup(customConfig?: Partial<PricingConfigEntity>) {
     const wallet = await walletRepo.findById(walletId);
     expect(wallet).not.toBeNull();
     const { items } = await walletRepo.listTransactions({ walletId, limit: 200 });
-    const EARNINGS_REFS = new Set(['ONLINE_RIDE_EARNINGS', 'DRIVER_CASHOUT']);
-    const commissionItems = items.filter(
-      (tx) => tx.bucket !== 'EARNINGS' && !EARNINGS_REFS.has(tx.referenceType),
-    );
-    const earningsItems = items.filter(
-      (tx) => tx.bucket === 'EARNINGS' || EARNINGS_REFS.has(tx.referenceType),
-    );
+    // Single wallet: online earnings post to the main balance, so only legacy EARNINGS-bucket
+    // rows count toward the (now always zero) earnings balance.
+    const commissionItems = items.filter((tx) => tx.bucket !== 'EARNINGS');
+    const earningsItems = items.filter((tx) => tx.bucket === 'EARNINGS');
     const netDelta = commissionItems.reduce(
       (sum, tx) => sum + (tx.type === 'CREDIT' ? tx.amountPaise : -tx.amountPaise),
       0,
@@ -692,7 +689,12 @@ describe('Step 3: Rider Cancellation & No-Show Fees, Arrears Ledger, Recovery & 
 
     const driverWallet = await walletRepo.findByDriverId(DRIVER_ID);
     const expectedCommission = Math.round((agreedFare * 8) / 100);
-    expect(driverWallet?.earningsBalancePaise).toBe(agreedFare - expectedCommission);
+    // Single wallet: net online earnings are one ledger credit inside the main balance.
+    const driverTxs = await walletRepo.findTransactionsByWalletId(driverWallet!.id);
+    expect(
+      driverTxs.find((tx) => tx.referenceType === 'ONLINE_RIDE_EARNINGS')?.amountPaise,
+    ).toBe(agreedFare - expectedCommission);
+    expect(driverWallet?.earningsBalancePaise ?? 0).toBe(0);
     await assertWalletConservation(driverWallet!.id, 250_000);
   });
 

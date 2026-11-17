@@ -29,6 +29,7 @@ export const TRANSACTION_REFERENCE_TYPES = [
   'WALLET_CASHOUT',
   'CASHOUT_REVERSAL',
   'ONLINE_EARNINGS_REVERSAL',
+  'WALLET_MERGE',
 ] as const;
 export type TransactionReferenceType = (typeof TRANSACTION_REFERENCE_TYPES)[number];
 

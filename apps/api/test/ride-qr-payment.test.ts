@@ -406,8 +406,9 @@ describe('Collect payment by UPI QR via Razorpay', () => {
     // Side effects must have run strictly once!
     expect(f.rideUpdated).toHaveBeenCalledTimes(1);
     const driverWallet = await f.walletRepo.findByDriverId('driver-1');
-    // 12000 fare - 8% (960) commission = 11040 net earnings
-    expect(driverWallet?.earningsBalancePaise).toBe(11040);
+    // 12000 fare - 8% (960) commission = 11040 net earnings, added to the single balance (25000)
+    expect(driverWallet?.balancePaise).toBe(25000 + 11040);
+    expect(driverWallet?.earningsBalancePaise ?? 0).toBe(0);
     const txs = await f.walletRepo.findTransactionsByWalletId('wallet-driver-1');
     expect(txs).toHaveLength(1);
     expect(txs[0]).toMatchObject({

@@ -527,11 +527,13 @@ export class RideUpiPaymentUseCase {
           driverPayablePaise: farePaise - commissionPaise,
           confirmedAt: now.toISOString(),
         };
-        const earningsBefore = driverWallet.earningsBalancePaise ?? 0;
+        // Single wallet: online earnings land in the same balance that commission is debited from.
+        const earningsBefore = driverWallet.balancePaise;
         const earningsAfter = earningsBefore + metadata.driverPayablePaise;
         await this.deps.walletRepo.save({
           ...driverWallet,
-          earningsBalancePaise: earningsAfter,
+          balancePaise: earningsAfter,
+          owedPaise: Math.max(0, -earningsAfter),
           version: driverWallet.version + 1,
           updatedAt: now,
         });
@@ -540,7 +542,7 @@ export class RideUpiPaymentUseCase {
             id: newUuid(),
             walletId: driverWallet.id,
             driverId: current.driverId,
-            bucket: 'EARNINGS',
+            bucket: 'COMMISSION',
             type: 'CREDIT',
             amountPaise: metadata.driverPayablePaise,
             referenceType: 'ONLINE_RIDE_EARNINGS',

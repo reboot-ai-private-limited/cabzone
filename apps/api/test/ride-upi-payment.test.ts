@@ -196,7 +196,7 @@ describe('Ride UPI payment', () => {
     expect((await f.useCase.paymentState('ride')).method).toBe('UPI');
     expect((await f.useCase.reconcile('ride', 'rider')).status).toBe('SETTLED');
     expect(await f.walletRepo.findTransactionsByWalletId('wallet')).toEqual([
-      expect.objectContaining({ type: 'CREDIT', bucket: 'EARNINGS', amountPaise: 11040 }),
+      expect.objectContaining({ type: 'CREDIT', bucket: 'COMMISSION', amountPaise: 11040 }),
     ]);
   });
 
@@ -375,10 +375,11 @@ describe('Ride UPI payment', () => {
       driverPayablePaise: 11040,
       mode: 'test',
     });
-    expect((await f.walletRepo.findByDriverId('driver'))?.balancePaise).toBe(10000);
-    expect((await f.walletRepo.findByDriverId('driver'))?.earningsBalancePaise).toBe(11040);
+    // Single wallet: net online earnings join the one balance (10000 + 11040).
+    expect((await f.walletRepo.findByDriverId('driver'))?.balancePaise).toBe(21040);
+    expect((await f.walletRepo.findByDriverId('driver'))?.earningsBalancePaise ?? 0).toBe(0);
     expect(await f.walletRepo.findTransactionsByWalletId('wallet')).toEqual([
-      expect.objectContaining({ type: 'CREDIT', bucket: 'EARNINGS', amountPaise: 11040 }),
+      expect.objectContaining({ type: 'CREDIT', bucket: 'COMMISSION', amountPaise: 11040 }),
     ]);
   });
 

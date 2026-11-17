@@ -187,7 +187,8 @@ export class WalletMoneyUseCase {
   private blocked(wallet: WalletEntity | null) {
     if (!wallet) return 'There are no funds available to cash out.';
     if (wallet.status !== 'ACTIVE') return 'Cashout is unavailable while your wallet is blocked.';
-    if (wallet.balancePaise < 0 || (wallet.owedPaise ?? 0) > 0)
+    // Single wallet: one balance. (Legacy earnings, if any, are folded in until migrated.)
+    if (wallet.balancePaise + (wallet.earningsBalancePaise ?? 0) < 0)
       return 'Clear your commission dues before cashout.';
     return null;
   }
@@ -545,7 +546,7 @@ export class WalletMoneyUseCase {
         createdBy: operation.driverId,
         note: restore
           ? 'Cashout rejected; funds returned'
-          : 'Test cashout reserved for Finance review',
+          : 'Cashout reserved for payout',
         createdAt: new Date(),
       });
     }

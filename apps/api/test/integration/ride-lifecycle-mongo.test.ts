@@ -1139,8 +1139,9 @@ describe('MongoDB Atomic Claim & Lifecycle Integration Test (rs0 Replica Set)', 
       const expectedCommission = Math.round((claim2.ride.agreedFarePaise! * 8) / 100);
       const expectedNetDriverEarnings = claim2.ride.agreedFarePaise! - expectedCommission;
       const driverAfter = await WalletModel.findById(driver1Wallet.id).lean();
-      expect(driverAfter?.balance_paise).toBe(driverBefore);
-      expect(driverAfter?.earnings_balance_paise).toBe(expectedNetDriverEarnings);
+      // Single wallet: net online earnings are added to the one balance.
+      expect(driverAfter?.balance_paise).toBe(driverBefore + expectedNetDriverEarnings);
+      expect(driverAfter?.earnings_balance_paise ?? 0).toBe(0);
 
       const riderAfter = await WalletModel.findOne({
         rider_id: RIDER_ID,

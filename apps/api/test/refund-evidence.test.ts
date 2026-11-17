@@ -88,8 +88,8 @@ async function disputedPayment(
   await walletRepo.save({
     id: 'driver-wallet',
     driverId: 'driver-1',
-    balancePaise: 5000,
-    earningsBalancePaise: 18400,
+    balancePaise: 23400,
+    earningsBalancePaise: 0,
     status: 'ACTIVE',
     version: 1,
     createdAt: now,
@@ -110,14 +110,14 @@ async function disputedPayment(
     id: 'earnings',
     walletId: 'driver-wallet',
     driverId: 'driver-1',
-    bucket: 'EARNINGS',
+    bucket: 'COMMISSION',
     type: 'CREDIT',
     amountPaise: 18400,
     referenceType: 'ONLINE_RIDE_EARNINGS',
     referenceId: ride.id,
     idempotencyKey: `ride-earnings:${ride.id}`,
-    balanceBeforePaise: 0,
-    balanceAfterPaise: 18400,
+    balanceBeforePaise: 5000,
+    balanceAfterPaise: 23400,
     createdBy: null,
     createdAt: now,
   });
@@ -208,7 +208,7 @@ describe('Dispute provider refund evidence', () => {
       }),
     ).rejects.toThrow();
     expect((await h.rideRepo.findById(h.ride.id))?.status).toBe('PAYMENT_DISPUTED');
-    expect((await h.walletRepo.findByDriverId('driver-1'))?.earningsBalancePaise).toBe(18400);
+    expect((await h.walletRepo.findByDriverId('driver-1'))?.balancePaise).toBe(23400);
     expect((await h.walletRepo.findByRiderId('rider-1'))?.balancePaise).toBe(0);
     expect(
       await h.walletRepo.findTransactionByIdempotencyKey(
@@ -263,7 +263,7 @@ describe('Dispute provider refund evidence', () => {
       ).rejects.toThrow();
       expect(fetchRefund).toHaveBeenCalledWith(verifiedRefund.id);
       expect((await h.rideRepo.findById(h.ride.id))?.status).toBe('PAYMENT_DISPUTED');
-      expect((await h.walletRepo.findByDriverId('driver-1'))?.earningsBalancePaise).toBe(18400);
+      expect((await h.walletRepo.findByDriverId('driver-1'))?.balancePaise).toBe(23400);
       expect((await h.walletRepo.findByRiderId('rider-1'))?.balancePaise).toBe(0);
       expect(
         (await h.rideEventRepo.findByRideId(h.ride.id)).filter(
@@ -293,7 +293,7 @@ describe('Dispute provider refund evidence', () => {
       }),
     ).rejects.toThrow();
     expect((await h.rideRepo.findById(h.ride.id))?.status).toBe('PAYMENT_DISPUTED');
-    expect((await h.walletRepo.findByDriverId('driver-1'))?.earningsBalancePaise).toBe(18400);
+    expect((await h.walletRepo.findByDriverId('driver-1'))?.balancePaise).toBe(23400);
     expect((await h.walletRepo.findByRiderId('rider-1'))?.balancePaise).toBe(0);
   });
 
@@ -363,8 +363,8 @@ describe('Dispute provider refund evidence', () => {
     await h.completeRide.resolveDispute(resolution);
     expect(fetchRefund).toHaveBeenCalledTimes(1);
     expect(fetchRefund).toHaveBeenCalledWith(verifiedRefund.id);
-    expect((await h.walletRepo.findByDriverId('driver-1'))?.earningsBalancePaise).toBe(18400);
-    expect((await h.walletRepo.findByDriverId('driver-1'))?.balancePaise).toBe(5000);
+    expect((await h.walletRepo.findByDriverId('driver-1'))?.balancePaise).toBe(23400);
+    expect((await h.walletRepo.findByDriverId('driver-1'))?.balancePaise).toBe(23400);
     expect((await h.walletRepo.findByRiderId('rider-1'))?.balancePaise).toBe(0);
     expect(
       (await h.rideEventRepo.findByRideId(h.ride.id)).filter(
@@ -400,8 +400,8 @@ describe('Dispute provider refund evidence', () => {
     });
     expect(resolved.status).toBe('SETTLED');
     const driver = await h.walletRepo.findByDriverId('driver-1');
-    expect(driver?.earningsBalancePaise).toBe(18400);
-    expect(driver?.balancePaise).toBe(5000);
+    expect(driver?.balancePaise).toBe(23400);
+    expect(driver?.balancePaise).toBe(23400);
     expect((await h.walletRepo.findByRiderId('rider-1'))?.balancePaise).toBe(0);
     const event = (await h.rideEventRepo.findByRideId(h.ride.id)).find(
       (e) => e.eventType === 'PAYMENT_DISPUTE_RESOLVED',

@@ -83,6 +83,7 @@ it('rolls back capture when settlement fails, then settles once across concurren
   await Promise.all([first.handleWebhookCredited(credit), second.handleWebhookCredited(credit)]);
   expect((await paymentRepo.findById(row!.id))?.status).toBe('CAPTURED');
   expect((await rideRepo.findById(ride.id))?.status).toBe('SETTLED');
-  expect((await walletRepo.findByDriverId(ride.driverId!))?.earningsBalancePaise).toBe(23000);
+  // Single wallet: net online earnings land in the one balance (started at 0).
+  expect((await walletRepo.findByDriverId(ride.driverId!))?.balancePaise).toBe(23000);
   expect(onRideSettled).toHaveBeenCalledTimes(1);
 });

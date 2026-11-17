@@ -397,7 +397,7 @@ describe('Step 6 — Historical money & payment operations reconciliation', () =
       rideIds: [rideId],
     });
     expect(recovery.reconciledPendingRideIds).toContain(rideId);
-    expect((await h.walletRepo.findByDriverId('driver-1'))?.earningsBalancePaise).toBe(18400);
+    expect((await h.walletRepo.findByDriverId('driver-1'))?.balancePaise).toBe(5000 + 18400);
     const audit = await h.driverEarnings.reconcile({ mode: 'AUDIT', rideIds: [rideId] });
     expect(audit.issues).toEqual([]);
   });
@@ -524,7 +524,7 @@ describe('Step 6 — Historical money & payment operations reconciliation', () =
       .expect(200);
     expect(blockedBackfill.body.data.backfilledRideIds).toEqual([]);
     expect(blockedBackfill.body.data.skippedRideIds).toEqual([unverifiedHistId]);
-    expect((await h.walletRepo.findByDriverId('driver-1'))?.earningsBalancePaise).toBe(0);
+    expect((await h.walletRepo.findByDriverId('driver-1'))?.balancePaise).toBe(10000);
 
     // Recover captured pending online ride once (idempotent on retry)
     const recoverRes = await request(h.app)
@@ -533,7 +533,7 @@ describe('Step 6 — Historical money & payment operations reconciliation', () =
       .send({ mode: 'RECONCILE_PENDING_ONLINE' })
       .expect(200);
     expect(recoverRes.body.data.reconciledPendingRideIds).toEqual([pendingCapturedId]);
-    expect((await h.walletRepo.findByDriverId('driver-1'))?.earningsBalancePaise).toBe(13800);
+    expect((await h.walletRepo.findByDriverId('driver-1'))?.balancePaise).toBe(10000 + 13800);
 
     const recoverRetry = await request(h.app)
       .post('/api/v1/rides/admin/reconcile-earnings')
@@ -541,7 +541,7 @@ describe('Step 6 — Historical money & payment operations reconciliation', () =
       .send({ mode: 'RECONCILE_PENDING_ONLINE' })
       .expect(200);
     expect(recoverRetry.body.data.reconciledPendingRideIds).toEqual([]);
-    expect((await h.walletRepo.findByDriverId('driver-1'))?.earningsBalancePaise).toBe(13800);
+    expect((await h.walletRepo.findByDriverId('driver-1'))?.balancePaise).toBe(10000 + 13800);
 
     // Now provider confirms order_hist901 -> AUDIT reports HISTORICAL_ONLINE_MISSING_EARNINGS and backfill succeeds once!
     h.capturedOrders.set('order_hist901', { paymentId: 'pay_hist901', amountPaise: 25000 });
@@ -560,8 +560,8 @@ describe('Step 6 — Historical money & payment operations reconciliation', () =
       .send({ mode: 'BACKFILL_ONLINE_EARNINGS', rideIds: [unverifiedHistId] })
       .expect(200);
     expect(backfillOk.body.data.backfilledRideIds).toEqual([unverifiedHistId]);
-    expect((await h.walletRepo.findByDriverId('driver-1'))?.earningsBalancePaise).toBe(
-      13800 + 23000,
+    expect((await h.walletRepo.findByDriverId('driver-1'))?.balancePaise).toBe(
+      10000 + 13800 + 23000,
     );
 
     // Ledger audit confirms zero drift and intact chains across all backfilled & recovered postings
@@ -671,7 +671,7 @@ describe('Step 6 — Historical money & payment operations reconciliation', () =
     const checkout = await h.upiPayment.create(onlineRideId, 'rider-1');
     h.capturedOrders.set(checkout.orderId, { paymentId: 'pay_online_555', amountPaise: 20000 });
     await h.upiPayment.reconcile(onlineRideId, 'rider-1');
-    expect((await h.walletRepo.findByDriverId('driver-1'))?.earningsBalancePaise).toBe(18400);
+    expect((await h.walletRepo.findByDriverId('driver-1'))?.balancePaise).toBe(5000 + 18400);
 
     // Driver cashes out ₹100 (10000 paise) of online earnings before rider files dispute!
     const cashoutOp = await h.walletMoney.requestCashout(

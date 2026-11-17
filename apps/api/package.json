@@ -10,6 +10,7 @@
     "seed": "tsx src/scripts/seed.ts",
     "backfill:trust": "tsx src/scripts/backfillTrust.ts",
     "reconcile:earnings": "tsx src/scripts/reconcileDriverEarnings.ts",
+    "migrate:single-wallet": "tsx src/scripts/mergeDriverWallets.ts",
     "import:states": "tsx src/scripts/importStates.ts",
     "build": "pnpm clean && tsc --noEmit && node esbuild.config.mjs",
     "start": "node dist/server.js",

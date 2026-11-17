@@ -26,7 +26,7 @@ const PERIOD_TABS: { key: DriverEarningsPeriod; label: string }[] = [
 export default function DriverEarningsTab() {
   const router = useRouter();
   const { token } = useAuth();
-  const { walletBalancePaise, walletEarningsBalancePaise, walletTransactions, summaryError, refreshSummary } =
+  const { walletBalancePaise, walletTransactions, summaryError, refreshSummary } =
     useDuty();
   const [period, setPeriod] = useState<DriverEarningsPeriod>('TODAY');
   const [summary, setSummary] = useState<DriverEarningsSummaryDto | null>(null);
@@ -291,18 +291,10 @@ export default function DriverEarningsTab() {
               <Ionicons name="wallet-outline" size={22} color={colors.deepBrown} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.walletLabel}>Withdrawable earnings</Text>
-              <Text style={styles.walletBalance}>
-                {walletEarningsBalancePaise != null
-                  ? `₹${(walletEarningsBalancePaise / 100).toFixed(2)}`
-                  : '—'}
-              </Text>
-              <Text style={[styles.walletLabel, { marginTop: 8 }]}>
-                Recharge balance (covers commission)
-              </Text>
+              <Text style={styles.walletLabel}>Wallet balance</Text>
               <Text
                 style={[
-                  styles.walletSecondaryBalance,
+                  styles.walletBalance,
                   walletBalancePaise != null && walletBalancePaise < 0
                     ? { color: colors.error }
                     : null,
@@ -320,10 +312,9 @@ export default function DriverEarningsTab() {
             </View>
           </View>
           <Text style={styles.walletExplain}>
-            Online UPI trips add your net earnings (fare minus commission) to withdrawable earnings.
-            Cash trips are already with you, so only their commission is deducted, from your
-            recharge balance. A cashout uses withdrawable earnings first, then recharge credit.
-            Net earnings above include cash trips, but only online earnings can be withdrawn.
+            One wallet for everything: recharges and online UPI trips (fare minus commission) add
+            to it, and commission on cash trips is deducted from it. Cash fares are already with
+            you. You can cash out your balance once it is above zero.
           </Text>
         </Pressable>
 

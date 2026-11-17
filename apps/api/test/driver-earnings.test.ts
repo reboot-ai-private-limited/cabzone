@@ -732,8 +732,9 @@ describe('Server-owned driver earnings, pagination & historical reconciliation',
     expect(backfillRes.body.data.skippedRideIds).toEqual([brokenCashRideId]);
 
     const afterBackfillWallet = await walletRepo.findByDriverId(driverId);
-    expect(afterBackfillWallet?.balancePaise).toBe(5000);
-    expect(afterBackfillWallet?.earningsBalancePaise).toBe(23000);
+    // Single wallet: the backfilled earnings join the one balance (5000 + 23000).
+    expect(afterBackfillWallet?.balancePaise).toBe(28000);
+    expect(afterBackfillWallet?.earningsBalancePaise ?? 0).toBe(0);
 
     // Re-running backfill is 100% idempotent — zero duplicate credit!
     const retryRes = await request(app)
@@ -747,7 +748,7 @@ describe('Server-owned driver earnings, pagination & historical reconciliation',
 
     expect(retryRes.body.data.backfilledRideIds).toEqual([]);
     expect(retryRes.body.data.skippedRideIds).toEqual([histOnlineRideId]);
-    expect((await walletRepo.findByDriverId(driverId))?.earningsBalancePaise).toBe(23000);
+    expect((await walletRepo.findByDriverId(driverId))?.balancePaise).toBe(28000);
   });
 
   it('paginates driver wallet transactions by direction and respects txLimit on /me', async () => {

@@ -583,57 +583,29 @@ export class CompleteRideUseCase {
               );
             }
             const totalToReverse = onlineCredit.amountPaise;
-            const availableEarnings = Math.max(0, wallet.earningsBalancePaise ?? 0);
-            const fromEarnings = Math.min(totalToReverse, availableEarnings);
-            const shortfall = totalToReverse - fromEarnings;
-            const nextEarnings = (wallet.earningsBalancePaise ?? 0) - fromEarnings;
-            const nextCommissionBalance =
-              shortfall > 0
-                ? calculateNewBalance(wallet.balancePaise, shortfall, 'DEBIT')
-                : wallet.balancePaise;
-
-            if (fromEarnings > 0) {
-              await this.deps.walletRepo.recordTransaction({
-                id: newUuid(),
-                walletId: wallet.id,
-                driverId: wallet.driverId,
-                bucket: 'EARNINGS',
-                type: 'DEBIT',
-                amountPaise: fromEarnings,
-                referenceType: 'ONLINE_EARNINGS_REVERSAL',
-                referenceId: ride.id,
-                idempotencyKey: `dispute_online_reversal_${ride.id}:EARNINGS`,
-                balanceBeforePaise: wallet.earningsBalancePaise ?? 0,
-                balanceAfterPaise: nextEarnings,
-                createdBy: input.adminId,
-                note: `${input.reason} (refund ${refundReference})`,
-                createdAt: now,
-              });
-            }
-
-            if (shortfall > 0) {
-              await this.deps.walletRepo.recordTransaction({
-                id: newUuid(),
-                walletId: wallet.id,
-                driverId: wallet.driverId,
-                bucket: 'COMMISSION',
-                type: 'DEBIT',
-                amountPaise: shortfall,
-                referenceType: 'ONLINE_EARNINGS_REVERSAL',
-                referenceId: ride.id,
-                idempotencyKey: `dispute_online_reversal_${ride.id}:COMMISSION`,
-                balanceBeforePaise: wallet.balancePaise,
-                balanceAfterPaise: nextCommissionBalance,
-                createdBy: input.adminId,
-                note: `${input.reason} (post-cashout clawback, refund ${refundReference})`,
-                createdAt: now,
-              });
-            }
-
+            // Single wallet: the earnings credit is clawed back from the one balance, which may
+            // go negative (the driver then owes the difference and is blocked until it is cleared).
+            const nextBalance = calculateNewBalance(wallet.balancePaise, totalToReverse, 'DEBIT');
+            await this.deps.walletRepo.recordTransaction({
+              id: newUuid(),
+              walletId: wallet.id,
+              driverId: wallet.driverId,
+              bucket: 'COMMISSION',
+              type: 'DEBIT',
+              amountPaise: totalToReverse,
+              referenceType: 'ONLINE_EARNINGS_REVERSAL',
+              referenceId: ride.id,
+              idempotencyKey: `dispute_online_reversal_${ride.id}:COMMISSION`,
+              balanceBeforePaise: wallet.balancePaise,
+              balanceAfterPaise: nextBalance,
+              createdBy: input.adminId,
+              note: `${input.reason} (refund ${refundReference})`,
+              createdAt: now,
+            });
             await this.deps.walletRepo.save({
               ...wallet,
-              earningsBalancePaise: nextEarnings,
-              balancePaise: nextCommissionBalance,
+              balancePaise: nextBalance,
+              owedPaise: Math.max(0, -nextBalance),
               version: wallet.version + 1,
               updatedAt: now,
             });
