@@ -1,7 +1,7 @@
 import type { NextConfig } from 'next';
 import { fileURLToPath } from 'node:url';
 
-const rawOrigin = (process.env.API_UPSTREAM_ORIGIN || 'http://200.234.38.54:4090').trim().replace(/\/$/, '');
+const rawOrigin = (process.env.API_UPSTREAM_ORIGIN || 'https://cabzone.site').trim().replace(/\/$/, '');
 const apiUpstreamOrigin = rawOrigin.endsWith('/api') ? rawOrigin.slice(0, -4) : rawOrigin;
 
 const config: NextConfig = {

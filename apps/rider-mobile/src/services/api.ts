@@ -53,7 +53,7 @@ function getApiBaseUrl(): string {
     }
   }
 
-  return 'http://200.234.38.54:4090';
+  return 'https://cabzone.site';
 }
 
 export const API_BASE_URL = getApiBaseUrl();

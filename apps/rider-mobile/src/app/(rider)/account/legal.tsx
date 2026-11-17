@@ -52,7 +52,7 @@ export default function LegalScreen() {
             Cabzone uses foreground location only to assist with pickup selection and route quoting. Your phone number and trip history are protected under Cabzone&apos;s zero-trust access controls.
           </Text>
           <Pressable
-            onPress={() => void Linking.openURL('https://cabzone-admin.vercel.app/privacy')}
+            onPress={() => void Linking.openURL('https://cabzone.site/privacy')}
             accessibilityRole="link"
             accessibilityLabel="Read full Privacy Policy"
           >

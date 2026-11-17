@@ -42,7 +42,7 @@ export default function DriverLegalScreen() {
           </Text>
 
           <Pressable
-            onPress={() => void Linking.openURL('https://cabzone-admin.vercel.app/privacy')}
+            onPress={() => void Linking.openURL('https://cabzone.site/privacy')}
             accessibilityRole="link"
             accessibilityLabel="Read full Privacy Policy"
           >

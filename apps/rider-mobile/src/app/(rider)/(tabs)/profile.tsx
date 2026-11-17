@@ -233,7 +233,7 @@ export default function ProfileTabScreen() {
         </Pressable>
         <Pressable
           style={styles.logoutTrigger}
-          onPress={() => void Linking.openURL('https://cabzone-admin.vercel.app/account-deletion')}
+          onPress={() => void Linking.openURL('https://cabzone.site/account-deletion')}
           accessibilityRole="link"
           accessibilityLabel="Request account deletion"
         >

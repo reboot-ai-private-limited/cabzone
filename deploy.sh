@@ -1,17 +1,24 @@
 #!/bin/bash
 set -e
 
-echo "🚀 Updating Cabzone Backend..."
+echo "🚀 Updating Cabzone Stack..."
 cd /var/www/cabzone
 
 # 1. Pull latest code from GitHub
 git pull origin main
 
-# 2. Install dependencies & build backend
+# 2. Install dependencies & build backend + web admin
 pnpm install --frozen-lockfile
-pnpm --filter @cabzone/api build
+NEXT_PUBLIC_API_BASE_URL=https://cabzone.site/api API_UPSTREAM_ORIGIN=http://127.0.0.1:4090 \
+  pnpm turbo run build --filter=@cabzone/api --filter=@cabzone/web
 
-# 3. Reload PM2 processes with zero downtime
-pm2 reload ecosystem.config.cjs --update-env
+# 3. Sync Next.js standalone static & public assets
+rm -rf apps/web/.next/standalone/apps/web/.next/static apps/web/.next/standalone/apps/web/public
+cp -r apps/web/.next/static apps/web/.next/standalone/apps/web/.next/static
+cp -r apps/web/public apps/web/.next/standalone/apps/web/public
 
-echo "✅ Cabzone Backend Deployment Successful!"
+# 4. Start or reload PM2 processes
+pm2 startOrReload ecosystem.config.cjs --update-env
+pm2 save
+
+echo "✅ Cabzone Deployment Successful!"

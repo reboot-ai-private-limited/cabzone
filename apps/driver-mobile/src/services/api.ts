@@ -61,8 +61,8 @@ function getApiBaseUrl(): string {
     }
   }
 
-  // 4. Default to local Wi-Fi IP
-  return 'http://200.234.38.54:4090';
+  // 4. Default to production HTTPS API origin
+  return 'https://cabzone.site';
 }
 
 export const API_BASE_URL = getApiBaseUrl();

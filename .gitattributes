@@ -1,2 +1,3 @@
-# Node shebangs imported through Vite must keep LF on Windows checkouts.
+# Node shebangs imported through Vite and shell scripts must keep LF on Windows checkouts.
 scripts/ops/*.mjs text eol=lf
+*.sh text eol=lf
