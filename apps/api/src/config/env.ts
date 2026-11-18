@@ -141,6 +141,9 @@ const schema = z.object({
 
   /** Expo push access token for authenticated push delivery (Step 8 / C05) */
   EXPO_ACCESS_TOKEN: z.string().min(1).optional(),
+  /** Firebase service account JSON (raw JSON or base64) or file path for direct FCM HTTP v1 push */
+  FIREBASE_SERVICE_ACCOUNT_JSON: z.string().min(1).optional(),
+  FIREBASE_SERVICE_ACCOUNT_PATH: z.string().min(1).optional(),
 
   /** Operational alerting and realtime readiness (Step 16 / C07) */
   ALERT_WEBHOOK_URL: z.string().url().optional(),

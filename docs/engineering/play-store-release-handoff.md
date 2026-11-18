@@ -2,7 +2,7 @@
 
 ## Verified in this workspace
 
-- Separate Android package IDs: `com.cabzone.rider` and `com.cabzone.driver`.
+- Separate Android package IDs: `in.cabzone.rider` and `in.cabzone.driver`.
 - Both `eas.json` production profiles produce Android App Bundles.
 - The public deletion-request page is deployed at <https://cabzone-admin.vercel.app/account-deletion> and links to `cabzonehelp@gmail.com`.
 - Both mobile account tabs link to that page in local source; these changes still need new mobile builds.

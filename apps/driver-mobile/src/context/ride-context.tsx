@@ -150,18 +150,19 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
     let subscription: { remove: () => void } | null = null;
     void getOrCreateDeviceId().then(async (installationId) => {
       if (cancelled) return;
+      const meta = {
+        platform: Platform.OS === 'ios' ? ('ios' as const) : ('android' as const),
+        transport: Platform.OS === 'ios' ? ('EXPO' as const) : ('FCM' as const),
+      };
       subscription = listenForPushTokenChanges((pushToken) => {
-        void dispatchApi.registerPushToken(token, pushToken, installationId).catch((error: unknown) => {
+        void dispatchApi.registerPushToken(token, pushToken, installationId, meta).catch((error: unknown) => {
           console.warn('Push token update failed:', error);
         });
       });
       const pushToken = await registerForPushAsync();
       if (pushToken && !cancelled) {
         await dispatchApi
-          .registerPushToken(token, pushToken, installationId, {
-            platform: Platform.OS === 'ios' ? 'ios' : 'android',
-            transport: 'EXPO',
-          })
+          .registerPushToken(token, pushToken, installationId, meta)
           .catch((error: unknown) => {
             console.warn('Push registration failed:', error);
           });

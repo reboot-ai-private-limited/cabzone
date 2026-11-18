@@ -10,6 +10,9 @@ module.exports = {
   setNotificationHandler: noop,
   getPermissionsAsync: async () => ({ status: 'denied', granted: false }),
   requestPermissionsAsync: async () => ({ status: 'denied', granted: false }),
+  getDevicePushTokenAsync: async () => {
+    throw new Error('Remote push requires a Cabzone development or release build');
+  },
   getExpoPushTokenAsync: async () => {
     throw new Error('Remote push requires a Cabzone development or release build');
   },

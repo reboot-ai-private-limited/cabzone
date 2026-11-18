@@ -76,11 +76,11 @@ const resolvedDriver = driverAppConfig({ config: {} });
 const resolvedRider = riderAppConfig({ config: {} });
 
 assert.equal(resolvedDriver.extra.eas.projectId, '00000000-0000-4000-8000-000000000111');
-assert.equal(resolvedDriver.android.package, 'com.cabzone.driver');
-assert.equal(resolvedDriver.ios.bundleIdentifier, 'com.cabzone.driver');
+assert.equal(resolvedDriver.android.package, 'in.cabzone.driver');
+assert.equal(resolvedDriver.ios.bundleIdentifier, 'in.cabzone.driver');
 assert.equal(resolvedRider.extra.eas.projectId, '00000000-0000-4000-8000-000000000222');
-assert.equal(resolvedRider.android.package, 'com.cabzone.rider');
-assert.equal(resolvedRider.ios.bundleIdentifier, 'com.cabzone.rider');
+assert.equal(resolvedRider.android.package, 'in.cabzone.rider');
+assert.equal(resolvedRider.ios.bundleIdentifier, 'in.cabzone.rider');
 
 delete process.env.DRIVER_EAS_PROJECT_ID;
 delete process.env.RIDER_EAS_PROJECT_ID;

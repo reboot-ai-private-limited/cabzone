@@ -1,4 +1,5 @@
 import type {
+  PushTokenTransport,
   RideChatPageDto,
   RideChatMessageDto,
   RideCallDto,
@@ -500,7 +501,7 @@ export const dispatchApi = {
     token: string,
     pushToken: string,
     installationId: string,
-    meta?: { platform?: 'android' | 'ios'; transport?: 'EXPO' | 'FCM_CALL' | 'APNS_VOIP' },
+    meta?: { platform?: 'android' | 'ios'; transport?: PushTokenTransport },
   ): Promise<{ ok: boolean }> {
     return request<{ ok: boolean }>(
       '/api/v1/driver/push-token',

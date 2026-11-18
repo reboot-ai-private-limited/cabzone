@@ -8,7 +8,7 @@ Driver: the same with `CABZONE_DRIVER_`. A release task now **fails** if these a
 
 ## Every release
 1. Bump `expo.android.versionCode` in `app.json` (local builds only; `eas.json` uses remote versioning for EAS builds, do not mix the two for one app).
-2. Create `.env.production` (gitignored) with `EXPO_PUBLIC_API_URL=https://cabzone.site` and the EAS project id. Expo loads it when `NODE_ENV=production`.
+2. Create `.env.production` (gitignored) with `EXPO_PUBLIC_API_URL=https://cabzone.site`. Expo loads it when `NODE_ENV=production`.
 3. Prebuild and build with production mode:
    ```sh
    NODE_ENV=production npx expo prebuild --platform android --clean
@@ -24,7 +24,7 @@ Driver: the same with `CABZONE_DRIVER_`. A release task now **fails** if these a
 - Prebuild without `NODE_ENV=production` re-enables cleartext for local dev, so always prebuild with it for a store build.
 
 ## Push
-`google-services.json` (gitignored) must exist in the app folder, and the FCM V1 service-account key must be uploaded to EAS for each app. Without them the build succeeds but push does not work.
+`google-services.json` (gitignored) must exist in the app folder (`in.cabzone.driver` / `in.cabzone.rider`) so Gradle bundles Firebase config and Android acquires an FCM token directly. On the backend (`apps/api`), configure `FIREBASE_SERVICE_ACCOUNT_PATH` (e.g. `apps/api/firebase-adminsdk.json`) or `FIREBASE_SERVICE_ACCOUNT_JSON` for direct FCM HTTP v1 delivery (no `expo.dev` credentials required for Android).
 
 ## Play-review login
 Set `REVIEW_DEMO_PHONES` and `REVIEW_DEMO_OTP` on the production API (see `apps/api/.env.prod.example`); remove them after review.

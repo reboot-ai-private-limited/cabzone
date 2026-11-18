@@ -9,7 +9,7 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "icon": "./assets/images/icon.png",
-      "bundleIdentifier": "com.cabzone.driver"
+      "bundleIdentifier": "in.cabzone.driver"
     },
     "android": {
       "adaptiveIcon": {
@@ -26,7 +26,7 @@
         "android.permission.FOREGROUND_SERVICE",
         "android.permission.FOREGROUND_SERVICE_LOCATION"
       ],
-      "package": "com.cabzone.driver",
+      "package": "in.cabzone.driver",
       "versionCode": 1
     },
     "web": {

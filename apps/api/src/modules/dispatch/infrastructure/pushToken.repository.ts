@@ -74,6 +74,7 @@ export class MongoPushTokenRepository implements PushTokenPort {
       $or: [
         { _id: installationId },
         { installation_id: installationId },
+        { _id: `${installationId}:FCM` },
         { _id: `${installationId}:FCM_CALL` },
         { _id: `${installationId}:APNS_VOIP` },
       ],

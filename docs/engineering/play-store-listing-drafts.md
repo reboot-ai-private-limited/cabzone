@@ -2,7 +2,7 @@
 
 These are copy drafts for separate Rider and Driver listings. Verify every feature against the final Play-signed build before entering the text in Play Console. Do not claim that live payments or cashout are available until the production drill in the launch register passes.
 
-## Cabzone Rider (`com.cabzone.rider`)
+## Cabzone Rider (`in.cabzone.rider`)
 
 **Store title:** Cabzone
 
@@ -18,7 +18,7 @@ Service availability and payment options depend on your location and the current
 
 **Suggested screenshot subjects:** pickup/destination, fare agreement, active ride and safety, payment options, trip history and receipt. Capture these from the production release build with test data and no real personal details.
 
-## Cabzone Driver (`com.cabzone.driver`)
+## Cabzone Driver (`in.cabzone.driver`)
 
 **Store title:** Cabzone: Driver
 

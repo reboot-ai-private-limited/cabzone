@@ -9,16 +9,15 @@ In `metro.config.js` (`shouldUsePushStub`), the real `expo-notifications` native
 - `EAS_BUILD=true` (all EAS cloud/local builds)
 - `NODE_ENV=production` (`expo export` / release bundles), unless explicitly overridden with `EXPO_USE_PUSH=0`
 
-## 2. External Prerequisites (EAS + FCM v1)
+## 2. External Prerequisites (Direct FCM v1 + Gradle)
 
-| Input | Driver App (`com.cabzone.driver`) | Rider App (`com.cabzone.rider`) | Owner |
+| Input | Driver App (`in.cabzone.driver`) | Rider App (`in.cabzone.rider`) | Owner |
 | --- | --- | --- | --- |
-| EAS Project UUID | `DRIVER_EAS_PROJECT_ID` | `RIDER_EAS_PROJECT_ID` | Mobile Release Owner |
 | Firebase Android Config | `apps/driver-mobile/google-services.json` (or `DRIVER_GOOGLE_SERVICES_JSON`) | `apps/rider-mobile/google-services.json` (or `RIDER_GOOGLE_SERVICES_JSON`) | Mobile Release Owner |
-| FCM V1 Service Account Key | Uploaded in Expo EAS Credentials (`eas credentials -p android`) | Uploaded in Expo EAS Credentials (`eas credentials -p android`) | Mobile Release Owner |
-| Optional Expo Server Token | `EXPO_ACCESS_TOKEN` in API `.env.stage` / `.env.prod` | Same API variable | Platform Ops |
+| FCM V1 Service Account Key | `FIREBASE_SERVICE_ACCOUNT_PATH` / `FIREBASE_SERVICE_ACCOUNT_JSON` in API `.env` (or `apps/api/firebase-adminsdk.json`) | Same API variable | Platform Ops |
+| Optional Expo Server Token (iOS only) | `EXPO_ACCESS_TOKEN` in API `.env.stage` / `.env.prod` | Same API variable | Platform Ops |
 
-> **Never commit `google-services.json`, FCM service-account JSONs, or `EXPO_ACCESS_TOKEN` to git.**
+> **Never commit `google-services.json`, `*firebase-adminsdk*.json`, or `EXPO_ACCESS_TOKEN` to git.**
 
 ## 3. Building & Running Push-Capable Android APKs
 

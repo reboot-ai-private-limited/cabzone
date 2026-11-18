@@ -36,3 +36,10 @@ coverage
 docs
 *.md
 !apps/*/README.md
+
+**/*firebase-adminsdk*.json
+**/google-services.json
+**/*.keystore
+**/*.jks
+.cxx
+release-apks

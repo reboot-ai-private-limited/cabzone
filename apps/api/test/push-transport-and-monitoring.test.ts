@@ -1,8 +1,13 @@
 import { Buffer } from 'node:buffer';
+import { generateKeyPairSync } from 'node:crypto';
 import express from 'express';
 import request from 'supertest';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ExpoPushService } from '../src/modules/dispatch/application/expoPush.service.js';
+import {
+  createFcmSender,
+  type FcmMessageInput,
+} from '../src/modules/dispatch/application/fcmPush.sender.js';
 import { RideRealtimeNotifier } from '../src/modules/dispatch/application/rideRealtimeNotifier.js';
 import { DriverOfferEligibility } from '../src/modules/dispatch/application/useCases/driverOfferEligibility.js';
 import { FindCandidateDriversUseCase } from '../src/modules/dispatch/application/useCases/findCandidateDrivers.usecase.js';
@@ -94,6 +99,7 @@ function sampleRide(overrides: Partial<RideEntity> = {}): RideEntity {
 }
 
 afterEach(() => {
+  vi.unstubAllGlobals();
   configureAlertingForTests();
 });
 
@@ -510,5 +516,241 @@ describe('C06 & C07: Encrypted backup/restore guards, realtime readiness, and re
     expect(buildRollbackPlan({ previousTag: 'sha-8a3bb63' }).commands[0]).toContain(
       'IMAGE_TAG=sha-8a3bb63',
     );
+  });
+});
+
+describe('Direct Firebase FCM HTTP v1 push delivery', () => {
+  it('registers raw Android FCM tokens, delivers via fcmSender without leaking pickupOtp, and prunes unregistered tokens', async () => {
+    const pushTokens = new MemoryPushTokenRepository();
+    const pushReceipts = new MemoryPushReceiptRepository();
+    const fcmSent: FcmMessageInput[][] = [];
+
+    const dispatch = buildDispatchContainer({
+      presence: new MemoryPresenceRepository(),
+      publisher: {
+        publishToUser() {},
+        async isConnected() {
+          return false;
+        },
+      },
+      rideRepo: new MemoryRideRepository(),
+      walletRepo: new MemoryWalletRepository(),
+      lookups: {
+        async getDriverEligibility() {
+          return null;
+        },
+        async getUserIdForDriver(driverId: string) {
+          return driverId === 'driver-1' ? 'driver-user-1' : null;
+        },
+        async getUserIdForRider(riderId: string) {
+          return riderId === 'rider-1' ? 'rider-user-1' : null;
+        },
+      },
+      pushTokens,
+      pushReceipts,
+    });
+
+    const app = express();
+    app.use(express.json());
+    app.use(
+      '/api/v1',
+      dispatch.buildPushTokenRouter({
+        authenticate: (req, _res, next) => {
+          req.auth = { userId: 'rider-user-1', sessionId: 'sess-1', role: 'RIDER' };
+          next();
+        },
+      }),
+    );
+    app.use(errorHandler);
+
+    const reg = await request(app).post('/api/v1/push-token').send({
+      installationId: 'rider-android-1',
+      token: 'fcm-device-token-android-0001',
+      platform: 'android',
+      transport: 'FCM',
+    });
+    expect(reg.status).toBe(200);
+    expect(await pushTokens.list(['rider-user-1'], 'FCM')).toEqual(['fcm-device-token-android-0001']);
+
+    await pushTokens.put('driver-user-1', 'driver-android-1', 'fcm-device-token-driver-0001', {
+      platform: 'android',
+      transport: 'FCM',
+    });
+
+    let nextStatus: 'ok' | 'unregistered' = 'ok';
+    const push = new ExpoPushService(
+      pushTokens,
+      pushReceipts,
+      async () => [],
+      async () => ({}),
+      async (messages) => {
+        fcmSent.push(messages);
+        return messages.map(() => ({ status: nextStatus }));
+      },
+    );
+
+    const notifier = new RideRealtimeNotifier(
+      {
+        publishToUser() {},
+        async isConnected() {
+          return false;
+        },
+      },
+      new FindCandidateDriversUseCase(
+        new MemoryPresenceRepository(),
+        new DriverOfferEligibility(new MemoryWalletRepository(), new MemoryRideRepository()),
+        DEFAULT_DISPATCH_CONFIG,
+      ),
+      {
+        async getDriverEligibility() {
+          return null;
+        },
+        async getUserIdForDriver() {
+          return null;
+        },
+        async getUserIdForRider() {
+          return 'rider-user-1';
+        },
+      },
+      new MemoryRideRepository(),
+      push,
+    );
+
+    await notifier.rideUpdated(sampleRide(), 'ride.driver.assigned', { pickupOtp: '4921' });
+    await new Promise((r) => setTimeout(r, 15));
+    expect(fcmSent).toHaveLength(1);
+    expect(fcmSent[0]?.[0]).toMatchObject({
+      token: 'fcm-device-token-android-0001',
+      channelId: 'ride-updates',
+      sound: 'default',
+      priority: 'high',
+    });
+    expect(JSON.stringify(fcmSent)).not.toContain('4921');
+
+    await push.notify(['driver-user-1'], {
+      title: 'New ride request',
+      body: 'Rs 120 offered.',
+      channelId: 'ride-offers-ring',
+      expiresAt: new Date(Date.now() + 30_000),
+    });
+    expect(fcmSent[1]?.[0]).toMatchObject({
+      token: 'fcm-device-token-driver-0001',
+      channelId: 'ride-offers-ring',
+      sound: 'ring_long.wav',
+      priority: 'high',
+    });
+
+    nextStatus = 'unregistered';
+    await push.notify(['driver-user-1'], {
+      title: 'Expired offer',
+      body: 'Dead token',
+      channelId: 'ride-offers',
+    });
+    expect(await pushTokens.list(['driver-user-1'], 'FCM')).toEqual([]);
+  });
+
+  it('exchanges OAuth2 JWT once, formats expo-notifications data payload, and maps 404 to unregistered', async () => {
+    const { privateKey } = generateKeyPairSync('rsa', {
+      modulusLength: 2048,
+      privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
+      publicKeyEncoding: { type: 'spki', format: 'pem' },
+    });
+
+    const calls: Array<{ url: string; body: string; auth?: string | null }> = [];
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      const headers = new Headers(init?.headers);
+      calls.push({
+        url,
+        body: String(init?.body ?? ''),
+        auth: headers.get('Authorization'),
+      });
+      if (url === 'https://oauth2.googleapis.com/token') {
+        return new Response(JSON.stringify({ access_token: 'ya29.test-token', expires_in: 3600 }), {
+          status: 200,
+        });
+      }
+      if (calls.filter((c) => c.url.endsWith('/messages:send')).length === 1) {
+        return new Response(JSON.stringify({ name: 'projects/cabzone-8a89d/messages/1' }), {
+          status: 200,
+        });
+      }
+      return new Response(
+        JSON.stringify({
+          error: {
+            code: 404,
+            status: 'NOT_FOUND',
+            details: [{ errorCode: 'UNREGISTERED' }],
+          },
+        }),
+        { status: 404 },
+      );
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const sender = createFcmSender({
+      project_id: 'cabzone-8a89d',
+      client_email: 'firebase-adminsdk-fbsvc@cabzone-8a89d.iam.gserviceaccount.com',
+      private_key: privateKey,
+    });
+
+    const first = await sender([
+      {
+        token: 'fcm-token-1-00000000001',
+        title: 'New ride request',
+        body: 'Rs 150 offered',
+        channelId: 'ride-offers-ring',
+        sound: 'ring_long.wav',
+        priority: 'high',
+        ttlSeconds: 30,
+        data: { type: 'ride.offer.created', rideId: 'ride-99' },
+      },
+    ]);
+    expect(first).toEqual([{ status: 'ok' }]);
+
+    const second = await sender([
+      {
+        token: 'fcm-token-2-00000000002',
+        title: 'Ride update',
+        body: 'Driver assigned',
+        channelId: 'ride-updates',
+        sound: 'default',
+        priority: 'normal',
+        ttlSeconds: 600,
+      },
+    ]);
+    expect(second).toEqual([{ status: 'unregistered' }]);
+
+    const oauthCalls = calls.filter((c) => c.url === 'https://oauth2.googleapis.com/token');
+    expect(oauthCalls).toHaveLength(1);
+
+    const fcmCalls = calls.filter((c) =>
+      c.url === 'https://fcm.googleapis.com/v1/projects/cabzone-8a89d/messages:send',
+    );
+    expect(fcmCalls).toHaveLength(2);
+    expect(fcmCalls[0]?.auth).toBe('Bearer ya29.test-token');
+    expect(JSON.parse(fcmCalls[0]!.body)).toEqual({
+      message: {
+        token: 'fcm-token-1-00000000001',
+        notification: {
+          title: 'New ride request',
+          body: 'Rs 150 offered',
+        },
+        data: {
+          title: 'New ride request',
+          message: 'Rs 150 offered',
+          channelId: 'ride-offers-ring',
+          sound: 'ring_long.wav',
+          body: JSON.stringify({ type: 'ride.offer.created', rideId: 'ride-99' }),
+        },
+        android: {
+          priority: 'HIGH',
+          ttl: '30s',
+          notification: {
+            channel_id: 'ride-offers-ring',
+            sound: 'ring_long',
+          },
+        },
+      },
+    });
   });
 });

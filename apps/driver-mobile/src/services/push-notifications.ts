@@ -100,10 +100,15 @@ export async function registerForPushAsync(): Promise<string | null> {
     }
     if (status !== 'granted') return null;
 
+    if (Platform.OS === 'android') {
+      const { data } = await Notifications.getDevicePushTokenAsync();
+      return typeof data === 'string' && data.trim() ? data.trim() : null;
+    }
+
     const projectId = resolveEasProjectId();
     if (!projectId) {
       console.warn(
-        'Push registration requires an EAS project ID. Configure the Driver Android build first.',
+        'Push registration requires an EAS project ID on iOS.',
       );
       return null;
     }
@@ -129,7 +134,8 @@ export function listenForPushTokenChanges(onToken: (token: string) => void): {
     return Notifications.addPushTokenListener((devicePushToken) => {
       const candidate =
         typeof devicePushToken?.data === 'string' ? devicePushToken.data.trim() : '';
-      if (EXPO_PUSH_TOKEN_PATTERN.test(candidate)) {
+      if (!candidate) return;
+      if (Platform.OS === 'android' || EXPO_PUSH_TOKEN_PATTERN.test(candidate)) {
         onToken(candidate);
         return;
       }

@@ -9,7 +9,7 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "icon": "./assets/images/icon.png",
-      "bundleIdentifier": "com.cabzone.rider"
+      "bundleIdentifier": "in.cabzone.rider"
     },
     "android": {
       "softwareKeyboardLayoutMode": "resize",
@@ -24,7 +24,7 @@
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_FINE_LOCATION"
       ],
-      "package": "com.cabzone.rider",
+      "package": "in.cabzone.rider",
       "versionCode": 1
     },
     "web": {

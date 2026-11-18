@@ -3,6 +3,7 @@ import { logger } from '../../../shared/logging/logger.js';
 import { emitOperationalAlert } from '../../../shared/monitoring/alerting.js';
 import type { PushTokenMetadata, PushTokenPort } from './pushToken.port.js';
 import type { PushReceiptPort } from './pushReceipt.port.js';
+import { sendToFcm, type FcmPushSender } from './fcmPush.sender.js';
 
 const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
 const EXPO_RECEIPTS_URL = 'https://exp.host/--/api/v2/push/getReceipts';
@@ -89,13 +90,14 @@ async function readReceipts(ids: string[]): Promise<Record<string, ExpoResult>> 
   return body.data;
 }
 
-/** Expo push delivery. Production wiring injects Mongo token and receipt repositories. */
+/** Push delivery (direct FCM HTTP v1 for Android + Expo push fallback). */
 export class ExpoPushService {
   constructor(
     private readonly tokens: PushTokenPort,
     private readonly receipts: PushReceiptPort,
     private readonly sender: PushSender = sendToExpo,
     private readonly receiptReader: ReceiptReader = readReceipts,
+    private readonly fcmSender: FcmPushSender = sendToFcm,
   ) {}
 
   async register(
@@ -104,14 +106,20 @@ export class ExpoPushService {
     token: string,
     meta?: PushTokenMetadata,
   ): Promise<boolean> {
-    const transport = meta?.transport ?? 'EXPO';
-    // Native FCM/APNs tokens are no longer sent to (Expo is the only sender). Older app versions
-    // may still register them, so accept and ignore instead of failing their registration.
-    if (transport !== 'EXPO') {
+    const isExpoToken = EXPO_TOKEN.test(token);
+    const transport = meta?.transport ?? (isExpoToken ? 'EXPO' : 'FCM');
+    // Legacy VoIP call tokens are no longer sent to. Older app versions may still register them,
+    // so accept and ignore instead of failing their registration.
+    if (transport === 'FCM_CALL' || transport === 'APNS_VOIP') {
       return NATIVE_DEVICE_TOKEN.test(token);
     }
-    if (!EXPO_TOKEN.test(token)) return false;
-    await this.tokens.put(userId, installationId, token, meta);
+    if (transport === 'FCM') {
+      if (!NATIVE_DEVICE_TOKEN.test(token) || isExpoToken) return false;
+      await this.tokens.put(userId, installationId, token, { ...meta, transport: 'FCM' });
+      return true;
+    }
+    if (!isExpoToken) return false;
+    await this.tokens.put(userId, installationId, token, { ...meta, transport: 'EXPO' });
     return true;
   }
 
@@ -143,9 +151,55 @@ export class ExpoPushService {
       const ttl = expiresAt
         ? Math.max(1, Math.floor((expiresAt.getTime() - Date.now()) / 1000))
         : DEFAULT_PUSH_TTL_SECONDS;
+      const sound = pushSoundFor(channelId);
+
+      const fcmTokens = await this.tokens.list(userIds, 'FCM');
+      if (fcmTokens.length > 0) {
+        try {
+          const results = await this.fcmSender(
+            fcmTokens.map((token) => ({
+              token,
+              title: content.title,
+              body: content.body,
+              channelId,
+              sound,
+              priority,
+              ttlSeconds: ttl,
+              data: content.data,
+            })),
+          );
+          for (const [index, result] of results.entries()) {
+            const token = fcmTokens[index];
+            if (!token) continue;
+            if (result.status === 'unregistered') {
+              await this.tokens.removeToken(token);
+            } else if (result.status === 'error') {
+              const reason = result.reason ?? 'unknown';
+              logger.warn({ reason }, 'fcm push failed');
+              void emitOperationalAlert({
+                category: 'PUSH_DELIVERY',
+                severity: 'warning',
+                dedupeKey: `PUSH_DELIVERY:fcm:${reason}`,
+                summary: `FCM push rejected (${reason}).`,
+                metadata: { reason, channelId },
+              });
+            }
+          }
+        } catch (err) {
+          logger.warn({ err: String(err) }, 'fcm push transport failed');
+          void emitOperationalAlert({
+            category: 'PUSH_DELIVERY',
+            severity: 'warning',
+            dedupeKey: 'PUSH_DELIVERY:fcm-transport',
+            summary: 'FCM push transport request failed.',
+            metadata: { err: String(err), channelId },
+          });
+        }
+      }
+
       const messages = (await this.tokens.list(userIds, 'EXPO')).map((to) => ({
         to,
-        sound: pushSoundFor(channelId),
+        sound,
         priority,
         channelId,
         ttl,
