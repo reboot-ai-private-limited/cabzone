@@ -185,6 +185,7 @@ export function buildIdentityContainer(deps?: IdentityContainerDeps): IdentityCo
   if (
     isProdLike &&
     !allowDevShortcuts &&
+    !env.MOCK_OTP &&
     ((deps?.smsGateway ? deps.smsGateway instanceof ConsoleSmsGatewayAdapter : env.SMS_PROVIDER === 'console') ||
       deps?.smsGateway instanceof ConsoleSmsGatewayAdapter ||
       deps?.otpStore instanceof MemoryOtpStoreAdapter)
