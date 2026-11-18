@@ -92,6 +92,16 @@ const schema = z.object({
     .optional(),
 
   /**
+   * MOCK_OTP=true: every OTP is 000000 and no SMS is sent, in ANY environment including production.
+   * This disables phone-number verification: anyone who knows a phone number can sign in as it.
+   * Off by default; a loud warning is logged at startup while it is on.
+   */
+  MOCK_OTP: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true'),
+
+  /**
    * Play-review demo accounts. Comma-separated E.164 numbers (max 3) that always receive
    * REVIEW_DEMO_OTP and are never sent an SMS. Works in production, only for the listed numbers.
    * Keep REVIEW_DEMO_OTP in a secret store and remove both variables after review.
@@ -261,8 +271,9 @@ export function validateLoadedEnv(data: Env): Env {
   }
 
   const requiresRealSms =
-    data.NODE_ENV === 'production' ||
-    ((data.NODE_ENV === 'stage' || data.NODE_ENV === 'staging') && !data.STAGING_UNSAFE);
+    !data.MOCK_OTP &&
+    (data.NODE_ENV === 'production' ||
+    ((data.NODE_ENV === 'stage' || data.NODE_ENV === 'staging') && !data.STAGING_UNSAFE));
   if (requiresRealSms && data.SMS_PROVIDER === 'console') {
     throw new Error(
       'Invalid environment:\n  SMS_PROVIDER: must be msg91, twilio, or webhook when live authentication is active.',
@@ -311,6 +322,19 @@ export function loadEnv(): Env {
   } catch (err) {
     console.error(err instanceof Error ? err.message : String(err));
     process.exit(1);
+  }
+
+  if (parsed.data.MOCK_OTP) {
+    console.warn(
+      [
+        '',
+        '  ┌─ MOCK_OTP=true ───────────────────────────────────────────────────────────┐',
+        '  │ EVERY OTP IS 000000 AND NO SMS IS SENT. Phone numbers are NOT verified:   │',
+        '  │ anyone who knows a phone number can sign in as that user.                 │',
+        '  └───────────────────────────────────────────────────────────────────────────┘',
+        '',
+      ].join('\n'),
+    );
   }
 
   // Warning banner for staging with unsafe flag enabled

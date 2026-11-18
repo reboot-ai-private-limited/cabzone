@@ -372,3 +372,28 @@ describe('Play-review demo accounts (REVIEW_DEMO_PHONES)', () => {
     ).toThrow(/up to 3/);
   });
 });
+
+describe('MOCK_OTP', () => {
+  it('uses 000000 for every number and never sends SMS', async () => {
+    const sendOtp = vi.fn().mockResolvedValue(undefined);
+    const otpStore = new MemoryOtpStoreAdapter();
+    const requestOtp = new RequestOtpUseCase({
+      otpStore,
+      smsGateway: { sendOtp },
+      otpPepper: PEPPER,
+      mockOtp: true,
+    });
+    await requestOtp.execute('+919876543210');
+    await requestOtp.execute('+919123456780');
+    expect(sendOtp).not.toHaveBeenCalled();
+    const stored = await otpStore.get('+919876543210');
+    const { createHmac } = await import('node:crypto');
+    expect(stored?.otpHmac).toBe(createHmac('sha256', PEPPER).update('000000').digest('hex'));
+  });
+
+  it('lets production run with the console SMS provider only when MOCK_OTP is on', () => {
+    const prod = { ...baseProdEnv(), SMS_PROVIDER: 'console' as const };
+    expect(() => validateLoadedEnv({ ...prod, MOCK_OTP: false } as Env)).toThrow(/SMS_PROVIDER/);
+    expect(() => validateLoadedEnv({ ...prod, MOCK_OTP: true } as Env)).not.toThrow();
+  });
+});
