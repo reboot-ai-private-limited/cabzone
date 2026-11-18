@@ -24,6 +24,7 @@ function withCabzoneVoiceCallManifest(config) {
   config = withAndroidManifest(config, (mod) => {
     const app = AndroidConfig.Manifest.getMainApplicationOrThrow(mod.modResults);
     // Local/internal builds use the LAN API; production must require HTTPS.
+    app.$['android:allowBackup'] = 'false';
     app.$['android:usesCleartextTraffic'] = String(
       ['development', 'preview'].includes(process.env.EAS_BUILD_PROFILE) ||
         (!process.env.EAS_BUILD_PROFILE && process.env.NODE_ENV !== 'production'),
@@ -68,11 +69,11 @@ function withCabzoneVoiceCallManifest(config) {
         mod.modResults.contents = mod.modResults.contents
           .replace(
             "        debug {\n            storeFile file('debug.keystore')\n            storePassword 'android'\n            keyAlias 'androiddebugkey'\n            keyPassword 'android'\n        }",
-            "        debug {\n            storeFile file('debug.keystore')\n            storePassword 'android'\n            keyAlias 'androiddebugkey'\n            keyPassword 'android'\n        }\n        release {\n            def uploadStoreFile = findProperty('CABZONE_DRIVER_UPLOAD_STORE_FILE') ?: System.getenv('CABZONE_DRIVER_UPLOAD_STORE_FILE') ?: findProperty('CABZONE_UPLOAD_STORE_FILE') ?: System.getenv('CABZONE_UPLOAD_STORE_FILE')\n            if (uploadStoreFile) {\n                storeFile file(uploadStoreFile)\n                storePassword (findProperty('CABZONE_DRIVER_UPLOAD_STORE_PASSWORD') ?: System.getenv('CABZONE_DRIVER_UPLOAD_STORE_PASSWORD') ?: findProperty('CABZONE_UPLOAD_STORE_PASSWORD') ?: System.getenv('CABZONE_UPLOAD_STORE_PASSWORD'))\n                keyAlias (findProperty('CABZONE_DRIVER_UPLOAD_KEY_ALIAS') ?: System.getenv('CABZONE_DRIVER_UPLOAD_KEY_ALIAS') ?: findProperty('CABZONE_UPLOAD_KEY_ALIAS') ?: System.getenv('CABZONE_UPLOAD_KEY_ALIAS'))\n                keyPassword (findProperty('CABZONE_DRIVER_UPLOAD_KEY_PASSWORD') ?: System.getenv('CABZONE_DRIVER_UPLOAD_KEY_PASSWORD') ?: findProperty('CABZONE_UPLOAD_KEY_PASSWORD') ?: System.getenv('CABZONE_UPLOAD_KEY_PASSWORD'))\n            }\n        }",
+            "        debug {\n            storeFile file('debug.keystore')\n            storePassword 'android'\n            keyAlias 'androiddebugkey'\n            keyPassword 'android'\n        }\n        release {\n            def uploadStoreFile = findProperty('CABZONE_DRIVER_UPLOAD_STORE_FILE') ?: System.getenv('CABZONE_DRIVER_UPLOAD_STORE_FILE') ?: findProperty('CABZONE_UPLOAD_STORE_FILE') ?: System.getenv('CABZONE_UPLOAD_STORE_FILE')\n            if (uploadStoreFile) {\n                storeFile file(uploadStoreFile)\n                storePassword (findProperty('CABZONE_DRIVER_UPLOAD_STORE_PASSWORD') ?: System.getenv('CABZONE_DRIVER_UPLOAD_STORE_PASSWORD') ?: findProperty('CABZONE_UPLOAD_STORE_PASSWORD') ?: System.getenv('CABZONE_UPLOAD_STORE_PASSWORD'))\n                keyAlias (findProperty('CABZONE_DRIVER_UPLOAD_KEY_ALIAS') ?: System.getenv('CABZONE_DRIVER_UPLOAD_KEY_ALIAS') ?: findProperty('CABZONE_UPLOAD_KEY_ALIAS') ?: System.getenv('CABZONE_UPLOAD_KEY_ALIAS'))\n                keyPassword (findProperty('CABZONE_DRIVER_UPLOAD_KEY_PASSWORD') ?: System.getenv('CABZONE_DRIVER_UPLOAD_KEY_PASSWORD') ?: findProperty('CABZONE_UPLOAD_KEY_PASSWORD') ?: System.getenv('CABZONE_UPLOAD_KEY_PASSWORD'))\n            } else if (gradle.startParameter.taskNames.any { it.toLowerCase().contains('release') }) {\n                throw new GradleException('Release signing keystore missing: set CABZONE_DRIVER_UPLOAD_STORE_FILE, _STORE_PASSWORD, _KEY_ALIAS and _KEY_PASSWORD in ~/.gradle/gradle.properties. Refusing to sign a release with the debug key.')\n            }\n        }",
           )
           .replace(
             '            signingConfig signingConfigs.debug\n            def enableShrinkResources',
-            '            signingConfig signingConfigs.release.storeFile ? signingConfigs.release : signingConfigs.debug\n            def enableShrinkResources',
+            '            signingConfig signingConfigs.release\n            def enableShrinkResources',
           );
       }
     }
@@ -123,8 +124,14 @@ function withCabzoneVoiceCallManifest(config) {
 }
 
 module.exports = ({ config }) => {
+  // Local `gradlew bundleRelease` runs the JS export with NODE_ENV=production (no EAS profile), so
+  // that counts as a production build too. Internal development/preview profiles may use HTTP.
+  const isProductionBuild =
+    process.env.EAS_BUILD_PROFILE === 'production' ||
+    (process.env.NODE_ENV === 'production' &&
+      !['development', 'preview'].includes(process.env.EAS_BUILD_PROFILE));
   if (
-    process.env.EAS_BUILD_PROFILE === 'production' &&
+    isProductionBuild &&
     !/^https:\/\/[^/]+/.test(process.env.EXPO_PUBLIC_API_URL ?? '')
   ) {
     throw new Error('Production driver builds require EXPO_PUBLIC_API_URL with an HTTPS API origin.');

@@ -7,6 +7,8 @@ import type { PushReceiptPort } from './pushReceipt.port.js';
 const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
 const EXPO_RECEIPTS_URL = 'https://exp.host/--/api/v2/push/getReceipts';
 const EXPO_TOKEN = /^Expo(nent)?PushToken\[[^\]]+\]$/;
+/** Applied when a notification has no explicit expiry. */
+export const DEFAULT_PUSH_TTL_SECONDS = 3600;
 const NATIVE_DEVICE_TOKEN = /^[^\s]{16,512}$/;
 
 export type PushNotificationChannel =
@@ -103,11 +105,12 @@ export class ExpoPushService {
     meta?: PushTokenMetadata,
   ): Promise<boolean> {
     const transport = meta?.transport ?? 'EXPO';
-    if (transport === 'EXPO') {
-      if (!EXPO_TOKEN.test(token)) return false;
-    } else if (!NATIVE_DEVICE_TOKEN.test(token)) {
-      return false;
+    // Native FCM/APNs tokens are no longer sent to (Expo is the only sender). Older app versions
+    // may still register them, so accept and ignore instead of failing their registration.
+    if (transport !== 'EXPO') {
+      return NATIVE_DEVICE_TOKEN.test(token);
     }
+    if (!EXPO_TOKEN.test(token)) return false;
     await this.tokens.put(userId, installationId, token, meta);
     return true;
   }
@@ -129,19 +132,23 @@ export class ExpoPushService {
       channelId?: PushNotificationChannel;
       data?: Record<string, unknown>;
       expiresAt?: Date | null;
+      /** FCM priority. High is for time-sensitive, user-visible alerts; use 'normal' for the rest. */
+      priority?: 'normal' | 'high';
     },
   ): Promise<void> {
     try {
       if (message.expiresAt && message.expiresAt <= new Date()) return;
-      const { expiresAt, channelId = 'ride-offers', ...content } = message;
+      const { expiresAt, channelId = 'ride-offers', priority = 'high', ...content } = message;
+      // Never let a push sit in FCM for Expo's 4-week default: a late "driver arrived" is misleading.
+      const ttl = expiresAt
+        ? Math.max(1, Math.floor((expiresAt.getTime() - Date.now()) / 1000))
+        : DEFAULT_PUSH_TTL_SECONDS;
       const messages = (await this.tokens.list(userIds, 'EXPO')).map((to) => ({
         to,
         sound: pushSoundFor(channelId),
-        priority: 'high',
+        priority,
         channelId,
-        ...(expiresAt
-          ? { ttl: Math.max(1, Math.floor((expiresAt.getTime() - Date.now()) / 1000)) }
-          : {}),
+        ttl,
         ...content,
       }));
       if (messages.length === 0) return;

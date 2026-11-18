@@ -36,30 +36,46 @@ if (Platform.OS !== 'web' && typeof Notifications?.setNotificationHandler === 'f
   }
 }
 
+/**
+ * Creates every Android notification channel. Safe to call repeatedly. Runs at startup (not only after
+ * push registration) so a server push never lands on a channel the device has not created yet.
+ * Android fixes a channel's sound at creation, so changing a ring sound needs a new channel id.
+ */
+export async function ensureNotificationChannelsAsync(): Promise<void> {
+  if (Platform.OS !== 'android' || typeof Notifications?.setNotificationChannelAsync !== 'function') return;
+  await Notifications.setNotificationChannelAsync('ride-calls', {
+    name: 'Ride calls',
+    importance: AndroidImportance.HIGH,
+  });
+  await Notifications.setNotificationChannelAsync('ride-updates', {
+    name: 'Ride updates',
+    importance: AndroidImportance.MAX,
+    vibrationPattern: [0, 250, 250, 250],
+  });
+  // Android fixes a channel's sound at creation, so the ringing channel is a new id.
+  // The 29s ring plays in full when a driver calls while the app is closed.
+  await Notifications.setNotificationChannelAsync('ride-calls-ring', {
+    name: 'Incoming ride calls (ringing)',
+    importance: AndroidImportance.MAX,
+    sound: 'ring_long.wav',
+    vibrationPattern: [0, 700, 500, 700, 500, 700, 500, 700, 500, 700, 500, 700],
+    lockscreenVisibility: AndroidNotificationVisibility.PUBLIC,
+    audioAttributes: {
+      usage: AndroidAudioUsage.NOTIFICATION_RINGTONE,
+      contentType: AndroidAudioContentType.SONIFICATION,
+    },
+    bypassDnd: false,
+  });
+}
+
+if (Platform.OS === 'android') {
+  void ensureNotificationChannelsAsync().catch(() => {});
+}
+
 export async function registerForPushAsync(): Promise<string | null> {
   if (Platform.OS === 'web' || !Device.isDevice) return null;
   try {
-    if (Platform.OS === 'android') {
-      await Notifications.setNotificationChannelAsync('ride-updates', {
-        name: 'Ride updates',
-        importance: AndroidImportance.MAX,
-        vibrationPattern: [0, 250, 250, 250],
-      });
-      // Android fixes a channel's sound at creation, so the ringing channel is a new id.
-      // The 29s ring plays in full when a driver calls while the app is closed.
-      await Notifications.setNotificationChannelAsync('ride-calls-ring', {
-        name: 'Incoming ride calls (ringing)',
-        importance: AndroidImportance.MAX,
-        sound: 'ring_long.wav',
-        vibrationPattern: [0, 700, 500, 700, 500, 700, 500, 700, 500, 700, 500, 700],
-        lockscreenVisibility: AndroidNotificationVisibility.PUBLIC,
-        audioAttributes: {
-          usage: AndroidAudioUsage.NOTIFICATION_RINGTONE,
-          contentType: AndroidAudioContentType.SONIFICATION,
-        },
-        bypassDnd: false,
-      });
-    }
+    await ensureNotificationChannelsAsync();
     let { status } = await Notifications.getPermissionsAsync();
     if (status !== 'granted') {
       status = (await Notifications.requestPermissionsAsync()).status;
@@ -77,25 +93,6 @@ export async function registerForPushAsync(): Promise<string | null> {
     return data;
   } catch (error) {
     console.warn('Rider push registration failed:', error);
-    return null;
-  }
-}
-
-export async function getNativeCallPushTokenAsync(): Promise<{
-  token: string;
-  platform: 'android' | 'ios';
-  transport: 'FCM_CALL' | 'APNS_VOIP';
-} | null> {
-  if (Platform.OS === 'web' || !Device.isDevice || typeof Notifications?.getDevicePushTokenAsync !== 'function') {
-    return null;
-  }
-  try {
-    const res = await Notifications.getDevicePushTokenAsync();
-    const raw = typeof res?.data === 'string' ? res.data.trim() : '';
-    if (!raw || EXPO_PUSH_TOKEN_PATTERN.test(raw)) return null;
-    const platform = Platform.OS === 'ios' ? 'ios' : 'android';
-    return { token: raw, platform, transport: platform === 'ios' ? 'APNS_VOIP' : 'FCM_CALL' };
-  } catch {
     return null;
   }
 }

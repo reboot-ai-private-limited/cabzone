@@ -188,7 +188,6 @@ function harness(initialDuty = 'ONLINE') {
           notifyCounterResponseLocal: async () => {},
           notifyIncomingOfferLocal: async () => {},
           registerForPushAsync: async () => 'ExponentPushToken[drv-1]',
-          getNativeCallPushTokenAsync: async () => ({ token: 'fcm-drv-1', platform: 'android', transport: 'FCM_CALL' }),
           listenForPushTokenChanges: () => ({ remove: () => {} }),
         };
       }
@@ -463,7 +462,7 @@ test('tracks unread rider chat messages only on eligible statuses and bumps chat
   await flush();
   assert.equal(beforeCancelRev + 1, h.render().chatRevision);
   assert.equal(h.render().unreadChatRideId, null);
-  assert.deepEqual(JSON.parse(JSON.stringify(h.pushCalls.map((c) => c.slice(1)))), [['ExponentPushToken[drv-1]', 'device-1', { platform: 'android', transport: 'EXPO' }], ['fcm-drv-1', 'device-1', { platform: 'android', transport: 'FCM_CALL' }]]);
+  assert.deepEqual(JSON.parse(JSON.stringify(h.pushCalls.map((c) => c.slice(1)))), [['ExponentPushToken[drv-1]', 'device-1', { platform: 'android', transport: 'EXPO' }]]);
 });
 
 test('completeTrip moves ride to pendingPaymentRide and unblocks new offers immediately', async () => {

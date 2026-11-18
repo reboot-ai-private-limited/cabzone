@@ -330,3 +330,45 @@ describe('C03: SMS gateway & live OTP auth hardening', () => {
     ).rejects.toThrow(/OTP expired or not found/);
   });
 });
+
+describe('Play-review demo accounts (REVIEW_DEMO_PHONES)', () => {
+  const DEMO = '+919999900001';
+
+  it('gives listed numbers the fixed OTP without sending SMS, and everyone else a real OTP via SMS', async () => {
+    const sendOtp = vi.fn().mockResolvedValue(undefined);
+    const otpStore = new MemoryOtpStoreAdapter();
+    const requestOtp = new RequestOtpUseCase({
+      otpStore,
+      smsGateway: { sendOtp },
+      otpPepper: PEPPER,
+      reviewDemo: { phones: [DEMO], otp: '424242' },
+    });
+
+    await requestOtp.execute(DEMO);
+    expect(sendOtp).not.toHaveBeenCalled();
+
+    await requestOtp.execute('+919999900002');
+    expect(sendOtp).toHaveBeenCalledTimes(1);
+    expect(sendOtp.mock.calls[0]?.[1]).not.toBe('424242');
+  });
+
+  it('is allowed in production only when phones and OTP are set together, as E.164, max 3', () => {
+    const prod = { ...baseProdEnv() };
+    expect(() =>
+      validateLoadedEnv({ ...prod, REVIEW_DEMO_PHONES: [DEMO], REVIEW_DEMO_OTP: '424242' } as Env),
+    ).not.toThrow();
+    expect(() =>
+      validateLoadedEnv({ ...prod, REVIEW_DEMO_PHONES: [DEMO] } as Env),
+    ).toThrow(/set together/);
+    expect(() =>
+      validateLoadedEnv({ ...prod, REVIEW_DEMO_PHONES: ['9999900001'], REVIEW_DEMO_OTP: '424242' } as Env),
+    ).toThrow(/E\.164/);
+    expect(() =>
+      validateLoadedEnv({
+        ...prod,
+        REVIEW_DEMO_PHONES: ['+911234567890', '+911234567891', '+911234567892', '+911234567893'],
+        REVIEW_DEMO_OTP: '424242',
+      } as Env),
+    ).toThrow(/up to 3/);
+  });
+});

@@ -500,7 +500,7 @@ describe('Private ride calls API, credentials, push transports, and teardown', (
     expect(unregistered.status).toBe(403);
     expect(unregistered.body.message).toContain('CALL_INSTALLATION_REQUIRED');
 
-    // Register rider & driver installations (EXPO + FCM_CALL) and verify Expo filter
+    // Register rider (EXPO) and a legacy native FCM_CALL driver token (accepted but ignored): only EXPO is sent
     expect(
       (
         await request(s.app)

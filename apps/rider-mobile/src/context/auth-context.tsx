@@ -22,7 +22,6 @@ import {
   subscribeAccessToken,
 } from '@/services/api';
 import {
-  getNativeCallPushTokenAsync,
   listenForPushTokenChanges,
   registerForPushAsync,
 } from '@/services/push-notifications';
@@ -176,15 +175,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .catch((error: unknown) => {
             console.warn('Rider push registration failed:', error);
           });
-      }
-      const nativeCallToken = await getNativeCallPushTokenAsync();
-      if (nativeCallToken && !cancelled) {
-        await pushApi
-          .registerPushToken(token, nativeCallToken.token, installationId, {
-            platform: nativeCallToken.platform,
-            transport: nativeCallToken.transport,
-          })
-          .catch(() => {});
       }
     });
     return () => {

@@ -1,5 +1,7 @@
 # Cabzone Driver: WebSocket + FCM implementation plan
 
+> **Update 2026-11-18:** Push is Expo-only. Tokens are in Mongo with receipts and `DeviceNotRegistered` pruning, every message carries a TTL (default 1h), and priority is `high` except chat (`normal`). Native `FCM_CALL`/`APNS_VOIP` registration was removed from both apps; the server accepts and ignores it from older builds. Closed-app call ringing is a normal ringing notification, not a wake-up data message. Sections below that describe the older in-memory `Map` and missing receipts are historical.
+
 **Status:** implementation guide; the hybrid is not yet complete.  
 **Scope:** driver availability, location, ride offers, lifecycle updates, notification wake-up, recovery and delivery.  
 **Product rule:** REST commands and the database decide every ride transition. Realtime messages and push only announce state that the server has already committed.

@@ -8,6 +8,8 @@ export interface RequestOtpDeps {
   smsGateway: SmsGatewayPort;
   otpPepper: string;
   devFixedOtp?: string | undefined;
+  /** Store-review demo accounts: fixed OTP for these numbers only, no SMS is sent. */
+  reviewDemo?: { phones: readonly string[]; otp: string } | undefined;
   ttlSeconds?: number | undefined;
   cooldownSeconds?: number | undefined;
 }
@@ -36,7 +38,10 @@ export class RequestOtpUseCase {
       }
     }
 
-    const otp = this.deps.devFixedOtp || String(randomInt(100000, 1000000));
+    const isReviewDemo = this.deps.reviewDemo?.phones.includes(phoneE164) ?? false;
+    const otp = isReviewDemo
+      ? this.deps.reviewDemo!.otp
+      : this.deps.devFixedOtp || String(randomInt(100000, 1000000));
     const otpHmac = createHmac('sha256', this.deps.otpPepper).update(otp).digest('hex');
     const expiresAt = new Date(now.getTime() + this.ttlSeconds * 1000);
 
@@ -50,7 +55,7 @@ export class RequestOtpUseCase {
     if (!reserved) throw AppError.badRequest('Please wait before requesting another OTP.');
 
     try {
-      await this.deps.smsGateway.sendOtp(phoneE164, otp);
+      if (!isReviewDemo) await this.deps.smsGateway.sendOtp(phoneE164, otp);
     } catch {
       await this.deps.otpStore.consume(phoneE164, otpHmac, Number.MAX_SAFE_INTEGER);
       throw AppError.internal();

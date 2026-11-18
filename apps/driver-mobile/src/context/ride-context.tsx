@@ -20,7 +20,6 @@ import {
 import {
   notifyCounterResponseLocal,
   notifyIncomingOfferLocal,
-  getNativeCallPushTokenAsync,
   registerForPushAsync,
   listenForPushTokenChanges,
 } from '@/services/push-notifications';
@@ -166,15 +165,6 @@ export function RideProvider({ children }: { children: React.ReactNode }) {
           .catch((error: unknown) => {
             console.warn('Push registration failed:', error);
           });
-      }
-      const nativeCallToken = await getNativeCallPushTokenAsync();
-      if (nativeCallToken && !cancelled) {
-        await dispatchApi
-          .registerPushToken(token, nativeCallToken.token, installationId, {
-            platform: nativeCallToken.platform,
-            transport: nativeCallToken.transport,
-          })
-          .catch(() => {});
       }
     });
     return () => {

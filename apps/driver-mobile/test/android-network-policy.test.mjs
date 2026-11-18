@@ -39,7 +39,11 @@ for (const app of ['driver-mobile', 'rider-mobile']) {
     };
     context.require.resolve = localRequire.resolve;
     vm.runInNewContext(readFileSync(configUrl, 'utf8'), context);
-    if (env.EAS_BUILD_PROFILE === 'production') {
+    // Production builds (EAS profile or a local NODE_ENV=production release) must use HTTPS.
+    const isProduction =
+      env.EAS_BUILD_PROFILE === 'production' ||
+      (env.NODE_ENV === 'production' && !['development', 'preview'].includes(env.EAS_BUILD_PROFILE));
+    if (isProduction) {
       assert.throws(() => context.module.exports({ config: {} }), /HTTPS API origin/);
       env.EXPO_PUBLIC_API_URL = 'http://api.example.com';
       assert.throws(() => context.module.exports({ config: {} }), /HTTPS API origin/);

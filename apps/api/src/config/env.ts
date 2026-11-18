@@ -92,6 +92,25 @@ const schema = z.object({
     .optional(),
 
   /**
+   * Play-review demo accounts. Comma-separated E.164 numbers (max 3) that always receive
+   * REVIEW_DEMO_OTP and are never sent an SMS. Works in production, only for the listed numbers.
+   * Keep REVIEW_DEMO_OTP in a secret store and remove both variables after review.
+   */
+  REVIEW_DEMO_PHONES: z
+    .string()
+    .optional()
+    .transform((v) =>
+      (v ?? '')
+        .split(',')
+        .map((p) => p.trim())
+        .filter(Boolean),
+    ),
+  REVIEW_DEMO_OTP: z
+    .string()
+    .regex(/^\d{6}$/, 'REVIEW_DEMO_OTP must be exactly 6 digits')
+    .optional(),
+
+  /**
    * Trust score rollout (D-048). off: old formula only. shadow: old formula is shown, the new one is
    * computed and the difference logged. on: the new formula is shown.
    */
@@ -225,6 +244,20 @@ export function validateLoadedEnv(data: Env): Env {
       'Invalid environment:\n  DEV_FIXED_OTP: must not be set when NODE_ENV=production. ' +
         'Fixed OTP is strictly forbidden in live production.',
     );
+  }
+
+  const demoPhones = data.REVIEW_DEMO_PHONES ?? [];
+  if (demoPhones.length > 0 || data.REVIEW_DEMO_OTP !== undefined) {
+    if (demoPhones.length === 0 || data.REVIEW_DEMO_OTP === undefined) {
+      throw new Error(
+        'Invalid environment:\n  REVIEW_DEMO_PHONES and REVIEW_DEMO_OTP must be set together.',
+      );
+    }
+    if (demoPhones.length > 3 || demoPhones.some((p) => !/^\+[1-9]\d{7,14}$/.test(p))) {
+      throw new Error(
+        'Invalid environment:\n  REVIEW_DEMO_PHONES: up to 3 E.164 numbers (for example +919999900001).',
+      );
+    }
   }
 
   const requiresRealSms =

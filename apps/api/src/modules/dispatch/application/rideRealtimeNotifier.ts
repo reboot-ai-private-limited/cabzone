@@ -78,6 +78,7 @@ export class RideRealtimeNotifier implements RideNotifierPort, DriverLocationObs
         channelId: message.senderRole === 'RIDER' ? 'ride-offers' : 'ride-updates',
         data: { ...data, type: 'ride.chat.message' },
         expiresAt: new Date(Date.now() + 10 * 60_000),
+        priority: 'normal',
       });
     }
   }
@@ -99,6 +100,7 @@ export class RideRealtimeNotifier implements RideNotifierPort, DriverLocationObs
       channelId?: PushNotificationChannel;
       data?: Record<string, unknown>;
       expiresAt?: Date | null;
+      priority?: 'normal' | 'high';
     },
   ): Promise<void> {
     if (!this.push) return;

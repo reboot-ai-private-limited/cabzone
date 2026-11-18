@@ -237,6 +237,50 @@ describe('ringing push notifications for a closed app', () => {
     expect(sent[1]![0]).toMatchObject({ channelId: 'ride-calls-ring', sound: 'ring_long.wav' });
     expect(sent[2]![0]).toMatchObject({ channelId: 'ride-updates', sound: 'default' });
   });
+
+  it('always sets a TTL (default 1h) and honours normal priority', async () => {
+    const sent: Array<Array<Record<string, unknown>>> = [];
+    const push = new ExpoPushService(
+      new MemoryPushTokenRepository(),
+      new MemoryPushReceiptRepository(),
+      async (messages) => {
+        sent.push(messages);
+        return messages.map(() => ({ status: 'ok' as const, id: 'ticket' }));
+      },
+    );
+    await push.register('driver-user-1', 'install-1', 'ExponentPushToken[abc]');
+    await push.notify(['driver-user-1'], { title: 'Ride update', body: 'Status changed.' });
+    await push.notify(['driver-user-1'], {
+      title: 'Chat',
+      body: 'New message',
+      priority: 'normal',
+      expiresAt: new Date(Date.now() + 600_000),
+    });
+
+    expect(sent[0]![0]).toMatchObject({ ttl: 3600, priority: 'high' });
+    expect(sent[1]![0]).toMatchObject({ priority: 'normal' });
+    expect(Number(sent[1]![0]!.ttl)).toBeGreaterThan(590);
+    expect(Number(sent[1]![0]!.ttl)).toBeLessThanOrEqual(600);
+  });
+
+  it('accepts but ignores legacy native FCM/APNs token registrations', async () => {
+    const sent: Array<Array<Record<string, unknown>>> = [];
+    const push = new ExpoPushService(
+      new MemoryPushTokenRepository(),
+      new MemoryPushReceiptRepository(),
+      async (messages) => {
+        sent.push(messages);
+        return messages.map(() => ({ status: 'ok' as const, id: 'ticket' }));
+      },
+    );
+    expect(
+      await push.register('driver-user-1', 'install-1', 'raw-fcm-device-token-0000001', {
+        transport: 'FCM_CALL',
+      }),
+    ).toBe(true);
+    await push.notify(['driver-user-1'], { title: 'Hi', body: 'There' });
+    expect(sent).toHaveLength(0);
+  });
 });
 
 describe('C06 & C07: Encrypted backup/restore guards, realtime readiness, and redacted alerting', () => {

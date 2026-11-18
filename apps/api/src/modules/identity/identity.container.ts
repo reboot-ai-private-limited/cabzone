@@ -210,6 +210,10 @@ export function buildIdentityContainer(deps?: IdentityContainerDeps): IdentityCo
     otpPepper: env.OTP_PEPPER,
     // Staging always accepts 000000 (rider + driver apps) unless DEV_FIXED_OTP overrides it.
     devFixedOtp: env.DEV_FIXED_OTP ?? (isStaging ? '000000' : undefined),
+    reviewDemo:
+      env.REVIEW_DEMO_PHONES.length > 0 && env.REVIEW_DEMO_OTP
+        ? { phones: env.REVIEW_DEMO_PHONES, otp: env.REVIEW_DEMO_OTP }
+        : undefined,
   });
 
   const verifyOtpUseCase = new VerifyOtpUseCase({
