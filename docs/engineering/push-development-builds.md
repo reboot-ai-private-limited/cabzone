@@ -11,7 +11,7 @@ In `metro.config.js` (`shouldUsePushStub`), the real `expo-notifications` native
 
 ## 2. External Prerequisites (Direct FCM v1 + Gradle)
 
-| Input | Driver App (`in.cabzone.driver`) | Rider App (`in.cabzone.rider`) | Owner |
+| Input | Driver App (`in.cabzone.driver`) | Rider App (`in.cabzone.rider.app`) | Owner |
 | --- | --- | --- | --- |
 | Firebase Android Config | `apps/driver-mobile/google-services.json` (or `DRIVER_GOOGLE_SERVICES_JSON`) | `apps/rider-mobile/google-services.json` (or `RIDER_GOOGLE_SERVICES_JSON`) | Mobile Release Owner |
 | FCM V1 Service Account Key | `FIREBASE_SERVICE_ACCOUNT_PATH` / `FIREBASE_SERVICE_ACCOUNT_JSON` in API `.env` (or `apps/api/firebase-adminsdk.json`) | Same API variable | Platform Ops |

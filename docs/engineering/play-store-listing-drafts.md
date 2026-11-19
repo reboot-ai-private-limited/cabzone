@@ -2,7 +2,7 @@
 
 These are copy drafts for separate Rider and Driver listings. Verify every feature against the final Play-signed build before entering the text in Play Console. Do not claim that live payments or cashout are available until the production drill in the launch register passes.
 
-## Cabzone Rider (`in.cabzone.rider`)
+## Cabzone Rider (`in.cabzone.rider.app`)
 
 **Store title:** Cabzone
 

@@ -24,7 +24,7 @@ Driver: the same with `CABZONE_DRIVER_`. A release task now **fails** if these a
 - Prebuild without `NODE_ENV=production` re-enables cleartext for local dev, so always prebuild with it for a store build.
 
 ## Push
-`google-services.json` (gitignored) must exist in the app folder (`in.cabzone.driver` / `in.cabzone.rider`) so Gradle bundles Firebase config and Android acquires an FCM token directly. On the backend (`apps/api`), configure `FIREBASE_SERVICE_ACCOUNT_PATH` (e.g. `apps/api/firebase-adminsdk.json`) or `FIREBASE_SERVICE_ACCOUNT_JSON` for direct FCM HTTP v1 delivery (no `expo.dev` credentials required for Android).
+`google-services.json` (gitignored) must exist in the app folder (`in.cabzone.driver` / `in.cabzone.rider.app`) so Gradle bundles Firebase config and Android acquires an FCM token directly. On the backend (`apps/api`), configure `FIREBASE_SERVICE_ACCOUNT_PATH` (e.g. `apps/api/firebase-adminsdk.json`) or `FIREBASE_SERVICE_ACCOUNT_JSON` for direct FCM HTTP v1 delivery (no `expo.dev` credentials required for Android).
 
 ## Play-review login
 Set `REVIEW_DEMO_PHONES` and `REVIEW_DEMO_OTP` on the production API (see `apps/api/.env.prod.example`); remove them after review.

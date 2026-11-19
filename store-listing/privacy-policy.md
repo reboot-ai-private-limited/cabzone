@@ -1,7 +1,7 @@
 # Cabzone Privacy Policy
 
 **Effective date:** [DD Month YYYY]
-**Applies to:** the Cabzone rider app (`in.cabzone.rider`) and the Cabzone Driver app (`in.cabzone.driver`), together "the apps".
+**Applies to:** the Cabzone rider app (`in.cabzone.rider.app`) and the Cabzone Driver app (`in.cabzone.driver`), together "the apps".
 
 > Fill in every `[bracketed]` item before publishing, and have a lawyer review this page. It describes what the apps do today, based on the app code.
 

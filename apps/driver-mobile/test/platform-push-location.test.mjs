@@ -79,7 +79,7 @@ assert.equal(resolvedDriver.extra.eas.projectId, '00000000-0000-4000-8000-000000
 assert.equal(resolvedDriver.android.package, 'in.cabzone.driver');
 assert.equal(resolvedDriver.ios.bundleIdentifier, 'in.cabzone.driver');
 assert.equal(resolvedRider.extra.eas.projectId, '00000000-0000-4000-8000-000000000222');
-assert.equal(resolvedRider.android.package, 'in.cabzone.rider');
+assert.equal(resolvedRider.android.package, 'in.cabzone.rider.app');
 assert.equal(resolvedRider.ios.bundleIdentifier, 'in.cabzone.rider');
 
 delete process.env.DRIVER_EAS_PROJECT_ID;

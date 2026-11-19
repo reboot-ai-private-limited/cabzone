@@ -18,7 +18,7 @@ export default function PrivacyPolicyPage() {
 
       <p>
         This Privacy Policy explains how Cabzone collects, uses, shares, and protects personal data
-        across the <strong>Cabzone</strong> (`in.cabzone.rider`) and{' '}
+        across the <strong>Cabzone</strong> (`in.cabzone.rider.app`) and{' '}
         <strong>Cabzone: Driver</strong> (`in.cabzone.driver`) mobile applications and related
         services.
       </p>
