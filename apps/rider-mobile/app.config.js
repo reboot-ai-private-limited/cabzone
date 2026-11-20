@@ -178,6 +178,9 @@ module.exports = ({ config }) => {
     ],
     withCabzoneVoiceCallManifest,
     '@config-plugins/react-native-callkeep',
+    // react-native-maps >= 1.2x ships Google Maps as a podspec subspec; its own plugin wires the iOS key
+    // and Podfile (it removes the Android key unless given one, so pass both). Do NOT use ios.config.googleMapsApiKey: Expo's legacy plugin adds a removed pod.
+    ...(googleMapsApiKey ? [['react-native-maps', { iosGoogleMapsApiKey: googleMapsApiKey, androidGoogleMapsApiKey: googleMapsApiKey }]] : []),
   ];
 
   return {
@@ -186,7 +189,6 @@ module.exports = ({ config }) => {
     ios: {
       ...expo.ios,
       ...(googleServiceInfoPlist ? { googleServicesFile: googleServiceInfoPlist } : {}),
-      ...(googleMapsApiKey ? { config: { ...expo.ios?.config, googleMapsApiKey } } : {}),
     },
     android: {
       ...expo.android,
