@@ -4,6 +4,7 @@ import { emitOperationalAlert } from '../../../shared/monitoring/alerting.js';
 import type { PushTokenMetadata, PushTokenPort } from './pushToken.port.js';
 import type { PushReceiptPort } from './pushReceipt.port.js';
 import { sendToFcm, type FcmPushSender } from './fcmPush.sender.js';
+import { sendToApns, type ApnsPushSender } from './apnsPush.sender.js';
 
 const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
 const EXPO_RECEIPTS_URL = 'https://exp.host/--/api/v2/push/getReceipts';
@@ -98,6 +99,7 @@ export class ExpoPushService {
     private readonly sender: PushSender = sendToExpo,
     private readonly receiptReader: ReceiptReader = readReceipts,
     private readonly fcmSender: FcmPushSender = sendToFcm,
+    private readonly apnsSender: ApnsPushSender = sendToApns,
   ) {}
 
   async register(
@@ -112,6 +114,12 @@ export class ExpoPushService {
     // so accept and ignore instead of failing their registration.
     if (transport === 'FCM_CALL' || transport === 'APNS_VOIP') {
       return NATIVE_DEVICE_TOKEN.test(token);
+    }
+    if (transport === 'APNS') {
+      // APNs device tokens are 64+ hex characters.
+      if (!/^[0-9a-fA-F]{64,200}$/.test(token)) return false;
+      await this.tokens.put(userId, installationId, token, { ...meta, transport: 'APNS' });
+      return true;
     }
     if (transport === 'FCM') {
       if (!NATIVE_DEVICE_TOKEN.test(token) || isExpoToken) return false;
@@ -194,6 +202,42 @@ export class ExpoPushService {
             summary: 'FCM push transport request failed.',
             metadata: { err: String(err), channelId },
           });
+        }
+      }
+
+      const apnsTokens = await this.tokens.list(userIds, 'APNS');
+      if (apnsTokens.length > 0) {
+        try {
+          const results = await this.apnsSender(
+            apnsTokens.map((token) => ({
+              token,
+              title: content.title,
+              body: content.body,
+              sound,
+              priority,
+              ttlSeconds: ttl,
+              data: content.data,
+            })),
+          );
+          for (const [index, result] of results.entries()) {
+            const token = apnsTokens[index];
+            if (!token) continue;
+            if (result.status === 'unregistered') {
+              await this.tokens.removeToken(token);
+            } else if (result.status === 'error') {
+              const reason = result.reason ?? 'unknown';
+              logger.warn({ reason }, 'apns push failed');
+              void emitOperationalAlert({
+                category: 'PUSH_DELIVERY',
+                severity: 'warning',
+                dedupeKey: `PUSH_DELIVERY:apns:${reason}`,
+                summary: `APNs push rejected (${reason}).`,
+                metadata: { reason, channelId },
+              });
+            }
+          }
+        } catch (err) {
+          logger.warn({ err: String(err) }, 'apns push transport failed');
         }
       }
 

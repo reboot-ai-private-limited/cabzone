@@ -162,7 +162,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (cancelled) return;
       const meta = {
         platform: Platform.OS === 'ios' ? ('ios' as const) : ('android' as const),
-        transport: Platform.OS === 'ios' ? ('EXPO' as const) : ('FCM' as const),
+        transport: Platform.OS === 'ios' ? ('APNS' as const) : ('FCM' as const),
       };
       subscription = listenForPushTokenChanges((pushToken) => {
         void pushApi.registerPushToken(token, pushToken, installationId, meta).catch((error: unknown) => {

@@ -144,6 +144,16 @@ const schema = z.object({
   /** Firebase service account JSON (raw JSON or base64) or file path for direct FCM HTTP v1 push */
   FIREBASE_SERVICE_ACCOUNT_JSON: z.string().min(1).optional(),
   FIREBASE_SERVICE_ACCOUNT_PATH: z.string().min(1).optional(),
+  /** Direct APNs (iOS) token auth: .p8 key as PEM / base64, or a file path. */
+  APNS_KEY: z.string().min(1).optional(),
+  APNS_KEY_PATH: z.string().min(1).optional(),
+  APNS_KEY_ID: z.string().min(1).optional(),
+  APNS_TEAM_ID: z.string().min(1).optional(),
+  APNS_BUNDLE_ID: z.string().min(1).default('in.cabzone.rider.app'),
+  APNS_PRODUCTION: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((v) => v === 'true'),
 
   /** Operational alerting and realtime readiness (Step 16 / C07) */
   ALERT_WEBHOOK_URL: z.string().url().optional(),

@@ -1,4 +1,3 @@
-import Constants from 'expo-constants';
 import * as Device from 'expo-device';
 import {
   AndroidAudioContentType,
@@ -8,12 +7,6 @@ import {
 } from 'expo-notifications';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
-
-const EXPO_PUSH_TOKEN_PATTERN = /^Expo(nent)?PushToken\[[^\]]+\]$/;
-
-function resolveEasProjectId(): string | undefined {
-  return Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId ?? undefined;
-}
 
 if (Platform.OS !== 'web' && typeof Notifications?.setNotificationHandler === 'function') {
   try {
@@ -82,20 +75,9 @@ export async function registerForPushAsync(): Promise<string | null> {
     }
     if (status !== 'granted') return null;
 
-    if (Platform.OS === 'android') {
-      const { data } = await Notifications.getDevicePushTokenAsync();
-      return typeof data === 'string' && data.trim() ? data.trim() : null;
-    }
-
-    const projectId = resolveEasProjectId();
-    if (!projectId) {
-      console.warn(
-        'Push registration requires an EAS project ID on iOS.',
-      );
-      return null;
-    }
-    const { data } = await Notifications.getExpoPushTokenAsync({ projectId });
-    return data;
+    // Android: FCM token. iOS: raw APNs device token. Both are sent straight from our API.
+    const { data } = await Notifications.getDevicePushTokenAsync();
+    return typeof data === 'string' && data.trim() ? data.trim() : null;
   } catch (error) {
     console.warn('Rider push registration failed:', error);
     return null;
@@ -117,23 +99,7 @@ export function listenForPushTokenChanges(
       const candidate =
         typeof devicePushToken?.data === 'string' ? devicePushToken.data.trim() : '';
       if (!candidate) return;
-      if (Platform.OS === 'android' || EXPO_PUSH_TOKEN_PATTERN.test(candidate)) {
-        onToken(candidate);
-        return;
-      }
-      const projectId = resolveEasProjectId();
-      if (!projectId || typeof Notifications?.getExpoPushTokenAsync !== 'function') {
-        return;
-      }
-      void Notifications.getExpoPushTokenAsync({ projectId, devicePushToken })
-        .then(({ data }) => {
-          if (typeof data === 'string' && EXPO_PUSH_TOKEN_PATTERN.test(data.trim())) {
-            onToken(data.trim());
-          }
-        })
-        .catch(() => {
-          // Initial registration runs via registerForPushAsync(); ignore transient listener exchange errors.
-        });
+      onToken(candidate);
     });
   } catch {
     return { remove: () => {} };

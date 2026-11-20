@@ -17,7 +17,7 @@ export const RIDE_CALL_TOKEN_TTL_S = 120;
 export const RIDE_CALL_RATE_LIMIT_PER_MIN = 3;
 export const RIDE_CALL_RETENTION_MS = 24 * 60 * 60 * 1000;
 
-export const PUSH_TOKEN_TRANSPORTS = ['FCM', 'EXPO', 'FCM_CALL', 'APNS_VOIP'] as const;
+export const PUSH_TOKEN_TRANSPORTS = ['FCM', 'EXPO', 'FCM_CALL', 'APNS_VOIP', 'APNS'] as const;
 export type PushTokenTransport = (typeof PUSH_TOKEN_TRANSPORTS)[number];
 
 export interface RideCallDto {
