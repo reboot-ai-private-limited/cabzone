@@ -148,6 +148,13 @@ module.exports = ({ config }) => {
       ? './google-services.json'
       : undefined);
 
+  const googleServiceInfoPlist =
+    process.env.RIDER_GOOGLE_SERVICE_INFO_PLIST ||
+    process.env.GOOGLE_SERVICE_INFO_PLIST ||
+    (fs.existsSync(path.resolve(path.dirname(require.resolve('./app.json')), 'GoogleService-Info.plist'))
+      ? './GoogleService-Info.plist'
+      : undefined);
+
   const googleMapsApiKey =
     process.env.RIDER_GOOGLE_MAPS_API_KEY ||
     process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ||
@@ -178,6 +185,7 @@ module.exports = ({ config }) => {
     plugins,
     ios: {
       ...expo.ios,
+      ...(googleServiceInfoPlist ? { googleServicesFile: googleServiceInfoPlist } : {}),
       ...(googleMapsApiKey ? { config: { ...expo.ios?.config, googleMapsApiKey } } : {}),
     },
     android: {
