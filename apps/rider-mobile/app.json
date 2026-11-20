@@ -9,7 +9,15 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "icon": "./assets/images/icon.png",
-      "bundleIdentifier": "in.cabzone.rider"
+      "bundleIdentifier": "in.cabzone.rider.app",
+      "buildNumber": "1",
+      "supportsTablet": false,
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSLocationWhenInUseUsageDescription": "Allow Cabzone to access your location to find pickup points and nearby drivers.",
+        "NSMicrophoneUsageDescription": "Allow Cabzone to access your microphone for private in-app ride calls.",
+        "LSApplicationQueriesSchemes": ["gpay", "phonepe", "paytmmp", "tez", "upi"]
+      }
     },
     "android": {
       "softwareKeyboardLayoutMode": "resize",
